@@ -1,0 +1,13 @@
+# Binaries: 빌드 결과물
+Binaries/
+
+# Intermediate: 중간 산출물
+Intermediate/
+
+# DerivedDataCache: 캐시(있을 때)
+DerivedDataCache/
+
+# VS/IDE
+.vs/
+*.sln
+*.vcxproj*
