@@ -19,6 +19,9 @@ private:
 	// 출력 폴더
 	FString OutputDir;
 
+	// [변수] 출력 파일 접두어 (예: "start_", "end_")
+	FString OutputFilePrefix;
+
 	// 덤프 대상
 	FString DumpTarget;
 
@@ -49,4 +52,7 @@ private:
 
 	// 파일 경로 유틸
 	FString MakePath(const FString& FileName) const;
+
+	// [함수] 출력 파일 경로 생성(접두어 적용)
+	FString MakeOutPath(const FString& FileName) const;
 };

@@ -448,6 +448,9 @@ void USSOTDumpCmdlet::ParseArgs(const FString& CmdLine)
 	// 기본 출력 폴더
 	OutputDir = TEXT("Document/SSOT");
 
+	// [변수] 출력 파일 접두어 기본값(없음)
+	OutputFilePrefix = TEXT("");
+
 	// 기본 덤프 타겟
 	DumpTarget = TEXT("all");
 
@@ -456,7 +459,9 @@ void USSOTDumpCmdlet::ParseArgs(const FString& CmdLine)
 
 	// -out=, -target=, -notime 지원
 	FParse::Value(*CmdLine, TEXT("-out="), OutputDir);
+	FParse::Value(*CmdLine, TEXT("-prefix="), OutputFilePrefix);
 	FParse::Value(*CmdLine, TEXT("-target="), DumpTarget);
+
 	
 	// v0.3b: profile / input_root / autodetect / detect_out 파싱
 	
@@ -497,6 +502,17 @@ FString USSOTDumpCmdlet::MakePath(const FString& FileName) const
 	// 상대 → 절대 경로
 	const FString AbsDir = FPaths::ConvertRelativePathToFull(OutputDir);
 	return FPaths::Combine(AbsDir, FileName);
+}
+
+FString USSOTDumpCmdlet::MakeOutPath(const FString& FileName) const
+{
+	// [변수] 절대 출력 폴더 경로
+	const FString AbsDir = FPaths::ConvertRelativePathToFull(OutputDir);
+
+	// [변수] 접두어 적용된 파일명
+	const FString PrefixedName = OutputFilePrefix + FileName;
+
+	return FPaths::Combine(AbsDir, PrefixedName);
 }
 
 int32 USSOTDumpCmdlet::Main(const FString& CmdLine)

@@ -1,71 +1,98 @@
 @echo off
+setlocal EnableExtensions EnableDelayedExpansion
 REM WorkSession.bat
-REM v0.1
-REM 목적: 작업 시작 시 SSOT 덤프 1회 + 에디터 실행 + 종료 시 SSOT 덤프 1회
+REM v0.3
+REM Purpose:
+REM   1) Run SSOT dump once before work  (Start)
+REM   2) Launch Unreal Editor and wait until it exits
+REM   3) Run SSOT dump once after work   (End)
+REM   4) Rename ssot_*.json -> start_ssot_*.json / end_ssot_*.json for easy distinction
 
-REM [변수] UnrealEditor-Cmd.exe 경로 (SSOTDump 실행용)
+REM [VAR] UnrealEditor-Cmd.exe path (for SSOTDump commandlet)
 set "UnrealCmdPath=D:\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 
-REM [변수] UnrealEditor.exe 경로 (에디터 GUI 실행용)
+REM [VAR] UnrealEditor.exe path (GUI editor)
 set "UnrealGuiPath=D:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe"
 
-REM [변수] uproject 경로
+REM [VAR] .uproject path
 set "UprojectPath=D:\Work\CarFight_git\UE\CarFight_Re.uproject"
 
-REM [변수] SSOT 출력 루트 폴더 (Saved 아래 추천)
+REM [VAR] SSOT output root directory
 set "SsotRootDir=D:\Work\CarFight_git\UE\Saved\SSOT"
 
-REM [변수] 덤프 타겟 (assets / input / wheel / all)
+REM [VAR] Dump target (assets / input / wheel / all)
 set "DumpTarget=all"
 
-REM [변수] 자동탐지 사용 (input_root 하드코딩 방지)
+REM [VAR] Autodetect flag (for input root)
 set "AutoDetectFlag=-autodetect"
 
-REM -------------------------
-REM 1) 작업 시작 덤프
-REM -------------------------
-echo [SSOT] Start dump...
-"%UnrealCmdPath%" "%UprojectPath%" ^
-  -run=SSOTDump ^
-  -out="%SsotRootDir%\Start" ^
-  -target=%DumpTarget% ^
-  %AutoDetectFlag% ^
-  -unattended -nop4 -NullRHI -notime
+REM ---------------------------------
+REM 0) Basic sanity checks
+REM ---------------------------------
+if not exist "%UnrealCmdPath%" (
+  echo [ERROR] UnrealCmdPath not found: "%UnrealCmdPath%"
+  pause
+  exit /b 1
+)
 
-REM [변수] 시작 덤프 결과 코드 저장
+if not exist "%UnrealGuiPath%" (
+  echo [ERROR] UnrealGuiPath not found: "%UnrealGuiPath%"
+  pause
+  exit /b 1
+)
+
+if not exist "%UprojectPath%" (
+  echo [ERROR] UprojectPath not found: "%UprojectPath%"
+  pause
+  exit /b 1
+)
+
+REM ---------------------------------
+REM 1) Start dump
+REM ---------------------------------
+set "StartOutDir=%SsotRootDir%\Start"
+if not exist "%StartOutDir%" mkdir "%StartOutDir%"
+
+echo [SSOT] Start dump...
+"%UnrealCmdPath%" "%UprojectPath%" -run=SSOTDump -out="%StartOutDir%" -target=%DumpTarget% %AutoDetectFlag% -unattended -nop4 -NullRHI -notime
 set "StartDumpCode=%errorlevel%"
 echo [SSOT] Start dump exit code: %StartDumpCode%
 
-REM -------------------------
-REM 2) 에디터 실행 (닫힐 때까지 대기)
-REM -------------------------
+REM Rename: ssot_*.json -> start_ssot_*.json
+for %%F in ("%StartOutDir%\ssot_*.json") do (
+  ren "%%~fF" "start_%%~nxF"
+)
+
+REM ---------------------------------
+REM 2) Launch editor (wait until exit)
+REM ---------------------------------
 echo [UE] Launch editor...
 start "" /wait "%UnrealGuiPath%" "%UprojectPath%"
 
-REM -------------------------
-REM 3) 작업 종료 덤프
-REM -------------------------
-echo [SSOT] End dump...
-"%UnrealCmdPath%" "%UprojectPath%" ^
-  -run=SSOTDump ^
-  -out="%SsotRootDir%\End" ^
-  -target=%DumpTarget% ^
-  %AutoDetectFlag% ^
-  -unattended -nop4 -NullRHI -notime
+REM ---------------------------------
+REM 3) End dump
+REM ---------------------------------
+set "EndOutDir=%SsotRootDir%\End"
+if not exist "%EndOutDir%" mkdir "%EndOutDir%"
 
-REM [변수] 종료 덤프 결과 코드 저장
+echo [SSOT] End dump...
+"%UnrealCmdPath%" "%UprojectPath%" -run=SSOTDump -out="%EndOutDir%" -target=%DumpTarget% %AutoDetectFlag% -unattended -nop4 -NullRHI -notime
 set "EndDumpCode=%errorlevel%"
 echo [SSOT] End dump exit code: %EndDumpCode%
 
-REM -------------------------
-REM 4) 마무리 출력
-REM -------------------------
+REM Rename: ssot_*.json -> end_ssot_*.json
+for %%F in ("%EndOutDir%\ssot_*.json") do (
+  ren "%%~fF" "end_%%~nxF"
+)
+
+REM ---------------------------------
+REM 4) Done
+REM ---------------------------------
 echo.
 echo [DONE] StartDump=%StartDumpCode%  EndDump=%EndDumpCode%
-echo Output:
-echo   %SsotRootDir%\Start
-echo   %SsotRootDir%\End
+echo Output folders:
+echo   %StartOutDir%
+echo   %EndOutDir%
 echo.
-
 pause
 exit /b %EndDumpCode%
