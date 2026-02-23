@@ -1,10 +1,10 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ï»¿// Copyright Epic Games, Inc. All Rights Reserved.
 
 // File: AssetDumpBuild.cs
 // Version: v0.2.6a
 // Changelog:
-// - v0.2.6a: UEdGraphSchema_K2::PC_Exec ¸µÅ© ¿À·ù ÇØ°áÀ» À§ÇØ BlueprintGraph ÀÇÁ¸¼º Ãß°¡(¿¡µğÅÍ ºôµå¿¡¼­¸¸)
-// Purpose: ¿¡µğÅÍ¿¡¼­¸¸ ÇÊ¿äÇÑ ¸ğµâ ÀÇÁ¸¼ºÀ» ¾ÈÀüÇÏ°Ô Ãß°¡
+// - v0.2.6a: UEdGraphSchema_K2::PC_Exec ë§í¬ ì˜¤ë¥˜ í•´ê²°ì„ ìœ„í•´ BlueprintGraph ì˜ì¡´ì„± ì¶”ê°€(ì—ë””í„° ë¹Œë“œì—ì„œë§Œ)
+// Purpose: ì—ë””í„°ì—ì„œë§Œ í•„ìš”í•œ ëª¨ë“ˆ ì˜ì¡´ì„±ì„ ì•ˆì „í•˜ê²Œ ì¶”ê°€
 
 
 using UnrealBuildTool;
@@ -29,36 +29,42 @@ public class AssetDump : ModuleRules
 			);
 
 
-        // PublicDependencyModuleNames: ¿ÜºÎ¿¡ ³ëÃâµÇ´Â API¿¡¼­ ÇÊ¿äÇÑ ¸ğµâ
+        // PublicDependencyModuleNames: ì™¸ë¶€ì— ë…¸ì¶œë˜ëŠ” APIì—ì„œ í•„ìš”í•œ ëª¨ë“ˆ
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
                 "Core",
                 "CoreUObject",
-                "Engine"
+                "Engine",
+                "Json",
+                "AssetRegistry",
+                "GameplayTags",
+                "EnhancedInput"
             }
         );
 
-
-        // PrivateDependencyModuleNames: ³»ºÎ ±¸Çö(.cpp)¿¡¼­ »ç¿ëÇÏ´Â ¸ğµâ(¸µÅ© Æ÷ÇÔ)
+        // AssetDump.Build.cs
+        // v0.2.2 - FKey ë§í¬ë¥¼ ìœ„í•´ InputCore ì˜ì¡´ì„± ì¶”ê°€
+        // PrivateDependencyModuleNames: ë‚´ë¶€ êµ¬í˜„(.cpp)ì—ì„œ ì‚¬ìš©í•˜ëŠ” ëª¨ë“ˆ(ë§í¬ í¬í•¨)
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
                 "AssetRegistry",
                 "Json",
                 "JsonUtilities",
-                "UnrealEd"
+                "UnrealEd",
+                "InputCore",
             }
         );
 
         // Function: AddEditorOnlyDeps
         // Version: v0.2.6a
         // Changelog:
-        // - v0.2.6a: UEdGraphSchema_K2::PC_Exec ¸µÅ© ¿À·ù ÇØ°áÀ» À§ÇØ BlueprintGraph ÀÇÁ¸¼º Ãß°¡(¿¡µğÅÍ ºôµå¿¡¼­¸¸)
-        // Purpose: ¿¡µğÅÍ¿¡¼­¸¸ ÇÊ¿äÇÑ ¸ğµâ ÀÇÁ¸¼ºÀ» ¾ÈÀüÇÏ°Ô Ãß°¡
+        // - v0.2.6a: UEdGraphSchema_K2::PC_Exec ë§í¬ ì˜¤ë¥˜ í•´ê²°ì„ ìœ„í•´ BlueprintGraph ì˜ì¡´ì„± ì¶”ê°€(ì—ë””í„° ë¹Œë“œì—ì„œë§Œ)
+        // Purpose: ì—ë””í„°ì—ì„œë§Œ í•„ìš”í•œ ëª¨ë“ˆ ì˜ì¡´ì„±ì„ ì•ˆì „í•˜ê²Œ ì¶”ê°€
         if (Target.bBuildEditor)
         {
-            // editorOnlyModules: ¿¡µğÅÍ Àü¿ë Blueprint ±×·¡ÇÁ/½ºÅ°¸¶(K2) °ü·Ã ¸ğµâµé
+            // editorOnlyModules: ì—ë””í„° ì „ìš© Blueprint ê·¸ë˜í”„/ìŠ¤í‚¤ë§ˆ(K2) ê´€ë ¨ ëª¨ë“ˆë“¤
             string[] editorOnlyModules =
             {
         "BlueprintGraph"
