@@ -1,19 +1,21 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.2.7
+// Version: v0.2.8
 // Changelog:
-// - v0.2.7: LinksMeta ¿É¼Ç Ãß°¡(links_only¿¡¼­µµ »ç¶÷ÀÌ ÀĞ±â ½¬¿î ÃÖ¼Ò ¸ŞÅ¸¸¦ links¿¡ Æ÷ÇÔ)
-// - v0.2.6: GraphName/LinksOnly/LinkKind ¿É¼Ç Áö¿ø Ãß°¡
-// - v0.2.5: Blueprint ¸µÅ© Áßº¹ Á¦°Å(Output ÇÉ¸¸ ±â·Ï + Å° ±â¹İ Áßº¹ Á¦°Å)
-// - v0.2.3: UE 5.7ÀÇ UEdGraphNode::GetSubGraphs() ½Ã±×´ÏÃ³(ÀÎÀÚ ¾øÀ½, TArray ¹İÈ¯)¿¡ ¸ÂÃç ´Ü¼ø/¾ÈÀüÇÏ°Ô ¼­ºê±×·¡ÇÁ ¼öÁı
-// - v0.2.2: GetSubGraphs ½Ã±×´ÏÃ³ Â÷ÀÌ¸¦ ÅÛÇÃ¸´À¸·Î Èí¼öÇÏ±â À§ÇØ type_traits/utility Ãß°¡
-// - v0.2.0: Blueprint ±×·¡ÇÁ/³ëµå/ÇÉ/¿¬°áÀ» JSONÀ¸·Î ´ıÇÁ
-// - v0.1.2: JSON ÆÄÀÏÀ» UTF-8(BOM ¾øÀ½)·Î °­Á¦ ÀúÀåÇØ¼­ ¼­¹ö JSON ÆÄ½Ì ¾ÈÁ¤È­
-// - v0.1.0: Mode=list|asset|map, Output °æ·Î ÁöÁ¤ Áö¿ø
+// - v0.2.8: asset_details ëª¨ë“œë¥¼ ì¶”ê°€í•˜ê³ , ìˆ˜ì •í•œ êµ¬ê°„ì˜ ê¹¨ì§„ ì£¼ì„ì„ UTF-8ë¡œ ì½íˆê²Œ ì •ë¦¬í•¨.
+// - v0.2.7: links_only ê·¸ë˜í”„ ì¶œë ¥ìš© LinksMeta ì˜µì…˜ ì¶”ê°€.
+// - v0.2.6: GraphName / LinksOnly / LinkKind ì˜µì…˜ ì¶”ê°€.
+// - v0.2.5: Blueprint ë§í¬ ì¤‘ë³µ ì œê±° ê°œì„ .
+// - v0.2.3: ìµœì‹  UE GetSubGraphs ë™ì‘ì— ë§ê²Œ ì„œë¸Œê·¸ë˜í”„ ìˆ˜ì§‘ì„ ê°±ì‹ í•¨.
+// - v0.2.2: ì„œë¸Œê·¸ë˜í”„ ìˆœíšŒë¥¼ ìœ„í•œ í˜¸í™˜ helper ì¶”ê°€.
+// - v0.2.0: Blueprint ê·¸ë˜í”„ JSON ë¤í”„ ì§€ì› ì¶”ê°€.
+// - v0.1.2: JSONì„ BOM ì—†ëŠ” UTF-8ë¡œ ì €ì¥í•˜ë„ë¡ ì •ë¦¬í•¨.
+// - v0.1.0: list / asset / map ë¤í”„ ëª¨ë“œ ì¶”ê°€.
 
 
 #include "AssetDumpCommandlet.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Algo/Sort.h"
 #include "Engine/World.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -28,19 +30,27 @@
 #include "EdGraphSchema_K2.h"
 
 #include "Engine/Blueprint.h"
+#include "Components/ActorComponent.h"
+#include "Components/SceneComponent.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/SCS_Node.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "GameFramework/Actor.h"
+#include "UObject/UnrealType.h"
+
 
 
 int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 {
-	// ½ÇÇà ¸ğµå: list / asset / map
+	// ModeValueëŠ” list / asset / asset_details / map / bpgraph ì¤‘ ì‹¤í–‰ ëª¨ë“œë¥¼ ê³ ë¥¸ë‹¤.
 	FString ModeValue;
-	// Ãâ·Â ÆÄÀÏ °æ·Î
+	// OutputFilePathëŠ” ì €ì¥í•  JSON íŒŒì¼ ê²½ë¡œë‹¤.
 	FString OutputFilePath;
-	// ÇÊÅÍ °æ·Î(¿¹: /Game/Prototype)
+	// FilterPathëŠ” list ëª¨ë“œì—ì„œ ì‚¬ìš©í•  ê²€ìƒ‰ ê²½ë¡œë‹¤. ì˜ˆ: /Game/Prototype
 	FString FilterPath;
-	// ¿¡¼Â °æ·Î(¿¹: /Game/Prototype/Player/BP_PlayerPawn.BP_PlayerPawn)
+	// AssetPathëŠ” asset / asset_details / bpgraph ëª¨ë“œì—ì„œ ì‚¬ìš©í•  ì—ì…‹ ê²½ë¡œë‹¤.
 	FString AssetPath;
-	// ¸Ê ¿¡¼Â °æ·Î(¿¹: /Game/Level/TestMap.TestMap)
+	// MapAssetPathëŠ” map ëª¨ë“œì—ì„œ ì‚¬ìš©í•  ë§µ ê²½ë¡œë‹¤.
 	FString MapAssetPath;
 
 	if (!GetCmdValue(CommandLine, TEXT("Mode="), ModeValue))
@@ -96,6 +106,19 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 			return 2;
 		}
 	}
+	else if (ModeValue.Equals(TEXT("asset_details"), ESearchCase::IgnoreCase))
+	{
+		if (!GetCmdValue(CommandLine, TEXT("Asset="), AssetPath))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Prototype/Player/BP_PlayerPawn.BP_PlayerPawn"));
+			return 1;
+		}
+
+		if (!BuildAssetDetailsJson(AssetPath, JsonText))
+		{
+			return 2;
+		}
+	}
 	else if (ModeValue.Equals(TEXT("bpgraph"), ESearchCase::IgnoreCase))
 	{
 		if (!GetCmdValue(CommandLine, TEXT("Asset="), AssetPath))
@@ -105,19 +128,19 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		}
 
 
-		// GraphNameFilter: ±×·¡ÇÁ ÀÌ¸§ ÇÊÅÍ(¿¹: EventGraph). ºñ¾îÀÖÀ¸¸é ÀüÃ¼ ±×·¡ÇÁ.
+		// GraphNameFilterëŠ” íŠ¹ì • ê·¸ë˜í”„ ì´ë¦„ë§Œ ì¶œë ¥í•˜ë„ë¡ ë²”ìœ„ë¥¼ ì¢íŒë‹¤. ì˜ˆ: EventGraph
 		FString GraphNameFilter;
 		GetCmdValue(CommandLine, TEXT("GraphName="), GraphNameFilter);
 
-		// bLinksOnly: true¸é nodes/pins »ı·«ÇÏ°í links¸¸ ´ıÇÁ
+		// bLinksOnlyê°€ trueë©´ nodes/pinsëŠ” ìƒëµí•˜ê³  linksë§Œ ì¶œë ¥í•œë‹¤.
 		bool bLinksOnly = false;
 		FParse::Bool(*CommandLine, TEXT("LinksOnly="), bLinksOnly);
 
-		// LinkKindText: exec|data|all
+		// LinkKindTextëŠ” exec | data | all ê°’ì„ ë°›ëŠ”ë‹¤.
 		FString LinkKindText;
 		GetCmdValue(CommandLine, TEXT("LinkKind="), LinkKindText);
 
-		// LinkKindFilter: ¹®ÀÚ¿­À» enumÀ¸·Î º¯È¯
+		// LinkKindFilterëŠ” ì»¤ë§¨ë“œë¼ì¸ ë¬¸ìì—´ì„ enum ê°’ìœ¼ë¡œ ë³€í™˜í•œë‹¤.
 		EAssetDumpBpLinkKind LinkKindFilter = EAssetDumpBpLinkKind::All;
 		if (LinkKindText.Equals(TEXT("exec"), ESearchCase::IgnoreCase))
 		{
@@ -133,11 +156,11 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		}
 
 
-		// LinksMetaText: none|min
+		// LinksMetaTextëŠ” none | min ê°’ì„ ë°›ëŠ”ë‹¤.
 		FString LinksMetaText;
 		GetCmdValue(CommandLine, TEXT("LinksMeta="), LinksMetaText);
 
-		// LinksMetaLevel: ¹®ÀÚ¿­À» enumÀ¸·Î º¯È¯
+		// LinksMetaLevelì€ ì»¤ë§¨ë“œë¼ì¸ ë¬¸ìì—´ì„ enum ê°’ìœ¼ë¡œ ë³€í™˜í•œë‹¤.
 		EAssetDumpBpLinksMetaLevel LinksMetaLevel = EAssetDumpBpLinksMetaLevel::None;
 		if (LinksMetaText.Equals(TEXT("min"), ESearchCase::IgnoreCase))
 		{
@@ -171,9 +194,9 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 bool UAssetDumpCommandlet::BuildAssetListJson(const FString& FilterPath, FString& OutJsonText)
 {
-	// AssetRegistry ¸ğµâ
+	// ëª¨ë“  ì—ì…‹ ì˜¤ë¸Œì íŠ¸ë¥¼ ë¡œë“œí•˜ì§€ ì•Šê³  AssetRegistryë¥¼ ì¡°íšŒí•œë‹¤.
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	// °Ë»ö ÇÊÅÍ
+	// ì¬ê·€ ê²€ìƒ‰ìš© íŒ¨í‚¤ì§€ ê²½ë¡œ í•„í„°ë¥¼ êµ¬ì„±í•œë‹¤.
 	FARFilter AssetFilter;
 	AssetFilter.bRecursivePaths = true;
 	AssetFilter.PackagePaths.Add(*FilterPath);
@@ -181,21 +204,21 @@ bool UAssetDumpCommandlet::BuildAssetListJson(const FString& FilterPath, FString
 	TArray<FAssetData> FoundAssets;
 	AssetRegistryModule.Get().GetAssets(AssetFilter, FoundAssets);
 
-	// JSON ·çÆ® ¿ÀºêÁ§Æ®
+	// ë£¨íŠ¸ JSON ì˜¤ë¸Œì íŠ¸ë¥¼ ë§Œë“ ë‹¤.
 	TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
-	// ¿¡¼Â ¹è¿­
+	// ì§ë ¬í™”í•œ ì—ì…‹ í•­ëª©ë“¤ì„ ëª¨ì€ë‹¤.
 	TArray<TSharedPtr<FJsonValue>> AssetArray;
 
 	for (const FAssetData& AssetData : FoundAssets)
 	{
-		// °¢ ¿¡¼Â ¿ÀºêÁ§Æ®
+		// ì—ì…‹ í•­ëª© í•˜ë‚˜ë¥¼ ì§ë ¬í™”í•œë‹¤.
 		TSharedRef<FJsonObject> AssetObject = MakeShared<FJsonObject>();
 
-		// ÆĞÅ°Áö¸í(/Game/...)
+		// íŒ¨í‚¤ì§€ ê²½ë¡œ. ì˜ˆ: /Game/...
 		AssetObject->SetStringField(TEXT("package_name"), AssetData.PackageName.ToString());
-		// ¿ÀºêÁ§Æ® °æ·Î(/Game/...Asset.Asset)
+		// ì „ì²´ ì˜¤ë¸Œì íŠ¸ ê²½ë¡œ. ì˜ˆ: /Game/...Asset.Asset
 		AssetObject->SetStringField(TEXT("object_path"), AssetData.GetObjectPathString());
-		// Å¬·¡½º¸í
+		// ì—ì…‹ í´ë˜ìŠ¤ ì´ë¦„.
 		AssetObject->SetStringField(TEXT("class_name"), AssetData.AssetClassPath.GetAssetName().ToString());
 
 		AssetArray.Add(MakeShared<FJsonValueObject>(AssetObject));
@@ -203,16 +226,16 @@ bool UAssetDumpCommandlet::BuildAssetListJson(const FString& FilterPath, FString
 
 	RootObject->SetArrayField(TEXT("assets"), AssetArray);
 
-	// JSON Á÷·ÄÈ­
+	// JSONìœ¼ë¡œ ì§ë ¬í™”í•œë‹¤.
 	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&OutJsonText);
 	return FJsonSerializer::Serialize(RootObject, JsonWriter);
 }
 
 bool UAssetDumpCommandlet::BuildAssetJson(const FString& AssetPath, FString& OutJsonText)
 {
-	// SoftObjectPath·Î ·Îµå ½Ãµµ
+	// SoftObjectPathë¡œ ì—ì…‹ ë¡œë“œë¥¼ ì‹œë„í•œë‹¤.
 	FSoftObjectPath SoftPath(AssetPath);
-	// ·ÎµåµÈ UObject
+	// ë¡œë“œëœ UObjectë¥¼ ë°›ëŠ”ë‹¤.
 	UObject* LoadedObject = SoftPath.TryLoad();
 
 	if (!LoadedObject)
@@ -221,13 +244,13 @@ bool UAssetDumpCommandlet::BuildAssetJson(const FString& AssetPath, FString& Out
 		return false;
 	}
 
-	// JSON ·çÆ®
+	// ë£¨íŠ¸ JSON ì˜¤ë¸Œì íŠ¸ë¥¼ ë§Œë“ ë‹¤.
 	TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
 	RootObject->SetStringField(TEXT("asset_path"), AssetPath);
 	RootObject->SetStringField(TEXT("object_name"), LoadedObject->GetName());
 	RootObject->SetStringField(TEXT("class_name"), LoadedObject->GetClass()->GetName());
 
-	// AssetRegistry¿¡¼­ Tag¸¦ ÀĞ±â(°¡´ÉÇÑ ¹üÀ§)
+	// AssetRegistryì—ì„œ íƒœê·¸ë¥¼ ì½ì–´ í•¨ê»˜ ê¸°ë¡í•œë‹¤.
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(AssetPath));
 
@@ -242,9 +265,645 @@ bool UAssetDumpCommandlet::BuildAssetJson(const FString& AssetPath, FString& Out
 	return FJsonSerializer::Serialize(RootObject, JsonWriter);
 }
 
+static FString GetAssetDetailsTypeTag(FProperty* Property)
+{
+	if (!Property)
+	{
+		return TEXT("unknown");
+	}
+	if (CastField<FBoolProperty>(Property))
+	{
+		return TEXT("bool");
+	}
+	if (CastField<FIntProperty>(Property))
+	{
+		return TEXT("int32");
+	}
+	if (CastField<FInt8Property>(Property))
+	{
+		return TEXT("int8");
+	}
+	if (CastField<FInt64Property>(Property))
+	{
+		return TEXT("int64");
+	}
+	if (CastField<FFloatProperty>(Property))
+	{
+		return TEXT("float");
+	}
+	if (CastField<FDoubleProperty>(Property))
+	{
+		return TEXT("double");
+	}
+	if (CastField<FStrProperty>(Property))
+	{
+		return TEXT("string");
+	}
+	if (CastField<FNameProperty>(Property))
+	{
+		return TEXT("name");
+	}
+	if (CastField<FTextProperty>(Property))
+	{
+		return TEXT("text");
+	}
+	if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
+	{
+		return ByteProperty->Enum ? TEXT("enum") : TEXT("byte");
+	}
+	if (CastField<FEnumProperty>(Property))
+	{
+		return TEXT("enum");
+	}
+	if (CastField<FClassProperty>(Property))
+	{
+		return TEXT("class_ref");
+	}
+	if (CastField<FObjectPropertyBase>(Property))
+	{
+		return TEXT("object_ref");
+	}
+	if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		return StructProperty->Struct ? StructProperty->Struct->GetName() : TEXT("struct");
+	}
+	if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+	{
+		return FString::Printf(TEXT("array<%s>"), *GetAssetDetailsTypeTag(ArrayProperty->Inner));
+	}
+	if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
+	{
+		return FString::Printf(TEXT("set<%s>"), *GetAssetDetailsTypeTag(SetProperty->ElementProp));
+	}
+	if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
+	{
+		return FString::Printf(TEXT("map<%s,%s>"), *GetAssetDetailsTypeTag(MapProperty->KeyProp), *GetAssetDetailsTypeTag(MapProperty->ValueProp));
+	}
+	if (FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(Property))
+	{
+		return TEXT("soft_object_ref");
+	}
+	if (FSoftClassProperty* SoftClassProperty = CastField<FSoftClassProperty>(Property))
+	{
+		return TEXT("soft_class_ref");
+	}
+	return Property->GetClass()->GetName();
+}
+
+static TSharedPtr<FJsonValue> BuildAssetDetailsValue(FProperty* Property, const void* ValuePointer, int32 RemainingDepth, bool& bOutSupported)
+{
+	bOutSupported = false;
+	if (!Property || !ValuePointer)
+	{
+		return MakeShared<FJsonValueNull>();
+	}
+
+	if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueBoolean>(BoolProperty->GetPropertyValue(ValuePointer));
+	}
+	if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueNumber>(IntProperty->GetPropertyValue(ValuePointer));
+	}
+	if (FInt8Property* Int8Property = CastField<FInt8Property>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueNumber>(Int8Property->GetPropertyValue(ValuePointer));
+	}
+	if (FInt64Property* Int64Property = CastField<FInt64Property>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(LexToString(Int64Property->GetPropertyValue(ValuePointer)));
+	}
+	if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueNumber>(FloatProperty->GetPropertyValue(ValuePointer));
+	}
+	if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueNumber>(DoubleProperty->GetPropertyValue(ValuePointer));
+	}
+	if (FStrProperty* StringProperty = CastField<FStrProperty>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(StringProperty->GetPropertyValue(ValuePointer));
+	}
+	if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(NameProperty->GetPropertyValue(ValuePointer).ToString());
+	}
+	if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
+	{
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(TextProperty->GetPropertyValue(ValuePointer).ToString());
+	}
+	if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
+	{
+		if (ByteProperty->Enum)
+		{
+			TSharedRef<FJsonObject> EnumObject = MakeShared<FJsonObject>();
+			const int64 EnumValue = ByteProperty->GetPropertyValue(ValuePointer);
+			EnumObject->SetStringField(TEXT("value"), LexToString(EnumValue));
+			EnumObject->SetStringField(TEXT("enum_name"), ByteProperty->Enum->GetName());
+			EnumObject->SetStringField(TEXT("enum_value_name"), ByteProperty->Enum->GetNameStringByValue(EnumValue));
+			bOutSupported = true;
+			return MakeShared<FJsonValueObject>(EnumObject);
+		}
+
+		bOutSupported = true;
+		return MakeShared<FJsonValueNumber>(ByteProperty->GetPropertyValue(ValuePointer));
+	}
+	if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+	{
+		TSharedRef<FJsonObject> EnumObject = MakeShared<FJsonObject>();
+		const int64 EnumValue = EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePointer);
+		EnumObject->SetStringField(TEXT("value"), LexToString(EnumValue));
+		if (EnumProperty->GetEnum())
+		{
+			EnumObject->SetStringField(TEXT("enum_name"), EnumProperty->GetEnum()->GetName());
+			EnumObject->SetStringField(TEXT("enum_value_name"), EnumProperty->GetEnum()->GetNameStringByValue(EnumValue));
+		}
+		bOutSupported = true;
+		return MakeShared<FJsonValueObject>(EnumObject);
+	}
+	if (FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
+	{
+		// [v0.1.1] UE 5.7 TObjectPtr í˜¸í™˜: UObjectë¡œ ì½ì€ ë’¤ UClassë¡œ ìºìŠ¤íŒ…í•œë‹¤.
+		UObject* ReferencedObject = ClassProperty->GetObjectPropertyValue(ValuePointer);
+		UClass* ReferencedClass = Cast<UClass>(ReferencedObject);
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(ReferencedClass ? ReferencedClass->GetPathName() : TEXT(""));
+	}
+	if (FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+	{
+		UObject* ReferencedObject = ObjectProperty->GetObjectPropertyValue(ValuePointer);
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(ReferencedObject ? ReferencedObject->GetPathName() : TEXT(""));
+	}
+	if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		if (RemainingDepth <= 0)
+		{
+			return MakeShared<FJsonValueString>(TEXT("max_depth_reached"));
+		}
+		TSharedRef<FJsonObject> StructObject = MakeShared<FJsonObject>();
+		StructObject->SetStringField(TEXT("struct_name"), StructProperty->Struct ? StructProperty->Struct->GetName() : TEXT(""));
+		TArray<TSharedPtr<FJsonValue>> FieldArray;
+		for (TFieldIterator<FProperty> FieldIt(StructProperty->Struct, EFieldIterationFlags::IncludeSuper); FieldIt; ++FieldIt)
+		{
+			FProperty* FieldProperty = *FieldIt;
+			if (!FieldProperty)
+			{
+				continue;
+			}
+			const void* FieldValuePointer = FieldProperty->ContainerPtrToValuePtr<void>(ValuePointer);
+			bool bFieldSupported = false;
+			TSharedRef<FJsonObject> FieldObject = MakeShared<FJsonObject>();
+			FieldObject->SetStringField(TEXT("name"), FieldProperty->GetName());
+			FieldObject->SetStringField(TEXT("type"), GetAssetDetailsTypeTag(FieldProperty));
+			FieldObject->SetField(TEXT("value"), BuildAssetDetailsValue(FieldProperty, FieldValuePointer, RemainingDepth - 1, bFieldSupported));
+			if (!bFieldSupported)
+			{
+				FieldObject->SetStringField(TEXT("unsupported_reason"), TEXT("serializer_not_implemented"));
+			}
+			FieldArray.Add(MakeShared<FJsonValueObject>(FieldObject));
+		}
+		Algo::Sort(FieldArray, [](const TSharedPtr<FJsonValue>& LeftValue, const TSharedPtr<FJsonValue>& RightValue)
+		{
+			const TSharedPtr<FJsonObject>* LeftObject = nullptr;
+			const TSharedPtr<FJsonObject>* RightObject = nullptr;
+			if (!LeftValue.IsValid() || !RightValue.IsValid() || !LeftValue->TryGetObject(LeftObject) || !RightValue->TryGetObject(RightObject) || !LeftObject || !RightObject || !LeftObject->IsValid() || !RightObject->IsValid())
+			{
+				return false;
+			}
+			return (*LeftObject)->GetStringField(TEXT("name")) < (*RightObject)->GetStringField(TEXT("name"));
+		});
+		StructObject->SetArrayField(TEXT("fields"), FieldArray);
+		bOutSupported = true;
+		return MakeShared<FJsonValueObject>(StructObject);
+	}
+	if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+	{
+		if (RemainingDepth <= 0)
+		{
+			return MakeShared<FJsonValueString>(TEXT("max_depth_reached"));
+		}
+		FScriptArrayHelper ArrayHelper(ArrayProperty, ValuePointer);
+		TSharedRef<FJsonObject> ArrayObject = MakeShared<FJsonObject>();
+		ArrayObject->SetStringField(TEXT("inner_type"), GetAssetDetailsTypeTag(ArrayProperty->Inner));
+		TArray<TSharedPtr<FJsonValue>> ElementArray;
+		for (int32 ArrayIndex = 0; ArrayIndex < ArrayHelper.Num(); ++ArrayIndex)
+		{
+			const void* ElementValuePointer = ArrayHelper.GetRawPtr(ArrayIndex);
+			bool bElementSupported = false;
+			ElementArray.Add(BuildAssetDetailsValue(ArrayProperty->Inner, ElementValuePointer, RemainingDepth - 1, bElementSupported));
+		}
+		ArrayObject->SetArrayField(TEXT("elements"), ElementArray);
+		bOutSupported = true;
+		return MakeShared<FJsonValueObject>(ArrayObject);
+	}
+	if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
+	{
+		if (RemainingDepth <= 0)
+		{
+			return MakeShared<FJsonValueString>(TEXT("max_depth_reached"));
+		}
+		FScriptSetHelper SetHelper(SetProperty, ValuePointer);
+		TSharedRef<FJsonObject> SetObject = MakeShared<FJsonObject>();
+		SetObject->SetStringField(TEXT("element_type"), GetAssetDetailsTypeTag(SetProperty->ElementProp));
+		TArray<TSharedPtr<FJsonValue>> ElementArray;
+		for (int32 SetIndex = 0; SetIndex < SetHelper.GetMaxIndex(); ++SetIndex)
+		{
+			if (!SetHelper.IsValidIndex(SetIndex))
+			{
+				continue;
+			}
+			const void* ElementValuePointer = SetHelper.GetElementPtr(SetIndex);
+			bool bElementSupported = false;
+			ElementArray.Add(BuildAssetDetailsValue(SetProperty->ElementProp, ElementValuePointer, RemainingDepth - 1, bElementSupported));
+		}
+		SetObject->SetArrayField(TEXT("elements"), ElementArray);
+		bOutSupported = true;
+		return MakeShared<FJsonValueObject>(SetObject);
+	}
+	if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
+	{
+		if (RemainingDepth <= 0)
+		{
+			return MakeShared<FJsonValueString>(TEXT("max_depth_reached"));
+		}
+		FScriptMapHelper MapHelper(MapProperty, ValuePointer);
+		TSharedRef<FJsonObject> MapObject = MakeShared<FJsonObject>();
+		MapObject->SetStringField(TEXT("key_type"), GetAssetDetailsTypeTag(MapProperty->KeyProp));
+		MapObject->SetStringField(TEXT("value_type"), GetAssetDetailsTypeTag(MapProperty->ValueProp));
+		TArray<TSharedPtr<FJsonValue>> EntryArray;
+		for (int32 MapIndex = 0; MapIndex < MapHelper.GetMaxIndex(); ++MapIndex)
+		{
+			if (!MapHelper.IsValidIndex(MapIndex))
+			{
+				continue;
+			}
+			bool bKeySupported = false;
+			bool bValueSupported = false;
+			TSharedRef<FJsonObject> EntryObject = MakeShared<FJsonObject>();
+			EntryObject->SetField(TEXT("key"), BuildAssetDetailsValue(MapProperty->KeyProp, MapHelper.GetKeyPtr(MapIndex), RemainingDepth - 1, bKeySupported));
+			EntryObject->SetField(TEXT("value"), BuildAssetDetailsValue(MapProperty->ValueProp, MapHelper.GetValuePtr(MapIndex), RemainingDepth - 1, bValueSupported));
+			EntryArray.Add(MakeShared<FJsonValueObject>(EntryObject));
+		}
+		MapObject->SetArrayField(TEXT("entries"), EntryArray);
+		bOutSupported = true;
+		return MakeShared<FJsonValueObject>(MapObject);
+	}
+	if (FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(Property))
+	{
+		const FSoftObjectPtr SoftObjectValue = SoftObjectProperty->GetPropertyValue(ValuePointer);
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(SoftObjectValue.ToSoftObjectPath().ToString());
+	}
+	if (FSoftClassProperty* SoftClassProperty = CastField<FSoftClassProperty>(Property))
+	{
+		const FSoftObjectPtr SoftClassValue = SoftClassProperty->GetPropertyValue(ValuePointer);
+		bOutSupported = true;
+		return MakeShared<FJsonValueString>(SoftClassValue.ToSoftObjectPath().ToString());
+	}
+
+	return MakeShared<FJsonValueString>(TEXT(""));
+}
+
+static bool ShouldIncludeAssetDetailsProperty(FProperty* Property)
+{
+	if (!Property)
+	{
+		return false;
+	}
+
+	const FString PropertyName = Property->GetName();
+	if (PropertyName.StartsWith(TEXT("UberGraphFrame")) || Property->HasAnyPropertyFlags(CPF_Deprecated))
+	{
+		return false;
+	}
+
+	return Property->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible);
+}
+
+static void PopulateAssetDetailsObjectProperties(
+	UStruct* SourceStruct,
+	const void* ContainerPointer,
+	TSharedRef<FJsonObject> TargetObject,
+	int32 MaxDepth
+)
+{
+	TArray<TSharedPtr<FJsonValue>> PropertyArray;
+	TArray<TSharedPtr<FJsonValue>> UnsupportedTypeArray;
+	int32 SupportedPropertyCount = 0;
+	int32 UnsupportedPropertyCount = 0;
+
+	if (SourceStruct && ContainerPointer)
+	{
+		for (TFieldIterator<FProperty> PropertyIt(SourceStruct, EFieldIterationFlags::IncludeSuper); PropertyIt; ++PropertyIt)
+		{
+			FProperty* Property = *PropertyIt;
+			if (!ShouldIncludeAssetDetailsProperty(Property))
+			{
+				continue;
+			}
+
+			TSharedRef<FJsonObject> PropertyObject = MakeShared<FJsonObject>();
+			PropertyObject->SetStringField(TEXT("name"), Property->GetName());
+			PropertyObject->SetStringField(TEXT("owner"), Property->GetOwnerStruct() ? Property->GetOwnerStruct()->GetName() : TEXT(""));
+			PropertyObject->SetStringField(TEXT("type"), GetAssetDetailsTypeTag(Property));
+
+			bool bSupported = false;
+			const void* PropertyValuePointer = Property->ContainerPtrToValuePtr<void>(ContainerPointer);
+			PropertyObject->SetField(TEXT("value"), BuildAssetDetailsValue(Property, PropertyValuePointer, MaxDepth, bSupported));
+			if (!bSupported)
+			{
+				PropertyObject->SetStringField(TEXT("unsupported_reason"), TEXT("serializer_not_implemented"));
+			}
+
+			PropertyArray.Add(MakeShared<FJsonValueObject>(PropertyObject));
+			if (bSupported)
+			{
+				SupportedPropertyCount++;
+			}
+			else
+			{
+				UnsupportedPropertyCount++;
+				TSharedRef<FJsonObject> UnsupportedObject = MakeShared<FJsonObject>();
+				UnsupportedObject->SetStringField(TEXT("name"), Property->GetName());
+				UnsupportedObject->SetStringField(TEXT("type"), Property->GetClass()->GetName());
+				UnsupportedTypeArray.Add(MakeShared<FJsonValueObject>(UnsupportedObject));
+			}
+		}
+	}
+
+	Algo::Sort(PropertyArray, [](const TSharedPtr<FJsonValue>& LeftValue, const TSharedPtr<FJsonValue>& RightValue)
+	{
+		const TSharedPtr<FJsonObject>* LeftObject = nullptr;
+		const TSharedPtr<FJsonObject>* RightObject = nullptr;
+		if (!LeftValue.IsValid() || !RightValue.IsValid() || !LeftValue->TryGetObject(LeftObject) || !RightValue->TryGetObject(RightObject) || !LeftObject || !RightObject || !LeftObject->IsValid() || !RightObject->IsValid())
+		{
+			return false;
+		}
+		return (*LeftObject)->GetStringField(TEXT("name")) < (*RightObject)->GetStringField(TEXT("name"));
+	});
+	Algo::Sort(UnsupportedTypeArray, [](const TSharedPtr<FJsonValue>& LeftValue, const TSharedPtr<FJsonValue>& RightValue)
+	{
+		const TSharedPtr<FJsonObject>* LeftObject = nullptr;
+		const TSharedPtr<FJsonObject>* RightObject = nullptr;
+		if (!LeftValue.IsValid() || !RightValue.IsValid() || !LeftValue->TryGetObject(LeftObject) || !RightValue->TryGetObject(RightObject) || !LeftObject || !RightObject || !LeftObject->IsValid() || !RightObject->IsValid())
+		{
+			return false;
+		}
+		return (*LeftObject)->GetStringField(TEXT("name")) < (*RightObject)->GetStringField(TEXT("name"));
+	});
+
+	TSharedRef<FJsonObject> DetailObject = MakeShared<FJsonObject>();
+	DetailObject->SetArrayField(TEXT("properties"), PropertyArray);
+	DetailObject->SetNumberField(TEXT("supported_property_count"), SupportedPropertyCount);
+	DetailObject->SetNumberField(TEXT("unsupported_property_count"), UnsupportedPropertyCount);
+	DetailObject->SetArrayField(TEXT("unsupported_types"), UnsupportedTypeArray);
+	TargetObject->SetObjectField(TEXT("details"), DetailObject);
+}
+
+bool UAssetDumpCommandlet::BuildAssetDetailsJson(const FString& AssetPath, FString& OutJsonText)
+{
+	// Blueprint ì—ì…‹ì„ ë¡œë“œí•˜ê³  GeneratedClassë¥¼ í•´ì„í•œ ë’¤ CDOë¥¼ ê²€ì‚¬í•œë‹¤.
+	FSoftObjectPath SoftPath(AssetPath);
+	UObject* LoadedObject = SoftPath.TryLoad();
+	if (!LoadedObject)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load asset details source: %s"), *AssetPath);
+		return false;
+	}
+
+	UBlueprint* LoadedBlueprint = Cast<UBlueprint>(LoadedObject);
+	if (!LoadedBlueprint)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Asset is not a UBlueprint: %s (class=%s)"), *AssetPath, *LoadedObject->GetClass()->GetName());
+		return false;
+	}
+
+	UBlueprintGeneratedClass* GeneratedClass = Cast<UBlueprintGeneratedClass>(LoadedBlueprint->GeneratedClass);
+	if (!GeneratedClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to resolve GeneratedClass for asset: %s"), *AssetPath);
+		return false;
+	}
+
+	UObject* DefaultObject = GeneratedClass->GetDefaultObject();
+	if (!DefaultObject)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to resolve CDO for asset: %s"), *AssetPath);
+		return false;
+	}
+
+	TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
+	RootObject->SetStringField(TEXT("asset_path"), AssetPath);
+	RootObject->SetStringField(TEXT("object_name"), LoadedBlueprint->GetName());
+	RootObject->SetStringField(TEXT("class_name"), LoadedBlueprint->GetClass()->GetName());
+	RootObject->SetStringField(TEXT("generated_class"), GeneratedClass->GetName());
+	RootObject->SetStringField(TEXT("read_mode"), TEXT("asset_details"));
+
+	TSharedRef<FJsonObject> ResolverObject = MakeShared<FJsonObject>();
+	ResolverObject->SetBoolField(TEXT("blueprint_loaded"), true);
+	ResolverObject->SetBoolField(TEXT("generated_class_found"), true);
+	ResolverObject->SetBoolField(TEXT("cdo_found"), true);
+
+	TArray<TSharedPtr<FJsonValue>> WarningArray;
+	PopulateAssetDetailsObjectProperties(GeneratedClass, DefaultObject, RootObject, 4);
+	if (RootObject->HasField(TEXT("details")))
+	{
+		RootObject->SetObjectField(TEXT("class_defaults"), RootObject->GetObjectField(TEXT("details")));
+		RootObject->RemoveField(TEXT("details"));
+	}
+
+	TArray<TSharedPtr<FJsonValue>> ComponentArray;
+	TSet<FString> SeenComponentKeys;
+	if (AActor* ActorCDO = Cast<AActor>(DefaultObject))
+	{
+		TInlineComponentArray<UActorComponent*> ActorComponents;
+		ActorCDO->GetComponents(ActorComponents);
+		for (UActorComponent* ActorComponent : ActorComponents)
+		{
+			if (!ActorComponent)
+			{
+				continue;
+			}
+
+			const FString ComponentName = ActorComponent->GetName();
+			const FString ComponentClassName = ActorComponent->GetClass()->GetName();
+			const FString ComponentKey = FString::Printf(TEXT("%s|%s"), *ComponentName, *ComponentClassName);
+			if (SeenComponentKeys.Contains(ComponentKey))
+			{
+				continue;
+			}
+			SeenComponentKeys.Add(ComponentKey);
+
+			TSharedRef<FJsonObject> ComponentObject = MakeShared<FJsonObject>();
+			ComponentObject->SetStringField(TEXT("name"), ComponentName);
+			ComponentObject->SetStringField(TEXT("class_name"), ComponentClassName);
+			ComponentObject->SetStringField(TEXT("source"), TEXT("cdo"));
+			ComponentObject->SetBoolField(TEXT("from_cdo"), true);
+
+			if (USceneComponent* SceneComponent = Cast<USceneComponent>(ActorComponent))
+			{
+				ComponentObject->SetStringField(TEXT("attach_parent"), SceneComponent->GetAttachParent() ? SceneComponent->GetAttachParent()->GetName() : TEXT(""));
+				ComponentObject->SetStringField(TEXT("relative_location"), SceneComponent->GetRelativeLocation().ToString());
+				ComponentObject->SetStringField(TEXT("relative_rotation"), SceneComponent->GetRelativeRotation().ToString());
+				ComponentObject->SetStringField(TEXT("relative_scale3d"), SceneComponent->GetRelativeScale3D().ToString());
+			}
+			PopulateAssetDetailsObjectProperties(ActorComponent->GetClass(), ActorComponent, ComponentObject, 2);
+
+			ComponentArray.Add(MakeShared<FJsonValueObject>(ComponentObject));
+		}
+	}
+
+	if (LoadedBlueprint->SimpleConstructionScript)
+	{
+		const TArray<USCS_Node*>& SCSNodes = LoadedBlueprint->SimpleConstructionScript->GetAllNodes();
+		for (USCS_Node* SCSNode : SCSNodes)
+		{
+			if (!SCSNode || !SCSNode->ComponentTemplate)
+			{
+				continue;
+			}
+
+			UActorComponent* ComponentTemplate = SCSNode->ComponentTemplate;
+			const FString VariableName = SCSNode->GetVariableName().ToString();
+			const FString ComponentName = VariableName.IsEmpty() ? ComponentTemplate->GetName() : VariableName;
+			const FString ComponentClassName = ComponentTemplate->GetClass()->GetName();
+			const FString ComponentKey = FString::Printf(TEXT("%s|%s"), *ComponentName, *ComponentClassName);
+			if (SeenComponentKeys.Contains(ComponentKey))
+			{
+				continue;
+			}
+			SeenComponentKeys.Add(ComponentKey);
+
+			TSharedRef<FJsonObject> ComponentObject = MakeShared<FJsonObject>();
+			ComponentObject->SetStringField(TEXT("name"), ComponentName);
+			ComponentObject->SetStringField(TEXT("class_name"), ComponentClassName);
+			ComponentObject->SetStringField(TEXT("source"), TEXT("blueprint_template"));
+			ComponentObject->SetBoolField(TEXT("from_cdo"), false);
+			ComponentObject->SetStringField(TEXT("scs_variable_name"), VariableName);
+
+			if (USceneComponent* SceneComponent = Cast<USceneComponent>(ComponentTemplate))
+			{
+				ComponentObject->SetStringField(TEXT("attach_parent"), SceneComponent->GetAttachParent() ? SceneComponent->GetAttachParent()->GetName() : TEXT(""));
+				ComponentObject->SetStringField(TEXT("relative_location"), SceneComponent->GetRelativeLocation().ToString());
+				ComponentObject->SetStringField(TEXT("relative_rotation"), SceneComponent->GetRelativeRotation().ToString());
+				ComponentObject->SetStringField(TEXT("relative_scale3d"), SceneComponent->GetRelativeScale3D().ToString());
+			}
+			PopulateAssetDetailsObjectProperties(ComponentTemplate->GetClass(), ComponentTemplate, ComponentObject, 2);
+
+			ComponentArray.Add(MakeShared<FJsonValueObject>(ComponentObject));
+		}
+	}
+
+	Algo::Sort(ComponentArray, [](const TSharedPtr<FJsonValue>& LeftValue, const TSharedPtr<FJsonValue>& RightValue)
+	{
+		const TSharedPtr<FJsonObject>* LeftObject = nullptr;
+		const TSharedPtr<FJsonObject>* RightObject = nullptr;
+		if (!LeftValue.IsValid() || !RightValue.IsValid() || !LeftValue->TryGetObject(LeftObject) || !RightValue->TryGetObject(RightObject) || !LeftObject || !RightObject || !LeftObject->IsValid() || !RightObject->IsValid())
+		{
+			return false;
+		}
+
+		const FString LeftSource = (*LeftObject)->GetStringField(TEXT("source"));
+		const FString RightSource = (*RightObject)->GetStringField(TEXT("source"));
+		if (LeftSource != RightSource)
+		{
+			return LeftSource < RightSource;
+		}
+		return (*LeftObject)->GetStringField(TEXT("name")) < (*RightObject)->GetStringField(TEXT("name"));
+	});
+	RootObject->SetArrayField(TEXT("components"), ComponentArray);
+
+	TArray<TSharedPtr<FJsonValue>> UnsupportedTypeArray;
+	TSet<FString> SeenUnsupportedTypeNames;
+	if (RootObject->HasField(TEXT("class_defaults")))
+	{
+		const TSharedPtr<FJsonObject> ClassDefaultsObject = RootObject->GetObjectField(TEXT("class_defaults"));
+		if (ClassDefaultsObject.IsValid() && ClassDefaultsObject->HasField(TEXT("unsupported_types")))
+		{
+			for (const TSharedPtr<FJsonValue>& UnsupportedTypeValue : ClassDefaultsObject->GetArrayField(TEXT("unsupported_types")))
+			{
+				const TSharedPtr<FJsonObject>* UnsupportedTypeObject = nullptr;
+				if (!UnsupportedTypeValue.IsValid() || !UnsupportedTypeValue->TryGetObject(UnsupportedTypeObject) || !UnsupportedTypeObject || !UnsupportedTypeObject->IsValid())
+				{
+					continue;
+				}
+				const FString UnsupportedTypeName = (*UnsupportedTypeObject)->GetStringField(TEXT("name"));
+				if (SeenUnsupportedTypeNames.Contains(UnsupportedTypeName))
+				{
+					continue;
+				}
+				SeenUnsupportedTypeNames.Add(UnsupportedTypeName);
+				UnsupportedTypeArray.Add(UnsupportedTypeValue);
+			}
+		}
+	}
+	for (const TSharedPtr<FJsonValue>& ComponentValue : ComponentArray)
+	{
+		const TSharedPtr<FJsonObject>* ComponentObject = nullptr;
+		if (!ComponentValue.IsValid() || !ComponentValue->TryGetObject(ComponentObject) || !ComponentObject || !ComponentObject->IsValid())
+		{
+			continue;
+		}
+		if (!(*ComponentObject)->HasField(TEXT("details")))
+		{
+			continue;
+		}
+		const TSharedPtr<FJsonObject> ComponentDetailsObject = (*ComponentObject)->GetObjectField(TEXT("details"));
+		if (!ComponentDetailsObject.IsValid() || !ComponentDetailsObject->HasField(TEXT("unsupported_types")))
+		{
+			continue;
+		}
+		for (const TSharedPtr<FJsonValue>& UnsupportedTypeValue : ComponentDetailsObject->GetArrayField(TEXT("unsupported_types")))
+		{
+			const TSharedPtr<FJsonObject>* UnsupportedTypeObject = nullptr;
+			if (!UnsupportedTypeValue.IsValid() || !UnsupportedTypeValue->TryGetObject(UnsupportedTypeObject) || !UnsupportedTypeObject || !UnsupportedTypeObject->IsValid())
+			{
+				continue;
+			}
+			const FString UnsupportedTypeName = (*UnsupportedTypeObject)->GetStringField(TEXT("name"));
+			if (SeenUnsupportedTypeNames.Contains(UnsupportedTypeName))
+			{
+				continue;
+			}
+			SeenUnsupportedTypeNames.Add(UnsupportedTypeName);
+			UnsupportedTypeArray.Add(UnsupportedTypeValue);
+		}
+	}
+
+	TSharedRef<FJsonObject> DiagnosticsObject = MakeShared<FJsonObject>();
+	if (ComponentArray.Num() == 0)
+	{
+		WarningArray.Add(MakeShared<FJsonValueString>(TEXT("components_empty")));
+	}
+	if (!LoadedBlueprint->SimpleConstructionScript)
+	{
+		WarningArray.Add(MakeShared<FJsonValueString>(TEXT("simple_construction_script_missing")));
+	}
+
+	DiagnosticsObject->SetObjectField(TEXT("resolver"), ResolverObject);
+	DiagnosticsObject->SetArrayField(TEXT("unsupported_types"), UnsupportedTypeArray);
+	DiagnosticsObject->SetArrayField(TEXT("warnings"), WarningArray);
+	RootObject->SetObjectField(TEXT("diagnostics"), DiagnosticsObject);
+
+	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&OutJsonText);
+	return FJsonSerializer::Serialize(RootObject, JsonWriter);
+}
+
 bool UAssetDumpCommandlet::BuildMapJson(const FString& MapAssetPath, FString& OutJsonText)
 {
-	// SoftObjectPath·Î ¿ùµå ·Îµå
+	// SoftObjectPathë¡œ ë§µ ë¡œë“œë¥¼ ì‹œë„í•œë‹¤.
 	FSoftObjectPath SoftPath(MapAssetPath);
 	UObject* LoadedObject = SoftPath.TryLoad();
 
@@ -255,11 +914,11 @@ bool UAssetDumpCommandlet::BuildMapJson(const FString& MapAssetPath, FString& Ou
 		return false;
 	}
 
-	// JSON ·çÆ®
+	// JSON ï¿½ï¿½Æ®
 	TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
 	RootObject->SetStringField(TEXT("map_path"), MapAssetPath);
 
-	// ¾×ÅÍ ¹è¿­
+	// ì•¡í„° ë°°ì—´ì„ ëª¨ì€ë‹¤.
 	TArray<TSharedPtr<FJsonValue>> ActorArray;
 
 	for (AActor* Actor : LoadedWorld->GetCurrentLevel()->Actors)
@@ -269,12 +928,12 @@ bool UAssetDumpCommandlet::BuildMapJson(const FString& MapAssetPath, FString& Ou
 			continue;
 		}
 
-		// ¾×ÅÍ JSON
+		// ì•¡í„° JSON ì˜¤ë¸Œì íŠ¸ë¥¼ ë§Œë“ ë‹¤.
 		TSharedRef<FJsonObject> ActorObject = MakeShared<FJsonObject>();
 		ActorObject->SetStringField(TEXT("actor_name"), Actor->GetName());
 		ActorObject->SetStringField(TEXT("class_name"), Actor->GetClass()->GetName());
 
-		// Æ®·£½ºÆû
+		// íŠ¸ëœìŠ¤í¼ ì •ë³´ë¥¼ ê¸°ë¡í•œë‹¤.
 		const FTransform ActorTransform = Actor->GetActorTransform();
 		TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
 		TransformObject->SetStringField(TEXT("location"), ActorTransform.GetLocation().ToString());
@@ -294,14 +953,14 @@ bool UAssetDumpCommandlet::BuildMapJson(const FString& MapAssetPath, FString& Ou
 // Function: SaveJsonToFile
 // Version: v0.1.2
 // Changelog:
-// - v0.1.2: JSON ÆÄÀÏÀ» UTF-8(BOM ¾øÀ½)·Î °­Á¦ ÀúÀåÇØ¼­ ¼­¹ö JSON ÆÄ½Ì ¾ÈÁ¤È­
+// - v0.1.2: JSON ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ UTF-8(BOM ï¿½ï¿½ï¿½ï¿½)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ø¼ï¿½ ï¿½ï¿½ï¿½ï¿½ JSON ï¿½Ä½ï¿½ ï¿½ï¿½ï¿½ï¿½È­
 
 bool UAssetDumpCommandlet::SaveJsonToFile(const FString& OutputFilePath, const FString& JsonText)
 {
-	// NormalizedPath: Àı´ë °æ·Î·Î Á¤±ÔÈ­
+	// NormalizedPath: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Î·ï¿½ ï¿½ï¿½ï¿½ï¿½È­
 	const FString NormalizedPath = FPaths::ConvertRelativePathToFull(OutputFilePath);
 
-	// EncodingOption: UTF-8(BOM ¾øÀ½)·Î °­Á¦ (ºñASCII Æ÷ÇÔµÅµµ ÀÎÄÚµù Èçµé¸®Áö ¾Ê°Ô)
+	// EncodingOption: UTF-8(BOM ï¿½ï¿½ï¿½ï¿½)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½ASCII ï¿½ï¿½ï¿½ÔµÅµï¿½ ï¿½ï¿½ï¿½Úµï¿½ ï¿½ï¿½é¸®ï¿½ï¿½ ï¿½Ê°ï¿½)
 	const FFileHelper::EEncodingOptions EncodingOption = FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM;
 
 	return FFileHelper::SaveStringToFile(JsonText, *NormalizedPath, EncodingOption);
@@ -310,27 +969,27 @@ bool UAssetDumpCommandlet::SaveJsonToFile(const FString& OutputFilePath, const F
 
 bool UAssetDumpCommandlet::GetCmdValue(const FString& CommandLine, const TCHAR* Key, FString& OutValue)
 {
-	// -Key=Value ÇüÅÂ ÆÄ½Ì
+	// -Key=Value ï¿½ï¿½ï¿½ï¿½ ï¿½Ä½ï¿½
 	return FParse::Value(*CommandLine, Key, OutValue);
 }
 
 // Function: CollectSubGraphsFromNode
 // Version: v0.2.3
 // Changelog:
-// - v0.2.3: UE 5.7ÀÇ UEdGraphNode::GetSubGraphs() ½Ã±×´ÏÃ³(ÀÎÀÚ ¾øÀ½, TArray ¹İÈ¯)¿¡ ¸ÂÃç ´Ü¼ø/¾ÈÀüÇÏ°Ô ¼­ºê±×·¡ÇÁ ¼öÁı
+// - v0.2.3: UE 5.7ï¿½ï¿½ UEdGraphNode::GetSubGraphs() ï¿½Ã±×´ï¿½Ã³(ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½, TArray ï¿½ï¿½È¯)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ü¼ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ ï¿½ï¿½ï¿½ï¿½×·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 
 static void CollectSubGraphsFromNode(UEdGraphNode* SourceNode, TArray<UEdGraph*>& OutSubGraphs)
 {
-	// SourceNode: ¼­ºê±×·¡ÇÁ¸¦ °¡Áø ³ëµå(Äİ·¦½º ±×·¡ÇÁ µî)
+	// SourceNode: ï¿½ï¿½ï¿½ï¿½×·ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½(ï¿½İ·ï¿½ï¿½ï¿½ ï¿½×·ï¿½ï¿½ï¿½ ï¿½ï¿½)
 	if (!SourceNode)
 	{
 		return;
 	}
 
-	// SubGraphsFromNode: UE 5.7 ±âÁØ GetSubGraphs()´Â ÀÎÀÚ ¾øÀÌ TArray¸¦ ¹İÈ¯
+	// SubGraphsFromNode: UE 5.7 ï¿½ï¿½ï¿½ï¿½ GetSubGraphs()ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ TArrayï¿½ï¿½ ï¿½ï¿½È¯
 	const TArray<UEdGraph*> SubGraphsFromNode = SourceNode->GetSubGraphs();
 
-	// OutSubGraphs: °á°ú ¹è¿­¿¡ Ãß°¡
+	// OutSubGraphs: ï¿½ï¿½ï¿½ ï¿½è¿­ï¿½ï¿½ ï¿½ß°ï¿½
 	OutSubGraphs.Append(SubGraphsFromNode);
 }
 
@@ -338,9 +997,9 @@ static void CollectSubGraphsFromNode(UEdGraphNode* SourceNode, TArray<UEdGraph*>
 // Function: BuildBlueprintGraphJson
 // Version: v0.2.6
 // Changelog:
-// - v0.2.6: GraphName/LinksOnly/LinkKind ¿É¼Ç Áö¿ø Ãß°¡
-// - v0.2.5: ¸µÅ© Áßº¹ Á¦°Å À¯Áö
-// - v0.2.2: UEdGraphNode::GetSubGraphs ½Ã±×´ÏÃ³°¡ UE ¹öÀü¸¶´Ù ´Ù¸¥ ¹®Á¦¸¦ SFINAE·Î Èí¼ö
+// - v0.2.6: GraphName/LinksOnly/LinkKind ï¿½É¼ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ß°ï¿½
+// - v0.2.5: ï¿½ï¿½Å© ï¿½ßºï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+// - v0.2.2: UEdGraphNode::GetSubGraphs ï¿½Ã±×´ï¿½Ã³ï¿½ï¿½ UE ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ù¸ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SFINAEï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 	const FString& BlueprintAssetPath,
 	const FString& GraphNameFilter,
@@ -349,10 +1008,10 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 	EAssetDumpBpLinksMetaLevel LinksMetaLevel,
 	FString& OutJsonText
 ) {
-	// SoftPath: ºí·çÇÁ¸°Æ® ¿¡¼Â °æ·Î
+	// SoftPath: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
 	FSoftObjectPath SoftPath(BlueprintAssetPath);
 
-	// LoadedObject: ·ÎµåµÈ UObject
+	// LoadedObject: ï¿½Îµï¿½ï¿½ UObject
 	UObject* LoadedObject = SoftPath.TryLoad();
 	if (!LoadedObject)
 	{
@@ -360,7 +1019,7 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 		return false;
 	}
 
-	// LoadedBlueprint: UBlueprint Ä³½ºÆÃ
+	// LoadedBlueprint: UBlueprint Ä³ï¿½ï¿½ï¿½ï¿½
 	UBlueprint* LoadedBlueprint = Cast<UBlueprint>(LoadedObject);
 	if (!LoadedBlueprint)
 	{
@@ -370,13 +1029,13 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 		return false;
 	}
 
-	// AllGraphs: ºí·çÇÁ¸°Æ®°¡ µé°í ÀÖ´Â ±×·¡ÇÁµéÀ» Á÷Á¢ ¼öÁıÇÑ ¸ñ·Ï
+	// AllGraphs: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½×·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
 	TArray<UEdGraph*> AllGraphs;
 
-	// UniqueGraphs: Áßº¹ Á¦°Å¿ë Set
+	// UniqueGraphs: ï¿½ßºï¿½ ï¿½ï¿½ï¿½Å¿ï¿½ Set
 	TSet<UEdGraph*> UniqueGraphs;
 
-	// [1] UBlueprint ±âº» ±×·¡ÇÁµé ¼öÁı
+	// [1] UBlueprint ï¿½âº» ï¿½×·ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 	for (UEdGraph* Graph : LoadedBlueprint->UbergraphPages)
 	{
 		if (Graph && !UniqueGraphs.Contains(Graph))
@@ -413,7 +1072,7 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 		}
 	}
 
-	// IntermediateGeneratedGraphs´Â ÄÄÆÄÀÏ Áß°£ ±×·¡ÇÁ¶ó ¾øÀ» ¼öµµ ÀÖÀ½(ÀÖÀ¸¸é Æ÷ÇÔ)
+	// IntermediateGeneratedGraphsï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ß°ï¿½ ï¿½×·ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
 	for (UEdGraph* Graph : LoadedBlueprint->IntermediateGeneratedGraphs)
 	{
 		if (Graph && !UniqueGraphs.Contains(Graph))
@@ -423,7 +1082,7 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 		}
 	}
 
-	// [2] ³ëµå°¡ µé°í ÀÖ´Â SubGraph(Äİ·¦½º ±×·¡ÇÁ µî)µµ Ãß°¡ ¼öÁı(¹öÀü/±¸¼º µû¶ó Áß¿ä)
+	// [2] ï¿½ï¿½å°¡ ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ SubGraph(ï¿½İ·ï¿½ï¿½ï¿½ ï¿½×·ï¿½ï¿½ï¿½ ï¿½ï¿½)ï¿½ï¿½ ï¿½ß°ï¿½ ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ß¿ï¿½)
 	bool bAddedNewGraph = true;
 	while (bAddedNewGraph)
 	{
@@ -443,10 +1102,10 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 					continue;
 				}
 
-				// SubGraphs: ³ëµå°¡ °¡Áø ÇÏÀ§ ±×·¡ÇÁµé
+				// SubGraphs: ï¿½ï¿½å°¡ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½×·ï¿½ï¿½ï¿½ï¿½ï¿½
 				TArray<UEdGraph*> SubGraphs;
 
-				// CollectSubGraphsFromNode: ¿£Áø ¹öÀü¿¡ ¸Â´Â GetSubGraphs È£Ãâ·Î ¼öÁı
+				// CollectSubGraphsFromNode: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Â´ï¿½ GetSubGraphs È£ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 				CollectSubGraphsFromNode(Node, SubGraphs);
 
 				for (UEdGraph* SubGraph : SubGraphs)
@@ -463,18 +1122,18 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 	}
 
 
-	// RootObject: JSON ·çÆ®
+	// RootObject: JSON ï¿½ï¿½Æ®
 	TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
 	RootObject->SetStringField(TEXT("asset_path"), BlueprintAssetPath);
 	RootObject->SetStringField(TEXT("blueprint_name"), LoadedBlueprint->GetName());
 
-	// GraphArray: graphs ¹è¿­
+	// GraphArray: graphs ï¿½è¿­
 	TArray<TSharedPtr<FJsonValue>> GraphArray;
 
-	// bHasGraphFilter: ±×·¡ÇÁ ÇÊÅÍ »ç¿ë ¿©ºÎ
+	// bHasGraphFilter: ï¿½×·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 	const bool bHasGraphFilter = !GraphNameFilter.IsEmpty();
 
-	// GraphNameNormalized: ºñ±³¿ë(Æ®¸²)
+	// GraphNameNormalized: ï¿½ñ±³¿ï¿½(Æ®ï¿½ï¿½)
 	const FString GraphNameNormalized = GraphNameFilter.TrimStartAndEnd();
 
 	for (UEdGraph* Graph : AllGraphs)
@@ -484,34 +1143,34 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 			continue;
 		}
 
-		// GraphName: ÇöÀç ±×·¡ÇÁ ÀÌ¸§
+		// GraphName: ï¿½ï¿½ï¿½ï¿½ ï¿½×·ï¿½ï¿½ï¿½ ï¿½Ì¸ï¿½
 		const FString GraphName = Graph->GetName();
 
-		// GraphNameFilter Àû¿ë(´ë¼Ò¹®ÀÚ ¹«½Ã)
+		// GraphNameFilter ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½Ò¹ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
 		if (bHasGraphFilter && !GraphName.Equals(GraphNameNormalized, ESearchCase::IgnoreCase))
 		{
 			continue;
 		}
 
-		// GraphObject: ´ÜÀÏ ±×·¡ÇÁ JSON
+		// GraphObject: ï¿½ï¿½ï¿½ï¿½ ï¿½×·ï¿½ï¿½ï¿½ JSON
 		TSharedRef<FJsonObject> GraphObject = MakeShared<FJsonObject>();
 		GraphObject->SetStringField(TEXT("graph_name"), Graph->GetName());
 		GraphObject->SetStringField(TEXT("graph_class"), Graph->GetClass()->GetName());
 		GraphObject->SetBoolField(TEXT("links_only"), bLinksOnly);
 		GraphObject->SetStringField(TEXT("link_kind"), (LinkKindFilter == EAssetDumpBpLinkKind::Exec) ? TEXT("exec") :
 			(LinkKindFilter == EAssetDumpBpLinkKind::Data) ? TEXT("data") : TEXT("all"));
-		// LinksMetaTextOut: JSON¿¡ ±â·ÏÇÒ links_meta °ª
+		// LinksMetaTextOut: JSONï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ links_meta ï¿½ï¿½
 		const FString LinksMetaTextOut = (LinksMetaLevel == EAssetDumpBpLinksMetaLevel::Min) ? TEXT("min") : TEXT("none");
 		GraphObject->SetStringField(TEXT("links_meta"), LinksMetaTextOut);
 
 
-		// NodeArray: nodes ¹è¿­
+		// NodeArray: nodes ï¿½è¿­
 		TArray<TSharedPtr<FJsonValue>> NodeArray;
-		// LinkArray: links ¹è¿­ (ÇÉ ¿¬°á °ü°è)
+		// LinkArray: links ï¿½è¿­ (ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
 		TArray<TSharedPtr<FJsonValue>> LinkArray;
-		// UniqueLinkKeySet: ¸µÅ© Áßº¹ Á¦°Å¿ë Å° Set(±×·¡ÇÁ ´ÜÀ§)
+		// UniqueLinkKeySet: ï¿½ï¿½Å© ï¿½ßºï¿½ ï¿½ï¿½ï¿½Å¿ï¿½ Å° Set(ï¿½×·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
 		TSet<FString> UniqueLinkKeySet;
-		// bWriteNodesAndPins: true¸é nodes/pins¸¦ JSON¿¡ Æ÷ÇÔ
+		// bWriteNodesAndPins: trueï¿½ï¿½ nodes/pinsï¿½ï¿½ JSONï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 		const bool bWriteNodesAndPins = !bLinksOnly;
 
 
@@ -522,10 +1181,10 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 				continue;
 			}
 
-			// NodeGuidText: ³ëµå GUID ¹®ÀÚ¿­
+			// NodeGuidText: ï¿½ï¿½ï¿½ GUID ï¿½ï¿½ï¿½Ú¿ï¿½
 			const FString NodeGuidText = Node->NodeGuid.ToString(EGuidFormats::DigitsWithHyphens);
 
-			// NodeObject: ³ëµå JSON
+			// NodeObject: ï¿½ï¿½ï¿½ JSON
 			TSharedRef<FJsonObject> NodeObject = MakeShared<FJsonObject>();
 			NodeObject->SetStringField(TEXT("node_guid"), NodeGuidText);
 			NodeObject->SetStringField(TEXT("node_class"), Node->GetClass()->GetName());
@@ -533,10 +1192,10 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 			NodeObject->SetNumberField(TEXT("pos_x"), Node->NodePosX);
 			NodeObject->SetNumberField(TEXT("pos_y"), Node->NodePosY);
 
-			// PinArray: pins ¹è¿­
+			// PinArray: pins ï¿½è¿­
 			TArray<TSharedPtr<FJsonValue>> PinArray;
 
-			// [1] links´Â links_only ¿©ºÎ¿Í ¹«°üÇÏ°Ô ¼öÁıÇØ¾ß ÇÔ
+			// [1] linksï¿½ï¿½ links_only ï¿½ï¿½ï¿½Î¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ø¾ï¿½ ï¿½ï¿½
 			for (UEdGraphPin* Pin : Node->Pins)
 			{
 				if (!Pin)
@@ -544,13 +1203,13 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 					continue;
 				}
 
-				// PinObject: ÇÉ JSON
+				// PinObject: ï¿½ï¿½ JSON
 				TSharedRef<FJsonObject> PinObject = MakeShared<FJsonObject>();
 				PinObject->SetStringField(TEXT("pin_id"), Pin->PinId.ToString(EGuidFormats::DigitsWithHyphens));
 				PinObject->SetStringField(TEXT("pin_name"), Pin->PinName.ToString());
 				PinObject->SetStringField(TEXT("direction"), (Pin->Direction == EGPD_Input) ? TEXT("Input") : TEXT("Output"));
 
-				// PinTypeObject: ÇÉ Å¸ÀÔ JSON (Ä«Å×°í¸®/¼­ºêÄ«Å×°í¸®/¿ÀºêÁ§Æ® Å¸ÀÔ)
+				// PinTypeObject: ï¿½ï¿½ Å¸ï¿½ï¿½ JSON (Ä«ï¿½×°ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½Ä«ï¿½×°ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® Å¸ï¿½ï¿½)
 				TSharedRef<FJsonObject> PinTypeObject = MakeShared<FJsonObject>();
 				PinTypeObject->SetStringField(TEXT("category"), Pin->PinType.PinCategory.ToString());
 				PinTypeObject->SetStringField(TEXT("sub_category"), Pin->PinType.PinSubCategory.ToString());
@@ -562,16 +1221,16 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 
 				PinObject->SetObjectField(TEXT("pin_type"), PinTypeObject);
 
-				// DefaultValue: ±âº»°ª(¹®ÀÚ¿­)
+				// DefaultValue: ï¿½âº»ï¿½ï¿½(ï¿½ï¿½ï¿½Ú¿ï¿½)
 				PinObject->SetStringField(TEXT("default_value"), Pin->DefaultValue);
 
 				PinArray.Add(MakeShared<FJsonValueObject>(PinObject));
 
-				// AppendPinLinks È£Ãâ(¸µÅ© ÇÊÅÍ Àû¿ëµÊ)
+				// AppendPinLinks È£ï¿½ï¿½(ï¿½ï¿½Å© ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½)
 				AppendPinLinks(Pin, NodeGuidText, LinkArray, UniqueLinkKeySet, LinkKindFilter, LinksMetaLevel);
 			}
 
-			// [2] nodes/pins JSONÀº ¿É¼ÇÀÏ ¶§¸¸ »ı¼º
+			// [2] nodes/pins JSONï¿½ï¿½ ï¿½É¼ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 			if (!bWriteNodesAndPins)
 			{
 				continue;
@@ -589,7 +1248,7 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 
 	RootObject->SetArrayField(TEXT("graphs"), GraphArray);
 
-	// JsonWriter: JSON Á÷·ÄÈ­
+	// JsonWriter: JSON ï¿½ï¿½ï¿½ï¿½È­
 	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&OutJsonText);
 	return FJsonSerializer::Serialize(RootObject, JsonWriter);
 }
@@ -598,12 +1257,12 @@ bool UAssetDumpCommandlet::BuildBlueprintGraphJson(
 // Function: AppendPinLinks
 // Version: v0.2.7
 // Changelog:
-// - v0.2.7: LinksMeta=minÀÏ ¶§ links¿¡ ÃÖ¼Ò ¸ŞÅ¸(³ëµå Å¸ÀÌÆ²/ÇÉ ÀÌ¸§/Ä«Å×°í¸®) ÀÎ¶óÀÎ Æ÷ÇÔ
-// - v0.2.6: LinkKindFilter(exec/data/all) Áö¿ø Ãß°¡
-// - v0.2.5: ¸µÅ© Áßº¹ Á¦°Å
-//		1) Output ÇÉ¿¡¼­¸¸ ¸µÅ©¸¦ ±â·ÏÇØ ¹æÇâÀ» °íÁ¤(Output -> Input)
-//		2) (FromNodeGuid|FromPinId|ToNodeGuid|ToPinId) Å°·Î TSet Áßº¹ Á¦°Å
-// - v0.2.0: Pin->LinkedTo ±â¹İ ¸µÅ©(From/To) JSON »ı¼º
+// - v0.2.7: LinksMeta=minï¿½ï¿½ ï¿½ï¿½ linksï¿½ï¿½ ï¿½Ö¼ï¿½ ï¿½ï¿½Å¸(ï¿½ï¿½ï¿½ Å¸ï¿½ï¿½Æ²/ï¿½ï¿½ ï¿½Ì¸ï¿½/Ä«ï¿½×°ï¿½ï¿½ï¿½) ï¿½Î¶ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+// - v0.2.6: LinkKindFilter(exec/data/all) ï¿½ï¿½ï¿½ï¿½ ï¿½ß°ï¿½
+// - v0.2.5: ï¿½ï¿½Å© ï¿½ßºï¿½ ï¿½ï¿½ï¿½ï¿½
+//		1) Output ï¿½É¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Å©ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½(Output -> Input)
+//		2) (FromNodeGuid|FromPinId|ToNodeGuid|ToPinId) Å°ï¿½ï¿½ TSet ï¿½ßºï¿½ ï¿½ï¿½ï¿½ï¿½
+// - v0.2.0: Pin->LinkedTo ï¿½ï¿½ï¿½ ï¿½ï¿½Å©(From/To) JSON ï¿½ï¿½ï¿½ï¿½
 void UAssetDumpCommandlet::AppendPinLinks(
 	UEdGraphPin* FromPin,
 	const FString& FromNodeGuid,
@@ -613,22 +1272,22 @@ void UAssetDumpCommandlet::AppendPinLinks(
 	EAssetDumpBpLinksMetaLevel LinksMetaLevel
 )
 {
-	// FromPin: ¸µÅ©¸¦ ½ÃÀÛÇÏ´Â ÇÉ(±âÁØ ÇÉ)
+	// FromPin: ï¿½ï¿½Å©ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½)
 	if (!FromPin)
 	{
 		return;
 	}
 
-	// Output ÇÉ¿¡¼­¸¸ ±â·Ï(Áßº¹ ¹æÇâ »ı¼º ¹æÁö)
+	// Output ï¿½É¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½(ï¿½ßºï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
 	if (FromPin->Direction != EGPD_Output)
 	{
 		return;
 	}
 
-	// bIsExecLink: exec ¸µÅ©ÀÎÁö ÆÇº°(FromPin ±âÁØ)
+	// bIsExecLink: exec ï¿½ï¿½Å©ï¿½ï¿½ï¿½ï¿½ ï¿½Çºï¿½(FromPin ï¿½ï¿½ï¿½ï¿½)
 	const bool bIsExecLink = (FromPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec);
 
-	// LinkKindFilter Àû¿ë
+	// LinkKindFilter ï¿½ï¿½ï¿½ï¿½
 	if (LinkKindFilter == EAssetDumpBpLinkKind::Exec && !bIsExecLink)
 	{
 		return;
@@ -638,36 +1297,36 @@ void UAssetDumpCommandlet::AppendPinLinks(
 		return;
 	}
 
-	// FromPinIdText: ½ÃÀÛ ÇÉ ID ¹®ÀÚ¿­
+	// FromPinIdText: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ID ï¿½ï¿½ï¿½Ú¿ï¿½
 	const FString FromPinIdText = FromPin->PinId.ToString(EGuidFormats::DigitsWithHyphens);
 
-	// FromNode: ½ÃÀÛ ÇÉÀÇ ¼ÒÀ¯ ³ëµå
+	// FromNode: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
 	UEdGraphNode* FromNode = FromPin->GetOwningNode();
 
 	for (UEdGraphPin* ToPin : FromPin->LinkedTo)
 	{
-		// ToPin: ¿¬°áµÈ »ó´ë ÇÉ
+		// ToPin: ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½
 		if (!ToPin || !ToPin->GetOwningNode())
 		{
 			continue;
 		}
 
-		// Input ÇÉÀ¸·Î¸¸ ¿¬°áÀ» ±â·Ï(¹æÇâ ÀÏ°ü¼º)
+		// Input ï¿½ï¿½ï¿½ï¿½ï¿½Î¸ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ ï¿½Ï°ï¿½ï¿½ï¿½)
 		if (ToPin->Direction != EGPD_Input)
 		{
 			continue;
 		}
 
-		// ToNode: »ó´ë ÇÉÀÇ ¼ÒÀ¯ ³ëµå
+		// ToNode: ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
 		UEdGraphNode* ToNode = ToPin->GetOwningNode();
 
-		// ToNodeGuidText: »ó´ë ³ëµå GUID ¹®ÀÚ¿­
+		// ToNodeGuidText: ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ GUID ï¿½ï¿½ï¿½Ú¿ï¿½
 		const FString ToNodeGuidText = ToNode->NodeGuid.ToString(EGuidFormats::DigitsWithHyphens);
 
-		// ToPinIdText: »ó´ë ÇÉ ID ¹®ÀÚ¿­
+		// ToPinIdText: ï¿½ï¿½ï¿½ ï¿½ï¿½ ID ï¿½ï¿½ï¿½Ú¿ï¿½
 		const FString ToPinIdText = ToPin->PinId.ToString(EGuidFormats::DigitsWithHyphens);
 
-		// LinkKey: ¸µÅ© Áßº¹ Á¦°Å¿ë Å°
+		// LinkKey: ï¿½ï¿½Å© ï¿½ßºï¿½ ï¿½ï¿½ï¿½Å¿ï¿½ Å°
 		const FString LinkKey = FString::Printf(
 			TEXT("%s|%s|%s|%s"),
 			*FromNodeGuid,
@@ -676,45 +1335,45 @@ void UAssetDumpCommandlet::AppendPinLinks(
 			*ToPinIdText
 		);
 
-		// ÀÌ¹Ì Ãß°¡µÈ ¸µÅ©¸é ½ºÅµ
+		// ï¿½Ì¹ï¿½ ï¿½ß°ï¿½ï¿½ï¿½ ï¿½ï¿½Å©ï¿½ï¿½ ï¿½ï¿½Åµ
 		if (InOutUniqueLinkKeys.Contains(LinkKey))
 		{
 			continue;
 		}
 
-		// UniqueLinkKeySet¿¡ µî·Ï
+		// UniqueLinkKeySetï¿½ï¿½ ï¿½ï¿½ï¿½
 		InOutUniqueLinkKeys.Add(LinkKey);
 
-		// LinkObject: JSON ¸µÅ© ¿ÀºêÁ§Æ®
+		// LinkObject: JSON ï¿½ï¿½Å© ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®
 		TSharedRef<FJsonObject> LinkObject = MakeShared<FJsonObject>();
 		LinkObject->SetStringField(TEXT("from_node_guid"), FromNodeGuid);
 		LinkObject->SetStringField(TEXT("from_pin_id"), FromPinIdText);
 		LinkObject->SetStringField(TEXT("to_node_guid"), ToNodeGuidText);
 		LinkObject->SetStringField(TEXT("to_pin_id"), ToPinIdText);
 
-		// LinksMetaLevel == MinÀÏ ¶§: »ç¶÷ÀÌ ÀĞ±â ½¬¿î ÃÖ¼Ò ¸ŞÅ¸¸¦ ÀÎ¶óÀÎ Æ÷ÇÔ
+		// LinksMetaLevel == Minï¿½ï¿½ ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ğ±ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ö¼ï¿½ ï¿½ï¿½Å¸ï¿½ï¿½ ï¿½Î¶ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 		if (LinksMetaLevel == EAssetDumpBpLinksMetaLevel::Min)
 		{
-			// FromNodeTitle: ½ÃÀÛ ³ëµå Å¸ÀÌÆ²
+			// FromNodeTitle: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ Å¸ï¿½ï¿½Æ²
 			const FString FromNodeTitle = FromNode
 				? FromNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString()
 				: TEXT("");
 
-			// ToNodeTitle: »ó´ë ³ëµå Å¸ÀÌÆ²
+			// ToNodeTitle: ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ Å¸ï¿½ï¿½Æ²
 			const FString ToNodeTitle = ToNode
 				? ToNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString()
 				: TEXT("");
 
-			// FromPinName: ½ÃÀÛ ÇÉ ÀÌ¸§
+			// FromPinName: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ì¸ï¿½
 			const FString FromPinName = FromPin->PinName.ToString();
 
-			// ToPinName: »ó´ë ÇÉ ÀÌ¸§
+			// ToPinName: ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ì¸ï¿½
 			const FString ToPinName = ToPin->PinName.ToString();
 
-			// FromPinCategory: ½ÃÀÛ ÇÉ Ä«Å×°í¸®(exec µî)
+			// FromPinCategory: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ Ä«ï¿½×°ï¿½ï¿½ï¿½(exec ï¿½ï¿½)
 			const FString FromPinCategory = FromPin->PinType.PinCategory.ToString();
 
-			// ToPinCategory: »ó´ë ÇÉ Ä«Å×°í¸®
+			// ToPinCategory: ï¿½ï¿½ï¿½ ï¿½ï¿½ Ä«ï¿½×°ï¿½ï¿½ï¿½
 			const FString ToPinCategory = ToPin->PinType.PinCategory.ToString();
 
 			LinkObject->SetStringField(TEXT("from_node_title"), FromNodeTitle);
