@@ -13,6 +13,8 @@
 
 
 #include "AssetDumpCommandlet.h"
+#include "ADumpRunOpts.h"
+#include "ADumpService.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Algo/Sort.h"
@@ -118,6 +120,85 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		{
 			return 2;
 		}
+	}
+	else if (ModeValue.Equals(TEXT("bpdump"), ESearchCase::IgnoreCase))
+	{
+		if (!GetCmdValue(CommandLine, TEXT("Asset="), AssetPath))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Prototype/Player/BP_PlayerPawn.BP_PlayerPawn"));
+			return 1;
+		}
+
+		// DumpRunOpts는 공통 서비스에 전달할 통합 실행 옵션이다.
+		FADumpRunOpts DumpRunOpts;
+		DumpRunOpts.AssetObjectPath = AssetPath;
+		DumpRunOpts.SourceKind = EADumpSourceKind::Commandlet;
+		DumpRunOpts.OutputFilePath = OutputFilePath;
+		DumpRunOpts.bIncludeSummary = true;
+		DumpRunOpts.bIncludeDetails = false;
+		DumpRunOpts.bIncludeGraphs = false;
+		DumpRunOpts.bIncludeReferences = false;
+
+		FParse::Bool(*CommandLine, TEXT("IncludeSummary="), DumpRunOpts.bIncludeSummary);
+		FParse::Bool(*CommandLine, TEXT("IncludeDetails="), DumpRunOpts.bIncludeDetails);
+		FParse::Bool(*CommandLine, TEXT("IncludeGraphs="), DumpRunOpts.bIncludeGraphs);
+		FParse::Bool(*CommandLine, TEXT("IncludeReferences="), DumpRunOpts.bIncludeReferences);
+		FParse::Bool(*CommandLine, TEXT("CompileBeforeDump="), DumpRunOpts.bCompileBeforeDump);
+		FParse::Bool(*CommandLine, TEXT("SkipIfUpToDate="), DumpRunOpts.bSkipIfUpToDate);
+		FParse::Bool(*CommandLine, TEXT("LinksOnly="), DumpRunOpts.bLinksOnly);
+		GetCmdValue(CommandLine, TEXT("GraphName="), DumpRunOpts.GraphNameFilter);
+
+		FString LinkKindText;
+		GetCmdValue(CommandLine, TEXT("LinkKind="), LinkKindText);
+		if (LinkKindText.Equals(TEXT("exec"), ESearchCase::IgnoreCase))
+		{
+			DumpRunOpts.LinkKind = EADumpLinkKind::Exec;
+		}
+		else if (LinkKindText.Equals(TEXT("data"), ESearchCase::IgnoreCase))
+		{
+			DumpRunOpts.LinkKind = EADumpLinkKind::Data;
+		}
+		else
+		{
+			DumpRunOpts.LinkKind = EADumpLinkKind::All;
+		}
+
+		FString LinksMetaText;
+		GetCmdValue(CommandLine, TEXT("LinksMeta="), LinksMetaText);
+		if (LinksMetaText.Equals(TEXT("min"), ESearchCase::IgnoreCase))
+		{
+			DumpRunOpts.LinksMeta = EADumpLinksMeta::Min;
+		}
+		else
+		{
+			DumpRunOpts.LinksMeta = EADumpLinksMeta::None;
+		}
+
+		// 새 통합 모드에서는 Summary를 기본으로 켜고, 다른 섹션은 명시적으로만 사용한다.
+		if (!FParse::Param(*CommandLine, TEXT("UseDefaults")))
+		{
+			DumpRunOpts.bIncludeSummary = true;
+		}
+
+		FADumpService DumpService;
+		FADumpResult DumpResult;
+		if (!DumpService.DumpBlueprint(DumpRunOpts, DumpResult))
+		{
+			FString SaveErrorMessage;
+			DumpService.SaveDumpJson(DumpRunOpts.ResolveOutputFilePath(), DumpResult, SaveErrorMessage);
+			UE_LOG(LogTemp, Error, TEXT("BPDump failed for asset: %s"), *AssetPath);
+			return 2;
+		}
+
+		FString SaveErrorMessage;
+		if (!DumpService.SaveDumpJson(DumpRunOpts.ResolveOutputFilePath(), DumpResult, SaveErrorMessage))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to save BPDump json: %s"), *SaveErrorMessage);
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved BPDump JSON: %s"), *DumpRunOpts.ResolveOutputFilePath());
+		return 0;
 	}
 	else if (ModeValue.Equals(TEXT("bpgraph"), ESearchCase::IgnoreCase))
 	{
