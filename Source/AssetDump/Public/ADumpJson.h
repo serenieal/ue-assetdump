@@ -1,6 +1,7 @@
 // File: ADumpJson.h
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 출력 폴더/파일 경로 해석과 자산별 파일명 규칙 helper 추가.
 // - v0.1.0: BPDump 공통 JSON 직렬화/저장 helper 추가.
 
 #pragma once
@@ -13,6 +14,9 @@ namespace ADumpJson
 {
 	// BuildDefaultOutputFilePath는 AssetObjectPath 기준 기본 dump.json 저장 경로를 계산한다.
 	FString BuildDefaultOutputFilePath(const FString& AssetObjectPath);
+
+	// ResolveOutputFilePath는 사용자 입력이 폴더면 자산별 파일명을 조합하고, 파일이면 그대로 사용한다.
+	FString ResolveOutputFilePath(const FString& UserOutputPath, const FString& AssetObjectPath);
 
 	// BuildTempOutputFilePath는 원자적 교체를 위한 임시 파일 경로를 계산한다.
 	FString BuildTempOutputFilePath(const FString& FinalOutputFilePath);

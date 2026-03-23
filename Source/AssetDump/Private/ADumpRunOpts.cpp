@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 경로 입력시 폴더면 자산별 파일명, 파일이면 그대로 적용하도록 수정.
 // - v0.1.0: 실행 옵션 검증, 기본 저장 경로 계산, 요청 스냅샷 helper 추가.
 
 #include "ADumpRunOpts.h"
@@ -19,17 +20,12 @@ bool FADumpRunOpts::HasAnySectionEnabled() const
 
 FString FADumpRunOpts::ResolveOutputFilePath() const
 {
-	if (!OutputFilePath.IsEmpty())
-	{
-		return OutputFilePath;
-	}
-
-	return ADumpJson::BuildDefaultOutputFilePath(AssetObjectPath);
+	// ResolveOutputFilePath는 사용자 입력이 비어 있거나, 폴더이거나, 파일인 경우를 모두 공통 규칙으로 해석한다.
+	return ADumpJson::ResolveOutputFilePath(OutputFilePath, AssetObjectPath);
 }
 
 FADumpRequestInfo FADumpRunOpts::BuildRequestInfo() const
 {
-	// RequestInfo는 실행 시점 옵션을 결과 JSON에 그대로 남기기 위한 스냅샷이다.
 	FADumpRequestInfo RequestInfo;
 	RequestInfo.SourceKind = SourceKind;
 	RequestInfo.bIncludeSummary = bIncludeSummary;

@@ -1,6 +1,8 @@
 // File: ADumpJson.cpp
-// Version: v0.1.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: 전체 JSON 직렬화 본문 복구 및 자산별 출력 파일명 규칙 반영.
+// - v0.2.0: 출력 폴더/파일 경로 해석 helper 추가.
 // - v0.1.0: dump.json 공통 직렬화, 기본 경로 계산, 안전 저장 로직 추가.
 
 #include "ADumpJson.h"
@@ -14,8 +16,8 @@
 
 namespace
 {
-	// GetSafeAssetFolderName은 AssetObjectPath에서 폴더명으로 안전한 에셋 이름을 추출한다.
-	FString GetSafeAssetFolderName(const FString& InAssetObjectPath)
+	// GetSafeAssetFileNameBase는 AssetObjectPath에서 파일명으로 안전한 에셋 이름을 추출한다.
+	FString GetSafeAssetFileNameBase(const FString& InAssetObjectPath)
 	{
 		FString AssetName = FPackageName::ObjectPathToObjectName(InAssetObjectPath);
 		if (AssetName.IsEmpty())
@@ -27,6 +29,34 @@ namespace
 		AssetName.ReplaceInline(TEXT("/"), TEXT("_"));
 		AssetName.ReplaceInline(TEXT("\\"), TEXT("_"));
 		return AssetName;
+	}
+
+	// BuildDumpFileName은 자산별 최종 dump 파일명을 만든다.
+	FString BuildDumpFileName(const FString& InAssetObjectPath)
+	{
+		return FString::Printf(TEXT("%s.dump.json"), *GetSafeAssetFileNameBase(InAssetObjectPath));
+	}
+
+	// IsDirectoryLikePath는 사용자 입력이 파일 경로보다 디렉터리 경로에 가까운지 판단한다.
+	bool IsDirectoryLikePath(const FString& InUserOutputPath)
+	{
+		if (InUserOutputPath.IsEmpty())
+		{
+			return true;
+		}
+
+		if (InUserOutputPath.EndsWith(TEXT("/")) || InUserOutputPath.EndsWith(TEXT("\\")))
+		{
+			return true;
+		}
+
+		if (IFileManager::Get().DirectoryExists(*InUserOutputPath))
+		{
+			return true;
+		}
+
+		const FString Extension = FPaths::GetExtension(InUserOutputPath, false);
+		return Extension.IsEmpty();
 	}
 
 	// MakeIssueObject는 issue 한 건을 JSON object로 변환한다.
@@ -54,14 +84,12 @@ namespace
 		PropertyObject->SetStringField(TEXT("value_text"), InPropertyItem.ValueText);
 		PropertyObject->SetBoolField(TEXT("is_override"), InPropertyItem.bIsOverride);
 
-		// ValueJsonField는 값 직렬화가 가능한 경우 구조화 데이터를 그대로 유지한다.
 		TSharedPtr<FJsonValue> ValueJsonField = InPropertyItem.ValueJson;
 		if (!ValueJsonField.IsValid())
 		{
 			ValueJsonField = MakeShared<FJsonValueNull>();
 		}
 		PropertyObject->SetField(TEXT("value_json"), ValueJsonField);
-
 		return PropertyObject;
 	}
 
@@ -81,7 +109,6 @@ namespace
 			PropertyArray.Add(MakeShared<FJsonValueObject>(MakePropertyObject(PropertyItem)));
 		}
 		ComponentObject->SetArrayField(TEXT("properties"), PropertyArray);
-
 		return ComponentObject;
 	}
 
@@ -133,7 +160,6 @@ namespace
 			PinArray.Add(MakeShared<FJsonValueObject>(MakePinObject(PinItem)));
 		}
 		NodeObject->SetArrayField(TEXT("pins"), PinArray);
-
 		return NodeObject;
 	}
 
@@ -171,7 +197,6 @@ namespace
 			LinkArray.Add(MakeShared<FJsonValueObject>(MakeLinkObject(LinkItem)));
 		}
 		GraphObject->SetArrayField(TEXT("links"), LinkArray);
-
 		return GraphObject;
 	}
 
@@ -191,15 +216,31 @@ namespace ADumpJson
 {
 	FString BuildDefaultOutputFilePath(const FString& AssetObjectPath)
 	{
-		// AssetFolderName은 Saved/BPDump 아래에 자산별 결과 폴더를 만든다.
-		const FString AssetFolderName = GetSafeAssetFolderName(AssetObjectPath);
-		return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"), AssetFolderName, TEXT("dump.json"));
+		const FString AssetName = GetSafeAssetFileNameBase(AssetObjectPath);
+		return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"), AssetName, BuildDumpFileName(AssetObjectPath));
+	}
+
+	FString ResolveOutputFilePath(const FString& UserOutputPath, const FString& AssetObjectPath)
+	{
+		if (UserOutputPath.IsEmpty())
+		{
+			return BuildDefaultOutputFilePath(AssetObjectPath);
+		}
+
+		if (IsDirectoryLikePath(UserOutputPath))
+		{
+			return FPaths::Combine(UserOutputPath, BuildDumpFileName(AssetObjectPath));
+		}
+
+		return UserOutputPath;
 	}
 
 	FString BuildTempOutputFilePath(const FString& FinalOutputFilePath)
 	{
 		const FString DirectoryPath = FPaths::GetPath(FinalOutputFilePath);
-		return FPaths::Combine(DirectoryPath, TEXT("dump.tmp.json"));
+		const FString BaseFileName = FPaths::GetBaseFilename(FinalOutputFilePath, false);
+		const FString TempFileName = FString::Printf(TEXT("%s.tmp.json"), *BaseFileName);
+		return FPaths::Combine(DirectoryPath, TempFileName);
 	}
 
 	TSharedRef<FJsonObject> MakeResultObject(const FADumpResult& InDumpResult)
@@ -249,7 +290,6 @@ namespace ADumpJson
 		RootObject->SetObjectField(TEXT("summary"), SummaryObject);
 
 		TSharedRef<FJsonObject> DetailsObject = MakeShared<FJsonObject>();
-
 		TArray<TSharedPtr<FJsonValue>> ClassDefaultsArray;
 		for (const FADumpPropertyItem& PropertyItem : InDumpResult.Details.ClassDefaults)
 		{
@@ -263,7 +303,6 @@ namespace ADumpJson
 			ComponentArray.Add(MakeShared<FJsonValueObject>(MakeComponentObject(ComponentItem)));
 		}
 		DetailsObject->SetArrayField(TEXT("components"), ComponentArray);
-
 		RootObject->SetObjectField(TEXT("details"), DetailsObject);
 
 		TArray<TSharedPtr<FJsonValue>> GraphArray;
@@ -321,7 +360,6 @@ namespace ADumpJson
 		ProgressObject->SetNumberField(TEXT("total_units"), InDumpResult.Progress.TotalUnits);
 		ProgressObject->SetBoolField(TEXT("is_cancelable"), InDumpResult.Progress.bIsCancelable);
 		RootObject->SetObjectField(TEXT("progress"), ProgressObject);
-
 		return RootObject;
 	}
 
@@ -345,7 +383,6 @@ namespace ADumpJson
 	{
 		OutErrorMessage.Reset();
 
-		// OutputDirectory는 저장 대상 폴더다.
 		const FString OutputDirectory = FPaths::GetPath(FinalOutputFilePath);
 		if (!OutputDirectory.IsEmpty() && !IFileManager::Get().MakeDirectory(*OutputDirectory, true))
 		{
@@ -353,7 +390,6 @@ namespace ADumpJson
 			return false;
 		}
 
-		// TempOutputPath는 먼저 기록할 임시 파일 경로다.
 		const FString TempOutputPath = BuildTempOutputFilePath(FinalOutputFilePath);
 		if (!FFileHelper::SaveStringToFile(JsonText, *TempOutputPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
 		{
@@ -377,7 +413,6 @@ namespace ADumpJson
 
 	bool SaveResultToFile(const FString& FinalOutputFilePath, const FADumpResult& InDumpResult, FString& OutErrorMessage)
 	{
-		// JsonText는 결과 구조를 문자열로 직렬화한 dump.json 본문이다.
 		FString JsonText;
 		if (!SerializeResult(InDumpResult, JsonText, true))
 		{

@@ -1,107 +1,15 @@
 // File: ADumpService.cpp
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
-// - v0.1.0: summary 기반 BPDump 첫 실행 경로와 저장 경로 추가.
+// - v0.2.0: FADumpService 클래스 구현을 추가하고 요약/상세/그래프 오케스트레이션을 연결.
+// - v0.1.0: 임시 그래프 서비스 골격을 제거하고 헤더 기준 구현으로 정리.
 
 #include "ADumpService.h"
 
+#include "ADumpDetailExt.h"
+#include "ADumpGraphExt.h"
 #include "ADumpJson.h"
 #include "ADumpSummaryExt.h"
-
-bool FADumpService::DumpBlueprint(const FADumpRunOpts& InRunOpts, FADumpResult& OutResult)
-{
-	// OutResult는 실행 시작 시 기본 메타 정보를 채워 초기화한다.
-	OutResult = FADumpResult::CreateDefault();
-	OutResult.Request = InRunOpts.BuildRequestInfo();
-	OutResult.Progress.CurrentPhase = EADumpPhase::Prepare;
-	OutResult.Progress.PhaseLabel = TEXT("Prepare");
-	OutResult.Progress.DetailLabel = TEXT("Initializing dump request");
-	OutResult.Progress.Percent01 = 0.0;
-	OutResult.Progress.bIsCancelable = true;
-
-	if (!InRunOpts.IsValid())
-	{
-		AddIssue(
-			OutResult,
-			TEXT("INVALID_RUN_OPTIONS"),
-			TEXT("Run options are invalid. Asset path is empty or all sections are disabled."),
-			EADumpIssueSeverity::Error,
-			EADumpPhase::Prepare,
-			InRunOpts.AssetObjectPath);
-		FinalizeStatus(OutResult);
-		return false;
-	}
-
-	if (bIsCancelRequested)
-	{
-		AddIssue(
-			OutResult,
-			TEXT("USER_CANCELED"),
-			TEXT("Dump canceled before start."),
-			EADumpIssueSeverity::Warning,
-			EADumpPhase::Canceled,
-			InRunOpts.AssetObjectPath);
-		OutResult.DumpStatus = EADumpStatus::Canceled;
-		OutResult.Progress.CurrentPhase = EADumpPhase::Canceled;
-		OutResult.Progress.PhaseLabel = TEXT("Canceled");
-		OutResult.Progress.DetailLabel = TEXT("Canceled before start");
-		return false;
-	}
-
-	bool bAnySectionSucceeded = false;
-
-	if (InRunOpts.bIncludeSummary)
-	{
-		OutResult.Progress.CurrentPhase = EADumpPhase::Summary;
-		OutResult.Progress.PhaseLabel = TEXT("Summary");
-		OutResult.Progress.DetailLabel = TEXT("Extracting blueprint summary");
-		OutResult.Progress.Percent01 = 0.35;
-
-		if (ADumpSummaryExt::ExtractSummary(
-			InRunOpts.AssetObjectPath,
-			OutResult.Asset,
-			OutResult.Summary,
-			OutResult.Issues))
-		{
-			bAnySectionSucceeded = true;
-		}
-	}
-
-	if (!InRunOpts.bIncludeSummary)
-	{
-		AddIssue(
-			OutResult,
-			TEXT("SUMMARY_DISABLED"),
-			TEXT("Summary section is disabled in current run options."),
-			EADumpIssueSeverity::Info,
-			EADumpPhase::Summary,
-			InRunOpts.AssetObjectPath);
-	}
-
-	OutResult.Progress.CurrentPhase = EADumpPhase::Complete;
-	OutResult.Progress.PhaseLabel = TEXT("Complete");
-	OutResult.Progress.DetailLabel = TEXT("Dump extraction finished");
-	OutResult.Progress.Percent01 = 1.0;
-	OutResult.Progress.bIsCancelable = false;
-
-	FinalizeStatus(OutResult);
-	return bAnySectionSucceeded && OutResult.DumpStatus != EADumpStatus::Failed;
-}
-
-bool FADumpService::SaveDumpJson(const FString& InFilePath, const FADumpResult& InResult, FString& OutErrorMessage) const
-{
-	return ADumpJson::SaveResultToFile(InFilePath, InResult, OutErrorMessage);
-}
-
-void FADumpService::CancelDump()
-{
-	bIsCancelRequested = true;
-}
-
-bool FADumpService::IsCancelRequested() const
-{
-	return bIsCancelRequested;
-}
 
 void FADumpService::AddIssue(
 	FADumpResult& InOutResult,
@@ -122,38 +30,145 @@ void FADumpService::AddIssue(
 
 void FADumpService::FinalizeStatus(FADumpResult& InOutResult) const
 {
-	bool bHasError = false;
-	bool bHasWarning = false;
+	if (bIsCancelRequested)
+	{
+		InOutResult.DumpStatus = EADumpStatus::Canceled;
+		InOutResult.Progress.CurrentPhase = EADumpPhase::Canceled;
+		InOutResult.Progress.PhaseLabel = TEXT("Canceled");
+		return;
+	}
 
+	bool bHasErrorIssue = false;
 	for (const FADumpIssue& IssueItem : InOutResult.Issues)
 	{
 		if (IssueItem.Severity == EADumpIssueSeverity::Error)
 		{
-			bHasError = true;
+			bHasErrorIssue = true;
+			break;
 		}
-		else if (IssueItem.Severity == EADumpIssueSeverity::Warning)
+	}
+
+	const bool bHasExtractedData =
+		!InOutResult.Asset.AssetObjectPath.IsEmpty() ||
+		!InOutResult.Graphs.IsEmpty() ||
+		InOutResult.Details.ClassDefaults.Num() > 0 ||
+		InOutResult.Details.Components.Num() > 0 ||
+		!InOutResult.Summary.ParentClassPath.IsEmpty() ||
+		InOutResult.Summary.GraphCount > 0 ||
+		InOutResult.Summary.VariableCount > 0;
+
+	if (bHasErrorIssue)
+	{
+		InOutResult.DumpStatus = bHasExtractedData ? EADumpStatus::PartialSuccess : EADumpStatus::Failed;
+	}
+	else
+	{
+		InOutResult.DumpStatus = EADumpStatus::Succeeded;
+	}
+
+	InOutResult.Progress.CurrentPhase = EADumpPhase::Complete;
+	InOutResult.Progress.PhaseLabel = TEXT("Complete");
+	InOutResult.Progress.Percent01 = 1.0;
+}
+
+bool FADumpService::DumpBlueprint(const FADumpRunOpts& InRunOpts, FADumpResult& OutResult)
+{
+	OutResult = FADumpResult::CreateDefault();
+	OutResult.Request = InRunOpts.BuildRequestInfo();
+	OutResult.Progress.CurrentPhase = EADumpPhase::Prepare;
+	OutResult.Progress.PhaseLabel = TEXT("Prepare");
+	OutResult.Progress.DetailLabel = InRunOpts.AssetObjectPath;
+	OutResult.Progress.bIsCancelable = true;
+
+	if (!InRunOpts.IsValid())
+	{
+		AddIssue(
+			OutResult,
+			TEXT("INVALID_RUN_OPTS"),
+			TEXT("Run options are invalid or no dump section is enabled."),
+			EADumpIssueSeverity::Error,
+			EADumpPhase::Prepare,
+			InRunOpts.AssetObjectPath);
+		FinalizeStatus(OutResult);
+		return false;
+	}
+
+	bool bAllRequestedSectionsSucceeded = true;
+
+	if (InRunOpts.bIncludeSummary)
+	{
+		OutResult.Progress.CurrentPhase = EADumpPhase::Summary;
+		OutResult.Progress.PhaseLabel = TEXT("Summary");
+		if (!ADumpSummaryExt::ExtractSummary(InRunOpts.AssetObjectPath, OutResult.Asset, OutResult.Summary, OutResult.Issues))
 		{
-			bHasWarning = true;
+			bAllRequestedSectionsSucceeded = false;
 		}
 	}
 
-	if (InOutResult.DumpStatus == EADumpStatus::Canceled)
+	if (bIsCancelRequested)
 	{
-		return;
+		FinalizeStatus(OutResult);
+		return false;
 	}
 
-	const bool bHasSummaryData = !InOutResult.Asset.AssetObjectPath.IsEmpty();
-	if (bHasSummaryData && !bHasError)
+	if (InRunOpts.bIncludeDetails)
 	{
-		InOutResult.DumpStatus = bHasWarning ? EADumpStatus::PartialSuccess : EADumpStatus::Succeeded;
-		return;
+		OutResult.Progress.CurrentPhase = EADumpPhase::Details;
+		OutResult.Progress.PhaseLabel = TEXT("Details");
+		if (!ADumpDetailExt::ExtractDetails(InRunOpts.AssetObjectPath, OutResult.Asset, OutResult.Details, OutResult.Issues, OutResult.Perf))
+		{
+			bAllRequestedSectionsSucceeded = false;
+		}
 	}
 
-	if (bHasSummaryData && bHasError)
+	if (bIsCancelRequested)
 	{
-		InOutResult.DumpStatus = EADumpStatus::PartialSuccess;
-		return;
+		FinalizeStatus(OutResult);
+		return false;
 	}
 
-	InOutResult.DumpStatus = EADumpStatus::Failed;
+	if (InRunOpts.bIncludeGraphs)
+	{
+		OutResult.Progress.CurrentPhase = EADumpPhase::Graphs;
+		OutResult.Progress.PhaseLabel = TEXT("Graphs");
+		if (!ADumpGraphExt::ExtractGraphs(InRunOpts.AssetObjectPath, InRunOpts, OutResult.Asset, OutResult.Graphs, OutResult.Issues, OutResult.Perf))
+		{
+			bAllRequestedSectionsSucceeded = false;
+		}
+	}
+
+	if (bIsCancelRequested)
+	{
+		FinalizeStatus(OutResult);
+		return false;
+	}
+
+	if (InRunOpts.bIncludeReferences)
+	{
+		AddIssue(
+			OutResult,
+			TEXT("REFERENCES_NOT_IMPLEMENTED"),
+			TEXT("Reference extraction is not implemented yet in this plugin version."),
+			EADumpIssueSeverity::Warning,
+			EADumpPhase::References,
+			InRunOpts.AssetObjectPath);
+	}
+
+	FinalizeStatus(OutResult);
+	return bAllRequestedSectionsSucceeded && OutResult.DumpStatus != EADumpStatus::Failed && OutResult.DumpStatus != EADumpStatus::Canceled;
+}
+
+bool FADumpService::SaveDumpJson(const FString& InFilePath, const FADumpResult& InResult, FString& OutErrorMessage) const
+{
+	return ADumpJson::SaveResultToFile(InFilePath, InResult, OutErrorMessage);
+}
+
+void FADumpService::CancelDump()
+{
+	bIsCancelRequested = true;
+}
+
+bool FADumpService::IsCancelRequested() const
+{
+	return bIsCancelRequested;
 }

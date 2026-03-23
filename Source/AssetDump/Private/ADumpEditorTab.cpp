@@ -1,6 +1,7 @@
 // File: ADumpEditorTab.cpp
-// Version: v0.1.1
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 옵션 체크박스 UI와 공통 dump 버튼 처리 추가.
 // - v0.1.1: UE 5.7 빌드 오류 수정을 위해 SVerticalBox 헤더 include 경로를 SBoxPanel로 교체.
 // - v0.1.0: Slate 기반 AssetDump Editor Tab 위젯 구현 추가.
 
@@ -11,6 +12,7 @@
 #include "HAL/PlatformProcess.h"
 #include "Misc/Paths.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSeparator.h"
@@ -44,7 +46,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("AssetDumpSubtitle", "Summary-first Editor panel for Blueprint dump generation."))
+				.Text(LOCTEXT("AssetDumpSubtitle", "Editor panel for Blueprint dump generation."))
 			]
 
 			+ SVerticalBox::Slot()
@@ -84,6 +86,70 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
 			[
 				SNew(STextBlock)
+				.Text(LOCTEXT("DumpOptionsLabel", "Dump Options"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SADumpEditorTab::GetIncludeSummaryCheckState)
+				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeSummaryCheckStateChanged)
+				.ToolTipText(LOCTEXT("IncludeSummaryTooltip", "Include the summary section in dump.json."))
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("IncludeSummaryLabel", "Include Summary"))
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SADumpEditorTab::GetIncludeDetailsCheckState)
+				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeDetailsCheckStateChanged)
+				.ToolTipText(LOCTEXT("IncludeDetailsTooltip", "Request the details section. The current service reports this as not implemented yet."))
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("IncludeDetailsLabel", "Include Details"))
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SADumpEditorTab::GetIncludeGraphsCheckState)
+				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeGraphsCheckStateChanged)
+				.ToolTipText(LOCTEXT("IncludeGraphsTooltip", "Request the graphs section. The current service reports this as not implemented yet."))
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("IncludeGraphsLabel", "Include Graphs"))
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SADumpEditorTab::GetIncludeReferencesCheckState)
+				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeReferencesCheckStateChanged)
+				.ToolTipText(LOCTEXT("IncludeReferencesTooltip", "Request the references section. The current service reports this as not implemented yet."))
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("IncludeReferencesLabel", "Include References"))
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock)
 				.Text(LOCTEXT("OutputPathLabel", "Output File Path"))
 			]
 
@@ -100,8 +166,8 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 			.Padding(0.0f, 10.0f, 0.0f, 0.0f)
 			[
 				SNew(SButton)
-				.Text(LOCTEXT("DumpSelectedSummaryButton", "Dump Selected Summary"))
-				.OnClicked(this, &SADumpEditorTab::HandleDumpSelectedSummaryClicked)
+				.Text(LOCTEXT("DumpSelectedButton", "Dump Selected Blueprint"))
+				.OnClicked(this, &SADumpEditorTab::HandleDumpSelectedClicked)
 			]
 
 			+ SVerticalBox::Slot()
@@ -168,13 +234,19 @@ FReply SADumpEditorTab::HandleRefreshSelectionClicked()
 	return FReply::Handled();
 }
 
-FReply SADumpEditorTab::HandleDumpSelectedSummaryClicked()
+FReply SADumpEditorTab::HandleDumpSelectedClicked()
 {
-	// OutputFilePathText는 사용자가 직접 지정한 dump.json 경로 입력값이다.
 	const FString OutputFilePathText = OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString();
 
 	FString DumpMessage;
-	if (UADumpEditorApi::DumpSelectedBlueprintSummary(OutputFilePathText, ResolvedOutputFilePath, DumpMessage))
+	if (UADumpEditorApi::DumpSelectedBlueprint(
+		OutputFilePathText,
+		bIncludeSummary,
+		bIncludeDetails,
+		bIncludeGraphs,
+		bIncludeReferences,
+		ResolvedOutputFilePath,
+		DumpMessage))
 	{
 		StatusMessage = DumpMessage;
 		if (OutputPathTextBox.IsValid())
@@ -190,7 +262,6 @@ FReply SADumpEditorTab::HandleDumpSelectedSummaryClicked()
 
 FReply SADumpEditorTab::HandleOpenOutputFolderClicked()
 {
-	// OutputFilePathToOpen는 마지막 저장 결과를 기준으로 열 폴더 경로를 계산한다.
 	const FString OutputFilePathToOpen = !ResolvedOutputFilePath.IsEmpty()
 		? ResolvedOutputFilePath
 		: (OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString());
@@ -211,6 +282,46 @@ FReply SADumpEditorTab::HandleOpenOutputFolderClicked()
 	FPlatformProcess::ExploreFolder(*OutputDirectoryPath);
 	StatusMessage = TEXT("Opened the output folder.");
 	return FReply::Handled();
+}
+
+void SADumpEditorTab::HandleIncludeSummaryCheckStateChanged(ECheckBoxState InNewState)
+{
+	bIncludeSummary = (InNewState == ECheckBoxState::Checked);
+}
+
+void SADumpEditorTab::HandleIncludeDetailsCheckStateChanged(ECheckBoxState InNewState)
+{
+	bIncludeDetails = (InNewState == ECheckBoxState::Checked);
+}
+
+void SADumpEditorTab::HandleIncludeGraphsCheckStateChanged(ECheckBoxState InNewState)
+{
+	bIncludeGraphs = (InNewState == ECheckBoxState::Checked);
+}
+
+void SADumpEditorTab::HandleIncludeReferencesCheckStateChanged(ECheckBoxState InNewState)
+{
+	bIncludeReferences = (InNewState == ECheckBoxState::Checked);
+}
+
+ECheckBoxState SADumpEditorTab::GetIncludeSummaryCheckState() const
+{
+	return bIncludeSummary ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+ECheckBoxState SADumpEditorTab::GetIncludeDetailsCheckState() const
+{
+	return bIncludeDetails ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+ECheckBoxState SADumpEditorTab::GetIncludeGraphsCheckState() const
+{
+	return bIncludeGraphs ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+ECheckBoxState SADumpEditorTab::GetIncludeReferencesCheckState() const
+{
+	return bIncludeReferences ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 FText SADumpEditorTab::GetSelectedAssetText() const

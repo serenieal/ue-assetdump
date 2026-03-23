@@ -1,6 +1,7 @@
 // File: ADumpSummaryExt.cpp
-// Version: v0.1.0
+// Version: v0.1.1
 // Changelog:
+// - v0.1.1: Unity build에서 ADumpDetailExt.cpp와의 anonymous namespace 함수명 충돌을 피하도록 AddIssue를 AddSummaryIssue로 변경.
 // - v0.1.0: Blueprint summary 기본 추출기 구현 추가.
 
 #include "ADumpSummaryExt.h"
@@ -12,8 +13,8 @@
 
 namespace
 {
-	// AddIssue는 summary 추출기에서 공통 issue 기록을 단순화한다.
-	void AddIssue(
+	// AddSummaryIssue는 summary 추출기에서 공통 issue 기록을 단순화한다.
+	void AddSummaryIssue(
 		TArray<FADumpIssue>& InOutIssues,
 		const FString& InCode,
 		const FString& InMessage,
@@ -42,7 +43,7 @@ namespace ADumpSummaryExt
 		UObject* LoadedObject = BlueprintSoftPath.TryLoad();
 		if (!LoadedObject)
 		{
-			AddIssue(
+			AddSummaryIssue(
 				OutIssues,
 				TEXT("ASSET_LOAD_FAIL"),
 				FString::Printf(TEXT("Failed to load asset: %s"), *AssetObjectPath),
@@ -55,7 +56,7 @@ namespace ADumpSummaryExt
 		OutBlueprint = Cast<UBlueprint>(LoadedObject);
 		if (!OutBlueprint)
 		{
-			AddIssue(
+			AddSummaryIssue(
 				OutIssues,
 				TEXT("NOT_BLUEPRINT_ASSET"),
 				FString::Printf(TEXT("Loaded asset is not a UBlueprint: %s"), *AssetObjectPath),
@@ -92,7 +93,7 @@ namespace ADumpSummaryExt
 		}
 		else
 		{
-			AddIssue(
+			AddSummaryIssue(
 				OutIssues,
 				TEXT("MISSING_GENERATED_CLASS"),
 				FString::Printf(TEXT("GeneratedClass is null: %s"), *AssetObjectPath),

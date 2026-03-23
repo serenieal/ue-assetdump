@@ -1,6 +1,7 @@
 // File: ADumpEditorApi.h
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 옵션 기반 공통 에디터 dump API 추가.
 // - v0.1.0: Editor Utility Widget가 호출할 수 있는 BPDump 에디터용 API 추가.
 
 #pragma once
@@ -20,6 +21,31 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
 		meta = (ToolTip = "현재 에디터에서 선택된 첫 Blueprint의 오브젝트 경로와 표시 이름을 반환합니다."))
 	static bool GetSelectedBlueprintObjectPath(FString& OutAssetObjectPath, FString& OutDisplayName, FString& OutMessage);
+
+	// DumpSelectedBlueprint는 현재 선택된 Blueprint를 옵션 기반으로 덤프한다.
+	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
+		meta = (ToolTip = "현재 선택된 Blueprint를 옵션 기반으로 덤프하고 dump.json 저장 경로를 반환합니다."))
+	static bool DumpSelectedBlueprint(
+		const FString& OutputFilePath,
+		bool bIncludeSummary,
+		bool bIncludeDetails,
+		bool bIncludeGraphs,
+		bool bIncludeReferences,
+		FString& OutResolvedOutputFilePath,
+		FString& OutMessage);
+
+	// DumpBlueprintByPath는 지정한 Blueprint 오브젝트 경로를 옵션 기반으로 덤프한다.
+	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
+		meta = (ToolTip = "Blueprint 오브젝트 경로를 받아 옵션 기반 dump.json을 생성합니다."))
+	static bool DumpBlueprintByPath(
+		const FString& AssetObjectPath,
+		const FString& OutputFilePath,
+		bool bIncludeSummary,
+		bool bIncludeDetails,
+		bool bIncludeGraphs,
+		bool bIncludeReferences,
+		FString& OutResolvedOutputFilePath,
+		FString& OutMessage);
 
 	// DumpSelectedBlueprintSummary는 현재 선택된 Blueprint에 대해 Summary 기반 dump.json을 생성한다.
 	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",

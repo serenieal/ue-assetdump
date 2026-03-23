@@ -1,6 +1,7 @@
 // File: ADumpEditorApi.cpp
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 옵션 기반 공통 에디터 dump API 구현 추가.
 // - v0.1.0: Editor Utility Widget용 선택 자산 조회/summary dump API 구현 추가.
 
 #include "ADumpEditorApi.h"
@@ -64,7 +65,14 @@ bool UADumpEditorApi::GetSelectedBlueprintObjectPath(FString& OutAssetObjectPath
 	return true;
 }
 
-bool UADumpEditorApi::DumpSelectedBlueprintSummary(const FString& OutputFilePath, FString& OutResolvedOutputFilePath, FString& OutMessage)
+bool UADumpEditorApi::DumpSelectedBlueprint(
+	const FString& OutputFilePath,
+	bool bIncludeSummary,
+	bool bIncludeDetails,
+	bool bIncludeGraphs,
+	bool bIncludeReferences,
+	FString& OutResolvedOutputFilePath,
+	FString& OutMessage)
 {
 	FString SelectedAssetObjectPath;
 	FString SelectedDisplayName;
@@ -74,30 +82,47 @@ bool UADumpEditorApi::DumpSelectedBlueprintSummary(const FString& OutputFilePath
 		return false;
 	}
 
-	return DumpBlueprintSummaryByPath(SelectedAssetObjectPath, OutputFilePath, OutResolvedOutputFilePath, OutMessage);
+	return DumpBlueprintByPath(
+		SelectedAssetObjectPath,
+		OutputFilePath,
+		bIncludeSummary,
+		bIncludeDetails,
+		bIncludeGraphs,
+		bIncludeReferences,
+		OutResolvedOutputFilePath,
+		OutMessage);
 }
 
-bool UADumpEditorApi::DumpBlueprintSummaryByPath(const FString& AssetObjectPath, const FString& OutputFilePath, FString& OutResolvedOutputFilePath, FString& OutMessage)
+bool UADumpEditorApi::DumpBlueprintByPath(
+	const FString& AssetObjectPath,
+	const FString& OutputFilePath,
+	bool bIncludeSummary,
+	bool bIncludeDetails,
+	bool bIncludeGraphs,
+	bool bIncludeReferences,
+	FString& OutResolvedOutputFilePath,
+	FString& OutMessage)
 {
 	OutResolvedOutputFilePath.Reset();
 	OutMessage.Reset();
 
-	// DumpRunOpts는 에디터 경로에서 공통 서비스에 전달할 summary 실행 옵션이다.
+	// DumpRunOpts는 에디터 경로에서 공통 서비스에 전달할 실행 옵션이다.
 	FADumpRunOpts DumpRunOpts;
-	DumpRunOpts.AssetObjectPath = AssetObjectPath;
-	DumpRunOpts.SourceKind = EADumpSourceKind::EditorWidget;
+		DumpRunOpts.AssetObjectPath = AssetObjectPath;
+	DumpRunOpts.SourceKind = EADumpSourceKind::EditorSelection;
 	DumpRunOpts.OutputFilePath = OutputFilePath;
-	DumpRunOpts.bIncludeSummary = true;
-	DumpRunOpts.bIncludeDetails = false;
-	DumpRunOpts.bIncludeGraphs = false;
-	DumpRunOpts.bIncludeReferences = false;
+
+	DumpRunOpts.bIncludeSummary = bIncludeSummary;
+	DumpRunOpts.bIncludeDetails = bIncludeDetails;
+	DumpRunOpts.bIncludeGraphs = bIncludeGraphs;
+	DumpRunOpts.bIncludeReferences = bIncludeReferences;
 
 	FADumpService DumpService;
 	FADumpResult DumpResult;
 	if (!DumpService.DumpBlueprint(DumpRunOpts, DumpResult))
 	{
 		OutResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
-		OutMessage = TEXT("Failed to extract Blueprint summary dump.");
+		OutMessage = TEXT("Failed to extract Blueprint dump.");
 		return false;
 	}
 
@@ -110,6 +135,16 @@ bool UADumpEditorApi::DumpBlueprintSummaryByPath(const FString& AssetObjectPath,
 	}
 
 	OutResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
-	OutMessage = TEXT("Blueprint summary dump completed successfully.");
+	OutMessage = TEXT("Blueprint dump completed successfully.");
 	return true;
+}
+
+bool UADumpEditorApi::DumpSelectedBlueprintSummary(const FString& OutputFilePath, FString& OutResolvedOutputFilePath, FString& OutMessage)
+{
+	return DumpSelectedBlueprint(OutputFilePath, true, false, false, false, OutResolvedOutputFilePath, OutMessage);
+}
+
+bool UADumpEditorApi::DumpBlueprintSummaryByPath(const FString& AssetObjectPath, const FString& OutputFilePath, FString& OutResolvedOutputFilePath, FString& OutMessage)
+{
+	return DumpBlueprintByPath(AssetObjectPath, OutputFilePath, true, false, false, false, OutResolvedOutputFilePath, OutMessage);
 }
