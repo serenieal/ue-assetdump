@@ -1,6 +1,7 @@
 // File: ADumpEditorApi.cpp
-// Version: v0.2.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 공통 서비스에 전달하도록 확장.
 // - v0.2.0: 옵션 기반 공통 에디터 dump API 구현 추가.
 // - v0.1.0: Editor Utility Widget용 선택 자산 조회/summary dump API 구현 추가.
 
@@ -45,6 +46,21 @@ namespace
 		OutMessage = TEXT("The current selection does not contain a Blueprint asset.");
 		return false;
 	}
+
+	// ParseLinkKindText는 UI/Blueprint에서 받은 문자열을 공통 enum으로 변환한다.
+	EADumpLinkKind ParseLinkKindText(const FString& InLinkKindText)
+	{
+		const FString NormalizedLinkKindText = InLinkKindText.TrimStartAndEnd();
+		if (NormalizedLinkKindText.Equals(TEXT("exec"), ESearchCase::IgnoreCase))
+		{
+			return EADumpLinkKind::Exec;
+		}
+		if (NormalizedLinkKindText.Equals(TEXT("data"), ESearchCase::IgnoreCase))
+		{
+			return EADumpLinkKind::Data;
+		}
+		return EADumpLinkKind::All;
+	}
 }
 
 bool UADumpEditorApi::GetSelectedBlueprintObjectPath(FString& OutAssetObjectPath, FString& OutDisplayName, FString& OutMessage)
@@ -71,6 +87,9 @@ bool UADumpEditorApi::DumpSelectedBlueprint(
 	bool bIncludeDetails,
 	bool bIncludeGraphs,
 	bool bIncludeReferences,
+	const FString& GraphNameFilter,
+	bool bLinksOnly,
+	const FString& LinkKindText,
 	FString& OutResolvedOutputFilePath,
 	FString& OutMessage)
 {
@@ -89,6 +108,9 @@ bool UADumpEditorApi::DumpSelectedBlueprint(
 		bIncludeDetails,
 		bIncludeGraphs,
 		bIncludeReferences,
+		GraphNameFilter,
+		bLinksOnly,
+		LinkKindText,
 		OutResolvedOutputFilePath,
 		OutMessage);
 }
@@ -100,6 +122,9 @@ bool UADumpEditorApi::DumpBlueprintByPath(
 	bool bIncludeDetails,
 	bool bIncludeGraphs,
 	bool bIncludeReferences,
+	const FString& GraphNameFilter,
+	bool bLinksOnly,
+	const FString& LinkKindText,
 	FString& OutResolvedOutputFilePath,
 	FString& OutMessage)
 {
@@ -108,7 +133,7 @@ bool UADumpEditorApi::DumpBlueprintByPath(
 
 	// DumpRunOpts는 에디터 경로에서 공통 서비스에 전달할 실행 옵션이다.
 	FADumpRunOpts DumpRunOpts;
-		DumpRunOpts.AssetObjectPath = AssetObjectPath;
+	DumpRunOpts.AssetObjectPath = AssetObjectPath;
 	DumpRunOpts.SourceKind = EADumpSourceKind::EditorSelection;
 	DumpRunOpts.OutputFilePath = OutputFilePath;
 
@@ -116,6 +141,9 @@ bool UADumpEditorApi::DumpBlueprintByPath(
 	DumpRunOpts.bIncludeDetails = bIncludeDetails;
 	DumpRunOpts.bIncludeGraphs = bIncludeGraphs;
 	DumpRunOpts.bIncludeReferences = bIncludeReferences;
+	DumpRunOpts.GraphNameFilter = GraphNameFilter;
+	DumpRunOpts.bLinksOnly = bLinksOnly;
+	DumpRunOpts.LinkKind = ParseLinkKindText(LinkKindText);
 
 	FADumpService DumpService;
 	FADumpResult DumpResult;
@@ -141,10 +169,10 @@ bool UADumpEditorApi::DumpBlueprintByPath(
 
 bool UADumpEditorApi::DumpSelectedBlueprintSummary(const FString& OutputFilePath, FString& OutResolvedOutputFilePath, FString& OutMessage)
 {
-	return DumpSelectedBlueprint(OutputFilePath, true, false, false, false, OutResolvedOutputFilePath, OutMessage);
+	return DumpSelectedBlueprint(OutputFilePath, true, false, false, false, FString(), false, TEXT("all"), OutResolvedOutputFilePath, OutMessage);
 }
 
 bool UADumpEditorApi::DumpBlueprintSummaryByPath(const FString& AssetObjectPath, const FString& OutputFilePath, FString& OutResolvedOutputFilePath, FString& OutMessage)
 {
-	return DumpBlueprintByPath(AssetObjectPath, OutputFilePath, true, false, false, false, OutResolvedOutputFilePath, OutMessage);
+	return DumpBlueprintByPath(AssetObjectPath, OutputFilePath, true, false, false, false, FString(), false, TEXT("all"), OutResolvedOutputFilePath, OutMessage);
 }

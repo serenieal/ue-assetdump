@@ -1,6 +1,7 @@
 // File: ADumpEditorApi.h
-// Version: v0.2.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 전달할 수 있도록 API를 확장.
 // - v0.2.0: 옵션 기반 공통 에디터 dump API 추가.
 // - v0.1.0: Editor Utility Widget가 호출할 수 있는 BPDump 에디터용 API 추가.
 
@@ -24,19 +25,22 @@ public:
 
 	// DumpSelectedBlueprint는 현재 선택된 Blueprint를 옵션 기반으로 덤프한다.
 	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
-		meta = (ToolTip = "현재 선택된 Blueprint를 옵션 기반으로 덤프하고 dump.json 저장 경로를 반환합니다."))
+		meta = (ToolTip = "현재 선택된 Blueprint를 옵션 기반으로 덤프하고 dump.json 저장 경로를 반환합니다. GraphNameFilter, LinksOnly, LinkKind를 함께 넘기면 그래프 섹션 검증용 수동 덤프도 만들 수 있습니다."))
 	static bool DumpSelectedBlueprint(
 		const FString& OutputFilePath,
 		bool bIncludeSummary,
 		bool bIncludeDetails,
 		bool bIncludeGraphs,
 		bool bIncludeReferences,
+		const FString& GraphNameFilter,
+		bool bLinksOnly,
+		const FString& LinkKindText,
 		FString& OutResolvedOutputFilePath,
 		FString& OutMessage);
 
 	// DumpBlueprintByPath는 지정한 Blueprint 오브젝트 경로를 옵션 기반으로 덤프한다.
 	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
-		meta = (ToolTip = "Blueprint 오브젝트 경로를 받아 옵션 기반 dump.json을 생성합니다."))
+		meta = (ToolTip = "Blueprint 오브젝트 경로를 받아 옵션 기반 dump.json을 생성합니다. GraphNameFilter, LinksOnly, LinkKind를 함께 넘기면 그래프 필터 검증에도 사용할 수 있습니다."))
 	static bool DumpBlueprintByPath(
 		const FString& AssetObjectPath,
 		const FString& OutputFilePath,
@@ -44,6 +48,9 @@ public:
 		bool bIncludeDetails,
 		bool bIncludeGraphs,
 		bool bIncludeReferences,
+		const FString& GraphNameFilter,
+		bool bLinksOnly,
+		const FString& LinkKindText,
 		FString& OutResolvedOutputFilePath,
 		FString& OutMessage);
 

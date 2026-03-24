@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.2.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: Reference 추출기를 서비스 경로에 연결하고 references-only 요청 시 임시 details 추출을 추가.
 // - v0.2.0: FADumpService 클래스 구현을 추가하고 요약/상세/그래프 오케스트레이션을 연결.
 // - v0.1.0: 임시 그래프 서비스 골격을 제거하고 헤더 기준 구현으로 정리.
 
@@ -9,6 +10,7 @@
 #include "ADumpDetailExt.h"
 #include "ADumpGraphExt.h"
 #include "ADumpJson.h"
+#include "ADumpRefExt.h"
 #include "ADumpSummaryExt.h"
 
 void FADumpService::AddIssue(
@@ -53,6 +55,8 @@ void FADumpService::FinalizeStatus(FADumpResult& InOutResult) const
 		!InOutResult.Graphs.IsEmpty() ||
 		InOutResult.Details.ClassDefaults.Num() > 0 ||
 		InOutResult.Details.Components.Num() > 0 ||
+		InOutResult.References.Hard.Num() > 0 ||
+		InOutResult.References.Soft.Num() > 0 ||
 		!InOutResult.Summary.ParentClassPath.IsEmpty() ||
 		InOutResult.Summary.GraphCount > 0 ||
 		InOutResult.Summary.VariableCount > 0;
@@ -73,6 +77,8 @@ void FADumpService::FinalizeStatus(FADumpResult& InOutResult) const
 
 bool FADumpService::DumpBlueprint(const FADumpRunOpts& InRunOpts, FADumpResult& OutResult)
 {
+	bIsCancelRequested = false;
+
 	OutResult = FADumpResult::CreateDefault();
 	OutResult.Request = InRunOpts.BuildRequestInfo();
 	OutResult.Progress.CurrentPhase = EADumpPhase::Prepare;
@@ -145,13 +151,36 @@ bool FADumpService::DumpBlueprint(const FADumpRunOpts& InRunOpts, FADumpResult& 
 
 	if (InRunOpts.bIncludeReferences)
 	{
-		AddIssue(
-			OutResult,
-			TEXT("REFERENCES_NOT_IMPLEMENTED"),
-			TEXT("Reference extraction is not implemented yet in this plugin version."),
-			EADumpIssueSeverity::Warning,
-			EADumpPhase::References,
-			InRunOpts.AssetObjectPath);
+		OutResult.Progress.CurrentPhase = EADumpPhase::References;
+		OutResult.Progress.PhaseLabel = TEXT("References");
+
+		const FADumpDetails* DetailsForReferences = &OutResult.Details;
+		FADumpDetails TemporaryReferenceDetails;
+
+		if (!InRunOpts.bIncludeDetails)
+		{
+			if (!ADumpDetailExt::ExtractDetails(
+				InRunOpts.AssetObjectPath,
+				OutResult.Asset,
+				TemporaryReferenceDetails,
+				OutResult.Issues,
+				OutResult.Perf))
+			{
+				bAllRequestedSectionsSucceeded = false;
+			}
+
+			DetailsForReferences = &TemporaryReferenceDetails;
+		}
+
+		if (!ADumpRefExt::ExtractReferences(
+			InRunOpts.AssetObjectPath,
+			*DetailsForReferences,
+			OutResult.References,
+			OutResult.Issues,
+			OutResult.Perf))
+		{
+			bAllRequestedSectionsSucceeded = false;
+		}
 	}
 
 	FinalizeStatus(OutResult);

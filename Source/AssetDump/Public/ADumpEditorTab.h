@@ -1,6 +1,7 @@
 // File: ADumpEditorTab.h
-// Version: v0.2.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 조절할 수 있는 UI 상태를 추가.
 // - v0.2.0: 옵션 체크박스 상태와 공통 dump 버튼 처리 추가.
 // - v0.1.0: Slate 기반 AssetDump Editor Tab 위젯 추가.
 
@@ -9,6 +10,7 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SCheckBox;
 class SEditableTextBox;
 
 // SADumpEditorTab은 AssetDump 전용 Slate Editor 패널 위젯이다.
@@ -24,6 +26,12 @@ public:
 private:
 	// OutputPathTextBox는 사용자가 직접 출력 경로를 입력할 수 있는 텍스트 박스다.
 	TSharedPtr<SEditableTextBox> OutputPathTextBox;
+
+	// GraphNameFilterTextBox는 특정 그래프 이름만 추출할 때 사용할 필터 입력 박스다.
+	TSharedPtr<SEditableTextBox> GraphNameFilterTextBox;
+
+	// LinkKindTextBox는 all / exec / data 문자열을 입력하는 그래프 링크 필터 입력 박스다.
+	TSharedPtr<SEditableTextBox> LinkKindTextBox;
 
 	// SelectedAssetObjectPath는 현재 선택된 Blueprint의 전체 오브젝트 경로다.
 	FString SelectedAssetObjectPath;
@@ -49,6 +57,9 @@ private:
 	// bIncludeReferences는 references 섹션 포함 여부다.
 	bool bIncludeReferences = false;
 
+	// bLinksOnly는 graphs 추출 시 링크만 저장할지 여부다.
+	bool bLinksOnly = false;
+
 	// RefreshSelection는 현재 Content Browser 선택 상태를 다시 읽는다.
 	void RefreshSelection();
 
@@ -73,6 +84,9 @@ private:
 	// HandleIncludeReferencesCheckStateChanged는 References 체크박스 변경을 반영한다.
 	void HandleIncludeReferencesCheckStateChanged(ECheckBoxState InNewState);
 
+	// HandleLinksOnlyCheckStateChanged는 LinksOnly 체크박스 변경을 반영한다.
+	void HandleLinksOnlyCheckStateChanged(ECheckBoxState InNewState);
+
 	// GetIncludeSummaryCheckState는 Summary 체크 상태를 반환한다.
 	ECheckBoxState GetIncludeSummaryCheckState() const;
 
@@ -84,6 +98,9 @@ private:
 
 	// GetIncludeReferencesCheckState는 References 체크 상태를 반환한다.
 	ECheckBoxState GetIncludeReferencesCheckState() const;
+
+	// GetLinksOnlyCheckState는 LinksOnly 체크 상태를 반환한다.
+	ECheckBoxState GetLinksOnlyCheckState() const;
 
 	// GetSelectedAssetText는 현재 선택 자산 정보를 UI 텍스트로 반환한다.
 	FText GetSelectedAssetText() const;

@@ -1,6 +1,7 @@
 // File: ADumpTypes.cpp
-// Version: v0.1.0
+// Version: v0.1.3
 // Changelog:
+// - v0.1.3: 손상된 구현 파일을 복구하고 enum 문자열 변환 및 기본 결과 생성 로직을 복원.
 // - v0.1.0: BPDump 공통 타입 문자열 변환 함수와 기본 결과 생성 함수 추가.
 
 #include "ADumpTypes.h"
@@ -16,7 +17,7 @@ namespace ADumpSchema
 
 	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("bpdump.extractor.v0.1.0");
+		return TEXT("bpdump.extractor.v0.1.3");
 	}
 }
 
@@ -190,7 +191,6 @@ const TCHAR* ToString(EADumpIssueSeverity InValue)
 
 FADumpResult FADumpResult::CreateDefault()
 {
-	// DefaultResult는 새 덤프 실행의 기본 메타값을 미리 채운다.
 	FADumpResult DefaultResult;
 	DefaultResult.SchemaVersion = ADumpSchema::GetVersionText();
 	DefaultResult.ExtractorVersion = ADumpSchema::GetExtractorVersionText();

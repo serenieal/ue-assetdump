@@ -1,6 +1,7 @@
 // File: ADumpEditorTab.cpp
-// Version: v0.2.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 조절할 수 있는 UI를 추가하고 구식 툴팁을 정리.
 // - v0.2.0: 옵션 체크박스 UI와 공통 dump 버튼 처리 추가.
 // - v0.1.1: UE 5.7 빌드 오류 수정을 위해 SVerticalBox 헤더 include 경로를 SBoxPanel로 교체.
 // - v0.1.0: Slate 기반 AssetDump Editor Tab 위젯 구현 추가.
@@ -110,7 +111,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 				SNew(SCheckBox)
 				.IsChecked(this, &SADumpEditorTab::GetIncludeDetailsCheckState)
 				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeDetailsCheckStateChanged)
-				.ToolTipText(LOCTEXT("IncludeDetailsTooltip", "Request the details section. The current service reports this as not implemented yet."))
+				.ToolTipText(LOCTEXT("IncludeDetailsTooltip", "Include the details section in dump.json."))
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("IncludeDetailsLabel", "Include Details"))
@@ -124,7 +125,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 				SNew(SCheckBox)
 				.IsChecked(this, &SADumpEditorTab::GetIncludeGraphsCheckState)
 				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeGraphsCheckStateChanged)
-				.ToolTipText(LOCTEXT("IncludeGraphsTooltip", "Request the graphs section. The current service reports this as not implemented yet."))
+				.ToolTipText(LOCTEXT("IncludeGraphsTooltip", "Include the graphs section in dump.json. Use Graph Name Filter, Links Only, and Link Kind below for graph-specific verification."))
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("IncludeGraphsLabel", "Include Graphs"))
@@ -138,11 +139,66 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 				SNew(SCheckBox)
 				.IsChecked(this, &SADumpEditorTab::GetIncludeReferencesCheckState)
 				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeReferencesCheckStateChanged)
-				.ToolTipText(LOCTEXT("IncludeReferencesTooltip", "Request the references section. The current service reports this as not implemented yet."))
+				.ToolTipText(LOCTEXT("IncludeReferencesTooltip", "Include the references section in dump.json."))
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("IncludeReferencesLabel", "Include References"))
 				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("GraphOptionsLabel", "Graph Options"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("GraphNameFilterLabel", "Graph Name Filter"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SAssignNew(GraphNameFilterTextBox, SEditableTextBox)
+				.HintText(LOCTEXT("GraphNameFilterHint", "Leave empty to dump all graphs. Example: EventGraph"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SADumpEditorTab::GetLinksOnlyCheckState)
+				.OnCheckStateChanged(this, &SADumpEditorTab::HandleLinksOnlyCheckStateChanged)
+				.ToolTipText(LOCTEXT("LinksOnlyTooltip", "True이면 nodes 대신 links 중심 결과를 확인할 때 사용합니다."))
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("LinksOnlyLabel", "Links Only"))
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("LinkKindLabel", "Link Kind"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SAssignNew(LinkKindTextBox, SEditableTextBox)
+				.Text(FText::FromString(TEXT("all")))
+				.HintText(LOCTEXT("LinkKindHint", "all / exec / data"))
 			]
 
 			+ SVerticalBox::Slot()
@@ -237,6 +293,8 @@ FReply SADumpEditorTab::HandleRefreshSelectionClicked()
 FReply SADumpEditorTab::HandleDumpSelectedClicked()
 {
 	const FString OutputFilePathText = OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString();
+	const FString GraphNameFilterText = GraphNameFilterTextBox.IsValid() ? GraphNameFilterTextBox->GetText().ToString() : FString();
+	const FString LinkKindText = LinkKindTextBox.IsValid() ? LinkKindTextBox->GetText().ToString() : TEXT("all");
 
 	FString DumpMessage;
 	if (UADumpEditorApi::DumpSelectedBlueprint(
@@ -245,6 +303,9 @@ FReply SADumpEditorTab::HandleDumpSelectedClicked()
 		bIncludeDetails,
 		bIncludeGraphs,
 		bIncludeReferences,
+		GraphNameFilterText,
+		bLinksOnly,
+		LinkKindText,
 		ResolvedOutputFilePath,
 		DumpMessage))
 	{
@@ -304,6 +365,11 @@ void SADumpEditorTab::HandleIncludeReferencesCheckStateChanged(ECheckBoxState In
 	bIncludeReferences = (InNewState == ECheckBoxState::Checked);
 }
 
+void SADumpEditorTab::HandleLinksOnlyCheckStateChanged(ECheckBoxState InNewState)
+{
+	bLinksOnly = (InNewState == ECheckBoxState::Checked);
+}
+
 ECheckBoxState SADumpEditorTab::GetIncludeSummaryCheckState() const
 {
 	return bIncludeSummary ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
@@ -322,6 +388,11 @@ ECheckBoxState SADumpEditorTab::GetIncludeGraphsCheckState() const
 ECheckBoxState SADumpEditorTab::GetIncludeReferencesCheckState() const
 {
 	return bIncludeReferences ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+ECheckBoxState SADumpEditorTab::GetLinksOnlyCheckState() const
+{
+	return bLinksOnly ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 FText SADumpEditorTab::GetSelectedAssetText() const
