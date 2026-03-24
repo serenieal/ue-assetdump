@@ -1,12 +1,8 @@
 // File: ADumpEditorTab.cpp
-// Version: v0.4.1
+// Version: v0.6.0
 // Changelog:
-// - v0.4.1: 진행률 바 바인딩 Getter를 정리하고 컴파일 안정성을 보강.
-// - v0.4.0: 한국어 UI, 진행률 바, 경고/오류 수, 취소/복사 버튼, 자동 줄바꿈 로그, 스크롤 로그, ActiveTimer 기반 단계 실행 추가.
-// - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 조절할 수 있는 UI를 추가하고 구식 툴팁을 정리.
-// - v0.2.0: 옵션 체크박스 UI와 공통 dump 버튼 처리 추가.
-// - v0.1.1: UE 5.7 빌드 오류 수정을 위해 SVerticalBox 헤더 include 경로를 SBoxPanel로 교체.
-// - v0.1.0: Slate 기반 AssetDump Editor Tab 위젯 구현 추가.
+// - v0.6.0: 전체 탭 스크롤, 옵션 ini 저장/복원, 출력 폴더 경로 정규화, UnknownAsset 추적 로그 추가.
+// - v0.5.4: Construct 레이아웃을 단일 세로 패널 구조로 단순화해 Slate 슬롯 타입 오류를 정리.
 
 #include "ADumpEditorTab.h"
 
@@ -14,19 +10,30 @@
 
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformProcess.h"
+#include "Logging/LogMacros.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Notifications/SProgressBar.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SADumpEditorTab"
+
+namespace
+{
+	// Editor 탭 옵션 저장용 ini 섹션 이름이다.
+	static const TCHAR* DumpEditorTabIniSection = TEXT("AssetDump.BPDumpEditorTab");
+
+	// DumpEditorTab 로그 카테고리 문자열이다.
+	static const TCHAR* DumpEditorTabLogPrefix = TEXT("[ADumpEditorTab]");
+}
 
 void SADumpEditorTab::Construct(const FArguments& InArgs)
 {
@@ -34,6 +41,8 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 	LogText = StatusMessage;
 	CurrentPhaseText = TEXT("대기 중");
 	CurrentDetailText = TEXT("아직 실행된 덤프가 없습니다.");
+
+	LoadUiOptions();
 	RefreshSelection();
 	RefreshRuntimeState();
 
@@ -42,365 +51,407 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 		SNew(SBorder)
 		.Padding(12.0f)
 		[
-			SNew(SVerticalBox)
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
+			SNew(SScrollBox)
+			+ SScrollBox::Slot()
 			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("AssetDumpTitle", "AssetDump BPDump"))
-			]
+				SNew(SVerticalBox)
 
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.Text(LOCTEXT("AssetDumpSubtitle", "선택한 블루프린트에 대해 요약, 디테일, 그래프, 참조 덤프를 생성합니다."))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(SSeparator)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("SelectedAssetLabel", "선택된 블루프린트"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.Text(this, &SADumpEditorTab::GetSelectedAssetText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 10.0f, 0.0f, 0.0f)
-			[
-				SNew(SButton)
-				.Text(LOCTEXT("RefreshSelectionButton", "선택 새로고침"))
-				.OnClicked(this, &SADumpEditorTab::HandleRefreshSelectionClicked)
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("DumpOptionsLabel", "덤프 옵션"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SADumpEditorTab::GetIncludeSummaryCheckState)
-				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeSummaryCheckStateChanged)
-				.ToolTipText(LOCTEXT("IncludeSummaryTooltip", "dump.json에 summary 섹션을 포함합니다."))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("IncludeSummaryLabel", "요약 포함"))
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SADumpEditorTab::GetIncludeDetailsCheckState)
-				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeDetailsCheckStateChanged)
-				.ToolTipText(LOCTEXT("IncludeDetailsTooltip", "dump.json에 details 섹션을 포함합니다."))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("IncludeDetailsLabel", "디테일 포함"))
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SADumpEditorTab::GetIncludeGraphsCheckState)
-				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeGraphsCheckStateChanged)
-				.ToolTipText(LOCTEXT("IncludeGraphsTooltip", "dump.json에 graphs 섹션을 포함합니다."))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("IncludeGraphsLabel", "그래프 포함"))
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SADumpEditorTab::GetIncludeReferencesCheckState)
-				.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeReferencesCheckStateChanged)
-				.ToolTipText(LOCTEXT("IncludeReferencesTooltip", "dump.json에 references 섹션을 포함합니다."))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("IncludeReferencesLabel", "참조 포함"))
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("GraphOptionsLabel", "그래프 옵션"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("GraphNameFilterLabel", "그래프 이름 필터"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SAssignNew(GraphNameFilterTextBox, SEditableTextBox)
-				.HintText(LOCTEXT("GraphNameFilterHint", "비워두면 모든 그래프를 덤프합니다. 예: EventGraph"))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SADumpEditorTab::GetLinksOnlyCheckState)
-				.OnCheckStateChanged(this, &SADumpEditorTab::HandleLinksOnlyCheckStateChanged)
-				.ToolTipText(LOCTEXT("LinksOnlyTooltip", "체크하면 노드 전체 대신 링크 중심 결과를 확인합니다."))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("LinksOnlyLabel", "링크만 추출"))
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("LinkKindLabel", "링크 종류"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SAssignNew(LinkKindTextBox, SEditableTextBox)
-				.Text(FText::FromString(TEXT("all")))
-				.HintText(LOCTEXT("LinkKindHint", "all / exec / data"))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("OutputPathLabel", "출력 파일 경로"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SAssignNew(OutputPathTextBox, SEditableTextBox)
-				.HintText(LOCTEXT("OutputPathHint", "비워두면 Saved/BPDump/<AssetName>/dump.json 경로를 사용합니다."))
-				.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("ProgressLabel", "진행 상태"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-			[
-				SNew(SProgressBar)
-				.Percent(this, &SADumpEditorTab::GetProgressPercentValue)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(this, &SADumpEditorTab::GetProgressPercentText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.Text(this, &SADumpEditorTab::GetPhaseText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.Text(this, &SADumpEditorTab::GetDetailText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(this, &SADumpEditorTab::GetWarningCountText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 2.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(this, &SADumpEditorTab::GetErrorCountText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(0.0f, 0.0f, 6.0f, 0.0f)
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("DumpSelectedButton", "선택 블루프린트 덤프 시작"))
-					.OnClicked(this, &SADumpEditorTab::HandleDumpSelectedClicked)
-					.IsEnabled(this, &SADumpEditorTab::CanStartDump)
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("CancelDumpButton", "덤프 취소"))
-					.OnClicked(this, &SADumpEditorTab::HandleCancelDumpClicked)
-					.IsEnabled(this, &SADumpEditorTab::CanCancelDump)
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 10.0f, 0.0f, 0.0f)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(0.0f, 0.0f, 6.0f, 0.0f)
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("OpenOutputFolderButton", "출력 폴더 열기"))
-					.OnClicked(this, &SADumpEditorTab::HandleOpenOutputFolderClicked)
-					.IsEnabled(this, &SADumpEditorTab::HasOutputPath)
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("CopyOutputPathButton", "출력 경로 복사"))
-					.OnClicked(this, &SADumpEditorTab::HandleCopyOutputPathClicked)
-					.IsEnabled(this, &SADumpEditorTab::HasOutputPath)
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("ResolvedOutputPathLabel", "마지막 출력 파일"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.Text(this, &SADumpEditorTab::GetResolvedOutputPathText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("StatusMessageLabel", "현재 상태"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.Text(this, &SADumpEditorTab::GetStatusMessageText)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 12.0f, 0.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("LogLabel", "실행 로그"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(SBox)
-				.MaxDesiredHeight(220.0f)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
 				[
 					SNew(SBorder)
-					.Padding(6.0f)
+					.Padding(10.0f)
 					[
-						SNew(SScrollBox)
-						+ SScrollBox::Slot()
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("Title", "AssetDump BPDump"))
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 6.0f, 0.0f, 0.0f)
 						[
 							SNew(STextBlock)
 							.AutoWrapText(true)
-							.Text(this, &SADumpEditorTab::GetLogText)
+							.Text(LOCTEXT("Subtitle", "선택한 블루프린트의 dump.json을 생성합니다."))
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+				[
+					SNew(SBorder)
+					.Padding(10.0f)
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("SummaryTitle", "실행 요약"))
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 6.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("SelectedAssetLabel", "선택된 블루프린트"))
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.AutoWrapText(true)
+							.Text(this, &SADumpEditorTab::GetSelectedAssetText)
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 8.0f, 0.0f, 0.0f)
+						[
+							SNew(SProgressBar)
+							.Percent(this, &SADumpEditorTab::GetProgressPercentValue)
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 8.0f, 0.0f, 0.0f)
+						[
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.Padding(0.0f, 0.0f, 8.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.Text(this, &SADumpEditorTab::GetProgressPercentText)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.Padding(0.0f, 0.0f, 8.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.Text(this, &SADumpEditorTab::GetWarningCountText)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							[
+								SNew(STextBlock)
+								.Text(this, &SADumpEditorTab::GetErrorCountText)
+							]
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.AutoWrapText(true)
+							.Text(this, &SADumpEditorTab::GetPhaseText)
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.AutoWrapText(true)
+							.Text(this, &SADumpEditorTab::GetDetailText)
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+				[
+					SNew(SBorder)
+					.Padding(10.0f)
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("ActionTitle", "실행 작업"))
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 8.0f, 0.0f, 0.0f)
+						[
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+							[
+								SNew(SButton)
+								.Text(LOCTEXT("RefreshBtn", "선택 새로고침"))
+								.OnClicked(this, &SADumpEditorTab::HandleRefreshSelectionClicked)
+								.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+							[
+								SNew(SButton)
+								.Text(LOCTEXT("DumpBtn", "선택 블루프린트 덤프"))
+								.OnClicked(this, &SADumpEditorTab::HandleDumpSelectedClicked)
+								.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+							[
+								SNew(SButton)
+								.Text(LOCTEXT("CancelBtn", "덤프 취소"))
+								.OnClicked(this, &SADumpEditorTab::HandleCancelDumpClicked)
+								.IsEnabled(this, &SADumpEditorTab::CanCancelDump)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+							[
+								SNew(SButton)
+								.Text(LOCTEXT("OpenBtn", "출력 폴더 열기"))
+								.OnClicked(this, &SADumpEditorTab::HandleOpenOutputFolderClicked)
+								.IsEnabled(this, &SADumpEditorTab::HasOutputPath)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							[
+								SNew(SButton)
+								.Text(LOCTEXT("CopyBtn", "출력 경로 복사"))
+								.OnClicked(this, &SADumpEditorTab::HandleCopyOutputPathClicked)
+								.IsEnabled(this, &SADumpEditorTab::HasOutputPath)
+							]
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+				[
+					SNew(SBorder)
+					.Padding(10.0f)
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("OptionsTitle", "옵션"))
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 8.0f, 0.0f, 0.0f)
+						[
+							SNew(SExpandableArea)
+							.InitiallyCollapsed(false)
+							.HeaderContent()
+							[
+								SNew(STextBlock)
+								.Text(LOCTEXT("DumpOpts", "덤프 옵션"))
+							]
+							.BodyContent()
+							[
+								SNew(SVerticalBox)
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+								[
+									SNew(SCheckBox)
+									.IsChecked(this, &SADumpEditorTab::GetIncludeSummaryCheckState)
+									.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeSummaryCheckStateChanged)
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+									[
+										SNew(STextBlock)
+										.Text(LOCTEXT("IncSummary", "요약 포함"))
+									]
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SNew(SCheckBox)
+									.IsChecked(this, &SADumpEditorTab::GetIncludeDetailsCheckState)
+									.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeDetailsCheckStateChanged)
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+									[
+										SNew(STextBlock)
+										.Text(LOCTEXT("IncDetails", "디테일 포함"))
+									]
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SNew(SCheckBox)
+									.IsChecked(this, &SADumpEditorTab::GetIncludeGraphsCheckState)
+									.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeGraphsCheckStateChanged)
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+									[
+										SNew(STextBlock)
+										.Text(LOCTEXT("IncGraphs", "그래프 포함"))
+									]
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SNew(SCheckBox)
+									.IsChecked(this, &SADumpEditorTab::GetIncludeReferencesCheckState)
+									.OnCheckStateChanged(this, &SADumpEditorTab::HandleIncludeReferencesCheckStateChanged)
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+									[
+										SNew(STextBlock)
+										.Text(LOCTEXT("IncRefs", "참조 포함"))
+									]
+								]
+							]
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+						[
+							SNew(SExpandableArea)
+							.InitiallyCollapsed(false)
+							.HeaderContent()
+							[
+								SNew(STextBlock)
+								.Text(LOCTEXT("GraphOpts", "그래프 옵션"))
+							]
+							.BodyContent()
+							[
+								SNew(SVerticalBox)
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+								[
+									SNew(STextBlock)
+									.Text(LOCTEXT("GraphName", "그래프 이름 필터"))
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SAssignNew(GraphNameFilterTextBox, SEditableTextBox)
+									.HintText(LOCTEXT("GraphHint", "비워두면 모든 그래프를 덤프합니다."))
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+								[
+									SNew(SCheckBox)
+									.IsChecked(this, &SADumpEditorTab::GetLinksOnlyCheckState)
+									.OnCheckStateChanged(this, &SADumpEditorTab::HandleLinksOnlyCheckStateChanged)
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+									[
+										SNew(STextBlock)
+										.Text(LOCTEXT("LinksOnly", "링크만 추출"))
+									]
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+								[
+									SNew(STextBlock)
+									.Text(LOCTEXT("LinkKind", "링크 종류"))
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SAssignNew(LinkKindTextBox, SEditableTextBox)
+									.HintText(LOCTEXT("LinkKindHint", "all / exec / data"))
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+								]
+							]
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+						[
+							SNew(SExpandableArea)
+							.InitiallyCollapsed(false)
+							.HeaderContent()
+							[
+								SNew(STextBlock)
+								.Text(LOCTEXT("OutputOpts", "출력 설정"))
+							]
+							.BodyContent()
+							[
+								SNew(SVerticalBox)
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+								[
+									SNew(STextBlock)
+									.AutoWrapText(true)
+									.Text(LOCTEXT("OutputLabel", "출력 파일 경로"))
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SAssignNew(OutputPathTextBox, SEditableTextBox)
+									.HintText(LOCTEXT("OutputHint", "비워두면 Saved/BPDump/<AssetName>/dump.json 경로를 사용합니다."))
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+								]
+							]
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+				[
+					SNew(SBorder)
+					.Padding(10.0f)
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot().AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("StatusTitle", "상태 정보"))
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("CurrentStatus", "현재 상태"))
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.AutoWrapText(true)
+							.Text(this, &SADumpEditorTab::GetStatusMessageText)
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 10.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("ResolvedPath", "마지막 출력 파일"))
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.AutoWrapText(true)
+							.Text(this, &SADumpEditorTab::GetResolvedOutputPathText)
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.FillHeight(1.0f)
+				.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+				[
+					SNew(SBorder)
+					.Padding(10.0f)
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot().AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("LogTitle", "실행 로그"))
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.AutoWrapText(true)
+							.Text(LOCTEXT("LogHint", "긴 문자열은 자동으로 줄바꿈되며, 로그가 길어지면 내부 스크롤로 확인할 수 있습니다."))
+						]
+						+ SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 8.0f, 0.0f, 0.0f)
+						[
+							SNew(SBox)
+							.HeightOverride(240.0f)
+							[
+								SNew(SScrollBox)
+								+ SScrollBox::Slot()
+								[
+									SNew(STextBlock)
+									.AutoWrapText(true)
+									.Text(this, &SADumpEditorTab::GetLogText)
+								]
+							]
 						]
 					]
 				]
@@ -408,6 +459,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 		]
 	];
 
+	ApplyLoadedUiOptions();
 	RegisterActiveTimer(0.10f, FWidgetActiveTimerDelegate::CreateSP(this, &SADumpEditorTab::HandleActiveTimerTick));
 }
 
@@ -438,9 +490,14 @@ void SADumpEditorTab::RefreshRuntimeState()
 	if (!RuntimeOutputPath.IsEmpty())
 	{
 		ResolvedOutputFilePath = RuntimeOutputPath;
-		if (OutputPathTextBox.IsValid())
+		if (!bIsDumpRunning)
 		{
-			OutputPathTextBox->SetText(FText::FromString(ResolvedOutputFilePath));
+			SavedOutputPathText = ResolvedOutputFilePath;
+			if (OutputPathTextBox.IsValid())
+			{
+				OutputPathTextBox->SetText(FText::FromString(ResolvedOutputFilePath));
+			}
+			SaveUiOptions();
 		}
 	}
 
@@ -477,21 +534,19 @@ FReply SADumpEditorTab::HandleRefreshSelectionClicked()
 
 FReply SADumpEditorTab::HandleDumpSelectedClicked()
 {
-	const FString OutputFilePathText = OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString();
-	const FString GraphNameFilterText = GraphNameFilterTextBox.IsValid() ? GraphNameFilterTextBox->GetText().ToString() : FString();
-	const FString LinkKindText = LinkKindTextBox.IsValid() ? LinkKindTextBox->GetText().ToString() : TEXT("all");
+	SavedOutputPathText = OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString();
+	SavedGraphNameFilterText = GraphNameFilterTextBox.IsValid() ? GraphNameFilterTextBox->GetText().ToString() : FString();
+	SavedLinkKindText = LinkKindTextBox.IsValid() ? LinkKindTextBox->GetText().ToString() : TEXT("all");
+	if (SavedLinkKindText.IsEmpty())
+	{
+		SavedLinkKindText = TEXT("all");
+	}
+	SaveUiOptions();
+
+	UE_LOG(LogTemp, Log, TEXT("%s StartDumpSelectedBlueprint Selection='%s' Output='%s' GraphFilter='%s' LinkKind='%s'"), DumpEditorTabLogPrefix, *SelectedAssetObjectPath, *SavedOutputPathText, *SavedGraphNameFilterText, *SavedLinkKindText);
 
 	FString DumpMessage;
-	if (UADumpEditorApi::StartDumpSelectedBlueprint(
-		OutputFilePathText,
-		bIncludeSummary,
-		bIncludeDetails,
-		bIncludeGraphs,
-		bIncludeReferences,
-		GraphNameFilterText,
-		bLinksOnly,
-		LinkKindText,
-		DumpMessage))
+	if (UADumpEditorApi::StartDumpSelectedBlueprint(SavedOutputPathText, bIncludeSummary, bIncludeDetails, bIncludeGraphs, bIncludeReferences, SavedGraphNameFilterText, bLinksOnly, SavedLinkKindText, DumpMessage))
 	{
 		StatusMessage = DumpMessage;
 		bIsDumpRunning = true;
@@ -513,20 +568,23 @@ FReply SADumpEditorTab::HandleCancelDumpClicked()
 
 FReply SADumpEditorTab::HandleOpenOutputFolderClicked()
 {
-	const FString OutputFilePathToOpen = !ResolvedOutputFilePath.IsEmpty()
-		? ResolvedOutputFilePath
-		: (OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString());
-
+	const FString OutputFilePathToOpen = ResolvePreferredOutputFilePath();
 	if (OutputFilePathToOpen.IsEmpty())
 	{
 		StatusMessage = TEXT("열 수 있는 출력 경로가 아직 없습니다.");
 		return FReply::Handled();
 	}
 
-	const FString OutputDirectoryPath = FPaths::GetPath(OutputFilePathToOpen);
+	const FString OutputDirectoryPath = ResolveNormalizedOutputDirectoryPath(OutputFilePathToOpen);
 	if (OutputDirectoryPath.IsEmpty())
 	{
 		StatusMessage = TEXT("출력 폴더 경로를 해석하지 못했습니다.");
+		return FReply::Handled();
+	}
+
+	if (!FPaths::DirectoryExists(OutputDirectoryPath))
+	{
+		StatusMessage = TEXT("출력 폴더가 아직 생성되지 않았습니다.");
 		return FReply::Handled();
 	}
 
@@ -537,10 +595,7 @@ FReply SADumpEditorTab::HandleOpenOutputFolderClicked()
 
 FReply SADumpEditorTab::HandleCopyOutputPathClicked()
 {
-	const FString OutputFilePathToCopy = !ResolvedOutputFilePath.IsEmpty()
-		? ResolvedOutputFilePath
-		: (OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString());
-
+	const FString OutputFilePathToCopy = ResolvePreferredOutputFilePath();
 	if (OutputFilePathToCopy.IsEmpty())
 	{
 		StatusMessage = TEXT("복사할 출력 경로가 아직 없습니다.");
@@ -555,26 +610,31 @@ FReply SADumpEditorTab::HandleCopyOutputPathClicked()
 void SADumpEditorTab::HandleIncludeSummaryCheckStateChanged(ECheckBoxState InNewState)
 {
 	bIncludeSummary = (InNewState == ECheckBoxState::Checked);
+	SaveUiOptions();
 }
 
 void SADumpEditorTab::HandleIncludeDetailsCheckStateChanged(ECheckBoxState InNewState)
 {
 	bIncludeDetails = (InNewState == ECheckBoxState::Checked);
+	SaveUiOptions();
 }
 
 void SADumpEditorTab::HandleIncludeGraphsCheckStateChanged(ECheckBoxState InNewState)
 {
 	bIncludeGraphs = (InNewState == ECheckBoxState::Checked);
+	SaveUiOptions();
 }
 
 void SADumpEditorTab::HandleIncludeReferencesCheckStateChanged(ECheckBoxState InNewState)
 {
 	bIncludeReferences = (InNewState == ECheckBoxState::Checked);
+	SaveUiOptions();
 }
 
 void SADumpEditorTab::HandleLinksOnlyCheckStateChanged(ECheckBoxState InNewState)
 {
 	bLinksOnly = (InNewState == ECheckBoxState::Checked);
+	SaveUiOptions();
 }
 
 ECheckBoxState SADumpEditorTab::GetIncludeSummaryCheckState() const
@@ -679,7 +739,108 @@ bool SADumpEditorTab::CanCancelDump() const
 
 bool SADumpEditorTab::HasOutputPath() const
 {
-	return !ResolvedOutputFilePath.IsEmpty() || (OutputPathTextBox.IsValid() && !OutputPathTextBox->GetText().ToString().IsEmpty());
+	return !ResolvePreferredOutputFilePath().IsEmpty();
+}
+
+void SADumpEditorTab::LoadUiOptions()
+{
+	if (GConfig == nullptr)
+	{
+		return;
+	}
+
+	GConfig->GetBool(DumpEditorTabIniSection, TEXT("IncludeSummary"), bIncludeSummary, GEditorPerProjectIni);
+	GConfig->GetBool(DumpEditorTabIniSection, TEXT("IncludeDetails"), bIncludeDetails, GEditorPerProjectIni);
+	GConfig->GetBool(DumpEditorTabIniSection, TEXT("IncludeGraphs"), bIncludeGraphs, GEditorPerProjectIni);
+	GConfig->GetBool(DumpEditorTabIniSection, TEXT("IncludeReferences"), bIncludeReferences, GEditorPerProjectIni);
+	GConfig->GetBool(DumpEditorTabIniSection, TEXT("LinksOnly"), bLinksOnly, GEditorPerProjectIni);
+	GConfig->GetString(DumpEditorTabIniSection, TEXT("GraphNameFilter"), SavedGraphNameFilterText, GEditorPerProjectIni);
+	GConfig->GetString(DumpEditorTabIniSection, TEXT("LinkKind"), SavedLinkKindText, GEditorPerProjectIni);
+	GConfig->GetString(DumpEditorTabIniSection, TEXT("OutputFilePath"), SavedOutputPathText, GEditorPerProjectIni);
+
+	if (SavedLinkKindText.IsEmpty())
+	{
+		SavedLinkKindText = TEXT("all");
+	}
+}
+
+void SADumpEditorTab::SaveUiOptions() const
+{
+	if (GConfig == nullptr)
+	{
+		return;
+	}
+
+	const FString OutputFilePathText = OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : SavedOutputPathText;
+	const FString GraphNameFilterText = GraphNameFilterTextBox.IsValid() ? GraphNameFilterTextBox->GetText().ToString() : SavedGraphNameFilterText;
+	FString LinkKindText = LinkKindTextBox.IsValid() ? LinkKindTextBox->GetText().ToString() : SavedLinkKindText;
+	if (LinkKindText.IsEmpty())
+	{
+		LinkKindText = TEXT("all");
+	}
+
+	GConfig->SetBool(DumpEditorTabIniSection, TEXT("IncludeSummary"), bIncludeSummary, GEditorPerProjectIni);
+	GConfig->SetBool(DumpEditorTabIniSection, TEXT("IncludeDetails"), bIncludeDetails, GEditorPerProjectIni);
+	GConfig->SetBool(DumpEditorTabIniSection, TEXT("IncludeGraphs"), bIncludeGraphs, GEditorPerProjectIni);
+	GConfig->SetBool(DumpEditorTabIniSection, TEXT("IncludeReferences"), bIncludeReferences, GEditorPerProjectIni);
+	GConfig->SetBool(DumpEditorTabIniSection, TEXT("LinksOnly"), bLinksOnly, GEditorPerProjectIni);
+	GConfig->SetString(DumpEditorTabIniSection, TEXT("GraphNameFilter"), *GraphNameFilterText, GEditorPerProjectIni);
+	GConfig->SetString(DumpEditorTabIniSection, TEXT("LinkKind"), *LinkKindText, GEditorPerProjectIni);
+	GConfig->SetString(DumpEditorTabIniSection, TEXT("OutputFilePath"), *OutputFilePathText, GEditorPerProjectIni);
+	GConfig->Flush(false, GEditorPerProjectIni);
+}
+
+void SADumpEditorTab::ApplyLoadedUiOptions()
+{
+	if (GraphNameFilterTextBox.IsValid())
+	{
+		GraphNameFilterTextBox->SetText(FText::FromString(SavedGraphNameFilterText));
+	}
+
+	if (LinkKindTextBox.IsValid())
+	{
+		LinkKindTextBox->SetText(FText::FromString(SavedLinkKindText.IsEmpty() ? FString(TEXT("all")) : SavedLinkKindText));
+	}
+
+	if (OutputPathTextBox.IsValid())
+	{
+		OutputPathTextBox->SetText(FText::FromString(SavedOutputPathText));
+	}
+}
+
+FString SADumpEditorTab::ResolvePreferredOutputFilePath() const
+{
+	if (!ResolvedOutputFilePath.IsEmpty())
+	{
+		return ResolvedOutputFilePath;
+	}
+
+	if (OutputPathTextBox.IsValid())
+	{
+		return OutputPathTextBox->GetText().ToString();
+	}
+
+	return SavedOutputPathText;
+}
+
+FString SADumpEditorTab::ResolveNormalizedOutputDirectoryPath(const FString& InOutputFilePath) const
+{
+	if (InOutputFilePath.IsEmpty())
+	{
+		return FString();
+	}
+
+	FString FullOutputFilePath = FPaths::ConvertRelativePathToFull(InOutputFilePath);
+	FPaths::NormalizeFilename(FullOutputFilePath);
+
+	FString OutputDirectoryPath = FPaths::GetPath(FullOutputFilePath);
+	if (OutputDirectoryPath.IsEmpty())
+	{
+		return FString();
+	}
+
+	FPaths::NormalizeDirectoryName(OutputDirectoryPath);
+	return OutputDirectoryPath;
 }
 
 #undef LOCTEXT_NAMESPACE
