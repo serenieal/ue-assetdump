@@ -1,0 +1,78 @@
+// File: ADumpExecCtrl.h
+// Version: v0.1.0
+// Changelog:
+// - v0.1.0: 에디터 탭용 단계 실행 컨트롤러와 로그 스냅샷 API 추가.
+
+#pragma once
+
+#include "CoreMinimal.h"
+
+#include "ADumpService.h"
+
+// FADumpExecSnapshot은 에디터 UI가 그릴 현재 실행 상태 스냅샷이다.
+struct FADumpExecSnapshot
+{
+	// bIsRunning은 현재 덤프 세션이 실행 중인지 나타낸다.
+	bool bIsRunning = false;
+
+	// bCanCancel은 현재 취소 요청을 받을 수 있는지 나타낸다.
+	bool bCanCancel = false;
+
+	// ProgressState는 현재 진행률 스냅샷이다.
+	FADumpProgressState ProgressState;
+
+	// WarningCount는 누적 warning 개수다.
+	int32 WarningCount = 0;
+
+	// ErrorCount는 누적 error 개수다.
+	int32 ErrorCount = 0;
+
+	// ResolvedOutputFilePath는 최종 출력 파일 경로다.
+	FString ResolvedOutputFilePath;
+
+	// StatusMessage는 최근 상태 메시지다.
+	FString StatusMessage;
+
+	// LogText는 자동 줄바꿈 대상이 되는 전체 로그 문자열이다.
+	FString LogText;
+};
+
+// FADumpExecCtrl은 에디터 탭에서 단계 실행형 덤프를 제어하는 싱글톤 컨트롤러다.
+class FADumpExecCtrl
+{
+public:
+	// Get는 전역 단일 실행 컨트롤러 인스턴스를 반환한다.
+	static FADumpExecCtrl& Get();
+
+	// StartDump는 새 덤프 세션을 시작한다.
+	bool StartDump(const FADumpRunOpts& InRunOpts, FString& OutMessage);
+
+	// TickDump는 다음 단계 하나를 실행하고 최신 스냅샷을 갱신한다.
+	bool TickDump(FString& OutMessage);
+
+	// CancelDump는 현재 세션 취소를 요청한다.
+	void CancelDump();
+
+	// IsRunning은 현재 세션이 실행 중인지 반환한다.
+	bool IsRunning() const;
+
+	// GetSnapshot은 현재 UI 표시용 스냅샷을 반환한다.
+	FADumpExecSnapshot GetSnapshot() const;
+
+private:
+	// AppendLogLine은 상태 로그에 새 줄을 추가한다.
+	void AppendLogLine(const FString& InLine);
+
+	// BuildSnapshot은 현재 상태를 UI용 구조체로 만든다.
+	FADumpExecSnapshot BuildSnapshot() const;
+
+private:
+	// DumpService는 실제 단계 실행을 담당하는 공통 서비스 인스턴스다.
+	FADumpService DumpService;
+
+	// bIsRunning은 세션 실행 중 여부다.
+	bool bIsRunning = false;
+
+	// LogLines는 UI 로그 패널에 표시할 줄 목록이다.
+	TArray<FString> LogLines;
+};

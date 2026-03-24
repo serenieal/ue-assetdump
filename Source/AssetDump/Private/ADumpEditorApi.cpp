@@ -1,20 +1,22 @@
 // File: ADumpEditorApi.cpp
-// Version: v0.3.0
+// Version: v0.4.0
 // Changelog:
+// - v0.4.0: 단계 실행형 덤프 컨트롤러 연동, 상태/로그/진행률 조회 API 추가, 외부 문자열 한국어화.
 // - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 공통 서비스에 전달하도록 확장.
 // - v0.2.0: 옵션 기반 공통 에디터 dump API 구현 추가.
 // - v0.1.0: Editor Utility Widget용 선택 자산 조회/summary dump API 구현 추가.
 
 #include "ADumpEditorApi.h"
 
+#include "ADumpExecCtrl.h"
 #include "ADumpRunOpts.h"
 #include "ADumpService.h"
 
 #include "AssetRegistry/AssetData.h"
 #include "ContentBrowserModule.h"
+#include "Engine/Blueprint.h"
 #include "IContentBrowserSingleton.h"
 #include "Modules/ModuleManager.h"
-#include "Engine/Blueprint.h"
 
 namespace
 {
@@ -29,7 +31,7 @@ namespace
 
 		if (SelectedAssetList.Num() <= 0)
 		{
-			OutMessage = TEXT("No asset is selected in the Content Browser.");
+			OutMessage = TEXT("콘텐츠 브라우저에서 선택된 에셋이 없습니다.");
 			return false;
 		}
 
@@ -43,7 +45,7 @@ namespace
 			}
 		}
 
-		OutMessage = TEXT("The current selection does not contain a Blueprint asset.");
+		OutMessage = TEXT("현재 선택 목록에 블루프린트 에셋이 없습니다.");
 		return false;
 	}
 
@@ -61,6 +63,32 @@ namespace
 		}
 		return EADumpLinkKind::All;
 	}
+
+	// BuildRunOpts는 Editor UI 입력을 공통 실행 옵션 구조로 변환한다.
+	FADumpRunOpts BuildRunOpts(
+		const FString& AssetObjectPath,
+		const FString& OutputFilePath,
+		bool bIncludeSummary,
+		bool bIncludeDetails,
+		bool bIncludeGraphs,
+		bool bIncludeReferences,
+		const FString& GraphNameFilter,
+		bool bLinksOnly,
+		const FString& LinkKindText)
+	{
+		FADumpRunOpts DumpRunOpts;
+		DumpRunOpts.AssetObjectPath = AssetObjectPath;
+		DumpRunOpts.SourceKind = EADumpSourceKind::EditorSelection;
+		DumpRunOpts.OutputFilePath = OutputFilePath;
+		DumpRunOpts.bIncludeSummary = bIncludeSummary;
+		DumpRunOpts.bIncludeDetails = bIncludeDetails;
+		DumpRunOpts.bIncludeGraphs = bIncludeGraphs;
+		DumpRunOpts.bIncludeReferences = bIncludeReferences;
+		DumpRunOpts.GraphNameFilter = GraphNameFilter;
+		DumpRunOpts.bLinksOnly = bLinksOnly;
+		DumpRunOpts.LinkKind = ParseLinkKindText(LinkKindText);
+		return DumpRunOpts;
+	}
 }
 
 bool UADumpEditorApi::GetSelectedBlueprintObjectPath(FString& OutAssetObjectPath, FString& OutDisplayName, FString& OutMessage)
@@ -77,8 +105,95 @@ bool UADumpEditorApi::GetSelectedBlueprintObjectPath(FString& OutAssetObjectPath
 
 	OutAssetObjectPath = SelectedBlueprintAsset.GetObjectPathString();
 	OutDisplayName = SelectedBlueprintAsset.AssetName.ToString();
-	OutMessage = TEXT("Selected Blueprint asset resolved successfully.");
+	OutMessage = TEXT("선택된 블루프린트 에셋을 확인했습니다.");
 	return true;
+}
+
+bool UADumpEditorApi::StartDumpSelectedBlueprint(
+	const FString& OutputFilePath,
+	bool bIncludeSummary,
+	bool bIncludeDetails,
+	bool bIncludeGraphs,
+	bool bIncludeReferences,
+	const FString& GraphNameFilter,
+	bool bLinksOnly,
+	const FString& LinkKindText,
+	FString& OutMessage)
+{
+	FString SelectedAssetObjectPath;
+	FString SelectedDisplayName;
+	if (!GetSelectedBlueprintObjectPath(SelectedAssetObjectPath, SelectedDisplayName, OutMessage))
+	{
+		return false;
+	}
+
+	const FADumpRunOpts DumpRunOpts = BuildRunOpts(
+		SelectedAssetObjectPath,
+		OutputFilePath,
+		bIncludeSummary,
+		bIncludeDetails,
+		bIncludeGraphs,
+		bIncludeReferences,
+		GraphNameFilter,
+		bLinksOnly,
+		LinkKindText);
+
+	return FADumpExecCtrl::Get().StartDump(DumpRunOpts, OutMessage);
+}
+
+bool UADumpEditorApi::TickActiveDump(FString& OutMessage)
+{
+	return FADumpExecCtrl::Get().TickDump(OutMessage);
+}
+
+void UADumpEditorApi::CancelActiveDump()
+{
+	FADumpExecCtrl::Get().CancelDump();
+}
+
+bool UADumpEditorApi::IsDumpRunning()
+{
+	return FADumpExecCtrl::Get().IsRunning();
+}
+
+float UADumpEditorApi::GetDumpProgressPercent01()
+{
+	return static_cast<float>(FADumpExecCtrl::Get().GetSnapshot().ProgressState.Percent01);
+}
+
+FString UADumpEditorApi::GetDumpPhaseText()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().ProgressState.PhaseLabel;
+}
+
+FString UADumpEditorApi::GetDumpDetailText()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().ProgressState.DetailLabel;
+}
+
+int32 UADumpEditorApi::GetDumpWarningCount()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().WarningCount;
+}
+
+int32 UADumpEditorApi::GetDumpErrorCount()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().ErrorCount;
+}
+
+FString UADumpEditorApi::GetDumpResolvedOutputPath()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().ResolvedOutputFilePath;
+}
+
+FString UADumpEditorApi::GetDumpStatusMessage()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().StatusMessage;
+}
+
+FString UADumpEditorApi::GetDumpLogText()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().LogText;
 }
 
 bool UADumpEditorApi::DumpSelectedBlueprint(
@@ -131,39 +246,28 @@ bool UADumpEditorApi::DumpBlueprintByPath(
 	OutResolvedOutputFilePath.Reset();
 	OutMessage.Reset();
 
-	// DumpRunOpts는 에디터 경로에서 공통 서비스에 전달할 실행 옵션이다.
-	FADumpRunOpts DumpRunOpts;
-	DumpRunOpts.AssetObjectPath = AssetObjectPath;
-	DumpRunOpts.SourceKind = EADumpSourceKind::EditorSelection;
-	DumpRunOpts.OutputFilePath = OutputFilePath;
-
-	DumpRunOpts.bIncludeSummary = bIncludeSummary;
-	DumpRunOpts.bIncludeDetails = bIncludeDetails;
-	DumpRunOpts.bIncludeGraphs = bIncludeGraphs;
-	DumpRunOpts.bIncludeReferences = bIncludeReferences;
-	DumpRunOpts.GraphNameFilter = GraphNameFilter;
-	DumpRunOpts.bLinksOnly = bLinksOnly;
-	DumpRunOpts.LinkKind = ParseLinkKindText(LinkKindText);
+	const FADumpRunOpts DumpRunOpts = BuildRunOpts(
+		AssetObjectPath,
+		OutputFilePath,
+		bIncludeSummary,
+		bIncludeDetails,
+		bIncludeGraphs,
+		bIncludeReferences,
+		GraphNameFilter,
+		bLinksOnly,
+		LinkKindText);
 
 	FADumpService DumpService;
 	FADumpResult DumpResult;
 	if (!DumpService.DumpBlueprint(DumpRunOpts, DumpResult))
 	{
 		OutResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
-		OutMessage = TEXT("Failed to extract Blueprint dump.");
-		return false;
-	}
-
-	FString SaveErrorMessage;
-	if (!DumpService.SaveDumpJson(DumpRunOpts.ResolveOutputFilePath(), DumpResult, SaveErrorMessage))
-	{
-		OutResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
-		OutMessage = FString::Printf(TEXT("Failed to save dump json: %s"), *SaveErrorMessage);
+		OutMessage = TEXT("블루프린트 덤프 추출에 실패했습니다.");
 		return false;
 	}
 
 	OutResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
-	OutMessage = TEXT("Blueprint dump completed successfully.");
+	OutMessage = TEXT("블루프린트 덤프가 완료되었습니다.");
 	return true;
 }
 

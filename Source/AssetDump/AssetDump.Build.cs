@@ -1,8 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 // File: AssetDumpBuild.cs
-// Version: v0.3.0
+// Version: v0.4.0
 // Changelog:
+// - v0.4.0: 출력 경로 복사 기능 링크 오류 해결을 위해 ApplicationCore 의존성 추가.
 // - v0.3.0: 정식 Editor Tab(Slate/ToolMenus/ContentBrowser) 의존성 추가.
 // - v0.2.6a: UEdGraphSchema_K2::PC_Exec 링크 오류 해결을 위해 BlueprintGraph 의존성 추가(에디터 빌드에서만)
 // Purpose: AssetDump 에디터 모듈에서 필요한 의존성을 명시한다.
@@ -41,6 +42,7 @@ public class AssetDump : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
 				"AssetRegistry",
 				"ContentBrowser",
 				"InputCore",

@@ -1,6 +1,8 @@
 // File: ADumpEditorTab.h
-// Version: v0.3.0
+// Version: v0.4.1
 // Changelog:
+// - v0.4.1: 진행률 바 바인딩용 Getter를 정리하고 선언부 포맷을 정돈.
+// - v0.4.0: 진행률 바, 경고/오류 카운트, 취소/복사 버튼, 스크롤 로그, ActiveTimer 갱신 상태 추가.
 // - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 조절할 수 있는 UI 상태를 추가.
 // - v0.2.0: 옵션 체크박스 상태와 공통 dump 버튼 처리 추가.
 // - v0.1.0: Slate 기반 AssetDump Editor Tab 위젯 추가.
@@ -8,6 +10,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
 class SCheckBox;
@@ -42,8 +45,29 @@ private:
 	// ResolvedOutputFilePath는 마지막 실행에서 실제로 저장된 dump.json 경로다.
 	FString ResolvedOutputFilePath;
 
-	// StatusMessage는 UI 하단에 출력할 최근 상태 메시지다.
+	// StatusMessage는 UI 상태 영역에 출력할 최근 상태 메시지다.
 	FString StatusMessage;
+
+	// LogText는 자동 줄바꿈과 스크롤 대상이 되는 전체 로그 텍스트다.
+	FString LogText;
+
+	// CurrentPhaseText는 현재 진행 단계 표시 문자열이다.
+	FString CurrentPhaseText;
+
+	// CurrentDetailText는 현재 진행 세부 상태 문자열이다.
+	FString CurrentDetailText;
+
+	// ProgressPercent01은 0.0 ~ 1.0 범위 진행률 값이다.
+	float ProgressPercent01 = 0.0f;
+
+	// WarningCount는 누적 warning 개수다.
+	int32 WarningCount = 0;
+
+	// ErrorCount는 누적 error 개수다.
+	int32 ErrorCount = 0;
+
+	// bIsDumpRunning은 단계 실행형 덤프가 현재 진행 중인지 나타낸다.
+	bool bIsDumpRunning = false;
 
 	// bIncludeSummary는 summary 섹션 포함 여부다.
 	bool bIncludeSummary = true;
@@ -63,14 +87,26 @@ private:
 	// RefreshSelection는 현재 Content Browser 선택 상태를 다시 읽는다.
 	void RefreshSelection();
 
-	// HandleRefreshSelectionClicked는 Refresh 버튼 클릭을 처리한다.
+	// RefreshRuntimeState는 진행률/로그/상태 메시지 스냅샷을 API에서 다시 읽는다.
+	void RefreshRuntimeState();
+
+	// HandleActiveTimerTick는 주기적으로 단계 실행을 진행하고 UI 상태를 갱신한다.
+	EActiveTimerReturnType HandleActiveTimerTick(double InCurrentTime, float InDeltaTime);
+
+	// HandleRefreshSelectionClicked는 선택 새로고침 버튼 클릭을 처리한다.
 	FReply HandleRefreshSelectionClicked();
 
 	// HandleDumpSelectedClicked는 현재 옵션 기준 dump 버튼 클릭을 처리한다.
 	FReply HandleDumpSelectedClicked();
 
+	// HandleCancelDumpClicked는 현재 실행 중 덤프 취소 버튼 클릭을 처리한다.
+	FReply HandleCancelDumpClicked();
+
 	// HandleOpenOutputFolderClicked는 마지막 출력 폴더 열기 버튼 클릭을 처리한다.
 	FReply HandleOpenOutputFolderClicked();
+
+	// HandleCopyOutputPathClicked는 마지막 출력 파일 경로 복사 버튼 클릭을 처리한다.
+	FReply HandleCopyOutputPathClicked();
 
 	// HandleIncludeSummaryCheckStateChanged는 Summary 체크박스 변경을 반영한다.
 	void HandleIncludeSummaryCheckStateChanged(ECheckBoxState InNewState);
@@ -110,4 +146,37 @@ private:
 
 	// GetStatusMessageText는 최근 상태 메시지를 UI 텍스트로 반환한다.
 	FText GetStatusMessageText() const;
+
+	// GetProgressPercentValue는 진행률 바 바인딩용 값을 반환한다.
+	TOptional<float> GetProgressPercentValue() const;
+
+	// GetProgressPercentText는 현재 진행률 퍼센트 문자열을 반환한다.
+	FText GetProgressPercentText() const;
+
+	// GetPhaseText는 현재 단계 문자열을 반환한다.
+	FText GetPhaseText() const;
+
+	// GetDetailText는 현재 세부 상태 문자열을 반환한다.
+	FText GetDetailText() const;
+
+	// GetWarningCountText는 warning 개수 문자열을 반환한다.
+	FText GetWarningCountText() const;
+
+	// GetErrorCountText는 error 개수 문자열을 반환한다.
+	FText GetErrorCountText() const;
+
+	// GetLogText는 자동 줄바꿈 대상 전체 로그 문자열을 반환한다.
+	FText GetLogText() const;
+
+	// IsDumpRunningEnabled는 실행 중 여부를 반환한다.
+	bool IsDumpRunningEnabled() const;
+
+	// CanStartDump는 새 덤프 시작 버튼 활성 조건을 반환한다.
+	bool CanStartDump() const;
+
+	// CanCancelDump는 취소 버튼 활성 조건을 반환한다.
+	bool CanCancelDump() const;
+
+	// HasOutputPath는 출력 경로 관련 버튼 활성 조건을 반환한다.
+	bool HasOutputPath() const;
 };
