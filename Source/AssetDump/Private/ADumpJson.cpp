@@ -1,6 +1,10 @@
 // File: ADumpJson.cpp
-// Version: v0.3.0
+// Version: v0.4.0
 // Changelog:
+// - v0.4.0: 문서 v1.2 기준으로 dump root/details/graphs/perf/warnings/errors 직렬화 키를 정렬.
+// - v0.3.3: 임시 저장 파일명 계산 시 전체 경로가 다시 붙는 버그를 수정.
+// - v0.3.2: 기본 및 사용자 출력 경로를 절대 경로로 정규화해 상대 경로 중복 문제를 수정.
+// - v0.3.1: 패키지 경로만 들어와도 에셋 이름을 안정적으로 추출하도록 기본 출력 파일명 계산을 보강.
 // - v0.3.0: 전체 JSON 직렬화 본문 복구 및 자산별 출력 파일명 규칙 반영.
 // - v0.2.0: 출력 폴더/파일 경로 해석 helper 추가.
 // - v0.1.0: dump.json 공통 직렬화, 기본 경로 계산, 안전 저장 로직 추가.
@@ -8,6 +12,7 @@
 #include "ADumpJson.h"
 
 #include "HAL/FileManager.h"
+#include "Math/UnrealMathUtility.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
@@ -16,14 +21,36 @@
 
 namespace
 {
-	// GetSafeAssetFileNameBase는 AssetObjectPath에서 파일명으로 안전한 에셋 이름을 추출한다.
-	FString GetSafeAssetFileNameBase(const FString& InAssetObjectPath)
+	// ResolveSafeAssetName은 object path, package path, 파일명 중 사용 가능한 값을 골라 에셋 이름으로 정규화한다.
+	FString ResolveSafeAssetName(const FString& InAssetObjectPath)
 	{
 		FString AssetName = FPackageName::ObjectPathToObjectName(InAssetObjectPath);
 		if (AssetName.IsEmpty())
 		{
+			const FString PackageName = FPackageName::ObjectPathToPackageName(InAssetObjectPath);
+			if (!PackageName.IsEmpty())
+			{
+				AssetName = FPackageName::GetShortName(PackageName);
+			}
+		}
+
+		if (AssetName.IsEmpty())
+		{
+			AssetName = FPaths::GetBaseFilename(InAssetObjectPath);
+		}
+
+		if (AssetName.IsEmpty())
+		{
 			AssetName = TEXT("UnknownAsset");
 		}
+
+		return AssetName;
+	}
+
+	// GetSafeAssetFileNameBase는 AssetObjectPath에서 파일명으로 안전한 에셋 이름을 추출한다.
+	FString GetSafeAssetFileNameBase(const FString& InAssetObjectPath)
+	{
+		FString AssetName = ResolveSafeAssetName(InAssetObjectPath);
 
 		AssetName.ReplaceInline(TEXT("."), TEXT("_"));
 		AssetName.ReplaceInline(TEXT("/"), TEXT("_"));
@@ -35,6 +62,19 @@ namespace
 	FString BuildDumpFileName(const FString& InAssetObjectPath)
 	{
 		return FString::Printf(TEXT("%s.dump.json"), *GetSafeAssetFileNameBase(InAssetObjectPath));
+	}
+
+	// NormalizeOutputPath는 출력 경로를 절대 경로 기준으로 정규화한다.
+	FString NormalizeOutputPath(const FString& InOutputPath)
+	{
+		if (InOutputPath.IsEmpty())
+		{
+			return FString();
+		}
+
+		FString FullOutputPath = FPaths::ConvertRelativePathToFull(InOutputPath);
+		FPaths::NormalizeFilename(FullOutputPath);
+		return FullOutputPath;
 	}
 
 	// IsDirectoryLikePath는 사용자 입력이 파일 경로보다 디렉터리 경로에 가까운지 판단한다.
@@ -59,15 +99,41 @@ namespace
 		return Extension.IsEmpty();
 	}
 
-	// MakeIssueObject는 issue 한 건을 JSON object로 변환한다.
+	// GetIssueSectionText는 phase를 warnings/errors의 section 문자열로 바꾼다.
+	const TCHAR* GetIssueSectionText(EADumpPhase InPhase)
+	{
+		switch (InPhase)
+		{
+		case EADumpPhase::Summary:
+			return TEXT("summary");
+		case EADumpPhase::Details:
+			return TEXT("details");
+		case EADumpPhase::Graphs:
+			return TEXT("graphs");
+		case EADumpPhase::References:
+			return TEXT("references");
+		case EADumpPhase::Save:
+			return TEXT("save");
+		default:
+			return TEXT("summary");
+		}
+	}
+
+	// SecondsToMilliseconds는 내부 초 단위를 문서용 ms 정수로 변환한다.
+	int64 SecondsToMilliseconds(double InSeconds)
+	{
+		return FMath::RoundToInt64(InSeconds * 1000.0);
+	}
+
+	// MakeIssueObject는 warning/error 항목 한 건을 문서 스키마로 변환한다.
 	TSharedRef<FJsonObject> MakeIssueObject(const FADumpIssue& InIssue)
 	{
 		TSharedRef<FJsonObject> IssueObject = MakeShared<FJsonObject>();
 		IssueObject->SetStringField(TEXT("code"), InIssue.Code);
+		IssueObject->SetStringField(TEXT("section"), GetIssueSectionText(InIssue.Phase));
 		IssueObject->SetStringField(TEXT("message"), InIssue.Message);
 		IssueObject->SetStringField(TEXT("severity"), ToString(InIssue.Severity));
-		IssueObject->SetStringField(TEXT("phase"), ToString(InIssue.Phase));
-		IssueObject->SetStringField(TEXT("target_path"), InIssue.TargetPath);
+		IssueObject->SetStringField(TEXT("target"), InIssue.TargetPath);
 		return IssueObject;
 	}
 
@@ -75,14 +141,18 @@ namespace
 	TSharedRef<FJsonObject> MakePropertyObject(const FADumpPropertyItem& InPropertyItem)
 	{
 		TSharedRef<FJsonObject> PropertyObject = MakeShared<FJsonObject>();
+		PropertyObject->SetStringField(TEXT("owner_kind"), InPropertyItem.OwnerKind);
+		PropertyObject->SetStringField(TEXT("owner_name"), InPropertyItem.OwnerName);
 		PropertyObject->SetStringField(TEXT("property_path"), InPropertyItem.PropertyPath);
+		PropertyObject->SetStringField(TEXT("property_name"), InPropertyItem.PropertyName);
 		PropertyObject->SetStringField(TEXT("display_name"), InPropertyItem.DisplayName);
 		PropertyObject->SetStringField(TEXT("category"), InPropertyItem.Category);
 		PropertyObject->SetStringField(TEXT("tooltip"), InPropertyItem.Tooltip);
-		PropertyObject->SetStringField(TEXT("cpp_type"), InPropertyItem.CppType);
+		PropertyObject->SetStringField(TEXT("property_type"), InPropertyItem.CppType);
 		PropertyObject->SetStringField(TEXT("value_kind"), ToString(InPropertyItem.ValueKind));
 		PropertyObject->SetStringField(TEXT("value_text"), InPropertyItem.ValueText);
-		PropertyObject->SetBoolField(TEXT("is_override"), InPropertyItem.bIsOverride);
+		PropertyObject->SetBoolField(TEXT("is_editable"), InPropertyItem.bIsEditable);
+		PropertyObject->SetBoolField(TEXT("is_overridden"), InPropertyItem.bIsOverride);
 
 		TSharedPtr<FJsonValue> ValueJsonField = InPropertyItem.ValueJson;
 		if (!ValueJsonField.IsValid())
@@ -99,9 +169,7 @@ namespace
 		TSharedRef<FJsonObject> ComponentObject = MakeShared<FJsonObject>();
 		ComponentObject->SetStringField(TEXT("component_name"), InComponentItem.ComponentName);
 		ComponentObject->SetStringField(TEXT("component_class"), InComponentItem.ComponentClass);
-		ComponentObject->SetStringField(TEXT("attach_parent_name"), InComponentItem.AttachParentName);
-		ComponentObject->SetBoolField(TEXT("is_scene_component"), InComponentItem.bIsSceneComponent);
-		ComponentObject->SetBoolField(TEXT("from_scs"), InComponentItem.bFromSCS);
+		ComponentObject->SetStringField(TEXT("attach_parent"), InComponentItem.AttachParentName);
 
 		TArray<TSharedPtr<FJsonValue>> PropertyArray;
 		for (const FADumpPropertyItem& PropertyItem : InComponentItem.Properties)
@@ -181,6 +249,7 @@ namespace
 		TSharedRef<FJsonObject> GraphObject = MakeShared<FJsonObject>();
 		GraphObject->SetStringField(TEXT("graph_name"), InGraph.GraphName);
 		GraphObject->SetStringField(TEXT("graph_type"), ToString(InGraph.GraphType));
+		GraphObject->SetBoolField(TEXT("is_editable"), InGraph.bIsEditable);
 		GraphObject->SetNumberField(TEXT("node_count"), InGraph.NodeCount);
 		GraphObject->SetNumberField(TEXT("link_count"), InGraph.LinkCount);
 
@@ -217,7 +286,7 @@ namespace ADumpJson
 	FString BuildDefaultOutputFilePath(const FString& AssetObjectPath)
 	{
 		const FString AssetName = GetSafeAssetFileNameBase(AssetObjectPath);
-		return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"), AssetName, BuildDumpFileName(AssetObjectPath));
+		return NormalizeOutputPath(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"), AssetName, BuildDumpFileName(AssetObjectPath)));
 	}
 
 	FString ResolveOutputFilePath(const FString& UserOutputPath, const FString& AssetObjectPath)
@@ -229,16 +298,17 @@ namespace ADumpJson
 
 		if (IsDirectoryLikePath(UserOutputPath))
 		{
-			return FPaths::Combine(UserOutputPath, BuildDumpFileName(AssetObjectPath));
+			return NormalizeOutputPath(FPaths::Combine(UserOutputPath, BuildDumpFileName(AssetObjectPath)));
 		}
 
-		return UserOutputPath;
+		return NormalizeOutputPath(UserOutputPath);
 	}
 
 	FString BuildTempOutputFilePath(const FString& FinalOutputFilePath)
 	{
 		const FString DirectoryPath = FPaths::GetPath(FinalOutputFilePath);
-		const FString BaseFileName = FPaths::GetBaseFilename(FinalOutputFilePath, false);
+		const FString FinalFileName = FPaths::GetCleanFilename(FinalOutputFilePath);
+		const FString BaseFileName = FPaths::GetBaseFilename(FinalFileName, false);
 		const FString TempFileName = FString::Printf(TEXT("%s.tmp.json"), *BaseFileName);
 		return FPaths::Combine(DirectoryPath, TempFileName);
 	}
@@ -249,18 +319,22 @@ namespace ADumpJson
 		RootObject->SetStringField(TEXT("schema_version"), InDumpResult.SchemaVersion);
 		RootObject->SetStringField(TEXT("extractor_version"), InDumpResult.ExtractorVersion);
 		RootObject->SetStringField(TEXT("engine_version"), InDumpResult.EngineVersion);
+		RootObject->SetStringField(TEXT("dump_time"), InDumpResult.DumpTime);
 		RootObject->SetStringField(TEXT("dump_status"), ToString(InDumpResult.DumpStatus));
 
 		TSharedRef<FJsonObject> AssetObject = MakeShared<FJsonObject>();
-		AssetObject->SetStringField(TEXT("asset_name"), InDumpResult.Asset.AssetName);
-		AssetObject->SetStringField(TEXT("asset_object_path"), InDumpResult.Asset.AssetObjectPath);
+		AssetObject->SetStringField(TEXT("object_path"), InDumpResult.Asset.AssetObjectPath);
 		AssetObject->SetStringField(TEXT("package_name"), InDumpResult.Asset.PackageName);
-		AssetObject->SetStringField(TEXT("class_name"), InDumpResult.Asset.ClassName);
-		AssetObject->SetStringField(TEXT("generated_class_path"), InDumpResult.Asset.GeneratedClassPath);
+		AssetObject->SetStringField(TEXT("asset_name"), InDumpResult.Asset.AssetName);
+		AssetObject->SetStringField(TEXT("asset_class"), InDumpResult.Asset.ClassName);
+		AssetObject->SetStringField(TEXT("generated_class"), InDumpResult.Asset.GeneratedClassPath);
+		AssetObject->SetStringField(TEXT("parent_class"), InDumpResult.Asset.ParentClassPath);
+		AssetObject->SetStringField(TEXT("asset_guid"), InDumpResult.Asset.AssetGuid);
+		AssetObject->SetBoolField(TEXT("is_data_only"), InDumpResult.Asset.bIsDataOnly);
 		RootObject->SetObjectField(TEXT("asset"), AssetObject);
 
 		TSharedRef<FJsonObject> RequestObject = MakeShared<FJsonObject>();
-		RequestObject->SetStringField(TEXT("source_kind"), ToString(InDumpResult.Request.SourceKind));
+		RequestObject->SetStringField(TEXT("source"), ToString(InDumpResult.Request.SourceKind));
 		RequestObject->SetBoolField(TEXT("include_summary"), InDumpResult.Request.bIncludeSummary);
 		RequestObject->SetBoolField(TEXT("include_details"), InDumpResult.Request.bIncludeDetails);
 		RequestObject->SetBoolField(TEXT("include_graphs"), InDumpResult.Request.bIncludeGraphs);
@@ -275,7 +349,6 @@ namespace ADumpJson
 		RootObject->SetObjectField(TEXT("request"), RequestObject);
 
 		TSharedRef<FJsonObject> SummaryObject = MakeShared<FJsonObject>();
-		SummaryObject->SetStringField(TEXT("parent_class_path"), InDumpResult.Summary.ParentClassPath);
 		SummaryObject->SetNumberField(TEXT("graph_count"), InDumpResult.Summary.GraphCount);
 		SummaryObject->SetNumberField(TEXT("function_graph_count"), InDumpResult.Summary.FunctionGraphCount);
 		SummaryObject->SetNumberField(TEXT("macro_graph_count"), InDumpResult.Summary.MacroGraphCount);
@@ -303,6 +376,11 @@ namespace ADumpJson
 			ComponentArray.Add(MakeShared<FJsonValueObject>(MakeComponentObject(ComponentItem)));
 		}
 		DetailsObject->SetArrayField(TEXT("components"), ComponentArray);
+
+		TSharedRef<FJsonObject> DetailsMetaObject = MakeShared<FJsonObject>();
+		DetailsMetaObject->SetNumberField(TEXT("property_count"), InDumpResult.Perf.PropertyCount);
+		DetailsMetaObject->SetNumberField(TEXT("component_count"), InDumpResult.Details.Components.Num());
+		DetailsObject->SetObjectField(TEXT("meta"), DetailsMetaObject);
 		RootObject->SetObjectField(TEXT("details"), DetailsObject);
 
 		TArray<TSharedPtr<FJsonValue>> GraphArray;
@@ -328,21 +406,30 @@ namespace ADumpJson
 		ReferencesObject->SetArrayField(TEXT("soft"), SoftRefArray);
 		RootObject->SetObjectField(TEXT("references"), ReferencesObject);
 
-		TArray<TSharedPtr<FJsonValue>> IssueArray;
+		TArray<TSharedPtr<FJsonValue>> WarningArray;
+		TArray<TSharedPtr<FJsonValue>> ErrorArray;
 		for (const FADumpIssue& IssueItem : InDumpResult.Issues)
 		{
-			IssueArray.Add(MakeShared<FJsonValueObject>(MakeIssueObject(IssueItem)));
+			if (IssueItem.Severity == EADumpIssueSeverity::Error)
+			{
+				ErrorArray.Add(MakeShared<FJsonValueObject>(MakeIssueObject(IssueItem)));
+			}
+			else
+			{
+				WarningArray.Add(MakeShared<FJsonValueObject>(MakeIssueObject(IssueItem)));
+			}
 		}
-		RootObject->SetArrayField(TEXT("issues"), IssueArray);
+		RootObject->SetArrayField(TEXT("warnings"), WarningArray);
+		RootObject->SetArrayField(TEXT("errors"), ErrorArray);
 
 		TSharedRef<FJsonObject> PerfObject = MakeShared<FJsonObject>();
-		PerfObject->SetNumberField(TEXT("total_seconds"), InDumpResult.Perf.TotalSeconds);
-		PerfObject->SetNumberField(TEXT("load_seconds"), InDumpResult.Perf.LoadSeconds);
-		PerfObject->SetNumberField(TEXT("summary_seconds"), InDumpResult.Perf.SummarySeconds);
-		PerfObject->SetNumberField(TEXT("details_seconds"), InDumpResult.Perf.DetailsSeconds);
-		PerfObject->SetNumberField(TEXT("graphs_seconds"), InDumpResult.Perf.GraphsSeconds);
-		PerfObject->SetNumberField(TEXT("references_seconds"), InDumpResult.Perf.ReferencesSeconds);
-		PerfObject->SetNumberField(TEXT("save_seconds"), InDumpResult.Perf.SaveSeconds);
+		PerfObject->SetNumberField(TEXT("total_ms"), SecondsToMilliseconds(InDumpResult.Perf.TotalSeconds));
+		PerfObject->SetNumberField(TEXT("load_ms"), SecondsToMilliseconds(InDumpResult.Perf.LoadSeconds));
+		PerfObject->SetNumberField(TEXT("summary_ms"), SecondsToMilliseconds(InDumpResult.Perf.SummarySeconds));
+		PerfObject->SetNumberField(TEXT("details_ms"), SecondsToMilliseconds(InDumpResult.Perf.DetailsSeconds));
+		PerfObject->SetNumberField(TEXT("graphs_ms"), SecondsToMilliseconds(InDumpResult.Perf.GraphsSeconds));
+		PerfObject->SetNumberField(TEXT("references_ms"), SecondsToMilliseconds(InDumpResult.Perf.ReferencesSeconds));
+		PerfObject->SetNumberField(TEXT("save_ms"), SecondsToMilliseconds(InDumpResult.Perf.SaveSeconds));
 		PerfObject->SetNumberField(TEXT("property_count"), InDumpResult.Perf.PropertyCount);
 		PerfObject->SetNumberField(TEXT("component_count"), InDumpResult.Perf.ComponentCount);
 		PerfObject->SetNumberField(TEXT("graph_count"), InDumpResult.Perf.GraphCount);
@@ -350,16 +437,6 @@ namespace ADumpJson
 		PerfObject->SetNumberField(TEXT("link_count"), InDumpResult.Perf.LinkCount);
 		PerfObject->SetNumberField(TEXT("reference_count"), InDumpResult.Perf.ReferenceCount);
 		RootObject->SetObjectField(TEXT("perf"), PerfObject);
-
-		TSharedRef<FJsonObject> ProgressObject = MakeShared<FJsonObject>();
-		ProgressObject->SetStringField(TEXT("phase"), ToString(InDumpResult.Progress.CurrentPhase));
-		ProgressObject->SetStringField(TEXT("phase_label"), InDumpResult.Progress.PhaseLabel);
-		ProgressObject->SetStringField(TEXT("detail_label"), InDumpResult.Progress.DetailLabel);
-		ProgressObject->SetNumberField(TEXT("percent_01"), InDumpResult.Progress.Percent01);
-		ProgressObject->SetNumberField(TEXT("completed_units"), InDumpResult.Progress.CompletedUnits);
-		ProgressObject->SetNumberField(TEXT("total_units"), InDumpResult.Progress.TotalUnits);
-		ProgressObject->SetBoolField(TEXT("is_cancelable"), InDumpResult.Progress.bIsCancelable);
-		RootObject->SetObjectField(TEXT("progress"), ProgressObject);
 		return RootObject;
 	}
 

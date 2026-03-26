@@ -1,6 +1,7 @@
 // File: ADumpEditorApi.h
-// Version: v0.4.0
+// Version: v0.4.1
 // Changelog:
+// - v0.4.1: Compile Before Dump, Skip If Up To Date 옵션을 공통 실행 옵션으로 전달하도록 API 시그니처를 확장.
 // - v0.4.0: 단계 실행형 덤프 시작/진행/취소/상태 조회 API 추가.
 // - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 전달할 수 있도록 API를 확장.
 // - v0.2.0: 옵션 기반 공통 에디터 dump API 추가.
@@ -33,6 +34,8 @@ public:
 		bool bIncludeDetails,
 		bool bIncludeGraphs,
 		bool bIncludeReferences,
+		bool bCompileBeforeDump,
+		bool bSkipIfUpToDate,
 		const FString& GraphNameFilter,
 		bool bLinksOnly,
 		const FString& LinkKindText,
@@ -102,6 +105,8 @@ public:
 		bool bIncludeDetails,
 		bool bIncludeGraphs,
 		bool bIncludeReferences,
+		bool bCompileBeforeDump,
+		bool bSkipIfUpToDate,
 		const FString& GraphNameFilter,
 		bool bLinksOnly,
 		const FString& LinkKindText,
@@ -118,6 +123,8 @@ public:
 		bool bIncludeDetails,
 		bool bIncludeGraphs,
 		bool bIncludeReferences,
+		bool bCompileBeforeDump,
+		bool bSkipIfUpToDate,
 		const FString& GraphNameFilter,
 		bool bLinksOnly,
 		const FString& LinkKindText,

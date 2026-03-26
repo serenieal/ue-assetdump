@@ -1,6 +1,7 @@
 // File: ADumpExecCtrl.h
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 세션 종료 시 Saved/BPDump/Logs 에 실행 로그 파일 저장 기능 추가.
 // - v0.1.0: 에디터 탭용 단계 실행 컨트롤러와 로그 스냅샷 API 추가.
 
 #pragma once
@@ -65,6 +66,15 @@ private:
 
 	// BuildSnapshot은 현재 상태를 UI용 구조체로 만든다.
 	FADumpExecSnapshot BuildSnapshot() const;
+
+	// BuildLogFilePath는 현재 세션 로그를 저장할 로그 파일 경로를 만든다.
+	FString BuildLogFilePath() const;
+
+	// BuildLogFileText는 파일로 남길 실행 로그 본문을 구성한다.
+	FString BuildLogFileText() const;
+
+	// WriteSessionLogFile은 현재 세션 로그를 Saved/BPDump/Logs 아래에 저장한다.
+	bool WriteSessionLogFile(FString& OutMessage) const;
 
 private:
 	// DumpService는 실제 단계 실행을 담당하는 공통 서비스 인스턴스다.

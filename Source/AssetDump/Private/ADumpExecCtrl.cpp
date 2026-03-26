@@ -1,9 +1,16 @@
 // File: ADumpExecCtrl.cpp
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 세션 종료 시 Saved/BPDump/Logs 에 실행 로그 파일 저장 기능 추가.
 // - v0.1.0: 에디터 탭용 단계 실행 컨트롤러와 로그 누적 구현 추가.
 
 #include "ADumpExecCtrl.h"
+
+#include "HAL/FileManager.h"
+#include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
+#include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 
 FADumpExecCtrl& FADumpExecCtrl::Get()
 {
@@ -53,6 +60,13 @@ bool FADumpExecCtrl::TickDump(FString& OutMessage)
 		AppendLogLine(TEXT("덤프 세션이 종료되었습니다."));
 	}
 
+	if (!DumpService.IsSessionActive())
+	{
+		FString LogFileMessage;
+		WriteSessionLogFile(LogFileMessage);
+		AppendLogLine(LogFileMessage);
+	}
+
 	return bStepSucceeded;
 }
 
@@ -86,6 +100,68 @@ void FADumpExecCtrl::AppendLogLine(const FString& InLine)
 	}
 
 	LogLines.Add(InLine);
+}
+
+// BuildLogFilePath는 현재 세션 로그 파일의 저장 경로를 계산한다.
+FString FADumpExecCtrl::BuildLogFilePath() const
+{
+	FString AssetName = FPackageName::ObjectPathToObjectName(DumpService.GetActiveResult().Asset.AssetObjectPath);
+	if (AssetName.IsEmpty())
+	{
+		const FString PackageName = FPackageName::ObjectPathToPackageName(DumpService.GetActiveResult().Asset.AssetObjectPath);
+		if (!PackageName.IsEmpty())
+		{
+			AssetName = FPackageName::GetShortName(PackageName);
+		}
+	}
+
+	if (AssetName.IsEmpty())
+	{
+		AssetName = TEXT("UnknownAsset");
+	}
+
+	AssetName.ReplaceInline(TEXT("."), TEXT("_"));
+	AssetName.ReplaceInline(TEXT("/"), TEXT("_"));
+	AssetName.ReplaceInline(TEXT("\\"), TEXT("_"));
+
+	const FString TimeStampText = FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"));
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"), TEXT("Logs"), FString::Printf(TEXT("%s_%s.log"), *TimeStampText, *AssetName)));
+}
+
+// BuildLogFileText는 파일로 남길 실행 로그 문자열을 구성한다.
+FString FADumpExecCtrl::BuildLogFileText() const
+{
+	const FString LogBodyText = FString::Join(LogLines, TEXT("\n"));
+	return FString::Printf(
+		TEXT("Status: %s\nOutput: %s\nWarnings: %d\nErrors: %d\n\n%s\n"),
+		*DumpService.GetStatusMessage(),
+		*DumpService.GetResolvedOutputFilePath(),
+		DumpService.GetWarningCount(),
+		DumpService.GetErrorCount(),
+		*LogBodyText);
+}
+
+// WriteSessionLogFile은 현재 세션 로그를 Saved/BPDump/Logs 아래에 저장한다.
+bool FADumpExecCtrl::WriteSessionLogFile(FString& OutMessage) const
+{
+	OutMessage.Reset();
+
+	const FString LogFilePath = BuildLogFilePath();
+	const FString LogDirectoryPath = FPaths::GetPath(LogFilePath);
+	if (!IFileManager::Get().MakeDirectory(*LogDirectoryPath, true))
+	{
+		OutMessage = FString::Printf(TEXT("실행 로그 폴더 생성에 실패했습니다: %s"), *LogDirectoryPath);
+		return false;
+	}
+
+	if (!FFileHelper::SaveStringToFile(BuildLogFileText(), *LogFilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+	{
+		OutMessage = FString::Printf(TEXT("실행 로그 저장에 실패했습니다: %s"), *LogFilePath);
+		return false;
+	}
+
+	OutMessage = FString::Printf(TEXT("실행 로그를 저장했습니다: %s"), *LogFilePath);
+	return true;
 }
 
 FADumpExecSnapshot FADumpExecCtrl::BuildSnapshot() const

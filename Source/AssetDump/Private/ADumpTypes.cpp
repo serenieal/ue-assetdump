@@ -1,23 +1,25 @@
 // File: ADumpTypes.cpp
-// Version: v0.1.3
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 문서 v1.2 기준 schema/source/status/graph enum 문자열과 기본 결과 메타를 정렬.
 // - v0.1.3: 손상된 구현 파일을 복구하고 enum 문자열 변환 및 기본 결과 생성 로직을 복원.
 // - v0.1.0: BPDump 공통 타입 문자열 변환 함수와 기본 결과 생성 함수 추가.
 
 #include "ADumpTypes.h"
 
+#include "Misc/DateTime.h"
 #include "Misc/EngineVersion.h"
 
 namespace ADumpSchema
 {
 	const TCHAR* GetVersionText()
 	{
-		return TEXT("bpdump.schema.v1");
+		return TEXT("1.2");
 	}
 
 	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("bpdump.extractor.v0.1.3");
+		return TEXT("1.2.0");
 	}
 }
 
@@ -26,13 +28,13 @@ const TCHAR* ToString(EADumpSourceKind InValue)
 	switch (InValue)
 	{
 	case EADumpSourceKind::Commandlet:
-		return TEXT("commandlet");
+		return TEXT("object_path");
 	case EADumpSourceKind::EditorSelection:
-		return TEXT("editor_selection");
+		return TEXT("selected_asset");
 	case EADumpSourceKind::EditorOpenBlueprint:
-		return TEXT("editor_open_blueprint");
+		return TEXT("open_blueprint");
 	case EADumpSourceKind::EditorWidget:
-		return TEXT("editor_widget");
+		return TEXT("selected_asset");
 	default:
 		return TEXT("unknown");
 	}
@@ -43,21 +45,19 @@ const TCHAR* ToString(EADumpGraphType InValue)
 	switch (InValue)
 	{
 	case EADumpGraphType::EventGraph:
-		return TEXT("event_graph");
+		return TEXT("event");
 	case EADumpGraphType::FunctionGraph:
-		return TEXT("function_graph");
+		return TEXT("function");
 	case EADumpGraphType::MacroGraph:
-		return TEXT("macro_graph");
+		return TEXT("macro");
 	case EADumpGraphType::ConstructionScript:
-		return TEXT("construction_script");
+		return TEXT("construction");
 	case EADumpGraphType::AnimationGraph:
-		return TEXT("animation_graph");
+		return TEXT("animation");
 	case EADumpGraphType::DelegateGraph:
-		return TEXT("delegate_graph");
 	case EADumpGraphType::UberGraph:
-		return TEXT("uber_graph");
 	case EADumpGraphType::Other:
-		return TEXT("other");
+		return TEXT("unknown");
 	default:
 		return TEXT("unknown");
 	}
@@ -92,15 +92,15 @@ const TCHAR* ToString(EADumpStatus InValue)
 	switch (InValue)
 	{
 	case EADumpStatus::Succeeded:
-		return TEXT("succeeded");
+		return TEXT("success");
 	case EADumpStatus::PartialSuccess:
 		return TEXT("partial_success");
 	case EADumpStatus::Failed:
 		return TEXT("failed");
 	case EADumpStatus::Canceled:
-		return TEXT("canceled");
+		return TEXT("failed");
 	default:
-		return TEXT("none");
+		return TEXT("failed");
 	}
 }
 
@@ -108,14 +108,14 @@ const TCHAR* ToString(EADumpValueKind InValue)
 {
 	switch (InValue)
 	{
+	case EADumpValueKind::None:
+		return TEXT("null");
 	case EADumpValueKind::Bool:
 		return TEXT("bool");
 	case EADumpValueKind::Int:
-		return TEXT("int");
 	case EADumpValueKind::Float:
-		return TEXT("float");
 	case EADumpValueKind::Double:
-		return TEXT("double");
+		return TEXT("number");
 	case EADumpValueKind::String:
 		return TEXT("string");
 	case EADumpValueKind::Name:
@@ -141,9 +141,9 @@ const TCHAR* ToString(EADumpValueKind InValue)
 	case EADumpValueKind::Set:
 		return TEXT("set");
 	case EADumpValueKind::Unsupported:
-		return TEXT("unsupported");
+		return TEXT("null");
 	default:
-		return TEXT("none");
+		return TEXT("null");
 	}
 }
 
@@ -195,6 +195,7 @@ FADumpResult FADumpResult::CreateDefault()
 	DefaultResult.SchemaVersion = ADumpSchema::GetVersionText();
 	DefaultResult.ExtractorVersion = ADumpSchema::GetExtractorVersionText();
 	DefaultResult.EngineVersion = FEngineVersion::Current().ToString(EVersionComponent::Patch);
+	DefaultResult.DumpTime = FDateTime::Now().ToIso8601();
 	DefaultResult.DumpStatus = EADumpStatus::None;
 	DefaultResult.Progress.CurrentPhase = EADumpPhase::Prepare;
 	DefaultResult.Progress.PhaseLabel = TEXT("Prepare");

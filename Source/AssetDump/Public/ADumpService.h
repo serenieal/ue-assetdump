@@ -1,6 +1,8 @@
 // File: ADumpService.h
-// Version: v0.4.0
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: 최종 상태를 저장 전 결과에 반영하고 취소 시 부분 저장 경로와 총 처리 시간 추적을 추가.
+// - v0.4.1: dump 파일 실제 저장 여부를 추적해 저장 실패 상태를 별도로 판정.
 // - v0.4.0: 단계별 실행 세션, 진행률 스냅샷, 경고/오류 카운트, 상태 메시지 조회 기능 추가.
 // - v0.1.0: BPDump 공통 서비스 레이어 골격과 summary 기반 첫 실행 경로 추가.
 
@@ -67,8 +69,8 @@ private:
 		EADumpPhase InPhase,
 		const FString& InTargetPath);
 
-	// FinalizeStatus는 추출 결과와 issue 목록을 기준으로 최종 상태를 정한다.
-	void FinalizeStatus(FADumpResult& InOutResult);
+	// FinalizeStatus는 저장 성공 여부까지 고려해 최종 상태와 상태 메시지를 정한다.
+	void FinalizeStatus(FADumpResult& InOutResult, bool bTreatAsOutputSaved);
 
 	// RecountIssueStats는 현재 issue 배열을 기준으로 warning/error 개수를 다시 계산한다.
 	void RecountIssueStats();
@@ -104,6 +106,12 @@ private:
 	// ErrorCount는 현재 세션의 error 개수다.
 	int32 ErrorCount = 0;
 
+	// bOutputFileSaved는 이번 세션에서 최종 dump 파일이 실제로 확보되었는지 추적한다.
+	bool bOutputFileSaved = false;
+
 	// StatusMessage는 사용자 표시용 최근 상태 문구다.
 	FString StatusMessage;
+
+	// SessionStartSeconds는 총 처리 시간 계산에 사용할 세션 시작 시각이다.
+	double SessionStartSeconds = 0.0;
 };

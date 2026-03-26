@@ -1,6 +1,7 @@
 // File: ADumpEditorTab.h
-// Version: v0.6.0
+// Version: v0.6.1
 // Changelog:
+// - v0.6.1: Compile Before Dump, Skip If Up To Date 체크박스와 ini 저장 상태를 추가.
 // - v0.6.0: 전체 탭 스크롤, 옵션 ini 저장/복원, 출력 경로 정규화 helper 선언 추가.
 // - v0.4.1: 진행률 바 바인딩용 Getter를 정리하고 선언부 포맷을 정돈.
 // - v0.4.0: 진행률 바, 경고/오류 카운트, 취소/복사 버튼, 스크롤 로그, ActiveTimer 갱신 상태 추가.
@@ -50,6 +51,8 @@ private:
 	bool bIncludeDetails = false;
 	bool bIncludeGraphs = false;
 	bool bIncludeReferences = false;
+	bool bCompileBeforeDump = false;
+	bool bSkipIfUpToDate = false;
 	bool bLinksOnly = false;
 
 	void RefreshSelection();
@@ -66,12 +69,20 @@ private:
 	void HandleIncludeDetailsCheckStateChanged(ECheckBoxState InNewState);
 	void HandleIncludeGraphsCheckStateChanged(ECheckBoxState InNewState);
 	void HandleIncludeReferencesCheckStateChanged(ECheckBoxState InNewState);
+	// HandleCompileBeforeDumpCheckStateChanged는 사전 컴파일 옵션 상태를 갱신한다.
+	void HandleCompileBeforeDumpCheckStateChanged(ECheckBoxState InNewState);
+	// HandleSkipIfUpToDateCheckStateChanged는 최신 결과 재사용 옵션 상태를 갱신한다.
+	void HandleSkipIfUpToDateCheckStateChanged(ECheckBoxState InNewState);
 	void HandleLinksOnlyCheckStateChanged(ECheckBoxState InNewState);
 
 	ECheckBoxState GetIncludeSummaryCheckState() const;
 	ECheckBoxState GetIncludeDetailsCheckState() const;
 	ECheckBoxState GetIncludeGraphsCheckState() const;
 	ECheckBoxState GetIncludeReferencesCheckState() const;
+	// GetCompileBeforeDumpCheckState는 사전 컴파일 옵션 체크 상태를 반환한다.
+	ECheckBoxState GetCompileBeforeDumpCheckState() const;
+	// GetSkipIfUpToDateCheckState는 최신 결과 재사용 옵션 체크 상태를 반환한다.
+	ECheckBoxState GetSkipIfUpToDateCheckState() const;
 	ECheckBoxState GetLinksOnlyCheckState() const;
 
 	FText GetSelectedAssetText() const;

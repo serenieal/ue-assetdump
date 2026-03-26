@@ -1,6 +1,7 @@
 // File: ADumpDetailExt.cpp
-// Version: v0.2.4
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: details 스키마용 owner/property/editable 필드를 채우고 델리게이트 계열 노이즈를 기본 제외.
 // - v0.2.4: 내부 컴포넌트 참조 복구, actor CDO 컴포넌트 수집, Root/UpdatedComponent fallback을 복원해 details 회귀를 수정.
 // - v0.2.3: FClassProperty의 TObjectPtr 반환 타입에 맞게 안전한 class path 추출로 수정.
 // - v0.2.2: 디버그 크래시를 피하기 위해 안전한 값 읽기 경로만 사용하고 override 비교를 임시 비활성화.
@@ -20,6 +21,7 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "GameFramework/Actor.h"
 #include "HAL/PlatformTime.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealType.h"
 
@@ -281,6 +283,14 @@ namespace
 	bool ShouldSkipProperty(const FProperty& InProperty)
 	{
 		if (InProperty.HasAnyPropertyFlags(CPF_Deprecated | CPF_Transient))
+		{
+			return true;
+		}
+
+		if (CastField<const FDelegateProperty>(&InProperty)
+			|| CastField<const FMulticastDelegateProperty>(&InProperty)
+			|| CastField<const FMulticastInlineDelegateProperty>(&InProperty)
+			|| CastField<const FMulticastSparseDelegateProperty>(&InProperty))
 		{
 			return true;
 		}
@@ -665,17 +675,24 @@ namespace
 		const void* InCurrentContainerPtr,
 		const UObject* InCurrentContainerObject,
 		const void* InCompareContainerPtr,
+		const FString& InOwnerKind,
+		const FString& InOwnerName,
 		const FString& InPropertyPathPrefix,
 		const FDetailExtractContext& InExtractContext)
 	{
 		FADumpPropertyItem PropertyItem;
+		PropertyItem.OwnerKind = InOwnerKind;
+		PropertyItem.OwnerName = InOwnerName;
 		PropertyItem.PropertyPath = MakePropertyPath(InPropertyPathPrefix, InProperty.GetName());
+		PropertyItem.PropertyName = InProperty.GetName();
 		PropertyItem.DisplayName = InProperty.GetDisplayNameText().ToString();
 		PropertyItem.Category = InProperty.GetMetaData(TEXT("Category"));
 		PropertyItem.Tooltip = InProperty.GetToolTipText().ToString();
 		PropertyItem.CppType = InProperty.GetCPPType();
 		PropertyItem.ValueKind = GetValueKind(InProperty);
 		PropertyItem.ValueText = ExportValueText(InProperty, InCurrentContainerPtr);
+		PropertyItem.bIsEditable = InProperty.HasAnyPropertyFlags(CPF_Edit)
+			&& !InProperty.HasAnyPropertyFlags(CPF_EditConst | CPF_DisableEditOnInstance);
 
 		if (PropertyItem.ValueKind == EADumpValueKind::ObjectRef
 			|| PropertyItem.ValueKind == EADumpValueKind::ClassRef
@@ -709,6 +726,8 @@ namespace
 		const void* InCurrentContainerPtr,
 		const UObject* InCurrentContainerObject,
 		const void* InCompareContainerPtr,
+		const FString& InOwnerKind,
+		const FString& InOwnerName,
 		const FString& InPropertyPathPrefix,
 		const FDetailExtractContext& InExtractContext,
 		TArray<FADumpPropertyItem>& OutPropertyItems)
@@ -731,6 +750,8 @@ namespace
 				InCurrentContainerPtr,
 				InCurrentContainerObject,
 				InCompareContainerPtr,
+				InOwnerKind,
+				InOwnerName,
 				InPropertyPathPrefix,
 				InExtractContext);
 
@@ -783,6 +804,9 @@ namespace ADumpDetailExt
 		OutAssetInfo.AssetObjectPath = AssetObjectPath;
 		OutAssetInfo.PackageName = BlueprintAsset->GetOutermost() ? BlueprintAsset->GetOutermost()->GetName() : FString();
 		OutAssetInfo.ClassName = BlueprintAsset->GetClass()->GetName();
+		OutAssetInfo.ParentClassPath = BlueprintAsset->ParentClass ? BlueprintAsset->ParentClass->GetPathName() : FString();
+		OutAssetInfo.AssetGuid = FString();
+		OutAssetInfo.bIsDataOnly = FBlueprintEditorUtils::IsDataOnlyBlueprint(BlueprintAsset);
 
 		UBlueprintGeneratedClass* GeneratedClass = Cast<UBlueprintGeneratedClass>(BlueprintAsset->GeneratedClass);
 		if (!GeneratedClass)
@@ -865,6 +889,8 @@ namespace ADumpDetailExt
 				ClassDefaultObject,
 				ClassDefaultObject,
 				ParentClassDefaultObject,
+				TEXT("class_default"),
+				ClassDefaultObject->GetName(),
 				TEXT("class_defaults"),
 				ExtractContext,
 				OutDetails.ClassDefaults);
@@ -907,6 +933,8 @@ namespace ADumpDetailExt
 				ActorComponent,
 				ActorComponent,
 				nullptr,
+				TEXT("component_template"),
+				ComponentItem.ComponentName,
 				FString::Printf(TEXT("components.%s"), *ComponentItem.ComponentName),
 				ExtractContext,
 				ComponentItem.Properties);
@@ -954,14 +982,16 @@ namespace ADumpDetailExt
 				}
 				SeenComponentKeys.Add(ComponentKey);
 
-				PopulatePropertyItems(
-					ComponentTemplate->GetClass(),
-					ComponentTemplate,
-					ComponentTemplate,
-					nullptr,
-					FString::Printf(TEXT("components.%s"), *ComponentItem.ComponentName),
-					ExtractContext,
-					ComponentItem.Properties);
+			PopulatePropertyItems(
+				ComponentTemplate->GetClass(),
+				ComponentTemplate,
+				ComponentTemplate,
+				nullptr,
+				TEXT("component_template"),
+				ComponentItem.ComponentName,
+				FString::Printf(TEXT("components.%s"), *ComponentItem.ComponentName),
+				ExtractContext,
+				ComponentItem.Properties);
 
 				OutDetails.Components.Add(MoveTemp(ComponentItem));
 				InOutPerf.ComponentCount++;

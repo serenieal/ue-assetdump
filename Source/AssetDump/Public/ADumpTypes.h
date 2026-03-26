@@ -1,6 +1,7 @@
 // File: ADumpTypes.h
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 문서 v1.2 기준 자산/프로퍼티/그래프/결과 메타 필드를 확장하고 저장 스키마 정렬용 필드를 추가.
 // - v0.1.0: BPDump 공통 타입, enum, 결과 구조 골격 추가.
 //
 // Purpose:
@@ -159,6 +160,15 @@ struct FADumpAssetInfo
 
 	// GeneratedClassPath는 Blueprint GeneratedClass 경로를 기록한다.
 	FString GeneratedClassPath;
+
+	// ParentClassPath는 부모 클래스 경로를 기록한다.
+	FString ParentClassPath;
+
+	// AssetGuid는 사용 가능한 경우 자산 GUID를 기록한다.
+	FString AssetGuid;
+
+	// bIsDataOnly는 Data Only Blueprint 여부다.
+	bool bIsDataOnly = false;
 };
 
 // FADumpRequestInfo는 최종 dump.json에 남길 요청 스냅샷이다.
@@ -244,8 +254,17 @@ struct FADumpSummary
 // FADumpPropertyItem은 하나의 직렬화 가능한 프로퍼티 항목이다.
 struct FADumpPropertyItem
 {
+	// OwnerKind는 class_default / component_template 같은 소유자 종류다.
+	FString OwnerKind;
+
+	// OwnerName은 현재 프로퍼티가 속한 소유자 이름이다.
+	FString OwnerName;
+
 	// PropertyPath는 details.class_defaults 내부 경로다.
 	FString PropertyPath;
+
+	// PropertyName은 reflection 기준 원본 프로퍼티 이름이다.
+	FString PropertyName;
 
 	// DisplayName은 사용자 친화 표시 이름이다.
 	FString DisplayName;
@@ -267,6 +286,9 @@ struct FADumpPropertyItem
 
 	// ValueText는 구조화가 어려운 값의 안전한 텍스트 백업이다.
 	FString ValueText;
+
+	// bIsEditable는 에디터에서 수정 가능한 항목인지 나타낸다.
+	bool bIsEditable = false;
 
 	// bIsOverride는 부모/기본값 대비 override 여부다.
 	bool bIsOverride = false;
@@ -409,6 +431,9 @@ struct FADumpGraph
 	// GraphType는 그래프 유형이다.
 	EADumpGraphType GraphType = EADumpGraphType::Unknown;
 
+	// bIsEditable는 에디터에서 수정 가능한 그래프인지 나타낸다.
+	bool bIsEditable = true;
+
 	// NodeCount는 노드 수다.
 	int32 NodeCount = 0;
 
@@ -546,6 +571,9 @@ struct FADumpResult
 
 	// EngineVersion은 UE 엔진 버전 문자열이다.
 	FString EngineVersion;
+
+	// DumpTime은 ISO-8601 형식 덤프 시각 문자열이다.
+	FString DumpTime;
 
 	// DumpStatus는 최종 덤프 상태다.
 	EADumpStatus DumpStatus = EADumpStatus::None;

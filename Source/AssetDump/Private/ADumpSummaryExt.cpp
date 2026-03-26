@@ -1,14 +1,18 @@
 // File: ADumpSummaryExt.cpp
-// Version: v0.1.1
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: parent/data-only 자산 메타를 채우고 details 기준과 가까운 컴포넌트 집계를 적용.
 // - v0.1.1: Unity build에서 ADumpDetailExt.cpp와의 anonymous namespace 함수명 충돌을 피하도록 AddIssue를 AddSummaryIssue로 변경.
 // - v0.1.0: Blueprint summary 기본 추출기 구현 추가.
 
 #include "ADumpSummaryExt.h"
 
+#include "Components/ActorComponent.h"
 #include "Engine/Blueprint.h"
+#include "GameFramework/Actor.h"
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "UObject/SoftObjectPath.h"
 
 namespace
@@ -86,6 +90,9 @@ namespace ADumpSummaryExt
 		OutAssetInfo.AssetObjectPath = AssetObjectPath;
 		OutAssetInfo.PackageName = BlueprintAsset->GetOutermost() ? BlueprintAsset->GetOutermost()->GetName() : FString();
 		OutAssetInfo.ClassName = BlueprintAsset->GetClass()->GetName();
+		OutAssetInfo.ParentClassPath = BlueprintAsset->ParentClass ? BlueprintAsset->ParentClass->GetPathName() : FString();
+		OutAssetInfo.AssetGuid = FString();
+		OutAssetInfo.bIsDataOnly = FBlueprintEditorUtils::IsDataOnlyBlueprint(BlueprintAsset);
 
 		if (BlueprintAsset->GeneratedClass)
 		{
@@ -123,18 +130,49 @@ namespace ADumpSummaryExt
 			BlueprintAsset->UbergraphPages.Num() +
 			BlueprintAsset->DelegateSignatureGraphs.Num();
 
+		TSet<FString> UniqueComponentKeys;
+		if (UClass* GeneratedClassObject = BlueprintAsset->GeneratedClass)
+		{
+			if (AActor* ActorDefaultObject = Cast<AActor>(GeneratedClassObject->GetDefaultObject()))
+			{
+				TInlineComponentArray<UActorComponent*> ActorComponentList;
+				ActorDefaultObject->GetComponents(ActorComponentList);
+				for (UActorComponent* ActorComponent : ActorComponentList)
+				{
+					if (!ActorComponent)
+					{
+						continue;
+					}
+
+					UniqueComponentKeys.Add(FString::Printf(TEXT("%s|%s"), *ActorComponent->GetName(), *ActorComponent->GetClass()->GetName()));
+				}
+			}
+		}
+
 		if (BlueprintAsset->SimpleConstructionScript)
 		{
-			// AllScsNodes는 BP에 선언된 SCS 노드 전체다.
 			const TArray<USCS_Node*>& AllScsNodes = BlueprintAsset->SimpleConstructionScript->GetAllNodes();
-			OutSummary.ComponentCount = AllScsNodes.Num();
+			for (USCS_Node* ScsNode : AllScsNodes)
+			{
+				if (!ScsNode || !ScsNode->ComponentTemplate)
+				{
+					continue;
+				}
+
+				const FString ComponentName = ScsNode->GetVariableName().IsNone()
+					? ScsNode->ComponentTemplate->GetName()
+					: ScsNode->GetVariableName().ToString();
+				UniqueComponentKeys.Add(FString::Printf(TEXT("%s|%s"), *ComponentName, *ScsNode->ComponentTemplate->GetClass()->GetName()));
+			}
+
 			OutSummary.bHasConstructionScript = AllScsNodes.Num() > 0;
 		}
 		else
 		{
-			OutSummary.ComponentCount = 0;
 			OutSummary.bHasConstructionScript = false;
 		}
+
+		OutSummary.ComponentCount = UniqueComponentKeys.Num();
 
 		return true;
 	}

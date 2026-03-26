@@ -1,9 +1,12 @@
 // File: ADumpRefExt.cpp
-// Version: v0.1.0
+// Version: v0.2.0
 // Changelog:
+// - v0.2.0: 내부 Blueprint 서브오브젝트 참조를 제외하고 source 값을 문서 기준 property/component로 정리.
 // - v0.1.0: Details 섹션에 기록된 실제 값만 사용해 hard/soft 직접 참조를 수집하는 구현 추가.
 
 #include "ADumpRefExt.h"
+
+#include "Misc/PackageName.h"
 
 namespace
 {
@@ -62,8 +65,23 @@ namespace
 		return InText.Contains(TEXT("/")) || InText.Contains(TEXT(".")) || InText.Contains(TEXT(":"));
 	}
 
+	// IsInternalBlueprintSubobjectPath는 같은 Blueprint GeneratedClass 내부 서브오브젝트 경로를 걸러낸다.
+	bool IsInternalBlueprintSubobjectPath(const FString& InPath, const FString& InAssetObjectPath)
+	{
+		const FString PackageName = FPackageName::ObjectPathToPackageName(InAssetObjectPath);
+		const FString AssetName = FPackageName::ObjectPathToObjectName(InAssetObjectPath);
+		if (PackageName.IsEmpty() || AssetName.IsEmpty())
+		{
+			return false;
+		}
+
+		const FString GeneratedClassPrefix = FString::Printf(TEXT("%s.%s_C:"), *PackageName, *AssetName);
+		return InPath.StartsWith(GeneratedClassPrefix, ESearchCase::CaseSensitive);
+	}
+
 	// AppendRefItem은 중복 없이 hard/soft 참조 배열에 실제 값을 추가한다.
 	void AppendRefItem(
+		const FString& InAssetObjectPath,
 		const FADumpPropertyItem& InPropertyItem,
 		const FString& InSource,
 		TArray<FADumpRefItem>& InOutRefItems,
@@ -77,6 +95,11 @@ namespace
 		}
 
 		if (!LooksLikeAssetPath(NormalizedPath))
+		{
+			return;
+		}
+
+		if (IsInternalBlueprintSubobjectPath(NormalizedPath, InAssetObjectPath))
 		{
 			return;
 		}
@@ -99,6 +122,7 @@ namespace
 
 	// CollectRefsFromPropertyItems는 property 배열에서 reference 계열 값만 읽어 hard/soft 참조를 누적한다.
 	void CollectRefsFromPropertyItems(
+		const FString& InAssetObjectPath,
 		const TArray<FADumpPropertyItem>& InPropertyItems,
 		const FString& InSource,
 		TArray<FADumpRefItem>& InOutHardRefs,
@@ -116,11 +140,11 @@ namespace
 
 			if (IsSoftReferenceKind(PropertyItem.ValueKind))
 			{
-				AppendRefItem(PropertyItem, InSource, InOutSoftRefs, InOutUniqueSoftKeys, InOutPerf);
+				AppendRefItem(InAssetObjectPath, PropertyItem, InSource, InOutSoftRefs, InOutUniqueSoftKeys, InOutPerf);
 			}
 			else
 			{
-				AppendRefItem(PropertyItem, InSource, InOutHardRefs, InOutUniqueHardKeys, InOutPerf);
+				AppendRefItem(InAssetObjectPath, PropertyItem, InSource, InOutHardRefs, InOutUniqueHardKeys, InOutPerf);
 			}
 		}
 	}
@@ -142,8 +166,9 @@ namespace ADumpRefExt
 		TSet<FString> UniqueSoftKeys;
 
 		CollectRefsFromPropertyItems(
+			AssetObjectPath,
 			InDetails.ClassDefaults,
-			TEXT("details.class_defaults"),
+			TEXT("property"),
 			OutReferences.Hard,
 			OutReferences.Soft,
 			UniqueHardKeys,
@@ -152,10 +177,10 @@ namespace ADumpRefExt
 
 		for (const FADumpComponentItem& ComponentItem : InDetails.Components)
 		{
-			const FString ComponentSource = FString::Printf(TEXT("details.components.%s"), *ComponentItem.ComponentName);
 			CollectRefsFromPropertyItems(
+				AssetObjectPath,
 				ComponentItem.Properties,
-				ComponentSource,
+				TEXT("component"),
 				OutReferences.Hard,
 				OutReferences.Soft,
 				UniqueHardKeys,

@@ -1,6 +1,7 @@
 // File: ADumpGraphExt.cpp
-// Version: v0.2.1
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: graph/pin enum 문자열을 문서 기준으로 정규화하고 비어 있던 enabled_state 기본값을 채움.
 // - v0.2.1: unity build 충돌 회피를 위해 서브그래프 수집 helper 이름을 CollectGraphExtSubGraphsFromNode로 변경하고 파일 손상 상태를 복구.
 // - v0.2.0: 그래프 수집 범위 확장, graph type 판별, 링크 수집, 기본 노드 메타 보강.
 // - v0.1.1: UE 5.7 빌드 오류 수정을 위해 누락된 issue helper를 추가하고 잘못된 GraphNode include를 제거.
@@ -15,6 +16,7 @@
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/Blueprint.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 
 namespace
 {
@@ -193,6 +195,9 @@ namespace ADumpGraphExt
 		OutAssetInfo.PackageName = BlueprintObject->GetOutermost() ? BlueprintObject->GetOutermost()->GetName() : FString();
 		OutAssetInfo.ClassName = BlueprintObject->GetClass()->GetName();
 		OutAssetInfo.GeneratedClassPath = BlueprintObject->GeneratedClass ? BlueprintObject->GeneratedClass->GetPathName() : FString();
+		OutAssetInfo.ParentClassPath = BlueprintObject->ParentClass ? BlueprintObject->ParentClass->GetPathName() : FString();
+		OutAssetInfo.AssetGuid = FString();
+		OutAssetInfo.bIsDataOnly = FBlueprintEditorUtils::IsDataOnlyBlueprint(BlueprintObject);
 
 		TArray<UEdGraph*> AllGraphs;
 		TSet<UEdGraph*> UniqueGraphs;
@@ -277,6 +282,7 @@ namespace ADumpGraphExt
 			FADumpGraph DumpGraph;
 			DumpGraph.GraphName = GraphName;
 			DumpGraph.GraphType = DetectGraphType(BlueprintObject, GraphObject);
+			DumpGraph.bIsEditable = true;
 
 			TSet<FString> UniqueLinkKeys;
 			int32 AddedLinkCountForGraph = 0;
@@ -312,6 +318,7 @@ namespace ADumpGraphExt
 				DumpGraphNode.NodeComment = GraphNodeObject->NodeComment;
 				DumpGraphNode.PosX = GraphNodeObject->NodePosX;
 				DumpGraphNode.PosY = GraphNodeObject->NodePosY;
+				DumpGraphNode.EnabledState = TEXT("unknown");
 				DumpGraphNode.Pins = ExtractPinsFromNode(GraphNodeObject);
 				DumpGraph.Nodes.Add(MoveTemp(DumpGraphNode));
 				InOutPerf.NodeCount++;
@@ -356,9 +363,11 @@ namespace ADumpGraphExt
 			FADumpGraphPin DumpGraphPin;
 			DumpGraphPin.PinId = GraphPinObject->PinId.ToString(EGuidFormats::DigitsWithHyphens);
 			DumpGraphPin.PinName = GraphPinObject->PinName.ToString();
-			DumpGraphPin.Direction = (GraphPinObject->Direction == EGPD_Input) ? TEXT("Input") : TEXT("Output");
+			DumpGraphPin.Direction = (GraphPinObject->Direction == EGPD_Input) ? TEXT("input") : TEXT("output");
 			DumpGraphPin.PinCategory = GraphPinObject->PinType.PinCategory.ToString();
-			DumpGraphPin.PinSubCategory = GraphPinObject->PinType.PinSubCategory.ToString();
+			DumpGraphPin.PinSubCategory = GraphPinObject->PinType.PinSubCategory.IsNone()
+				? FString()
+				: GraphPinObject->PinType.PinSubCategory.ToString();
 			DumpGraphPin.PinSubCategoryObject = GraphPinObject->PinType.PinSubCategoryObject.IsValid()
 				? GraphPinObject->PinType.PinSubCategoryObject.Get()->GetPathName()
 				: FString();

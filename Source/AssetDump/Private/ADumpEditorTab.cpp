@@ -1,6 +1,8 @@
 // File: ADumpEditorTab.cpp
-// Version: v0.6.0
+// Version: v0.6.2
 // Changelog:
+// - v0.6.2: 자동 계산된 출력 경로가 입력값으로 굳지 않도록 분리하고 체크박스 문구를 읽기 쉬운 한국어로 정리.
+// - v0.6.1: Compile Before Dump, Skip If Up To Date UI 옵션과 ini 저장을 추가.
 // - v0.6.0: 전체 탭 스크롤, 옵션 ini 저장/복원, 출력 폴더 경로 정규화, UnknownAsset 추적 로그 추가.
 // - v0.5.4: Construct 레이아웃을 단일 세로 패널 구조로 단순화해 Slate 슬롯 타입 오류를 정리.
 
@@ -264,7 +266,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 									[
 										SNew(STextBlock)
-										.Text(LOCTEXT("IncSummary", "요약 포함"))
+										.Text(LOCTEXT("IncSummary", "요약 정보 추출"))
 									]
 								]
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
@@ -275,7 +277,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 									[
 										SNew(STextBlock)
-										.Text(LOCTEXT("IncDetails", "디테일 포함"))
+										.Text(LOCTEXT("IncDetails", "상세 속성 정보 추출"))
 									]
 								]
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
@@ -286,7 +288,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 									[
 										SNew(STextBlock)
-										.Text(LOCTEXT("IncGraphs", "그래프 포함"))
+										.Text(LOCTEXT("IncGraphs", "블루프린트 그래프 추출"))
 									]
 								]
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
@@ -297,7 +299,29 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 									[
 										SNew(STextBlock)
-										.Text(LOCTEXT("IncRefs", "참조 포함"))
+										.Text(LOCTEXT("IncRefs", "참조 에셋 정보 추출"))
+									]
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SNew(SCheckBox)
+									.IsChecked(this, &SADumpEditorTab::GetCompileBeforeDumpCheckState)
+									.OnCheckStateChanged(this, &SADumpEditorTab::HandleCompileBeforeDumpCheckStateChanged)
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+									[
+										SNew(STextBlock)
+										.Text(LOCTEXT("CompileBeforeDump", "덤프 전에 블루프린트 컴파일"))
+									]
+								]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+								[
+									SNew(SCheckBox)
+									.IsChecked(this, &SADumpEditorTab::GetSkipIfUpToDateCheckState)
+									.OnCheckStateChanged(this, &SADumpEditorTab::HandleSkipIfUpToDateCheckStateChanged)
+									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+									[
+										SNew(STextBlock)
+										.Text(LOCTEXT("SkipIfUpToDate", "최신 결과가 있으면 다시 추출하지 않음"))
 									]
 								]
 							]
@@ -324,7 +348,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
 								[
 									SAssignNew(GraphNameFilterTextBox, SEditableTextBox)
-									.HintText(LOCTEXT("GraphHint", "비워두면 모든 그래프를 덤프합니다."))
+									.HintText(LOCTEXT("GraphHint", "비워두면 모든 그래프를 추출합니다."))
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 								]
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
@@ -335,7 +359,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 									[
 										SNew(STextBlock)
-										.Text(LOCTEXT("LinksOnly", "링크만 추출"))
+										.Text(LOCTEXT("LinksOnly", "노드 정보 없이 링크만 추출"))
 									]
 								]
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
@@ -346,7 +370,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
 								[
 									SAssignNew(LinkKindTextBox, SEditableTextBox)
-									.HintText(LOCTEXT("LinkKindHint", "all / exec / data"))
+									.HintText(LOCTEXT("LinkKindHint", "all: 전체, exec: 실행선, data: 데이터선"))
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 								]
 							]
@@ -374,7 +398,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
 								[
 									SAssignNew(OutputPathTextBox, SEditableTextBox)
-									.HintText(LOCTEXT("OutputHint", "비워두면 Saved/BPDump/<AssetName>/dump.json 경로를 사용합니다."))
+									.HintText(LOCTEXT("OutputHint", "비워두면 선택한 블루프린트 이름으로 Saved/BPDump/.../dump.json 경로를 자동 사용합니다."))
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 								]
 							]
@@ -490,15 +514,6 @@ void SADumpEditorTab::RefreshRuntimeState()
 	if (!RuntimeOutputPath.IsEmpty())
 	{
 		ResolvedOutputFilePath = RuntimeOutputPath;
-		if (!bIsDumpRunning)
-		{
-			SavedOutputPathText = ResolvedOutputFilePath;
-			if (OutputPathTextBox.IsValid())
-			{
-				OutputPathTextBox->SetText(FText::FromString(ResolvedOutputFilePath));
-			}
-			SaveUiOptions();
-		}
 	}
 
 	const FString RuntimeStatusMessage = UADumpEditorApi::GetDumpStatusMessage();
@@ -546,7 +561,7 @@ FReply SADumpEditorTab::HandleDumpSelectedClicked()
 	UE_LOG(LogTemp, Log, TEXT("%s StartDumpSelectedBlueprint Selection='%s' Output='%s' GraphFilter='%s' LinkKind='%s'"), DumpEditorTabLogPrefix, *SelectedAssetObjectPath, *SavedOutputPathText, *SavedGraphNameFilterText, *SavedLinkKindText);
 
 	FString DumpMessage;
-	if (UADumpEditorApi::StartDumpSelectedBlueprint(SavedOutputPathText, bIncludeSummary, bIncludeDetails, bIncludeGraphs, bIncludeReferences, SavedGraphNameFilterText, bLinksOnly, SavedLinkKindText, DumpMessage))
+	if (UADumpEditorApi::StartDumpSelectedBlueprint(SavedOutputPathText, bIncludeSummary, bIncludeDetails, bIncludeGraphs, bIncludeReferences, bCompileBeforeDump, bSkipIfUpToDate, SavedGraphNameFilterText, bLinksOnly, SavedLinkKindText, DumpMessage))
 	{
 		StatusMessage = DumpMessage;
 		bIsDumpRunning = true;
@@ -631,6 +646,20 @@ void SADumpEditorTab::HandleIncludeReferencesCheckStateChanged(ECheckBoxState In
 	SaveUiOptions();
 }
 
+// HandleCompileBeforeDumpCheckStateChanged는 사전 컴파일 옵션 상태를 반영한다.
+void SADumpEditorTab::HandleCompileBeforeDumpCheckStateChanged(ECheckBoxState InNewState)
+{
+	bCompileBeforeDump = (InNewState == ECheckBoxState::Checked);
+	SaveUiOptions();
+}
+
+// HandleSkipIfUpToDateCheckStateChanged는 최신 결과 재사용 옵션 상태를 반영한다.
+void SADumpEditorTab::HandleSkipIfUpToDateCheckStateChanged(ECheckBoxState InNewState)
+{
+	bSkipIfUpToDate = (InNewState == ECheckBoxState::Checked);
+	SaveUiOptions();
+}
+
 void SADumpEditorTab::HandleLinksOnlyCheckStateChanged(ECheckBoxState InNewState)
 {
 	bLinksOnly = (InNewState == ECheckBoxState::Checked);
@@ -655,6 +684,18 @@ ECheckBoxState SADumpEditorTab::GetIncludeGraphsCheckState() const
 ECheckBoxState SADumpEditorTab::GetIncludeReferencesCheckState() const
 {
 	return bIncludeReferences ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+// GetCompileBeforeDumpCheckState는 사전 컴파일 옵션 체크 상태를 반환한다.
+ECheckBoxState SADumpEditorTab::GetCompileBeforeDumpCheckState() const
+{
+	return bCompileBeforeDump ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+// GetSkipIfUpToDateCheckState는 최신 결과 재사용 옵션 체크 상태를 반환한다.
+ECheckBoxState SADumpEditorTab::GetSkipIfUpToDateCheckState() const
+{
+	return bSkipIfUpToDate ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 ECheckBoxState SADumpEditorTab::GetLinksOnlyCheckState() const
@@ -753,10 +794,17 @@ void SADumpEditorTab::LoadUiOptions()
 	GConfig->GetBool(DumpEditorTabIniSection, TEXT("IncludeDetails"), bIncludeDetails, GEditorPerProjectIni);
 	GConfig->GetBool(DumpEditorTabIniSection, TEXT("IncludeGraphs"), bIncludeGraphs, GEditorPerProjectIni);
 	GConfig->GetBool(DumpEditorTabIniSection, TEXT("IncludeReferences"), bIncludeReferences, GEditorPerProjectIni);
+	GConfig->GetBool(DumpEditorTabIniSection, TEXT("CompileBeforeDump"), bCompileBeforeDump, GEditorPerProjectIni);
+	GConfig->GetBool(DumpEditorTabIniSection, TEXT("SkipIfUpToDate"), bSkipIfUpToDate, GEditorPerProjectIni);
 	GConfig->GetBool(DumpEditorTabIniSection, TEXT("LinksOnly"), bLinksOnly, GEditorPerProjectIni);
 	GConfig->GetString(DumpEditorTabIniSection, TEXT("GraphNameFilter"), SavedGraphNameFilterText, GEditorPerProjectIni);
 	GConfig->GetString(DumpEditorTabIniSection, TEXT("LinkKind"), SavedLinkKindText, GEditorPerProjectIni);
 	GConfig->GetString(DumpEditorTabIniSection, TEXT("OutputFilePath"), SavedOutputPathText, GEditorPerProjectIni);
+
+	if (FPaths::GetCleanFilename(SavedOutputPathText).Equals(TEXT("UnknownAsset.dump.json"), ESearchCase::IgnoreCase))
+	{
+		SavedOutputPathText.Reset();
+	}
 
 	if (SavedLinkKindText.IsEmpty())
 	{
@@ -783,6 +831,8 @@ void SADumpEditorTab::SaveUiOptions() const
 	GConfig->SetBool(DumpEditorTabIniSection, TEXT("IncludeDetails"), bIncludeDetails, GEditorPerProjectIni);
 	GConfig->SetBool(DumpEditorTabIniSection, TEXT("IncludeGraphs"), bIncludeGraphs, GEditorPerProjectIni);
 	GConfig->SetBool(DumpEditorTabIniSection, TEXT("IncludeReferences"), bIncludeReferences, GEditorPerProjectIni);
+	GConfig->SetBool(DumpEditorTabIniSection, TEXT("CompileBeforeDump"), bCompileBeforeDump, GEditorPerProjectIni);
+	GConfig->SetBool(DumpEditorTabIniSection, TEXT("SkipIfUpToDate"), bSkipIfUpToDate, GEditorPerProjectIni);
 	GConfig->SetBool(DumpEditorTabIniSection, TEXT("LinksOnly"), bLinksOnly, GEditorPerProjectIni);
 	GConfig->SetString(DumpEditorTabIniSection, TEXT("GraphNameFilter"), *GraphNameFilterText, GEditorPerProjectIni);
 	GConfig->SetString(DumpEditorTabIniSection, TEXT("LinkKind"), *LinkKindText, GEditorPerProjectIni);
