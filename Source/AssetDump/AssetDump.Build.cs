@@ -1,8 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 // File: AssetDumpBuild.cs
-// Version: v0.4.0
+// Version: v0.4.2
 // Changelog:
+// - v0.4.2: AnimBlueprint 상태머신 요약 확장을 위해 AnimGraph 의존성을 추가.
+// - v0.4.1: WidgetBlueprint 요약 확장을 위해 UMG / UMGEditor 의존성을 추가.
 // - v0.4.0: 출력 경로 복사 기능 링크 오류 해결을 위해 ApplicationCore 의존성 추가.
 // - v0.3.0: 정식 Editor Tab(Slate/ToolMenus/ContentBrowser) 의존성 추가.
 // - v0.2.6a: UEdGraphSchema_K2::PC_Exec 링크 오류 해결을 위해 BlueprintGraph 의존성 추가(에디터 빌드에서만)
@@ -35,7 +37,8 @@ public class AssetDump : ModuleRules
 				"Json",
 				"AssetRegistry",
 				"GameplayTags",
-				"EnhancedInput"
+				"EnhancedInput",
+				"UMG"
 			}
 		);
 
@@ -60,7 +63,9 @@ public class AssetDump : ModuleRules
 		{
 			string[] editorOnlyModules =
 			{
-				"BlueprintGraph"
+				"AnimGraph",
+				"BlueprintGraph",
+				"UMGEditor"
 			};
 
 			PrivateDependencyModuleNames.AddRange(editorOnlyModules);

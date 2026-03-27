@@ -1,6 +1,10 @@
 // File: ADumpGraphExt.cpp
-// Version: v0.4.0
+// Version: v0.6.0
 // Changelog:
+// - v0.6.0: Blueprint 외 자산은 graph 미지원 경고만 남기고 안전하게 빈 graphs 결과를 반환하도록 확장.
+// - v0.5.2: Blueprint 공통 asset family 분류 helper를 연결해 graphs-only 실행에서도 자산군 메타를 유지.
+// - v0.5.1: 핀 단위 linked_to_count / has_default_value / is_exec 요약을 추가해 입출력 해석 비용을 줄임.
+// - v0.5.0: Branch/Sequence/Select/Switch/Timeline/Interface Message 노드 메타와 핀 요약을 extra에 추가하고 graph_type 보존과 맞춘다.
 // - v0.4.0: 지원 노드 5종의 member_parent/member_name/extra와 실제 enabled_state 추출을 추가.
 // - v0.3.0: graph/pin enum 문자열을 문서 기준으로 정규화하고 비어 있던 enabled_state 기본값을 채움.
 // - v0.2.1: unity build 충돌 회피를 위해 서브그래프 수집 helper 이름을 CollectGraphExtSubGraphsFromNode로 변경하고 파일 손상 상태를 복구.
@@ -21,6 +25,12 @@
 #include "K2Node_CallFunction.h"
 #include "K2Node_DynamicCast.h"
 #include "K2Node_Event.h"
+#include "K2Node_ExecutionSequence.h"
+#include "K2Node_IfThenElse.h"
+#include "K2Node_Message.h"
+#include "K2Node_Select.h"
+#include "K2Node_Switch.h"
+#include "K2Node_Timeline.h"
 #include "K2Node_Variable.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
@@ -263,6 +273,96 @@ namespace
 		EnsureExtraObject(InOutExtraObject)->SetBoolField(InFieldName, bInFieldValue);
 	}
 
+	// SetExtraNumberField는 extra object에 숫자 필드를 기록한다.
+	void SetExtraNumberField(TSharedPtr<FJsonObject>& InOutExtraObject, const TCHAR* InFieldName, double InFieldValue)
+	{
+		EnsureExtraObject(InOutExtraObject)->SetNumberField(InFieldName, InFieldValue);
+	}
+
+	// SetExtraStringArrayField는 extra object에 문자열 배열 필드를 기록한다.
+	void SetExtraStringArrayField(
+		TSharedPtr<FJsonObject>& InOutExtraObject,
+		const TCHAR* InFieldName,
+		const TArray<FString>& InFieldValues)
+	{
+		// StringValueArray는 extra에 기록할 문자열 JSON 배열이다.
+		TArray<TSharedPtr<FJsonValue>> StringValueArray;
+		for (const FString& FieldValue : InFieldValues)
+		{
+			if (FieldValue.IsEmpty())
+			{
+				continue;
+			}
+
+			StringValueArray.Add(MakeShared<FJsonValueString>(FieldValue));
+		}
+
+		if (StringValueArray.Num() <= 0)
+		{
+			return;
+		}
+
+		EnsureExtraObject(InOutExtraObject)->SetArrayField(InFieldName, StringValueArray);
+	}
+
+	// CollectExecPinNames는 지정 방향의 exec 핀 이름 배열을 수집한다.
+	TArray<FString> CollectExecPinNames(const UEdGraphNode* InGraphNode, EEdGraphPinDirection InDirection)
+	{
+		// ExecPinNames는 현재 노드에서 찾은 exec 핀 이름 배열이다.
+		TArray<FString> ExecPinNames;
+		if (!InGraphNode)
+		{
+			return ExecPinNames;
+		}
+
+		for (const UEdGraphPin* GraphPinObject : InGraphNode->Pins)
+		{
+			if (!GraphPinObject)
+			{
+				continue;
+			}
+
+			if (GraphPinObject->Direction != InDirection)
+			{
+				continue;
+			}
+
+			if (GraphPinObject->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec)
+			{
+				continue;
+			}
+
+			ExecPinNames.Add(GraphPinObject->PinName.ToString());
+		}
+
+		return ExecPinNames;
+	}
+
+	// BuildPinTypeSummaryText는 핀 타입을 짧게 읽을 수 있는 요약 문자열로 만든다.
+	FString BuildPinTypeSummaryText(const UEdGraphPin* InGraphPin)
+	{
+		if (!InGraphPin)
+		{
+			return FString();
+		}
+
+		// BaseTypeText는 현재 핀의 기본 카테고리 문자열이다.
+		FString BaseTypeText = InGraphPin->PinType.PinCategory.ToString();
+		if (!InGraphPin->PinType.PinSubCategory.IsNone())
+		{
+			BaseTypeText += TEXT(":");
+			BaseTypeText += InGraphPin->PinType.PinSubCategory.ToString();
+		}
+
+		if (InGraphPin->PinType.PinSubCategoryObject.IsValid())
+		{
+			BaseTypeText += TEXT(":");
+			BaseTypeText += InGraphPin->PinType.PinSubCategoryObject.Get()->GetPathName();
+		}
+
+		return BaseTypeText;
+	}
+
 	// ResolveDynamicCastTargetClassPath는 DynamicCast 노드 핀 타입에서 대상 클래스 경로를 추론한다.
 	FString ResolveDynamicCastTargetClassPath(const UEdGraphNode* InGraphNode)
 	{
@@ -310,12 +410,20 @@ namespace
 
 			OutDumpGraphNode.MemberName = FunctionName;
 			OutDumpGraphNode.MemberParent = OwnerClassPath;
+			SetExtraStringField(
+				OutDumpGraphNode.Extra,
+				TEXT("node_semantic"),
+				Cast<UK2Node_Message>(InGraphNode) ? TEXT("interface_call") : TEXT("function_call"));
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("function_name"), FunctionName);
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("owner_class"), OwnerClassPath);
 			SetExtraBoolField(
 				OutDumpGraphNode.Extra,
 				TEXT("is_pure"),
 				TargetFunction ? TargetFunction->HasAllFunctionFlags(FUNC_BlueprintPure) : false);
+			SetExtraBoolField(
+				OutDumpGraphNode.Extra,
+				TEXT("is_interface_message"),
+				Cast<UK2Node_Message>(InGraphNode) != nullptr);
 			return;
 		}
 
@@ -332,6 +440,7 @@ namespace
 
 			OutDumpGraphNode.MemberName = EventName;
 			OutDumpGraphNode.MemberParent = OwnerClassPath;
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("event"));
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("event_name"), EventName);
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("owner_class"), OwnerClassPath);
 			return;
@@ -350,6 +459,7 @@ namespace
 
 			OutDumpGraphNode.MemberName = VariableName;
 			OutDumpGraphNode.MemberParent = OwnerPath;
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("variable_get"));
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("variable_name"), VariableName);
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("owner_class"), OwnerPath);
 			return;
@@ -368,6 +478,7 @@ namespace
 
 			OutDumpGraphNode.MemberName = VariableName;
 			OutDumpGraphNode.MemberParent = OwnerPath;
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("variable_set"));
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("variable_name"), VariableName);
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("owner_class"), OwnerPath);
 			return;
@@ -385,7 +496,115 @@ namespace
 
 			OutDumpGraphNode.MemberName = TargetClassName;
 			OutDumpGraphNode.MemberParent = TargetClassPath;
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("dynamic_cast"));
 			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("target_class"), TargetClassPath);
+			return;
+		}
+
+		if (const UK2Node_IfThenElse* BranchNode = Cast<UK2Node_IfThenElse>(InGraphNode))
+		{
+			// ExecOutputNames는 Branch 출력 exec 핀 이름 배열이다.
+			const TArray<FString> ExecOutputNames = CollectExecPinNames(BranchNode, EGPD_Output);
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("branch"));
+			SetExtraStringArrayField(OutDumpGraphNode.Extra, TEXT("exec_outputs"), ExecOutputNames);
+			SetExtraBoolField(OutDumpGraphNode.Extra, TEXT("has_condition_pin"), BranchNode->GetConditionPin() != nullptr);
+			return;
+		}
+
+		if (const UK2Node_ExecutionSequence* SequenceNode = Cast<UK2Node_ExecutionSequence>(InGraphNode))
+		{
+			// ExecOutputNames는 Sequence 출력 exec 핀 이름 배열이다.
+			const TArray<FString> ExecOutputNames = CollectExecPinNames(SequenceNode, EGPD_Output);
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("sequence"));
+			SetExtraNumberField(OutDumpGraphNode.Extra, TEXT("then_count"), ExecOutputNames.Num());
+			SetExtraStringArrayField(OutDumpGraphNode.Extra, TEXT("exec_outputs"), ExecOutputNames);
+			return;
+		}
+
+		if (const UK2Node_Select* SelectNode = Cast<UK2Node_Select>(InGraphNode))
+		{
+			// OptionPins는 Select 입력 후보 핀 배열이다.
+			TArray<UEdGraphPin*> OptionPins;
+			SelectNode->GetOptionPins(OptionPins);
+
+			// OptionPinNames는 Select 옵션 핀 이름 배열이다.
+			TArray<FString> OptionPinNames;
+			for (const UEdGraphPin* OptionPin : OptionPins)
+			{
+				if (!OptionPin)
+				{
+					continue;
+				}
+
+				OptionPinNames.Add(OptionPin->PinName.ToString());
+			}
+
+			// IndexPinObject는 Select 인덱스 입력 핀이다.
+			const UEdGraphPin* IndexPinObject = SelectNode->GetIndexPin();
+
+			// ReturnPinObject는 Select 반환 핀이다.
+			const UEdGraphPin* ReturnPinObject = SelectNode->GetReturnValuePin();
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("select"));
+			SetExtraNumberField(OutDumpGraphNode.Extra, TEXT("option_count"), OptionPins.Num());
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("index_pin_type"), BuildPinTypeSummaryText(IndexPinObject));
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("return_pin_type"), BuildPinTypeSummaryText(ReturnPinObject));
+			SetExtraStringArrayField(OutDumpGraphNode.Extra, TEXT("option_pins"), OptionPinNames);
+			return;
+		}
+
+		if (const UK2Node_Switch* SwitchNode = Cast<UK2Node_Switch>(InGraphNode))
+		{
+			// ExecOutputNames는 Switch 출력 exec 핀 이름 배열이다.
+			const TArray<FString> ExecOutputNames = CollectExecPinNames(SwitchNode, EGPD_Output);
+
+			// CasePinNames는 Default를 제외한 case 출력 핀 이름 배열이다.
+			TArray<FString> CasePinNames;
+			for (const FString& ExecOutputName : ExecOutputNames)
+			{
+				if (ExecOutputName.Equals(TEXT("Default"), ESearchCase::CaseSensitive))
+				{
+					continue;
+				}
+
+				CasePinNames.Add(ExecOutputName);
+			}
+
+			// SelectionPinObject는 Switch 선택 입력 핀이다.
+			const UEdGraphPin* SelectionPinObject = SwitchNode->GetSelectionPin();
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("switch"));
+			SetExtraNumberField(OutDumpGraphNode.Extra, TEXT("case_count"), CasePinNames.Num());
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("selection_pin_type"), BuildPinTypeSummaryText(SelectionPinObject));
+			SetExtraBoolField(OutDumpGraphNode.Extra, TEXT("has_default_pin"), SwitchNode->GetDefaultPin() != nullptr);
+			SetExtraStringArrayField(OutDumpGraphNode.Extra, TEXT("case_pins"), CasePinNames);
+			return;
+		}
+
+		if (const UK2Node_Timeline* TimelineNode = Cast<UK2Node_Timeline>(InGraphNode))
+		{
+			// TrackPinNames는 Timeline의 비-exec 출력 트랙 핀 이름 배열이다.
+			TArray<FString> TrackPinNames;
+			for (const UEdGraphPin* GraphPinObject : TimelineNode->Pins)
+			{
+				if (!GraphPinObject || GraphPinObject->Direction != EGPD_Output)
+				{
+					continue;
+				}
+
+				if (GraphPinObject->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+				{
+					continue;
+				}
+
+				TrackPinNames.Add(GraphPinObject->PinName.ToString());
+			}
+
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("node_semantic"), TEXT("timeline"));
+			SetExtraStringField(OutDumpGraphNode.Extra, TEXT("timeline_name"), TimelineNode->TimelineName.ToString());
+			SetExtraBoolField(OutDumpGraphNode.Extra, TEXT("auto_play"), TimelineNode->bAutoPlay != 0);
+			SetExtraBoolField(OutDumpGraphNode.Extra, TEXT("loop"), TimelineNode->bLoop != 0);
+			SetExtraBoolField(OutDumpGraphNode.Extra, TEXT("replicated"), TimelineNode->bReplicated != 0);
+			SetExtraBoolField(OutDumpGraphNode.Extra, TEXT("ignore_time_dilation"), TimelineNode->bIgnoreTimeDilation != 0);
+			SetExtraStringArrayField(OutDumpGraphNode.Extra, TEXT("track_pins"), TrackPinNames);
 		}
 	}
 }
@@ -402,21 +621,30 @@ namespace ADumpGraphExt
 	{
 		OutGraphs.Reset();
 
-		// BlueprintObject는 그래프 추출 대상 Blueprint 객체다.
-		UBlueprint* BlueprintObject = nullptr;
-		if (!ADumpSummaryExt::LoadBlueprintByPath(AssetObjectPath, BlueprintObject, OutIssues))
+		// LoadedAssetObject는 그래프 추출 대상 자산 객체다.
+		UObject* LoadedAssetObject = nullptr;
+		if (!ADumpSummaryExt::LoadAssetObjectByPath(AssetObjectPath, LoadedAssetObject, OutIssues))
 		{
 			return false;
 		}
 
-		OutAssetInfo.AssetName = BlueprintObject->GetName();
-		OutAssetInfo.AssetObjectPath = AssetObjectPath;
-		OutAssetInfo.PackageName = BlueprintObject->GetOutermost() ? BlueprintObject->GetOutermost()->GetName() : FString();
-		OutAssetInfo.ClassName = BlueprintObject->GetClass()->GetName();
-		OutAssetInfo.GeneratedClassPath = BlueprintObject->GeneratedClass ? BlueprintObject->GeneratedClass->GetPathName() : FString();
-		OutAssetInfo.ParentClassPath = BlueprintObject->ParentClass ? BlueprintObject->ParentClass->GetPathName() : FString();
-		OutAssetInfo.AssetGuid = FString();
-		OutAssetInfo.bIsDataOnly = FBlueprintEditorUtils::IsDataOnlyBlueprint(BlueprintObject);
+		ADumpSummaryExt::FillAssetInfoFromObject(AssetObjectPath, LoadedAssetObject, OutAssetInfo);
+
+		// BlueprintObject는 Blueprint 전용 그래프 확장 처리 대상이다.
+		UBlueprint* BlueprintObject = Cast<UBlueprint>(LoadedAssetObject);
+		if (!BlueprintObject)
+		{
+			AddGraphIssue(
+				OutIssues,
+				TEXT("GRAPHS_UNSUPPORTED_ASSET_CLASS"),
+				FString::Printf(TEXT("Graphs extraction is currently supported for Blueprint assets only: %s"), *LoadedAssetObject->GetClass()->GetName()),
+				EADumpIssueSeverity::Warning,
+				EADumpPhase::Graphs,
+				AssetObjectPath);
+			return true;
+		}
+
+		ADumpSummaryExt::FillBlueprintAssetInfo(AssetObjectPath, BlueprintObject, OutAssetInfo);
 
 		TArray<UEdGraph*> AllGraphs;
 		TSet<UEdGraph*> UniqueGraphs;
@@ -592,6 +820,12 @@ namespace ADumpGraphExt
 				? GraphPinObject->PinType.PinSubCategoryObject.Get()->GetPathName()
 				: FString();
 			DumpGraphPin.DefaultValue = GraphPinObject->DefaultValue;
+			DumpGraphPin.LinkedToCount = GraphPinObject->LinkedTo.Num();
+			DumpGraphPin.bHasDefaultValue = !GraphPinObject->DefaultValue.IsEmpty()
+				|| !GraphPinObject->AutogeneratedDefaultValue.IsEmpty()
+				|| GraphPinObject->DefaultObject != nullptr
+				|| !GraphPinObject->DefaultTextValue.IsEmpty();
+			DumpGraphPin.bIsExec = GraphPinObject->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec;
 			DumpGraphPin.bIsReference = GraphPinObject->PinType.bIsReference;
 			DumpGraphPin.bIsArray = GraphPinObject->PinType.ContainerType == EPinContainerType::Array;
 			DumpGraphPin.bIsMap = GraphPinObject->PinType.ContainerType == EPinContainerType::Map;

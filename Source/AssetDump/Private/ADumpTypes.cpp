@@ -1,6 +1,8 @@
 // File: ADumpTypes.cpp
-// Version: v0.2.0
+// Version: v0.3.1
 // Changelog:
+// - v0.3.1: graph_type에서 delegate/uber/other를 unknown으로 뭉개지 않고 그대로 보존하도록 조정.
+// - v0.3.0: 2차 개선안 Phase 0 기준선 적용을 위해 schema/extractor 기본 버전을 2.0 계열로 상향.
 // - v0.2.0: 문서 v1.2 기준 schema/source/status/graph enum 문자열과 기본 결과 메타를 정렬.
 // - v0.1.3: 손상된 구현 파일을 복구하고 enum 문자열 변환 및 기본 결과 생성 로직을 복원.
 // - v0.1.0: BPDump 공통 타입 문자열 변환 함수와 기본 결과 생성 함수 추가.
@@ -14,12 +16,12 @@ namespace ADumpSchema
 {
 	const TCHAR* GetVersionText()
 	{
-		return TEXT("1.2");
+		return TEXT("2.0");
 	}
 
 	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("1.2.0");
+		return TEXT("2.0.0");
 	}
 }
 
@@ -55,9 +57,11 @@ const TCHAR* ToString(EADumpGraphType InValue)
 	case EADumpGraphType::AnimationGraph:
 		return TEXT("animation");
 	case EADumpGraphType::DelegateGraph:
+		return TEXT("delegate");
 	case EADumpGraphType::UberGraph:
+		return TEXT("uber");
 	case EADumpGraphType::Other:
-		return TEXT("unknown");
+		return TEXT("other");
 	default:
 		return TEXT("unknown");
 	}

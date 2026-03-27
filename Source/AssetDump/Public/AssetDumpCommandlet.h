@@ -1,6 +1,11 @@
 // File: AssetDumpCommandlet.h
-// Version: v0.2.8
+// Version: v0.3.4
 // Changelog:
+// - v0.3.4: 골든 샘플 덤프와 기본 산출물 검증을 한 번에 실행하는 validate 모드를 추가.
+// - v0.3.3: 폴더 단위 batchdump 실행과 run_report.json 생성용 commandlet 모드를 추가.
+// - v0.3.2: 저장된 BPDump 결과를 스캔해 index.json / dependency_index.json 을 생성하는 index 모드를 추가.
+// - v0.3.1: bpdump 모드에서 -Output 필수 조건을 완화.
+// - v0.3.0: bpdump commandlet 경로를 공통 서비스 기반으로 정리.
 // - v0.2.8: asset_details 모드 선언을 추가하고, 깨진 주석을 UTF-8로 읽히는 텍스트로 정리함.
 // - v0.2.7: links_only 그래프 출력용 LinksMeta 옵션 추가.
 // - v0.2.6: bpgraph 옵션(GraphName / LinksOnly / LinkKind) 추가.
@@ -50,6 +55,12 @@ private:
 
 	// BuildMapJson은 맵의 액터 이름과 트랜스폼을 직렬화한다.
 	bool BuildMapJson(const FString& MapAssetPath, FString& OutJsonText);
+
+	// BuildDumpIndexFiles는 저장된 BPDump 폴더를 스캔해 index.json / dependency_index.json 을 생성한다.
+	bool BuildDumpIndexFiles(const FString& DumpRootPath, FString& OutIndexFilePath, FString& OutDependencyIndexFilePath);
+
+	// BuildValidationJson은 대표 샘플 자산을 덤프하고 산출물 기본 검증 결과를 JSON으로 직렬화한다.
+	bool BuildValidationJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount);
 
 	// SaveJsonToFile은 BOM 없는 UTF-8로 JSON 텍스트를 디스크에 저장한다.
 	bool SaveJsonToFile(const FString& OutputFilePath, const FString& JsonText);

@@ -1,6 +1,16 @@
 // File: ADumpTypes.h
-// Version: v0.2.0
+// Version: v0.3.8
 // Changelog:
+// - v0.3.8: DataTable row count / row struct / row preview 요약 필드를 추가.
+// - v0.3.7: Map/World 요약 필드를 추가해 actor/streaming/world partition 개요를 기록.
+// - v0.3.6: CurveFloat 요약 필드를 추가해 curve key/range/preview를 summary와 digest에 기록.
+// - v0.3.5: InputAction / InputMappingContext 요약 필드를 추가.
+// - v0.3.4: WidgetBlueprint binding 상세 항목 구조를 추가하고 summary에 구조화 배열을 기록.
+// - v0.3.3: AnimBlueprint 상태머신/상태/트랜지션 요약 필드를 추가.
+// - v0.3.2: Widget binding/animation preview 문자열 배열을 summary에 추가.
+// - v0.3.1: Widget tree 개요용 root/name/count 메타를 summary에 추가.
+// - v0.3.0: asset_family와 Widget/Anim 요약 필드를 추가해 자산군별 경량 메타를 기록.
+// - v0.2.1: 그래프 핀 요약 강화를 위해 linked_to_count / has_default_value / is_exec 필드를 추가.
 // - v0.2.0: 문서 v1.2 기준 자산/프로퍼티/그래프/결과 메타 필드를 확장하고 저장 스키마 정렬용 필드를 추가.
 // - v0.1.0: BPDump 공통 타입, enum, 결과 구조 골격 추가.
 //
@@ -158,6 +168,9 @@ struct FADumpAssetInfo
 	// ClassName은 로드된 객체의 클래스 이름이다.
 	FString ClassName;
 
+	// AssetFamily는 actor_blueprint / widget_blueprint 같은 자산군 요약 문자열이다.
+	FString AssetFamily;
+
 	// GeneratedClassPath는 Blueprint GeneratedClass 경로를 기록한다.
 	FString GeneratedClassPath;
 
@@ -211,6 +224,31 @@ struct FADumpRequestInfo
 	FString OutputFilePath;
 };
 
+// FADumpWidgetBindingItem은 WidgetBlueprint binding 한 건을 구조화한 항목이다.
+struct FADumpWidgetBindingItem
+{
+	// ObjectName은 바인딩 대상 위젯 이름이다.
+	FString ObjectName;
+
+	// PropertyName은 바인딩 대상 프로퍼티 이름이다.
+	FString PropertyName;
+
+	// FunctionName은 바인딩 구현 함수 이름이다.
+	FString FunctionName;
+
+	// SourceProperty는 원본 데이터 프로퍼티 이름이다.
+	FString SourceProperty;
+
+	// SourcePath는 source property path 문자열이다.
+	FString SourcePath;
+
+	// BindingKind는 property/function 등 binding 종류 문자열이다.
+	FString BindingKind;
+
+	// PreviewText는 AI가 빠르게 읽을 수 있는 한 줄 요약이다.
+	FString PreviewText;
+};
+
 // FADumpSummary는 BP의 개수/존재 여부 중심 요약 정보를 담는다.
 struct FADumpSummary
 {
@@ -249,6 +287,114 @@ struct FADumpSummary
 
 	// bHasEventGraph는 Event Graph 보유 여부다.
 	bool bHasEventGraph = false;
+
+	// WidgetBindingCount는 WidgetBlueprint 바인딩 개수다.
+	int32 WidgetBindingCount = 0;
+
+	// WidgetAnimationCount는 WidgetBlueprint 애니메이션 개수다.
+	int32 WidgetAnimationCount = 0;
+
+	// WidgetPropertyBindingCount는 WidgetBlueprint property binding 집계값이다.
+	int32 WidgetPropertyBindingCount = 0;
+
+	// WidgetTreeWidgetCount는 Widget tree 내부 source widget 총개수다.
+	int32 WidgetTreeWidgetCount = 0;
+
+	// WidgetNamedSlotBindingCount는 Widget tree named slot binding 개수다.
+	int32 WidgetNamedSlotBindingCount = 0;
+
+	// WidgetRootName은 Widget tree root widget 이름이다.
+	FString WidgetRootName;
+
+	// WidgetRootClass는 Widget tree root widget 클래스 이름이다.
+	FString WidgetRootClass;
+
+	// WidgetBindingPreview는 주요 binding 몇 건을 한 줄 문자열로 요약한 배열이다.
+	TArray<FString> WidgetBindingPreview;
+
+	// WidgetBindings는 WidgetBlueprint binding 전체를 구조화한 배열이다.
+	TArray<FADumpWidgetBindingItem> WidgetBindings;
+
+	// WidgetAnimationPreview는 주요 widget animation 이름 배열이다.
+	TArray<FString> WidgetAnimationPreview;
+
+	// AnimGroupCount는 AnimBlueprint sync group 개수다.
+	int32 AnimGroupCount = 0;
+
+	// AnimStateMachineCount는 AnimBlueprint state machine 노드 개수다.
+	int32 AnimStateMachineCount = 0;
+
+	// AnimStateCount는 AnimBlueprint state 노드 개수다.
+	int32 AnimStateCount = 0;
+
+	// AnimTransitionCount는 AnimBlueprint transition 노드 개수다.
+	int32 AnimTransitionCount = 0;
+
+	// AnimStateMachinePreview는 주요 state machine 이름 몇 개를 담는다.
+	TArray<FString> AnimStateMachinePreview;
+
+	// bIsAnimTemplate는 AnimBlueprint template 여부다.
+	bool bIsAnimTemplate = false;
+
+	// InputTriggerCount는 InputAction asset trigger 개수다.
+	int32 InputTriggerCount = 0;
+
+	// InputModifierCount는 InputAction asset modifier 개수다.
+	int32 InputModifierCount = 0;
+
+	// InputMappingCount는 InputMappingContext 기본 매핑 개수다.
+	int32 InputMappingCount = 0;
+
+	// InputValueType는 InputAction value type 문자열이다.
+	FString InputValueType;
+
+	// InputMappingPreview는 InputMappingContext 주요 매핑 미리보기 배열이다.
+	TArray<FString> InputMappingPreview;
+
+	// CurveKeyCount는 CurveFloat asset key 개수다.
+	int32 CurveKeyCount = 0;
+
+	// bHasCurveData는 CurveFloat asset에 실제 key 데이터가 있는지 여부다.
+	bool bHasCurveData = false;
+
+	// CurveTimeMin은 CurveFloat key time 최소값이다.
+	double CurveTimeMin = 0.0;
+
+	// CurveTimeMax는 CurveFloat key time 최대값이다.
+	double CurveTimeMax = 0.0;
+
+	// CurveValueMin은 CurveFloat key value 최소값이다.
+	double CurveValueMin = 0.0;
+
+	// CurveValueMax는 CurveFloat key value 최대값이다.
+	double CurveValueMax = 0.0;
+
+	// CurveKeyPreview는 CurveFloat 주요 key 몇 건을 한 줄 문자열로 요약한 배열이다.
+	TArray<FString> CurveKeyPreview;
+
+	// DataTableRowCount는 DataTable 전체 row 개수다.
+	int32 DataTableRowCount = 0;
+
+	// DataTableRowStructPath는 DataTable row struct 경로다.
+	FString DataTableRowStructPath;
+
+	// DataTableRowNamePreview는 대표 row 이름 몇 건을 담는다.
+	TArray<FString> DataTableRowNamePreview;
+
+	// WorldActorCount는 Persistent Level 기준 유효 actor 개수다.
+	int32 WorldActorCount = 0;
+
+	// WorldStreamingLevelCount는 World에 연결된 streaming level 개수다.
+	int32 WorldStreamingLevelCount = 0;
+
+	// bIsWorldPartitioned는 World Partition 사용 여부다.
+	bool bIsWorldPartitioned = false;
+
+	// WorldSettingsClassPath는 WorldSettings 클래스 경로다.
+	FString WorldSettingsClassPath;
+
+	// WorldActorPreview는 대표 actor 몇 건을 한 줄 문자열로 요약한 배열이다.
+	TArray<FString> WorldActorPreview;
 };
 
 // FADumpPropertyItem은 하나의 직렬화 가능한 프로퍼티 항목이다.
@@ -352,6 +498,15 @@ struct FADumpGraphPin
 
 	// DefaultValue는 핀 기본값 문자열이다.
 	FString DefaultValue;
+
+	// LinkedToCount는 현재 핀에 연결된 반대편 핀 개수다.
+	int32 LinkedToCount = 0;
+
+	// bHasDefaultValue는 핀에 기본값 텍스트가 있는지 여부다.
+	bool bHasDefaultValue = false;
+
+	// bIsExec는 exec 흐름 핀 여부다.
+	bool bIsExec = false;
 
 	// bIsReference는 참조 전달 핀 여부다.
 	bool bIsReference = false;

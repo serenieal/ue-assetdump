@@ -1,6 +1,7 @@
 // File: ADumpJson.h
-// Version: v0.2.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: dump 저장 시 manifest/digest/section sidecar 파일도 함께 저장하는 2차 Phase 1 경로를 추가.
 // - v0.2.0: 출력 폴더/파일 경로 해석과 자산별 파일명 규칙 helper 추가.
 // - v0.1.0: BPDump 공통 JSON 직렬화/저장 helper 추가.
 

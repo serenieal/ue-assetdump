@@ -1,6 +1,10 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.3.0
+// Version: v0.3.4
 // Changelog:
+// - v0.3.4: 대표 샘플 자산 덤프와 기본 산출물 검증을 한 번에 수행하는 validate 모드를 추가.
+// - v0.3.3: 폴더 단위 batchdump 실행과 run_report.json 생성, 배치 종료 후 index 재생성을 추가.
+// - v0.3.2: 저장된 BPDump 결과를 재스캔해 index.json / dependency_index.json 을 생성하는 index 모드를 추가.
+// - v0.3.1: bpdump 모드에서는 -Output 인자가 없어도 공통 기본 dump 경로를 사용하도록 완화.
 // - v0.3.0: commandlet bpdump 경로에서 Skip If Up To Date 결과를 다시 저장해 기존 파일을 덮어쓰던 문제를 수정.
 // - v0.2.9: 잘린 파일을 복구하고 asset_details / bpgraph 레거시 모드를 공통 서비스 경유 레거시 JSON 변환 구조로 정리.
 // - v0.2.8: asset_details 모드를 추가하고, 수정한 구간의 깨진 주석을 UTF-8로 읽히게 정리함.
@@ -15,11 +19,13 @@
 
 #include "AssetDumpCommandlet.h"
 
+#include "ADumpFingerprint.h"
 #include "ADumpRunOpts.h"
 #include "ADumpService.h"
 
 #include "Algo/Sort.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "HAL/FileManager.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "Misc/FileHelper.h"
@@ -35,6 +41,388 @@ namespace
 	{
 		TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&OutJsonText);
 		return FJsonSerializer::Serialize(InRootObject, JsonWriter);
+	}
+
+	// LoadCommandletJsonObjectFromFile는 UTF-8 JSON 파일을 읽어 JsonObject로 역직렬화한다.
+	bool LoadCommandletJsonObjectFromFile(const FString& InFilePath, TSharedPtr<FJsonObject>& OutRootObject)
+	{
+		OutRootObject.Reset();
+
+		// JsonText는 파일에서 읽어온 원문 JSON 문자열이다.
+		FString JsonText;
+		if (!FFileHelper::LoadFileToString(JsonText, *InFilePath))
+		{
+			return false;
+		}
+
+		// JsonReader는 문자열을 JsonObject로 해석할 reader다.
+		TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(JsonText);
+		return FJsonSerializer::Deserialize(JsonReader, OutRootObject) && OutRootObject.IsValid();
+	}
+
+	// GetCommandletNestedObjectField는 중첩 object 필드를 안전하게 읽는다.
+	TSharedPtr<FJsonObject> GetCommandletNestedObjectField(const TSharedPtr<FJsonObject>& InRootObject, const TCHAR* InFieldName)
+	{
+		if (!InRootObject.IsValid())
+		{
+			return nullptr;
+		}
+
+		// NestedObjectPtr는 JSON object field를 가리키는 포인터다.
+		const TSharedPtr<FJsonObject>* NestedObjectPtr = nullptr;
+		if (InRootObject->TryGetObjectField(FStringView(InFieldName), NestedObjectPtr) && NestedObjectPtr)
+		{
+			return *NestedObjectPtr;
+		}
+
+		return nullptr;
+	}
+
+	// GetCommandletStringFieldOrEmpty는 string field가 없으면 빈 문자열을 반환한다.
+	FString GetCommandletStringFieldOrEmpty(const TSharedPtr<FJsonObject>& InRootObject, const TCHAR* InFieldName)
+	{
+		if (!InRootObject.IsValid())
+		{
+			return FString();
+		}
+
+		// FieldValue는 현재 필드에서 읽어낸 문자열 값이다.
+		FString FieldValue;
+		InRootObject->TryGetStringField(InFieldName, FieldValue);
+		return FieldValue;
+	}
+
+	// MakeCommandletProjectRelativePath는 절대 경로를 프로젝트 루트 기준 상대 경로로 변환한다.
+	FString MakeCommandletProjectRelativePath(const FString& InFilePath)
+	{
+		// RelativePathText는 프로젝트 루트 기준 상대 경로다.
+		FString RelativePathText = FPaths::ConvertRelativePathToFull(InFilePath);
+
+		// ProjectRootPath는 현재 프로젝트 루트 절대 경로다.
+		const FString ProjectRootPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+		FPaths::MakePathRelativeTo(RelativePathText, *ProjectRootPath);
+		RelativePathText.ReplaceInline(TEXT("\\"), TEXT("/"));
+		return RelativePathText;
+	}
+
+	// ResolveCommandletReferenceSourceKindText는 references source를 dependency_index source_kind로 정규화한다.
+	FString ResolveCommandletReferenceSourceKindText(const FString& InSourceText)
+	{
+		if (InSourceText == TEXT("property_ref") || InSourceText == TEXT("component_ref"))
+		{
+			return TEXT("details");
+		}
+
+		return TEXT("graph");
+	}
+
+	// ConfigureDumpRunOptsFromCommandLine는 commandlet 공통 인자를 FADumpRunOpts로 채운다.
+	void ConfigureDumpRunOptsFromCommandLine(
+		const FString& InCommandLine,
+		const FString& InAssetPath,
+		const FString& InOutputPath,
+		FADumpRunOpts& OutDumpRunOpts)
+	{
+		OutDumpRunOpts.AssetObjectPath = InAssetPath;
+		OutDumpRunOpts.SourceKind = EADumpSourceKind::Commandlet;
+		OutDumpRunOpts.OutputFilePath = InOutputPath;
+		OutDumpRunOpts.bIncludeSummary = true;
+		OutDumpRunOpts.bIncludeDetails = false;
+		OutDumpRunOpts.bIncludeGraphs = false;
+		OutDumpRunOpts.bIncludeReferences = false;
+
+		FParse::Bool(*InCommandLine, TEXT("IncludeSummary="), OutDumpRunOpts.bIncludeSummary);
+		FParse::Bool(*InCommandLine, TEXT("IncludeDetails="), OutDumpRunOpts.bIncludeDetails);
+		FParse::Bool(*InCommandLine, TEXT("IncludeGraphs="), OutDumpRunOpts.bIncludeGraphs);
+		FParse::Bool(*InCommandLine, TEXT("IncludeReferences="), OutDumpRunOpts.bIncludeReferences);
+		FParse::Bool(*InCommandLine, TEXT("CompileBeforeDump="), OutDumpRunOpts.bCompileBeforeDump);
+		FParse::Bool(*InCommandLine, TEXT("SkipIfUpToDate="), OutDumpRunOpts.bSkipIfUpToDate);
+		FParse::Bool(*InCommandLine, TEXT("LinksOnly="), OutDumpRunOpts.bLinksOnly);
+		FParse::Value(*InCommandLine, TEXT("GraphName="), OutDumpRunOpts.GraphNameFilter);
+
+		// LinkKindText는 링크 필터 문자열 입력값이다.
+		FString LinkKindText;
+		FParse::Value(*InCommandLine, TEXT("LinkKind="), LinkKindText);
+		if (LinkKindText.Equals(TEXT("exec"), ESearchCase::IgnoreCase))
+		{
+			OutDumpRunOpts.LinkKind = EADumpLinkKind::Exec;
+		}
+		else if (LinkKindText.Equals(TEXT("data"), ESearchCase::IgnoreCase))
+		{
+			OutDumpRunOpts.LinkKind = EADumpLinkKind::Data;
+		}
+		else
+		{
+			OutDumpRunOpts.LinkKind = EADumpLinkKind::All;
+		}
+
+		// LinksMetaText는 links_only 메타 수준 문자열 입력값이다.
+		FString LinksMetaText;
+		FParse::Value(*InCommandLine, TEXT("LinksMeta="), LinksMetaText);
+		if (LinksMetaText.Equals(TEXT("min"), ESearchCase::IgnoreCase))
+		{
+			OutDumpRunOpts.LinksMeta = EADumpLinksMeta::Min;
+		}
+		else
+		{
+			OutDumpRunOpts.LinksMeta = EADumpLinksMeta::None;
+		}
+
+		if (!FParse::Param(*InCommandLine, TEXT("UseDefaults")))
+		{
+			OutDumpRunOpts.bIncludeSummary = true;
+		}
+	}
+
+	// BuildBatchResultEntryObject는 배치 실행 결과 한 건을 report용 JSON object로 변환한다.
+	TSharedRef<FJsonObject> BuildBatchResultEntryObject(
+		const FAssetData& InAssetData,
+		const FString& InResultStatus,
+		const FString& InOutputFilePath,
+		const FADumpResult& InDumpResult,
+		const FString& InFailureMessage)
+	{
+		// CountIssuesBySeverity는 배치 report에서 severity별 issue 개수를 센다.
+		auto CountIssuesBySeverity = [](const TArray<FADumpIssue>& InIssues, EADumpIssueSeverity InSeverity)
+		{
+			// IssueCount는 지정 severity와 일치한 issue 개수 누적값이다.
+			int32 IssueCount = 0;
+			for (const FADumpIssue& IssueItem : InIssues)
+			{
+				if (IssueItem.Severity == InSeverity)
+				{
+					++IssueCount;
+				}
+			}
+
+			return IssueCount;
+		};
+
+		// ResultEntryObject는 run_report results 배열에 추가할 결과 object다.
+		TSharedRef<FJsonObject> ResultEntryObject = MakeShared<FJsonObject>();
+		ResultEntryObject->SetStringField(TEXT("object_path"), InAssetData.GetObjectPathString());
+		ResultEntryObject->SetStringField(TEXT("asset_name"), InAssetData.AssetName.ToString());
+		ResultEntryObject->SetStringField(TEXT("asset_class"), InAssetData.AssetClassPath.GetAssetName().ToString());
+		ResultEntryObject->SetStringField(TEXT("result_status"), InResultStatus);
+		ResultEntryObject->SetStringField(TEXT("dump_status"), ToString(InDumpResult.DumpStatus));
+		ResultEntryObject->SetStringField(TEXT("asset_family"), InDumpResult.Asset.AssetFamily);
+		ResultEntryObject->SetStringField(TEXT("output_file_path"), InOutputFilePath);
+		ResultEntryObject->SetNumberField(TEXT("warning_count"), CountIssuesBySeverity(InDumpResult.Issues, EADumpIssueSeverity::Warning));
+		ResultEntryObject->SetNumberField(TEXT("error_count"), CountIssuesBySeverity(InDumpResult.Issues, EADumpIssueSeverity::Error));
+		ResultEntryObject->SetStringField(TEXT("failure_message"), InFailureMessage);
+		return ResultEntryObject;
+	}
+
+	// BuildBatchAssetOutputDirectoryPath는 배치 덤프용 자산별 출력 폴더 경로를 만든다.
+	FString BuildBatchAssetOutputDirectoryPath(const FString& InDumpRootPath, const FString& InAssetObjectPath)
+	{
+		// SanitizedAssetKeyText는 폴더명 충돌을 줄이기 위한 자산 경로 기반 안전 키다.
+		FString SanitizedAssetKeyText = InAssetObjectPath;
+		SanitizedAssetKeyText.ReplaceInline(TEXT("."), TEXT("_"));
+		SanitizedAssetKeyText.ReplaceInline(TEXT("/"), TEXT("_"));
+		SanitizedAssetKeyText.ReplaceInline(TEXT("\\"), TEXT("_"));
+		return FPaths::Combine(InDumpRootPath, SanitizedAssetKeyText);
+	}
+
+	// IsBatchDumpOutputUpToDate는 batchdump 전용으로 manifest fingerprint를 비교해 skip 가능 여부를 판단한다.
+	bool IsBatchDumpOutputUpToDate(const FADumpRunOpts& InDumpRunOpts, const FString& InOutputFilePath)
+	{
+		if (InOutputFilePath.IsEmpty() || !IFileManager::Get().FileExists(*InOutputFilePath))
+		{
+			return false;
+		}
+
+		// ManifestFilePath는 현재 dump.json 옆의 manifest.json 경로다.
+		const FString ManifestFilePath = FPaths::Combine(FPaths::GetPath(InOutputFilePath), TEXT("manifest.json"));
+		if (!IFileManager::Get().FileExists(*ManifestFilePath))
+		{
+			return false;
+		}
+
+		// ManifestRootObject는 manifest.json 역직렬화 결과다.
+		TSharedPtr<FJsonObject> ManifestRootObject;
+		if (!LoadCommandletJsonObjectFromFile(ManifestFilePath, ManifestRootObject))
+		{
+			return false;
+		}
+
+		// RunObject는 manifest.run object다.
+		const TSharedPtr<FJsonObject> RunObject = GetCommandletNestedObjectField(ManifestRootObject, TEXT("run"));
+
+		// ExistingFingerprintText는 기존 manifest에 기록된 실행 fingerprint다.
+		const FString ExistingFingerprintText = GetCommandletStringFieldOrEmpty(RunObject, TEXT("fingerprint"));
+		if (ExistingFingerprintText.IsEmpty())
+		{
+			return false;
+		}
+
+		// CurrentFingerprintText는 현재 실행 조건으로 다시 계산한 fingerprint 값이다.
+		const FString CurrentFingerprintText = ADumpFingerprint::BuildAssetFingerprint(
+			InDumpRunOpts.AssetObjectPath,
+			InDumpRunOpts.BuildRequestInfo(),
+			ADumpSchema::GetVersionText(),
+			ADumpSchema::GetExtractorVersionText());
+		return !CurrentFingerprintText.IsEmpty() && CurrentFingerprintText == ExistingFingerprintText;
+	}
+
+	// FValidationCaseDefinition은 validate 모드에서 한 건의 대표 샘플 정의를 담는다.
+	struct FValidationCaseDefinition
+	{
+		// CaseName은 report에서 식별할 케이스 이름이다.
+		FString CaseName;
+
+		// ExpectedAssetFamily는 dump 결과에서 기대하는 asset_family 문자열이다.
+		FString ExpectedAssetFamily;
+
+		// ExpectedAssetClass는 dump 결과에서 기대하는 자산 클래스 문자열이다.
+		FString ExpectedAssetClass;
+
+		// CandidateObjectPathArray는 우선 시도할 자산 오브젝트 경로 후보 목록이다.
+		TArray<FString> CandidateObjectPathArray;
+
+		// DiscoveryClassName은 후보가 없을 때 AssetRegistry에서 탐색할 클래스 이름이다.
+		FString DiscoveryClassName;
+
+		// bIsOptionalSample는 샘플이 없어도 전체 실패로 보지 않을지 여부다.
+		bool bIsOptionalSample = false;
+
+		// MinGraphCount는 그래프 최소 기대 개수다.
+		int32 MinGraphCount = 0;
+
+		// MinPropertyCount는 details 최소 기대 프로퍼티 개수다.
+		int32 MinPropertyCount = 0;
+
+		// MinReferenceCount는 hard+soft 참조 최소 기대 개수다.
+		int32 MinReferenceCount = 0;
+
+		// MinWidgetBindingCount는 widget binding 최소 기대 개수다.
+		int32 MinWidgetBindingCount = 0;
+
+		// MinInputMappingCount는 input mapping 최소 기대 개수다.
+		int32 MinInputMappingCount = 0;
+
+		// MinCurveKeyCount는 curve key 최소 기대 개수다.
+		int32 MinCurveKeyCount = 0;
+
+		// MinWorldActorCount는 world actor 최소 기대 개수다.
+		int32 MinWorldActorCount = 0;
+
+		// MinDataTableRowCount는 DataTable row 최소 기대 개수다.
+		int32 MinDataTableRowCount = 0;
+	};
+
+	// TryResolveValidationAssetPath는 후보 경로 또는 클래스 탐색으로 validate 샘플 자산 경로를 찾는다.
+	bool TryResolveValidationAssetPath(
+		FAssetRegistryModule& InAssetRegistryModule,
+		const FValidationCaseDefinition& InCaseDefinition,
+		FString& OutResolvedObjectPath)
+	{
+		OutResolvedObjectPath.Reset();
+
+		for (const FString& CandidateObjectPath : InCaseDefinition.CandidateObjectPathArray)
+		{
+			// CandidateAssetData는 현재 후보 경로에 대응하는 AssetRegistry 항목이다.
+			const FAssetData CandidateAssetData = InAssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(CandidateObjectPath));
+			if (CandidateAssetData.IsValid())
+			{
+				OutResolvedObjectPath = CandidateAssetData.GetObjectPathString();
+				return true;
+			}
+
+			// CandidateSoftObjectPath는 AssetRegistry에 안 잡히는 플러그인 Content 후보를 직접 로드해 확인한다.
+			const FSoftObjectPath CandidateSoftObjectPath(CandidateObjectPath);
+
+			// CandidateLoadedObject는 후보 경로가 실제 로드 가능한 자산인지 직접 확인한 결과다.
+			UObject* CandidateLoadedObject = CandidateSoftObjectPath.TryLoad();
+			if (CandidateLoadedObject)
+			{
+				OutResolvedObjectPath = CandidateSoftObjectPath.ToString();
+				return true;
+			}
+		}
+
+		if (InCaseDefinition.DiscoveryClassName.IsEmpty())
+		{
+			return false;
+		}
+
+		// SearchRootPathArray는 자동 탐색 시 검사할 대표 루트 경로 목록이다.
+		const TArray<FString> SearchRootPathArray = { TEXT("/Game"), TEXT("/Engine"), TEXT("/AssetDump") };
+		for (const FString& SearchRootPath : SearchRootPathArray)
+		{
+			// SearchFilter는 현재 루트 경로에서 재귀적으로 자산을 찾는 필터다.
+			FARFilter SearchFilter;
+			SearchFilter.bRecursivePaths = true;
+			SearchFilter.PackagePaths.Add(*SearchRootPath);
+
+			// DiscoveredAssetArray는 현재 루트 경로에서 찾은 자산 목록이다.
+			TArray<FAssetData> DiscoveredAssetArray;
+			InAssetRegistryModule.Get().GetAssets(SearchFilter, DiscoveredAssetArray);
+
+			for (const FAssetData& DiscoveredAssetData : DiscoveredAssetArray)
+			{
+				// DiscoveredClassName는 현재 자산의 AssetRegistry 클래스 이름이다.
+				const FString DiscoveredClassName = DiscoveredAssetData.AssetClassPath.GetAssetName().ToString();
+				if (!DiscoveredClassName.Equals(InCaseDefinition.DiscoveryClassName, ESearchCase::CaseSensitive))
+				{
+					continue;
+				}
+
+				OutResolvedObjectPath = DiscoveredAssetData.GetObjectPathString();
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// AddValidationCheck는 validate 케이스 report에 검사 한 건을 추가하고 필수 실패를 누적한다.
+	void AddValidationCheck(
+		TArray<TSharedPtr<FJsonValue>>& InOutCheckArray,
+		bool& InOutCasePassed,
+		const FString& InCheckName,
+		bool bInPassed,
+		const FString& InExpectedText,
+		const FString& InActualText,
+		bool bInRequired)
+	{
+		// CheckObject는 검사 한 건을 report에 기록할 JSON object다.
+		TSharedRef<FJsonObject> CheckObject = MakeShared<FJsonObject>();
+		CheckObject->SetStringField(TEXT("name"), InCheckName);
+		CheckObject->SetBoolField(TEXT("passed"), bInPassed);
+		CheckObject->SetBoolField(TEXT("required"), bInRequired);
+		CheckObject->SetStringField(TEXT("expected"), InExpectedText);
+		CheckObject->SetStringField(TEXT("actual"), InActualText);
+		InOutCheckArray.Add(MakeShared<FJsonValueObject>(CheckObject));
+
+		if (bInRequired && !bInPassed)
+		{
+			InOutCasePassed = false;
+		}
+	}
+
+	// BuildValidationCaseObject는 validate 한 케이스 결과를 report용 JSON object로 정리한다.
+	TSharedRef<FJsonObject> BuildValidationCaseObject(
+		const FValidationCaseDefinition& InCaseDefinition,
+		const FString& InResolvedObjectPath,
+		const FString& InResultStatus,
+		const FString& InOutputFilePath,
+		const FString& InFailureMessage,
+		const TArray<TSharedPtr<FJsonValue>>& InCheckArray,
+		const FADumpResult& InDumpResult)
+	{
+		// CaseObject는 validate report의 cases 배열에 추가할 케이스 결과 object다.
+		TSharedRef<FJsonObject> CaseObject = MakeShared<FJsonObject>();
+		CaseObject->SetStringField(TEXT("case_name"), InCaseDefinition.CaseName);
+		CaseObject->SetStringField(TEXT("expected_asset_family"), InCaseDefinition.ExpectedAssetFamily);
+		CaseObject->SetStringField(TEXT("expected_asset_class"), InCaseDefinition.ExpectedAssetClass);
+		CaseObject->SetStringField(TEXT("resolved_object_path"), InResolvedObjectPath);
+		CaseObject->SetStringField(TEXT("result_status"), InResultStatus);
+		CaseObject->SetStringField(TEXT("dump_status"), ToString(InDumpResult.DumpStatus));
+		CaseObject->SetStringField(TEXT("output_file_path"), InOutputFilePath);
+		CaseObject->SetStringField(TEXT("failure_message"), InFailureMessage);
+		CaseObject->SetArrayField(TEXT("checks"), InCheckArray);
+		return CaseObject;
 	}
 
 	// CloneJsonValueOrNull은 value_json이 비어 있으면 null을 반환한다.
@@ -337,7 +725,7 @@ namespace
 
 int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 {
-	// ModeValue는 list / asset / asset_details / map / bpgraph / bpdump 중 실행 모드를 고른다.
+	// ModeValue는 list / asset / asset_details / map / bpgraph / bpdump / batchdump / index / validate 중 실행 모드를 고른다.
 	FString ModeValue;
 	// OutputFilePath는 저장할 JSON 파일 경로다.
 	FString OutputFilePath;
@@ -350,20 +738,83 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 	if (!GetCmdValue(CommandLine, TEXT("Mode="), ModeValue))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|map"));
+		UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|validate"));
 		return 1;
 	}
 
-	if (!GetCmdValue(CommandLine, TEXT("Output="), OutputFilePath))
+	if (ModeValue.Equals(TEXT("index"), ESearchCase::IgnoreCase))
+	{
+		// DumpRootPath는 index 생성 대상 BPDump 루트 폴더다.
+		FString DumpRootPath;
+		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
+		{
+			DumpRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"));
+		}
+
+		// IndexFilePath는 저장할 index.json 최종 경로다.
+		FString IndexFilePath;
+
+		// DependencyIndexFilePath는 저장할 dependency_index.json 최종 경로다.
+		FString DependencyIndexFilePath;
+		if (!BuildDumpIndexFiles(DumpRootPath, IndexFilePath, DependencyIndexFilePath))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to build dump index files under: %s"), *DumpRootPath);
+			return 2;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved dump index JSON: %s"), *IndexFilePath);
+		UE_LOG(LogTemp, Display, TEXT("Saved dump dependency index JSON: %s"), *DependencyIndexFilePath);
+		return 0;
+	}
+
+	// bRequireExplicitOutputPath는 레거시 JSON 변환 모드에서 명시 출력 경로를 요구하는지 여부다.
+	const bool bRequireExplicitOutputPath = !ModeValue.Equals(TEXT("bpdump"), ESearchCase::IgnoreCase)
+		&& !ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase)
+		&& !ModeValue.Equals(TEXT("validate"), ESearchCase::IgnoreCase);
+	if (bRequireExplicitOutputPath && !GetCmdValue(CommandLine, TEXT("Output="), OutputFilePath))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Missing -Output=. Example: -Output=C:/Temp/out.json"));
 		return 1;
 	}
 
+	if (!bRequireExplicitOutputPath)
+	{
+		GetCmdValue(CommandLine, TEXT("Output="), OutputFilePath);
+	}
+
 	// JsonText는 최종 저장할 JSON 문자열이다.
 	FString JsonText;
 
-	if (ModeValue.Equals(TEXT("list"), ESearchCase::IgnoreCase))
+	if (ModeValue.Equals(TEXT("validate"), ESearchCase::IgnoreCase))
+	{
+		// ValidationRootPath는 validate 산출물 루트 폴더다.
+		FString ValidationRootPath;
+		if (!GetCmdValue(CommandLine, TEXT("ValidationRoot="), ValidationRootPath))
+		{
+			ValidationRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDumpValidation"));
+		}
+
+		if (OutputFilePath.IsEmpty())
+		{
+			OutputFilePath = FPaths::Combine(ValidationRootPath, TEXT("validation_report.json"));
+		}
+
+		// ValidationFailureCount는 필수 검증 실패 케이스 개수다.
+		int32 ValidationFailureCount = 0;
+		if (!BuildValidationJson(CommandLine, JsonText, ValidationFailureCount))
+		{
+			return 2;
+		}
+
+		if (!SaveJsonToFile(OutputFilePath, JsonText))
+		{
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved validation report JSON: %s"), *OutputFilePath);
+		return ValidationFailureCount > 0 ? 2 : 0;
+	}
+	else if (ModeValue.Equals(TEXT("list"), ESearchCase::IgnoreCase))
 	{
 		GetCmdValue(CommandLine, TEXT("Filter="), FilterPath);
 		if (FilterPath.IsEmpty())
@@ -425,53 +876,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 		// DumpRunOpts는 공통 서비스에 전달할 통합 실행 옵션이다.
 		FADumpRunOpts DumpRunOpts;
-		DumpRunOpts.AssetObjectPath = AssetPath;
-		DumpRunOpts.SourceKind = EADumpSourceKind::Commandlet;
-		DumpRunOpts.OutputFilePath = OutputFilePath;
-		DumpRunOpts.bIncludeSummary = true;
-		DumpRunOpts.bIncludeDetails = false;
-		DumpRunOpts.bIncludeGraphs = false;
-		DumpRunOpts.bIncludeReferences = false;
-
-		FParse::Bool(*CommandLine, TEXT("IncludeSummary="), DumpRunOpts.bIncludeSummary);
-		FParse::Bool(*CommandLine, TEXT("IncludeDetails="), DumpRunOpts.bIncludeDetails);
-		FParse::Bool(*CommandLine, TEXT("IncludeGraphs="), DumpRunOpts.bIncludeGraphs);
-		FParse::Bool(*CommandLine, TEXT("IncludeReferences="), DumpRunOpts.bIncludeReferences);
-		FParse::Bool(*CommandLine, TEXT("CompileBeforeDump="), DumpRunOpts.bCompileBeforeDump);
-		FParse::Bool(*CommandLine, TEXT("SkipIfUpToDate="), DumpRunOpts.bSkipIfUpToDate);
-		FParse::Bool(*CommandLine, TEXT("LinksOnly="), DumpRunOpts.bLinksOnly);
-		GetCmdValue(CommandLine, TEXT("GraphName="), DumpRunOpts.GraphNameFilter);
-
-		FString LinkKindText;
-		GetCmdValue(CommandLine, TEXT("LinkKind="), LinkKindText);
-		if (LinkKindText.Equals(TEXT("exec"), ESearchCase::IgnoreCase))
-		{
-			DumpRunOpts.LinkKind = EADumpLinkKind::Exec;
-		}
-		else if (LinkKindText.Equals(TEXT("data"), ESearchCase::IgnoreCase))
-		{
-			DumpRunOpts.LinkKind = EADumpLinkKind::Data;
-		}
-		else
-		{
-			DumpRunOpts.LinkKind = EADumpLinkKind::All;
-		}
-
-		FString LinksMetaText;
-		GetCmdValue(CommandLine, TEXT("LinksMeta="), LinksMetaText);
-		if (LinksMetaText.Equals(TEXT("min"), ESearchCase::IgnoreCase))
-		{
-			DumpRunOpts.LinksMeta = EADumpLinksMeta::Min;
-		}
-		else
-		{
-			DumpRunOpts.LinksMeta = EADumpLinksMeta::None;
-		}
-
-		if (!FParse::Param(*CommandLine, TEXT("UseDefaults")))
-		{
-			DumpRunOpts.bIncludeSummary = true;
-		}
+		ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetPath, OutputFilePath, DumpRunOpts);
 
 		FADumpService DumpService;
 		FADumpResult DumpResult;
@@ -500,6 +905,204 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 		UE_LOG(LogTemp, Display, TEXT("Saved BPDump JSON: %s"), *DumpRunOpts.ResolveOutputFilePath());
 		return 0;
+	}
+	else if (ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase))
+	{
+		// BatchFilterPath는 배치 덤프 대상 자산 경로 필터다.
+		FString BatchFilterPath;
+		if (!GetCmdValue(CommandLine, TEXT("Filter="), BatchFilterPath))
+		{
+			BatchFilterPath = TEXT("/Game");
+		}
+
+		// DumpRootPath는 배치 덤프 결과를 저장할 루트 폴더다.
+		FString DumpRootPath;
+		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
+		{
+			DumpRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"));
+		}
+
+		// bRebuildIndexAfterBatch는 배치 종료 후 인덱스 재생성 여부다.
+		bool bRebuildIndexAfterBatch = true;
+		FParse::Bool(*CommandLine, TEXT("RebuildIndex="), bRebuildIndexAfterBatch);
+
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+		// AssetFilter는 배치 대상 자산을 모을 재귀 검색 필터다.
+		FARFilter AssetFilter;
+		AssetFilter.bRecursivePaths = true;
+		AssetFilter.PackagePaths.Add(*BatchFilterPath);
+
+		// FoundAssets는 필터 경로 아래에서 찾은 자산 목록이다.
+		TArray<FAssetData> FoundAssets;
+		AssetRegistryModule.Get().GetAssets(AssetFilter, FoundAssets);
+		Algo::SortBy(FoundAssets, &FAssetData::GetObjectPathString);
+
+		// ResultEntryArray는 run_report results 배열 누적값이다.
+		TArray<TSharedPtr<FJsonValue>> ResultEntryArray;
+
+		// FailedEntryArray는 실패 자산만 모은 report 배열이다.
+		TArray<TSharedPtr<FJsonValue>> FailedEntryArray;
+
+		// SucceededCount는 저장 완료된 자산 수다.
+		int32 SucceededCount = 0;
+
+		// SkippedCount는 최신 결과 재사용으로 skip된 자산 수다.
+		int32 SkippedCount = 0;
+
+		// FailedCount는 덤프 실패 또는 저장 실패 자산 수다.
+		int32 FailedCount = 0;
+
+		for (const FAssetData& AssetDataItem : FoundAssets)
+		{
+			// AssetObjectPathText는 현재 배치에서 처리할 자산 경로다.
+			const FString AssetObjectPathText = AssetDataItem.GetObjectPathString();
+
+			// BatchAssetOutputPath는 현재 자산의 전용 dump 폴더 경로다.
+			const FString BatchAssetOutputPath = BuildBatchAssetOutputDirectoryPath(DumpRootPath, AssetObjectPathText);
+
+			// DumpRunOpts는 현재 자산에 적용할 통합 실행 옵션이다.
+			FADumpRunOpts DumpRunOpts;
+			ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetObjectPathText, BatchAssetOutputPath, DumpRunOpts);
+
+			// ResolvedOutputFilePath는 현재 자산 dump.json 최종 저장 경로다.
+			const FString ResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
+
+			if (DumpRunOpts.bSkipIfUpToDate && IsBatchDumpOutputUpToDate(DumpRunOpts, ResolvedOutputFilePath))
+			{
+				// SkippedResult은 skip report에 넣을 최소 결과 구조다.
+				FADumpResult SkippedResult;
+				SkippedResult.DumpStatus = EADumpStatus::Succeeded;
+
+				// ResultEntryObject는 skip 처리 자산의 report용 JSON object다.
+				TSharedRef<FJsonObject> ResultEntryObject = BuildBatchResultEntryObject(
+					AssetDataItem,
+					TEXT("skipped"),
+					ResolvedOutputFilePath,
+					SkippedResult,
+					FString());
+				ResultEntryArray.Add(MakeShared<FJsonValueObject>(ResultEntryObject));
+				++SkippedCount;
+				continue;
+			}
+
+			// DumpService는 현재 자산 덤프를 처리할 공통 서비스 인스턴스다.
+			FADumpService DumpService;
+
+			// DumpResult는 현재 자산 덤프 결과 구조다.
+			FADumpResult DumpResult;
+
+			// bDumpSucceeded는 덤프 추출 단계 성공 여부다.
+			const bool bDumpSucceeded = DumpService.DumpBlueprint(DumpRunOpts, DumpResult);
+
+			// bWasSkipped는 기존 최신 dump를 그대로 유지한 경우를 나타낸다.
+			const bool bWasSkipped = bDumpSucceeded && IsCommandletSkipResult(DumpRunOpts, DumpResult);
+
+			// FailureMessageText는 실패 원인 또는 저장 실패 메시지를 기록한다.
+			FString FailureMessageText;
+
+			// ResultStatusText는 report에 기록할 commandlet 결과 상태 문자열이다.
+			FString ResultStatusText = TEXT("succeeded");
+
+			if (bWasSkipped)
+			{
+				ResultStatusText = TEXT("skipped");
+				++SkippedCount;
+			}
+			else
+			{
+				// SaveErrorMessage는 save 단계 실패 시 report에 남길 원문 메시지다.
+				FString SaveErrorMessage;
+				const bool bSaveSucceeded = DumpService.SaveDumpJson(ResolvedOutputFilePath, DumpResult, SaveErrorMessage);
+
+				if (bDumpSucceeded && bSaveSucceeded)
+				{
+					ResultStatusText = TEXT("succeeded");
+					++SucceededCount;
+				}
+				else if (!bDumpSucceeded && bSaveSucceeded)
+				{
+					ResultStatusText = TEXT("failed");
+					FailureMessageText = TEXT("Dump extraction failed.");
+					++FailedCount;
+				}
+				else if (!bDumpSucceeded && !bSaveSucceeded)
+				{
+					ResultStatusText = TEXT("failed_save");
+					FailureMessageText = SaveErrorMessage.IsEmpty() ? TEXT("Dump extraction and save failed.") : SaveErrorMessage;
+					++FailedCount;
+				}
+				else
+				{
+					ResultStatusText = TEXT("save_failed");
+					FailureMessageText = SaveErrorMessage;
+					++FailedCount;
+				}
+			}
+
+			// ResultEntryObject는 현재 자산 결과를 report용으로 변환한 JSON object다.
+			TSharedRef<FJsonObject> ResultEntryObject = BuildBatchResultEntryObject(
+				AssetDataItem,
+				ResultStatusText,
+				ResolvedOutputFilePath,
+				DumpResult,
+				FailureMessageText);
+			ResultEntryArray.Add(MakeShared<FJsonValueObject>(ResultEntryObject));
+
+			if (ResultStatusText != TEXT("succeeded") && ResultStatusText != TEXT("skipped"))
+			{
+				FailedEntryArray.Add(MakeShared<FJsonValueObject>(ResultEntryObject));
+				UE_LOG(LogTemp, Warning, TEXT("Batch dump failed for asset: %s (%s)"), *AssetObjectPathText, *FailureMessageText);
+			}
+		}
+
+		// IndexFilePath는 배치 종료 후 생성한 index.json 경로다.
+		FString IndexFilePath;
+
+		// DependencyIndexFilePath는 배치 종료 후 생성한 dependency_index.json 경로다.
+		FString DependencyIndexFilePath;
+
+		// bIndexBuilt는 배치 종료 후 인덱스 재생성 성공 여부다.
+		const bool bIndexBuilt = !bRebuildIndexAfterBatch || BuildDumpIndexFiles(DumpRootPath, IndexFilePath, DependencyIndexFilePath);
+
+		// GeneratedTimeText는 이번 배치 실행 완료 시각이다.
+		const FString GeneratedTimeText = FDateTime::UtcNow().ToIso8601();
+
+		// BatchRootObject는 run_report.json 최상위 object다.
+		TSharedRef<FJsonObject> BatchRootObject = MakeShared<FJsonObject>();
+		BatchRootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+		BatchRootObject->SetStringField(TEXT("filter_path"), BatchFilterPath);
+		BatchRootObject->SetStringField(TEXT("dump_root_path"), FPaths::ConvertRelativePathToFull(DumpRootPath));
+		BatchRootObject->SetBoolField(TEXT("rebuild_index"), bRebuildIndexAfterBatch);
+		BatchRootObject->SetBoolField(TEXT("index_built"), bIndexBuilt);
+		BatchRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
+		BatchRootObject->SetStringField(TEXT("dependency_index_file_path"), DependencyIndexFilePath);
+		BatchRootObject->SetNumberField(TEXT("asset_count"), FoundAssets.Num());
+		BatchRootObject->SetNumberField(TEXT("succeeded_count"), SucceededCount);
+		BatchRootObject->SetNumberField(TEXT("skipped_count"), SkippedCount);
+		BatchRootObject->SetNumberField(TEXT("failed_count"), FailedCount);
+		BatchRootObject->SetArrayField(TEXT("results"), ResultEntryArray);
+		BatchRootObject->SetArrayField(TEXT("failed_assets"), FailedEntryArray);
+
+		// BatchJsonText는 run_report.json 직렬화 문자열이다.
+		FString BatchJsonText;
+		if (!SerializeJsonObjectText(BatchRootObject, BatchJsonText))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to serialize batch run report JSON."));
+			return 3;
+		}
+
+		// ReportFilePath는 이번 배치 실행 보고서를 저장할 경로다.
+		const FString ReportFilePath = FPaths::Combine(FPaths::ConvertRelativePathToFull(DumpRootPath), TEXT("run_report.json"));
+		if (!SaveJsonToFile(ReportFilePath, BatchJsonText))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to save batch run report JSON: %s"), *ReportFilePath);
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved batch run report JSON: %s"), *ReportFilePath);
+		UE_LOG(LogTemp, Display, TEXT("Batch dump summary - assets:%d, succeeded:%d, skipped:%d, failed:%d"), FoundAssets.Num(), SucceededCount, SkippedCount, FailedCount);
+		return FailedCount > 0 ? 2 : 0;
 	}
 	else if (ModeValue.Equals(TEXT("bpgraph"), ESearchCase::IgnoreCase))
 	{
@@ -659,6 +1262,687 @@ bool UAssetDumpCommandlet::BuildMapJson(const FString& MapAssetPath, FString& Ou
 
 	RootObject->SetArrayField(TEXT("actors"), ActorArray);
 	return SerializeJsonObjectText(RootObject, OutJsonText);
+}
+
+bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FString& OutIndexFilePath, FString& OutDependencyIndexFilePath)
+{
+	// NormalizedDumpRootPath는 인덱스 생성 대상 dump 루트 절대 경로다.
+	const FString NormalizedDumpRootPath = FPaths::ConvertRelativePathToFull(DumpRootPath);
+
+	// ManifestFilePathArray는 dump 루트 아래에서 찾은 manifest.json 전체 목록이다.
+	TArray<FString> ManifestFilePathArray;
+	IFileManager::Get().FindFilesRecursive(ManifestFilePathArray, *NormalizedDumpRootPath, TEXT("manifest.json"), true, false);
+
+	// AssetEntryArray는 index.json 의 assets 배열 누적값이다.
+	TArray<TSharedPtr<FJsonValue>> AssetEntryArray;
+
+	// RelationEntryArray는 dependency_index.json 의 relations 배열 누적값이다.
+	TArray<TSharedPtr<FJsonValue>> RelationEntryArray;
+
+	// UniqueRelationKeys는 relation 중복 누적을 막는다.
+	TSet<FString> UniqueRelationKeys;
+
+	// SelectedManifestPathByObjectPath는 같은 자산 경로가 여러 dump 폴더에 있을 때 최신 manifest 경로만 유지한다.
+	TMap<FString, FString> SelectedManifestPathByObjectPath;
+
+	// SelectedGeneratedTimeByObjectPath는 자산 경로별 최신 generated_time 비교 기준이다.
+	TMap<FString, FString> SelectedGeneratedTimeByObjectPath;
+
+	for (const FString& ManifestFilePath : ManifestFilePathArray)
+	{
+		// ManifestRootObject는 manifest.json 역직렬화 결과다.
+		TSharedPtr<FJsonObject> ManifestRootObject;
+		if (!LoadCommandletJsonObjectFromFile(ManifestFilePath, ManifestRootObject))
+		{
+			continue;
+		}
+
+		// AssetObject는 manifest.asset object다.
+		const TSharedPtr<FJsonObject> AssetObject = GetCommandletNestedObjectField(ManifestRootObject, TEXT("asset"));
+
+		// ObjectPathText는 현재 dump가 대표하는 자산 경로다.
+		const FString ObjectPathText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("object_path"));
+		if (ObjectPathText.IsEmpty())
+		{
+			continue;
+		}
+
+		// GeneratedTimeText는 최신 manifest 판별에 사용할 generated_time 문자열이다.
+		const FString GeneratedTimeText = GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("generated_time"));
+
+		// ExistingGeneratedTimeText는 같은 object_path에 대해 이미 선택된 generated_time 값이다.
+		const FString ExistingGeneratedTimeText = SelectedGeneratedTimeByObjectPath.FindRef(ObjectPathText);
+		if (ExistingGeneratedTimeText.IsEmpty() || GeneratedTimeText > ExistingGeneratedTimeText)
+		{
+			SelectedGeneratedTimeByObjectPath.Add(ObjectPathText, GeneratedTimeText);
+			SelectedManifestPathByObjectPath.Add(ObjectPathText, ManifestFilePath);
+		}
+	}
+
+	for (const TPair<FString, FString>& SelectedManifestPair : SelectedManifestPathByObjectPath)
+	{
+		// ManifestFilePath는 최신 manifest selection 결과다.
+		const FString& ManifestFilePath = SelectedManifestPair.Value;
+
+		// ManifestRootObject는 manifest.json 역직렬화 결과다.
+		TSharedPtr<FJsonObject> ManifestRootObject;
+		if (!LoadCommandletJsonObjectFromFile(ManifestFilePath, ManifestRootObject))
+		{
+			continue;
+		}
+
+		// AssetObject는 manifest.asset object다.
+		const TSharedPtr<FJsonObject> AssetObject = GetCommandletNestedObjectField(ManifestRootObject, TEXT("asset"));
+
+		// RunObject는 manifest.run object다.
+		const TSharedPtr<FJsonObject> RunObject = GetCommandletNestedObjectField(ManifestRootObject, TEXT("run"));
+
+		// AssetKeyText는 index entry 식별자다.
+		const FString AssetKeyText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_key"));
+
+		// ObjectPathText는 현재 dump가 대표하는 자산 경로다.
+		const FString ObjectPathText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("object_path"));
+
+		// AssetClassText는 자산 클래스 이름이다.
+		const FString AssetClassText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_class"));
+
+		// DumpStatusText는 manifest 기준 최종 dump 상태다.
+		const FString DumpStatusText = GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("dump_status"));
+
+		// GeneratedTimeText는 manifest 생성 시각이다.
+		const FString GeneratedTimeText = GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("generated_time"));
+
+		// FingerprintText는 최신성 판정에 사용하는 run fingerprint다.
+		const FString FingerprintText = GetCommandletStringFieldOrEmpty(RunObject, TEXT("fingerprint"));
+
+		// ManifestRelativePath는 프로젝트 루트 기준 상대 manifest 경로다.
+		const FString ManifestRelativePath = MakeCommandletProjectRelativePath(ManifestFilePath);
+
+		// DumpDirectoryPath는 manifest 파일이 들어 있는 dump 폴더 경로다.
+		const FString DumpDirectoryPath = FPaths::GetPath(ManifestFilePath);
+
+		// DigestFilePath는 같은 dump 폴더 안 digest.json 경로다.
+		const FString DigestFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("digest.json"));
+
+		// DigestRelativePath는 index entry에 기록할 상대 digest 경로다.
+		const FString DigestRelativePath = IFileManager::Get().FileExists(*DigestFilePath)
+			? MakeCommandletProjectRelativePath(DigestFilePath)
+			: FString();
+
+		// AssetEntryObject는 index.json assets 배열에 들어갈 항목이다.
+		TSharedRef<FJsonObject> AssetEntryObject = MakeShared<FJsonObject>();
+		AssetEntryObject->SetStringField(TEXT("asset_key"), AssetKeyText);
+		AssetEntryObject->SetStringField(TEXT("object_path"), ObjectPathText);
+		AssetEntryObject->SetStringField(TEXT("asset_class"), AssetClassText);
+		AssetEntryObject->SetStringField(TEXT("dump_status"), DumpStatusText);
+		AssetEntryObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+		AssetEntryObject->SetStringField(TEXT("fingerprint"), FingerprintText);
+		AssetEntryObject->SetStringField(TEXT("manifest_path"), ManifestRelativePath);
+		AssetEntryObject->SetStringField(TEXT("digest_path"), DigestRelativePath);
+		AssetEntryArray.Add(MakeShared<FJsonValueObject>(AssetEntryObject));
+
+		// ReferencesFilePath는 dependency_index 생성에 사용할 references.json 경로다.
+		const FString ReferencesFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("references.json"));
+		if (!IFileManager::Get().FileExists(*ReferencesFilePath))
+		{
+			continue;
+		}
+
+		// ReferencesRootObject는 references.json 역직렬화 결과다.
+		TSharedPtr<FJsonObject> ReferencesRootObject;
+		if (!LoadCommandletJsonObjectFromFile(ReferencesFilePath, ReferencesRootObject))
+		{
+			continue;
+		}
+
+		// ReferencesObject는 references 섹션 object다.
+		const TSharedPtr<FJsonObject> ReferencesObject = GetCommandletNestedObjectField(ReferencesRootObject, TEXT("references"));
+		if (!ReferencesObject.IsValid())
+		{
+			continue;
+		}
+
+		for (const bool bIsHardReference : { true, false })
+		{
+			// ArrayFieldName은 hard/soft 중 현재 읽을 references 배열 이름이다.
+			const TCHAR* ArrayFieldName = bIsHardReference ? TEXT("hard") : TEXT("soft");
+
+			// ReferenceValueArray는 현재 강도에 해당하는 references 배열이다.
+			const TArray<TSharedPtr<FJsonValue>>* ReferenceValueArray = nullptr;
+			if (!ReferencesObject->TryGetArrayField(ArrayFieldName, ReferenceValueArray) || !ReferenceValueArray)
+			{
+				continue;
+			}
+
+			for (const TSharedPtr<FJsonValue>& ReferenceValue : *ReferenceValueArray)
+			{
+				if (!ReferenceValue.IsValid())
+				{
+					continue;
+				}
+
+				// ReferenceObject는 reference 한 건의 object다.
+				const TSharedPtr<FJsonObject> ReferenceObject = ReferenceValue->AsObject();
+				if (!ReferenceObject.IsValid())
+				{
+					continue;
+				}
+
+				// TargetPathText는 relation 의 도착 자산 경로다.
+				const FString TargetPathText = GetCommandletStringFieldOrEmpty(ReferenceObject, TEXT("path"));
+				if (!TargetPathText.StartsWith(TEXT("/")))
+				{
+					continue;
+				}
+
+				// ReasonText는 reference source를 그대로 relation reason으로 사용한다.
+				const FString ReasonText = GetCommandletStringFieldOrEmpty(ReferenceObject, TEXT("source"));
+
+				// SourcePathText는 관계를 찾은 세부 위치 설명이다.
+				const FString SourcePathText = GetCommandletStringFieldOrEmpty(ReferenceObject, TEXT("source_path"));
+
+				// StrengthText는 hard/soft 강도 문자열이다.
+				const FString StrengthText = bIsHardReference ? TEXT("hard") : TEXT("soft");
+
+				// SourceKindText는 relation source_kind 정규화 값이다.
+				const FString SourceKindText = ResolveCommandletReferenceSourceKindText(ReasonText);
+
+				// RelationUniqueKey는 중복 relation 누적을 막기 위한 고정 키다.
+				const FString RelationUniqueKey = FString::Printf(
+					TEXT("%s|%s|%s|%s|%s"),
+					*ObjectPathText,
+					*TargetPathText,
+					*ReasonText,
+					*StrengthText,
+					*SourcePathText);
+				if (UniqueRelationKeys.Contains(RelationUniqueKey))
+				{
+					continue;
+				}
+
+				UniqueRelationKeys.Add(RelationUniqueKey);
+
+				// RelationEntryObject는 dependency_index.json 에 추가할 relation object다.
+				TSharedRef<FJsonObject> RelationEntryObject = MakeShared<FJsonObject>();
+				RelationEntryObject->SetStringField(TEXT("from"), ObjectPathText);
+				RelationEntryObject->SetStringField(TEXT("to"), TargetPathText);
+				RelationEntryObject->SetStringField(TEXT("reason"), ReasonText);
+				RelationEntryObject->SetStringField(TEXT("strength"), StrengthText);
+				RelationEntryObject->SetStringField(TEXT("source_kind"), SourceKindText);
+				RelationEntryObject->SetStringField(TEXT("source_path"), SourcePathText);
+				RelationEntryArray.Add(MakeShared<FJsonValueObject>(RelationEntryObject));
+			}
+		}
+	}
+
+	Algo::SortBy(
+		AssetEntryArray,
+		[](const TSharedPtr<FJsonValue>& InValue)
+		{
+			const TSharedPtr<FJsonObject> AssetEntryObject = InValue.IsValid() ? InValue->AsObject() : nullptr;
+			return GetCommandletStringFieldOrEmpty(AssetEntryObject, TEXT("asset_key"));
+		});
+
+	Algo::SortBy(
+		RelationEntryArray,
+		[](const TSharedPtr<FJsonValue>& InValue)
+		{
+			const TSharedPtr<FJsonObject> RelationEntryObject = InValue.IsValid() ? InValue->AsObject() : nullptr;
+			return FString::Printf(
+				TEXT("%s|%s|%s"),
+				*GetCommandletStringFieldOrEmpty(RelationEntryObject, TEXT("from")),
+				*GetCommandletStringFieldOrEmpty(RelationEntryObject, TEXT("to")),
+				*GetCommandletStringFieldOrEmpty(RelationEntryObject, TEXT("reason")));
+		});
+
+	// GeneratedTimeText는 이번 index 생성 시각이다.
+	const FString GeneratedTimeText = FDateTime::UtcNow().ToIso8601();
+
+	// IndexRootObject는 index.json 최상위 object다.
+	TSharedRef<FJsonObject> IndexRootObject = MakeShared<FJsonObject>();
+	IndexRootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+	IndexRootObject->SetNumberField(TEXT("asset_count"), AssetEntryArray.Num());
+	IndexRootObject->SetArrayField(TEXT("assets"), AssetEntryArray);
+
+	// DependencyRootObject는 dependency_index.json 최상위 object다.
+	TSharedRef<FJsonObject> DependencyRootObject = MakeShared<FJsonObject>();
+	DependencyRootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+	DependencyRootObject->SetNumberField(TEXT("relation_count"), RelationEntryArray.Num());
+	DependencyRootObject->SetArrayField(TEXT("relations"), RelationEntryArray);
+
+	// IndexJsonText는 index.json 직렬화 문자열이다.
+	FString IndexJsonText;
+
+	// DependencyJsonText는 dependency_index.json 직렬화 문자열이다.
+	FString DependencyJsonText;
+	if (!SerializeJsonObjectText(IndexRootObject, IndexJsonText)
+		|| !SerializeJsonObjectText(DependencyRootObject, DependencyJsonText))
+	{
+		return false;
+	}
+
+	OutIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("index.json"));
+	OutDependencyIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("dependency_index.json"));
+	return SaveJsonToFile(OutIndexFilePath, IndexJsonText)
+		&& SaveJsonToFile(OutDependencyIndexFilePath, DependencyJsonText);
+}
+
+bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount)
+{
+	OutFailureCount = 0;
+
+	// ValidationRootPath는 validate 산출물을 저장할 루트 폴더다.
+	FString ValidationRootPath;
+	if (!GetCmdValue(CommandLine, TEXT("ValidationRoot="), ValidationRootPath))
+	{
+		ValidationRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDumpValidation"));
+	}
+	ValidationRootPath = FPaths::ConvertRelativePathToFull(ValidationRootPath);
+
+	// DataTableAssetOverridePath는 사용자가 명시적으로 넘긴 DataTable 검증 자산 경로다.
+	FString DataTableAssetOverridePath;
+	GetCmdValue(CommandLine, TEXT("DataTableAsset="), DataTableAssetOverridePath);
+
+	// ValidationCaseArray는 이번 validate 모드에서 순차 실행할 대표 샘플 정의 목록이다.
+	TArray<FValidationCaseDefinition> ValidationCaseArray;
+	{
+		// BlueprintCase는 대표 일반 Blueprint 검증 케이스다.
+		FValidationCaseDefinition BlueprintCase;
+		BlueprintCase.CaseName = TEXT("actor_blueprint");
+		BlueprintCase.ExpectedAssetFamily = TEXT("actor_blueprint");
+		BlueprintCase.ExpectedAssetClass = TEXT("Blueprint");
+		BlueprintCase.CandidateObjectPathArray = {
+			TEXT("/Game/CarFight/Vehicles/BP_CFVehiclePawn.BP_CFVehiclePawn")
+		};
+		BlueprintCase.MinGraphCount = 1;
+		BlueprintCase.MinPropertyCount = 1;
+		BlueprintCase.MinReferenceCount = 1;
+		ValidationCaseArray.Add(BlueprintCase);
+
+		// WidgetCase는 WidgetBlueprint 요약/바인딩 검증 케이스다.
+		FValidationCaseDefinition WidgetCase;
+		WidgetCase.CaseName = TEXT("widget_blueprint");
+		WidgetCase.ExpectedAssetFamily = TEXT("widget_blueprint");
+		WidgetCase.ExpectedAssetClass = TEXT("WidgetBlueprint");
+		WidgetCase.CandidateObjectPathArray = {
+			TEXT("/Game/CarFight/UI/WBP_VehicleDebug.WBP_VehicleDebug")
+		};
+		WidgetCase.MinWidgetBindingCount = 1;
+		WidgetCase.MinGraphCount = 1;
+		ValidationCaseArray.Add(WidgetCase);
+
+		// AnimCase는 AnimBlueprint 검증 케이스다.
+		FValidationCaseDefinition AnimCase;
+		AnimCase.CaseName = TEXT("anim_blueprint");
+		AnimCase.ExpectedAssetFamily = TEXT("anim_blueprint");
+		AnimCase.ExpectedAssetClass = TEXT("AnimBlueprint");
+		AnimCase.CandidateObjectPathArray = {
+			TEXT("/Game/Vehicles/SportsCar/ABP_SportsCar.ABP_SportsCar"),
+			TEXT("/Game/Vehicles/OffroadCar/Offroad_AnimBP.Offroad_AnimBP")
+		};
+		AnimCase.MinGraphCount = 1;
+		ValidationCaseArray.Add(AnimCase);
+
+		// DataAssetCase는 PrimaryDataAsset 계열 검증 케이스다.
+		FValidationCaseDefinition DataAssetCase;
+		DataAssetCase.CaseName = TEXT("primary_data_asset");
+		DataAssetCase.ExpectedAssetFamily = TEXT("primary_data_asset");
+		DataAssetCase.ExpectedAssetClass = FString();
+		DataAssetCase.CandidateObjectPathArray = {
+			TEXT("/Game/CarFight/Data/Cars/DA_PoliceCar.DA_PoliceCar")
+		};
+		DataAssetCase.MinPropertyCount = 1;
+		DataAssetCase.MinReferenceCount = 1;
+		ValidationCaseArray.Add(DataAssetCase);
+
+		// InputActionCase는 InputAction 요약 검증 케이스다.
+		FValidationCaseDefinition InputActionCase;
+		InputActionCase.CaseName = TEXT("input_action");
+		InputActionCase.ExpectedAssetFamily = TEXT("input_action");
+		InputActionCase.ExpectedAssetClass = TEXT("InputAction");
+		InputActionCase.CandidateObjectPathArray = {
+			TEXT("/Game/CarFight/Input/IA_Brake.IA_Brake")
+		};
+		InputActionCase.MinPropertyCount = 1;
+		ValidationCaseArray.Add(InputActionCase);
+
+		// InputMappingCase는 InputMappingContext 검증 케이스다.
+		FValidationCaseDefinition InputMappingCase;
+		InputMappingCase.CaseName = TEXT("input_mapping_context");
+		InputMappingCase.ExpectedAssetFamily = TEXT("input_mapping_context");
+		InputMappingCase.ExpectedAssetClass = TEXT("InputMappingContext");
+		InputMappingCase.CandidateObjectPathArray = {
+			TEXT("/Game/CarFight/Input/IMC_Vehicle_Default.IMC_Vehicle_Default")
+		};
+		InputMappingCase.MinInputMappingCount = 1;
+		ValidationCaseArray.Add(InputMappingCase);
+
+		// CurveCase는 CurveFloat 검증 케이스다.
+		FValidationCaseDefinition CurveCase;
+		CurveCase.CaseName = TEXT("curve_float");
+		CurveCase.ExpectedAssetFamily = TEXT("curve_float");
+		CurveCase.ExpectedAssetClass = TEXT("CurveFloat");
+		CurveCase.CandidateObjectPathArray = {
+			TEXT("/Game/VehicleTemplate/Blueprints/SportsCar/FC_Torque_SportsCar.FC_Torque_SportsCar"),
+			TEXT("/Game/VehicleTemplate/Blueprints/OffroadCar/OffroadCar_TorqueCurve.OffroadCar_TorqueCurve")
+		};
+		CurveCase.MinCurveKeyCount = 1;
+		CurveCase.MinPropertyCount = 1;
+		ValidationCaseArray.Add(CurveCase);
+
+		// WorldCase는 World/Map 검증 케이스다.
+		FValidationCaseDefinition WorldCase;
+		WorldCase.CaseName = TEXT("world_map");
+		WorldCase.ExpectedAssetFamily = TEXT("world_map");
+		WorldCase.ExpectedAssetClass = TEXT("World");
+		WorldCase.CandidateObjectPathArray = {
+			TEXT("/Game/Maps/TestMap.TestMap")
+		};
+		WorldCase.MinWorldActorCount = 1;
+		ValidationCaseArray.Add(WorldCase);
+
+		// DataTableCase는 DataTable 샘플이 있을 때 row 메타를 검증하는 선택 케이스다.
+		FValidationCaseDefinition DataTableCase;
+		DataTableCase.CaseName = TEXT("data_table");
+		DataTableCase.ExpectedAssetFamily = TEXT("data_table");
+		DataTableCase.ExpectedAssetClass = TEXT("DataTable");
+		DataTableCase.CandidateObjectPathArray.Add(TEXT("/AssetDump/Validation/DT_ADumpValid"));
+		if (!DataTableAssetOverridePath.IsEmpty())
+		{
+			DataTableCase.CandidateObjectPathArray.Add(DataTableAssetOverridePath);
+		}
+		DataTableCase.DiscoveryClassName = TEXT("DataTable");
+		DataTableCase.bIsOptionalSample = false;
+		DataTableCase.MinDataTableRowCount = 1;
+		ValidationCaseArray.Add(DataTableCase);
+	}
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+	// ValidationCaseResultArray는 validate report의 cases 배열 누적값이다.
+	TArray<TSharedPtr<FJsonValue>> ValidationCaseResultArray;
+
+	// ValidatedCount는 실제 덤프와 검증까지 통과한 케이스 수다.
+	int32 ValidatedCount = 0;
+
+	// OptionalMissingCount는 선택 샘플 부재로 스킵된 케이스 수다.
+	int32 OptionalMissingCount = 0;
+
+	for (const FValidationCaseDefinition& ValidationCase : ValidationCaseArray)
+	{
+		// ResolvedObjectPathText는 현재 케이스에 실제로 사용할 자산 경로다.
+		FString ResolvedObjectPathText;
+		if (!TryResolveValidationAssetPath(AssetRegistryModule, ValidationCase, ResolvedObjectPathText))
+		{
+			// MissingCheckArray는 샘플 부재 케이스에 기록할 검사 배열이다.
+			TArray<TSharedPtr<FJsonValue>> MissingCheckArray;
+
+			// bMissingCasePassed는 현재 missing 케이스의 필수 검사 통과 여부다.
+			bool bMissingCasePassed = true;
+			AddValidationCheck(
+				MissingCheckArray,
+				bMissingCasePassed,
+				TEXT("sample_resolved"),
+				false,
+				TEXT("validation asset available"),
+				TEXT("sample_missing"),
+				!ValidationCase.bIsOptionalSample);
+
+			// MissingStatusText는 sample missing 결과 상태 문자열이다.
+			const FString MissingStatusText = ValidationCase.bIsOptionalSample
+				? TEXT("sample_missing_optional")
+				: TEXT("sample_missing_required");
+
+			// MissingCaseObject는 샘플 부재를 기록할 케이스 결과 object다.
+			TSharedRef<FJsonObject> MissingCaseObject = BuildValidationCaseObject(
+				ValidationCase,
+				FString(),
+				MissingStatusText,
+				FString(),
+				TEXT("검증용 샘플 자산을 찾지 못했습니다."),
+				MissingCheckArray,
+				FADumpResult());
+			ValidationCaseResultArray.Add(MakeShared<FJsonValueObject>(MissingCaseObject));
+
+			if (ValidationCase.bIsOptionalSample)
+			{
+				++OptionalMissingCount;
+			}
+			else
+			{
+				++OutFailureCount;
+			}
+
+			continue;
+		}
+
+		// CaseOutputDirectoryPath는 현재 케이스의 산출물 전용 폴더 경로다.
+		const FString CaseOutputDirectoryPath = FPaths::Combine(ValidationRootPath, ValidationCase.CaseName);
+
+		// DumpRunOpts는 현재 validate 케이스 덤프 실행 옵션이다.
+		FADumpRunOpts DumpRunOpts;
+		ConfigureDumpRunOptsFromCommandLine(CommandLine, ResolvedObjectPathText, CaseOutputDirectoryPath, DumpRunOpts);
+		DumpRunOpts.bIncludeSummary = true;
+		DumpRunOpts.bIncludeDetails = true;
+		DumpRunOpts.bIncludeGraphs = true;
+		DumpRunOpts.bIncludeReferences = true;
+		DumpRunOpts.bSkipIfUpToDate = false;
+
+		// DumpService는 현재 케이스 덤프를 수행할 공통 서비스 인스턴스다.
+		FADumpService DumpService;
+
+		// DumpResult는 현재 케이스 덤프 결과 구조다.
+		FADumpResult DumpResult;
+
+		// bDumpSucceeded는 덤프 추출 단계 성공 여부다.
+		const bool bDumpSucceeded = DumpService.DumpBlueprint(DumpRunOpts, DumpResult);
+
+		// ResolvedOutputFilePath는 현재 케이스 dump.json 최종 저장 경로다.
+		const FString ResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
+
+		// SaveErrorMessage는 저장 실패 시 report에 남길 메시지다.
+		FString SaveErrorMessage;
+
+		// bSaveSucceeded는 dump.json과 sidecar 저장 성공 여부다.
+		const bool bSaveSucceeded = DumpService.SaveDumpJson(ResolvedOutputFilePath, DumpResult, SaveErrorMessage);
+
+		// CaseCheckArray는 현재 케이스에 대한 개별 검사 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> CaseCheckArray;
+
+		// bCasePassed는 현재 케이스의 필수 검사 전체 통과 여부다.
+		bool bCasePassed = true;
+
+		// OutputDirectoryPath는 sidecar 존재 여부를 검사할 dump 폴더 경로다.
+		const FString OutputDirectoryPath = FPaths::GetPath(ResolvedOutputFilePath);
+
+		// ManifestFilePath는 현재 케이스 manifest.json 경로다.
+		const FString ManifestFilePath = FPaths::Combine(OutputDirectoryPath, TEXT("manifest.json"));
+
+		// DigestFilePath는 현재 케이스 digest.json 경로다.
+		const FString DigestFilePath = FPaths::Combine(OutputDirectoryPath, TEXT("digest.json"));
+
+		// SummaryFilePath는 현재 케이스 summary.json 경로다.
+		const FString SummaryFilePath = FPaths::Combine(OutputDirectoryPath, TEXT("summary.json"));
+
+		// DetailsFilePath는 현재 케이스 details.json 경로다.
+		const FString DetailsFilePath = FPaths::Combine(OutputDirectoryPath, TEXT("details.json"));
+
+		// GraphsFilePath는 현재 케이스 graphs.json 경로다.
+		const FString GraphsFilePath = FPaths::Combine(OutputDirectoryPath, TEXT("graphs.json"));
+
+		// ReferencesFilePath는 현재 케이스 references.json 경로다.
+		const FString ReferencesFilePath = FPaths::Combine(OutputDirectoryPath, TEXT("references.json"));
+
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("dump_succeeded"), bDumpSucceeded, TEXT("true"), bDumpSucceeded ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("save_succeeded"), bSaveSucceeded, TEXT("true"), bSaveSucceeded ? TEXT("true") : SaveErrorMessage, true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("dump_file_exists"), IFileManager::Get().FileExists(*ResolvedOutputFilePath), TEXT("true"), IFileManager::Get().FileExists(*ResolvedOutputFilePath) ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("manifest_exists"), IFileManager::Get().FileExists(*ManifestFilePath), TEXT("true"), IFileManager::Get().FileExists(*ManifestFilePath) ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("digest_exists"), IFileManager::Get().FileExists(*DigestFilePath), TEXT("true"), IFileManager::Get().FileExists(*DigestFilePath) ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("summary_exists"), IFileManager::Get().FileExists(*SummaryFilePath), TEXT("true"), IFileManager::Get().FileExists(*SummaryFilePath) ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("details_exists"), IFileManager::Get().FileExists(*DetailsFilePath), TEXT("true"), IFileManager::Get().FileExists(*DetailsFilePath) ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("graphs_exists"), IFileManager::Get().FileExists(*GraphsFilePath), TEXT("true"), IFileManager::Get().FileExists(*GraphsFilePath) ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("references_exists"), IFileManager::Get().FileExists(*ReferencesFilePath), TEXT("true"), IFileManager::Get().FileExists(*ReferencesFilePath) ? TEXT("true") : TEXT("false"), true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("asset_family_match"), DumpResult.Asset.AssetFamily == ValidationCase.ExpectedAssetFamily, ValidationCase.ExpectedAssetFamily, DumpResult.Asset.AssetFamily, true);
+
+		if (!ValidationCase.ExpectedAssetClass.IsEmpty())
+		{
+			// bAssetClassMatched는 현재 케이스의 자산 클래스 또는 생성 클래스가 기대값과 맞는지 여부다.
+			const bool bAssetClassMatched =
+				DumpResult.Asset.ClassName == ValidationCase.ExpectedAssetClass
+				|| DumpResult.Asset.GeneratedClassPath.Contains(ValidationCase.ExpectedAssetClass);
+			AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("asset_class_match"), bAssetClassMatched, ValidationCase.ExpectedAssetClass, DumpResult.Asset.ClassName, true);
+		}
+
+		if (ValidationCase.MinGraphCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("graph_count_min"),
+				DumpResult.Graphs.Num() >= ValidationCase.MinGraphCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinGraphCount),
+				FString::FromInt(DumpResult.Graphs.Num()),
+				true);
+		}
+
+		if (ValidationCase.MinPropertyCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("property_count_min"),
+				DumpResult.Perf.PropertyCount >= ValidationCase.MinPropertyCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinPropertyCount),
+				FString::FromInt(DumpResult.Perf.PropertyCount),
+				true);
+		}
+
+		if (ValidationCase.MinReferenceCount > 0)
+		{
+			// TotalReferenceCount는 hard+soft 참조 총합이다.
+			const int32 TotalReferenceCount = DumpResult.References.Hard.Num() + DumpResult.References.Soft.Num();
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("reference_count_min"),
+				TotalReferenceCount >= ValidationCase.MinReferenceCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinReferenceCount),
+				FString::FromInt(TotalReferenceCount),
+				true);
+		}
+
+		if (ValidationCase.MinWidgetBindingCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("widget_binding_count_min"),
+				DumpResult.Summary.WidgetBindingCount >= ValidationCase.MinWidgetBindingCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinWidgetBindingCount),
+				FString::FromInt(DumpResult.Summary.WidgetBindingCount),
+				true);
+		}
+
+		if (ValidationCase.MinInputMappingCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("input_mapping_count_min"),
+				DumpResult.Summary.InputMappingCount >= ValidationCase.MinInputMappingCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinInputMappingCount),
+				FString::FromInt(DumpResult.Summary.InputMappingCount),
+				true);
+		}
+
+		if (ValidationCase.MinCurveKeyCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("curve_key_count_min"),
+				DumpResult.Summary.CurveKeyCount >= ValidationCase.MinCurveKeyCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinCurveKeyCount),
+				FString::FromInt(DumpResult.Summary.CurveKeyCount),
+				true);
+		}
+
+		if (ValidationCase.MinWorldActorCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("world_actor_count_min"),
+				DumpResult.Summary.WorldActorCount >= ValidationCase.MinWorldActorCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinWorldActorCount),
+				FString::FromInt(DumpResult.Summary.WorldActorCount),
+				true);
+		}
+
+		if (ValidationCase.MinDataTableRowCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("data_table_row_count_min"),
+				DumpResult.Summary.DataTableRowCount >= ValidationCase.MinDataTableRowCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinDataTableRowCount),
+				FString::FromInt(DumpResult.Summary.DataTableRowCount),
+				true);
+		}
+
+		// CaseStatusText는 현재 validate 케이스의 최종 상태 문자열이다.
+		const FString CaseStatusText = bCasePassed ? TEXT("validated") : TEXT("failed");
+
+		// FailureMessageText는 dump/save/검사 실패를 묶어 남길 대표 메시지다.
+		const FString FailureMessageText = bCasePassed
+			? FString()
+			: (!SaveErrorMessage.IsEmpty() ? SaveErrorMessage : TEXT("필수 검증 항목 중 하나 이상이 실패했습니다."));
+
+		// CaseResultObject는 현재 케이스 최종 결과 object다.
+		TSharedRef<FJsonObject> CaseResultObject = BuildValidationCaseObject(
+			ValidationCase,
+			ResolvedObjectPathText,
+			CaseStatusText,
+			ResolvedOutputFilePath,
+			FailureMessageText,
+			CaseCheckArray,
+			DumpResult);
+		ValidationCaseResultArray.Add(MakeShared<FJsonValueObject>(CaseResultObject));
+
+		if (bCasePassed)
+		{
+			++ValidatedCount;
+		}
+		else
+		{
+			++OutFailureCount;
+		}
+	}
+
+	// IndexFilePath는 validation root 기준으로 재생성한 index.json 경로다.
+	FString IndexFilePath;
+
+	// DependencyIndexFilePath는 validation root 기준으로 재생성한 dependency_index.json 경로다.
+	FString DependencyIndexFilePath;
+
+	// bIndexBuilt는 validation dump 루트 인덱스 재생성 성공 여부다.
+	const bool bIndexBuilt = BuildDumpIndexFiles(ValidationRootPath, IndexFilePath, DependencyIndexFilePath);
+
+	// ValidationRootObject는 validate report 최상위 JSON object다.
+	TSharedRef<FJsonObject> ValidationRootObject = MakeShared<FJsonObject>();
+	ValidationRootObject->SetStringField(TEXT("generated_time"), FDateTime::UtcNow().ToIso8601());
+	ValidationRootObject->SetStringField(TEXT("validation_root_path"), ValidationRootPath);
+	ValidationRootObject->SetNumberField(TEXT("case_count"), ValidationCaseArray.Num());
+	ValidationRootObject->SetNumberField(TEXT("validated_count"), ValidatedCount);
+	ValidationRootObject->SetNumberField(TEXT("optional_missing_count"), OptionalMissingCount);
+	ValidationRootObject->SetNumberField(TEXT("required_failed_count"), OutFailureCount);
+	ValidationRootObject->SetBoolField(TEXT("index_built"), bIndexBuilt);
+	ValidationRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
+	ValidationRootObject->SetStringField(TEXT("dependency_index_file_path"), DependencyIndexFilePath);
+	ValidationRootObject->SetArrayField(TEXT("cases"), ValidationCaseResultArray);
+
+	return SerializeJsonObjectText(ValidationRootObject, OutJsonText);
 }
 
 bool UAssetDumpCommandlet::SaveJsonToFile(const FString& OutputFilePath, const FString& JsonText)

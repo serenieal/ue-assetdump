@@ -1,6 +1,11 @@
 // File: ADumpService.cpp
-// Version: v0.5.2
+// Version: v0.6.0
 // Changelog:
+// - v0.6.0: DataAsset 등 비Blueprint 자산도 load/service 경로에서 막히지 않도록 공통 자산 로드로 전환.
+// - v0.5.6: references-only 경로에서도 summary 보조 추출을 수행해 widget binding 기반 참조 입력을 비우지 않도록 보강.
+// - v0.5.5: load 단계에서 Blueprint 공통 asset family helper를 사용해 모든 실행 모드의 자산 메타를 일관화.
+// - v0.5.4: references 단계가 graph semantic 이유까지 수집할 수 있도록 임시 graphs 추출과 통합 참조 입력을 연결.
+// - v0.5.3: Skip If Up To Date 판정을 manifest fingerprint 우선 비교로 전환하고 구형 dump에는 timestamp 비교 fallback을 유지.
 // - v0.5.2: 추출 데이터 없이 취소된 세션이 save fail처럼 보이지 않도록 최종 상태 메시지를 취소 전용 문구로 보정.
 // - v0.5.1: 취소 후 Save 단계로 넘어간 세션이 다음 tick에서 실제 partial 저장을 수행하도록 분기를 보정.
 // - v0.5.0: 최종 상태를 저장 파일에 반영하고 취소 시 부분 저장 경로, 단계 시간 누적, 저장 후 결과 확정을 추가.
@@ -13,6 +18,7 @@
 #include "ADumpService.h"
 
 #include "ADumpDetailExt.h"
+#include "ADumpFingerprint.h"
 #include "ADumpGraphExt.h"
 #include "ADumpJson.h"
 #include "ADumpRefExt.h"
@@ -63,7 +69,7 @@ namespace
 		OutAssetInfo.PackageName = FPackageName::ObjectPathToPackageName(InAssetObjectPath);
 		if (OutAssetInfo.ClassName.IsEmpty())
 		{
-			OutAssetInfo.ClassName = TEXT("Blueprint");
+			OutAssetInfo.ClassName = TEXT("Asset");
 		}
 	}
 
@@ -84,8 +90,8 @@ namespace
 		return FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
 	}
 
-	// IsDumpOutputUpToDate는 asset 패키지 시간과 결과 파일 시간을 비교해 skip 가능 여부를 판단한다.
-	bool IsDumpOutputUpToDate(const FString& InAssetObjectPath, const FString& InOutputFilePath)
+	// IsDumpOutputTimestampUpToDate는 구형 dump 호환용으로 asset 패키지 시간과 결과 파일 시간을 비교한다.
+	bool IsDumpOutputTimestampUpToDate(const FString& InAssetObjectPath, const FString& InOutputFilePath)
 	{
 		if (InAssetObjectPath.IsEmpty() || InOutputFilePath.IsEmpty())
 		{
@@ -106,6 +112,33 @@ namespace
 		const FDateTime AssetTimestamp = IFileManager::Get().GetTimeStamp(*PackageFilePath);
 		const FDateTime OutputTimestamp = IFileManager::Get().GetTimeStamp(*InOutputFilePath);
 		return AssetTimestamp != FDateTime::MinValue() && OutputTimestamp != FDateTime::MinValue() && OutputTimestamp >= AssetTimestamp;
+	}
+
+	// IsDumpOutputUpToDate는 manifest fingerprint 또는 fallback timestamp 기준으로 skip 가능 여부를 판단한다.
+	bool IsDumpOutputUpToDate(const FString& InAssetObjectPath, const FADumpRequestInfo& InRequestInfo, const FString& InOutputFilePath)
+	{
+		if (InAssetObjectPath.IsEmpty() || InOutputFilePath.IsEmpty())
+		{
+			return false;
+		}
+
+		// ExistingFingerprintText는 기존 manifest.json에 기록된 fingerprint 값이다.
+		FString ExistingFingerprintText;
+
+		// ManifestFilePath는 비교에 사용한 manifest.json 경로다.
+		FString ManifestFilePath;
+		if (ADumpFingerprint::TryReadManifestFingerprint(InOutputFilePath, ExistingFingerprintText, ManifestFilePath))
+		{
+			// CurrentFingerprintText는 현재 실행 조건으로 다시 계산한 fingerprint 값이다.
+			const FString CurrentFingerprintText = ADumpFingerprint::BuildAssetFingerprint(
+				InAssetObjectPath,
+				InRequestInfo,
+				ADumpSchema::GetVersionText(),
+				ADumpSchema::GetExtractorVersionText());
+			return !CurrentFingerprintText.IsEmpty() && CurrentFingerprintText == ExistingFingerprintText;
+		}
+
+		return IsDumpOutputTimestampUpToDate(InAssetObjectPath, InOutputFilePath);
 	}
 
 	// HasExtractedData는 현재 결과에 저장 가치가 있는 실제 데이터가 있는지 판단한다.
@@ -348,7 +381,7 @@ void FADumpService::FinalizeStatus(FADumpResult& InOutResult, bool bTreatAsOutpu
 	}
 	else if (InOutResult.DumpStatus == EADumpStatus::Succeeded)
 	{
-		StatusMessage = TEXT("블루프린트 덤프가 완료되었습니다.");
+		StatusMessage = TEXT("자산 덤프가 완료되었습니다.");
 	}
 	else if (InOutResult.DumpStatus == EADumpStatus::PartialSuccess)
 	{
@@ -438,11 +471,15 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		UpdateProgress(
 			EADumpPhase::ValidateAsset,
 			TEXT("자산 확인"),
-			TEXT("블루프린트 자산 경로와 기존 결과 파일을 확인하고 있습니다."),
+			TEXT("자산 경로와 기존 결과 파일을 확인하고 있습니다."),
 			GetPhasePercent(EADumpPhase::ValidateAsset));
 
+		// ResolvedOutputFilePath는 현재 실행 기준의 최종 dump 저장 경로다.
 		const FString ResolvedOutputFilePath = ActiveRunOpts.ResolveOutputFilePath();
-		if (ActiveRunOpts.bSkipIfUpToDate && IsDumpOutputUpToDate(ActiveRunOpts.AssetObjectPath, ResolvedOutputFilePath))
+
+		// RequestInfo는 최신성 판정에 사용할 실행 옵션 스냅샷이다.
+		const FADumpRequestInfo RequestInfo = ActiveRunOpts.BuildRequestInfo();
+		if (ActiveRunOpts.bSkipIfUpToDate && IsDumpOutputUpToDate(ActiveRunOpts.AssetObjectPath, RequestInfo, ResolvedOutputFilePath))
 		{
 			bOutputFileSaved = true;
 			ActiveResult.Progress.CurrentPhase = EADumpPhase::Complete;
@@ -472,12 +509,13 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		UpdateProgress(
 			EADumpPhase::LoadAsset,
 			TEXT("자산 로드"),
-			TEXT("블루프린트를 로드하고 필요 시 컴파일합니다."),
+			TEXT("자산을 로드하고 Blueprint인 경우 필요 시 컴파일합니다."),
 			GetPhasePercent(EADumpPhase::LoadAsset));
 		const double LoadStartSeconds = FPlatformTime::Seconds();
 
-		UBlueprint* LoadedBlueprint = nullptr;
-		if (!ADumpSummaryExt::LoadBlueprintByPath(ActiveRunOpts.AssetObjectPath, LoadedBlueprint, ActiveResult.Issues))
+		// LoadedAssetObject는 현재 실행 대상 자산 객체다.
+		UObject* LoadedAssetObject = nullptr;
+		if (!ADumpSummaryExt::LoadAssetObjectByPath(ActiveRunOpts.AssetObjectPath, LoadedAssetObject, ActiveResult.Issues))
 		{
 			bAllRequestedSectionsSucceeded = false;
 			FinalizeStatus(ActiveResult, false);
@@ -486,16 +524,13 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 			return false;
 		}
 
+		ADumpSummaryExt::FillAssetInfoFromObject(ActiveRunOpts.AssetObjectPath, LoadedAssetObject, ActiveResult.Asset);
+
+		// LoadedBlueprint는 컴파일 전용으로만 사용하는 Blueprint 캐스트 결과다.
+		UBlueprint* LoadedBlueprint = Cast<UBlueprint>(LoadedAssetObject);
 		if (LoadedBlueprint)
 		{
-			FillAssetInfoFromObjectPath(ActiveRunOpts.AssetObjectPath, ActiveResult.Asset);
-			ActiveResult.Asset.ClassName = LoadedBlueprint->GetClass()->GetName();
-			ActiveResult.Asset.ParentClassPath = LoadedBlueprint->ParentClass ? LoadedBlueprint->ParentClass->GetPathName() : FString();
-			ActiveResult.Asset.AssetGuid = FString();
-			if (LoadedBlueprint->GeneratedClass)
-			{
-				ActiveResult.Asset.GeneratedClassPath = LoadedBlueprint->GeneratedClass->GetPathName();
-			}
+			ADumpSummaryExt::FillBlueprintAssetInfo(ActiveRunOpts.AssetObjectPath, LoadedBlueprint, ActiveResult.Asset);
 		}
 
 		if (ActiveRunOpts.bCompileBeforeDump && LoadedBlueprint)
@@ -526,7 +561,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		UpdateProgress(
 			EADumpPhase::Summary,
 			TEXT("요약"),
-			TEXT("블루프린트 요약 정보를 추출하고 있습니다."),
+			TEXT("자산 요약 정보를 추출하고 있습니다."),
 			GetPhasePercent(EADumpPhase::Summary));
 		const double SummaryStartSeconds = FPlatformTime::Seconds();
 		if (!ADumpSummaryExt::ExtractSummary(
@@ -573,7 +608,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		UpdateProgress(
 			EADumpPhase::Graphs,
 			TEXT("그래프"),
-			TEXT("블루프린트 그래프 정보를 추출하고 있습니다."),
+			TEXT("지원되는 그래프 정보를 추출하고 있습니다."),
 			GetPhasePercent(EADumpPhase::Graphs));
 		const double GraphsStartSeconds = FPlatformTime::Seconds();
 		if (!ADumpGraphExt::ExtractGraphs(
@@ -603,8 +638,31 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 			GetPhasePercent(EADumpPhase::References));
 		const double ReferencesStartSeconds = FPlatformTime::Seconds();
 
+		const FADumpSummary* SummaryForReferences = &ActiveResult.Summary;
+
+		// TemporaryReferenceSummary는 summary 미포함 실행에서 references 보조 추출에 사용할 임시 요약 결과다.
+		FADumpSummary TemporaryReferenceSummary;
+
+		// TemporarySummaryAssetInfo는 summary-only 보조 추출에 사용할 임시 자산 메타다.
+		FADumpAssetInfo TemporarySummaryAssetInfo = ActiveResult.Asset;
+
 		const FADumpDetails* DetailsForReferences = &ActiveResult.Details;
 		FADumpDetails TemporaryReferenceDetails;
+		const TArray<FADumpGraph>* GraphsForReferences = &ActiveResult.Graphs;
+		TArray<FADumpGraph> TemporaryReferenceGraphs;
+		if (!ActiveRunOpts.bIncludeSummary)
+		{
+			if (!ADumpSummaryExt::ExtractSummary(
+					ActiveRunOpts.AssetObjectPath,
+					TemporarySummaryAssetInfo,
+					TemporaryReferenceSummary,
+					ActiveResult.Issues))
+			{
+				bAllRequestedSectionsSucceeded = false;
+			}
+			SummaryForReferences = &TemporaryReferenceSummary;
+		}
+
 		if (!ActiveRunOpts.bIncludeDetails)
 		{
 			if (!ADumpDetailExt::ExtractDetails(
@@ -619,9 +677,31 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 			DetailsForReferences = &TemporaryReferenceDetails;
 		}
 
+		if (!ActiveRunOpts.bIncludeGraphs)
+		{
+			// TemporaryGraphAssetInfo는 graph-only 보조 추출에 사용할 임시 asset 메타다.
+			FADumpAssetInfo TemporaryGraphAssetInfo = ActiveResult.Asset;
+
+			// TemporaryGraphPerf는 references 보조 추출 시 기존 graph 카운트를 오염시키지 않도록 분리한 임시 perf다.
+			FADumpPerf TemporaryGraphPerf;
+			if (!ADumpGraphExt::ExtractGraphs(
+					ActiveRunOpts.AssetObjectPath,
+					ActiveRunOpts,
+					TemporaryGraphAssetInfo,
+					TemporaryReferenceGraphs,
+					ActiveResult.Issues,
+					TemporaryGraphPerf))
+			{
+				bAllRequestedSectionsSucceeded = false;
+			}
+			GraphsForReferences = &TemporaryReferenceGraphs;
+		}
+
 		if (!ADumpRefExt::ExtractReferences(
 				ActiveRunOpts.AssetObjectPath,
+				*SummaryForReferences,
 				*DetailsForReferences,
+				*GraphsForReferences,
 				ActiveResult.References,
 				ActiveResult.Issues,
 				ActiveResult.Perf))
