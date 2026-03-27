@@ -961,7 +961,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	{
 		if (!GetCmdValue(CommandLine, TEXT("Asset="), AssetPath))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Prototype/Player/BP_PlayerPawn.BP_PlayerPawn"));
+			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Path/Asset.Asset"));
 			return 1;
 		}
 
@@ -974,7 +974,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	{
 		if (!GetCmdValue(CommandLine, TEXT("Map="), MapAssetPath))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Missing -Map=. Example: -Map=/Game/Level/TestMap.TestMap"));
+			UE_LOG(LogTemp, Error, TEXT("Missing -Map=. Example: -Map=/Game/Path/MapAsset.MapAsset"));
 			return 1;
 		}
 
@@ -987,7 +987,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	{
 		if (!GetCmdValue(CommandLine, TEXT("Asset="), AssetPath))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Prototype/Player/BP_PlayerPawn.BP_PlayerPawn"));
+			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Path/Asset.Asset"));
 			return 1;
 		}
 
@@ -1000,7 +1000,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	{
 		if (!GetCmdValue(CommandLine, TEXT("Asset="), AssetPath))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Prototype/Player/BP_PlayerPawn.BP_PlayerPawn"));
+			UE_LOG(LogTemp, Error, TEXT("Missing -Asset=. Example: -Asset=/Game/Path/Asset.Asset"));
 			return 1;
 		}
 

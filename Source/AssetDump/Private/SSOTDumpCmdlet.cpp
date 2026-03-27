@@ -1243,7 +1243,7 @@ bool USSOTDumpCmdlet::DumpWheel() const
 	const FString VehicleRoot = GetStringFieldSafe(RootsSection, TEXT("vehicle_root"), TEXT("/Game"));
 
 	// BP 이름
-	const FString VehicleBpName = GetStringFieldSafe(WheelSection, TEXT("vehicle_bp_name"), TEXT("BP_ModularVehicle"));
+	const FString VehicleBpName = GetStringFieldSafe(WheelSection, TEXT("vehicle_bp_name"), TEXT(""));
 
 	// 기대 TickGroup
 	const FString ExpectedTickGroup = GetStringFieldSafe(WheelSection, TEXT("expected_tick_group"), TEXT("PostPhysics"));
@@ -1269,22 +1269,29 @@ bool USSOTDumpCmdlet::DumpWheel() const
 	FAssetData FoundBp;
 	bool bFound = false;
 
-	for (const FAssetData& A : AllAssets)
+	if (!VehicleBpName.IsEmpty())
 	{
-		// Blueprint 계열만 빠르게 필터 (정확한 class path는 프로젝트/버전마다 차이가 있어 이름 위주로 진행)
-		if (A.AssetName.ToString().Equals(VehicleBpName))
+		for (const FAssetData& A : AllAssets)
 		{
-			FoundBp = A;
-			bFound = true;
-			break;
+			// Blueprint 계열만 빠르게 필터 (정확한 class path는 프로젝트/버전마다 차이가 있어 이름 위주로 진행)
+			if (A.AssetName.ToString().Equals(VehicleBpName))
+			{
+				FoundBp = A;
+				bFound = true;
+				break;
+			}
 		}
 	}
 
 	// FAIL: BP 못 찾음
 	TArray<FString> Fails;
-	if (!bFound)
+	if (VehicleBpName.IsEmpty())
 	{
-		Fails.Add(TEXT("BP_ModularVehicle not found by name."));
+		Fails.Add(TEXT("wheel_ssot.vehicle_bp_name is not configured."));
+	}
+	else if (!bFound)
+	{
+		Fails.Add(FString::Printf(TEXT("Configured vehicle blueprint was not found by name: %s"), *VehicleBpName));
 	}
 
 	// 결과 JSON 구성
