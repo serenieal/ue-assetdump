@@ -1,6 +1,8 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.3.4
+// Version: v0.3.6
 // Changelog:
+// - v0.3.6: batchdump 검증용 SimulateFailAsset 옵션과 package path 비교 보정을 추가해 partial failure 재현을 지원.
+// - v0.3.5: validate DataTable 기본 샘플 경로, /AssetDump 탐색 루트, 후보 TryLoad fallback을 추가.
 // - v0.3.4: 대표 샘플 자산 덤프와 기본 산출물 검증을 한 번에 수행하는 validate 모드를 추가.
 // - v0.3.3: 폴더 단위 batchdump 실행과 run_report.json 생성, 배치 종료 후 index 재생성을 추가.
 // - v0.3.2: 저장된 BPDump 결과를 재스캔해 index.json / dependency_index.json 을 생성하는 index 모드를 추가.
@@ -29,6 +31,7 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "Misc/FileHelper.h"
+#include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -926,6 +929,10 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		bool bRebuildIndexAfterBatch = true;
 		FParse::Bool(*CommandLine, TEXT("RebuildIndex="), bRebuildIndexAfterBatch);
 
+		// SimulateFailAssetObjectPath는 batch partial failure 검증용으로 강제 실패시킬 자산 경로다.
+		FString SimulateFailAssetObjectPath;
+		GetCmdValue(CommandLine, TEXT("SimulateFailAsset="), SimulateFailAssetObjectPath);
+
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
 		// AssetFilter는 배치 대상 자산을 모을 재귀 검색 필터다.
@@ -967,6 +974,43 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 			// ResolvedOutputFilePath는 현재 자산 dump.json 최종 저장 경로다.
 			const FString ResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
+
+			// AssetPackagePathText는 현재 자산 object path에서 계산한 package path다.
+			const FString AssetPackagePathText = FPackageName::ObjectPathToPackageName(AssetObjectPathText);
+
+			// SimulateFailPackagePathText는 입력된 강제 실패 경로를 package path 기준으로 정규화한 값이다.
+			const FString SimulateFailPackagePathText = FPackageName::ObjectPathToPackageName(SimulateFailAssetObjectPath);
+
+			// bShouldSimulateFailure는 현재 자산을 검증 목적으로 의도적 실패 처리할지 여부다.
+			const bool bShouldSimulateFailure = !SimulateFailAssetObjectPath.IsEmpty()
+				&& (
+					AssetObjectPathText.Equals(SimulateFailAssetObjectPath, ESearchCase::CaseSensitive)
+					|| (!AssetPackagePathText.IsEmpty() && AssetPackagePathText.Equals(SimulateFailAssetObjectPath, ESearchCase::CaseSensitive))
+					|| (!AssetPackagePathText.IsEmpty() && !SimulateFailPackagePathText.IsEmpty() && AssetPackagePathText.Equals(SimulateFailPackagePathText, ESearchCase::CaseSensitive))
+				);
+
+			if (bShouldSimulateFailure)
+			{
+				// SimulatedFailedResult는 강제 실패 report에 넣을 최소 결과 구조다.
+				FADumpResult SimulatedFailedResult;
+				SimulatedFailedResult.DumpStatus = EADumpStatus::Failed;
+
+				// SimulatedFailureMessageText는 강제 실패 이유를 명시적으로 남긴다.
+				const FString SimulatedFailureMessageText = TEXT("Simulated batch failure for validation.");
+
+				// ResultEntryObject는 강제 실패 자산의 report용 JSON object다.
+				TSharedRef<FJsonObject> ResultEntryObject = BuildBatchResultEntryObject(
+					AssetDataItem,
+					TEXT("simulated_failed"),
+					ResolvedOutputFilePath,
+					SimulatedFailedResult,
+					SimulatedFailureMessageText);
+				ResultEntryArray.Add(MakeShared<FJsonValueObject>(ResultEntryObject));
+				FailedEntryArray.Add(MakeShared<FJsonValueObject>(ResultEntryObject));
+				++FailedCount;
+				UE_LOG(LogTemp, Warning, TEXT("Batch dump simulated failure for asset: %s"), *AssetObjectPathText);
+				continue;
+			}
 
 			if (DumpRunOpts.bSkipIfUpToDate && IsBatchDumpOutputUpToDate(DumpRunOpts, ResolvedOutputFilePath))
 			{

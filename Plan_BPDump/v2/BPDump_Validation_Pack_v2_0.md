@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Validation_Pack_v2_0.md
-Version: v2.2.0
+Version: v2.3.0
 Changelog:
+- v2.3.0: 옵션 변경 freshness 검증 리포트와 `SimulateFailAsset` 기반 batch partial failure 재현 절차를 추가.
 - v2.2.0: 플러그인 Content 기반 DataTable 검증 샘플과 validate 9/9 통과 기준을 반영.
 - v2.1.0: 현재 프로젝트에서 실제 사용 중인 validation 샘플 자산과 DataTable 샘플 부재 상태를 반영.
 - v2.0.0: 2차 개선안 종료에 필요한 골든 샘플 종류, 검증 시나리오, 기대 결과, 산출물 수집 규칙을 한 번에 실행할 수 있도록 정리한 검증 팩 작성.
@@ -186,6 +187,7 @@ AI가 `dump.json` 전체를 읽지 않고도 판단할 수 있어야 한다.
 
 1. 재생성
 2. fingerprint 변경
+3. `Saved/BPDumpFreshnessFinal/freshness_report.json` 같은 증적 파일에 `options_hash`, `fingerprint` 차이가 남아야 한다
 
 ### 시나리오 C
 
@@ -307,13 +309,15 @@ schema version 변경
 2. `index.json` 생성 확인
 3. `dependency_index.json` 생성 확인
 4. `ChangedOnly` 재실행
-5. 일부 실패 유도
+5. `-SimulateFailAsset=/Game/CarFight/Input/IA_Brake` 로 일부 실패 유도
 
 ### 기대 결과
 
 1. 전체 자산 인덱스 생성
 2. 불필요한 재덤프 감소
 3. 실패 자산이 있어도 전체 결과 유지
+4. `run_report.json` 기준 `failed_count = 1`
+5. 실패 항목은 `result_status = simulated_failed`
 
 ---
 
@@ -330,6 +334,8 @@ schema version 변경
 7. 프로젝트 `dependency_index.json`
 8. 실행 로그
 9. 실패 케이스 로그
+10. `Saved/BPDumpFreshnessFinal/freshness_report.json`
+11. `Saved/BPDumpBatchPartialFail3/batch_partial_failure_report.json`
 
 ---
 

@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Close_Checklist_v2_0.md
-Version: v0.3.0
+Version: v0.4.0
 Changelog:
+- v0.4.0: 옵션 변경 fingerprint 재생성 검증과 batch partial failure 주입 검증 결과를 반영해 Gate B/F 상태와 종료 판단 메모를 갱신.
 - v0.3.0: DataTable 검증용 플러그인 샘플 자산과 validate 9/9 통과 결과를 반영해 Gate E, 골든 샘플, 종료 판단 메모를 갱신.
 - v0.2.0: 2026-03-27 구현/검증 결과를 반영해 Gate 상태, 핵심 필수 항목, 실제 샘플 자산, validation 산출물 경로를 갱신.
 - v0.1.0: BPDump_Roadmap_v2_0 종료 판단용 2차 개선안 검수표 초안 작성.
@@ -63,6 +64,9 @@ Changelog:
 - `Saved/BPDumpValidation/world_map/...`
 - `Saved/BPDumpValidation/data_table/...`
 - `Saved/BPDumpBatchTest3/run_report.json`
+- `Saved/BPDumpFreshnessFinal/freshness_report.json`
+- `Saved/BPDumpBatchPartialFail3/run_report.json`
+- `Saved/BPDumpBatchPartialFail3/batch_partial_failure_report.json`
 
 ### 검수 시점
 
@@ -88,11 +92,11 @@ Changelog:
 | 게이트 | 기준 | 상태 | 판정 메모 |
 |---|---|---|---|
 | Gate A | sidecar 파일 생성 + 기존 dump 호환 유지 | 완료 | `manifest/digest/summary/details/graphs/references` 실산출물 확인, 구형 dump fallback 유지 |
-| Gate B | fingerprint 기반 skip + stale invalidation 실검증 | 부분완료 | 동일 조건 skip, batch changed only 검증 완료. 옵션/버전/부모 변경 전체 시나리오는 추가 실검증 필요 |
+| Gate B | fingerprint 기반 skip + stale invalidation 실검증 | 부분완료 | 동일 조건 skip과 옵션 변경 fingerprint 재생성 검증 완료. 버전/부모/주요 dependency 변경 실검증은 추가 필요 |
 | Gate C | 복합 값 deep dump + graph 의미 메타 확장 실검증 | 완료 | complex value / graph semantic / pin meta / graph type 확장 구현 및 샘플 dump 확인 |
 | Gate D | 참조 관계 이유 추적 + dependency_index 생성 가능 수준 확보 | 완료 | `references.json` 이유 필드와 `dependency_index.json` 생성 확인 |
 | Gate E | 핵심 자산군 확장 최소 샘플 검증 | 완료 | Widget/Anim/DataAsset/DataTable/Input/Curve/Map 실검증 완료 |
-| Gate F | 프로젝트 단위 배치 덤프 + changed only + 부분 실패 허용 운영 | 부분완료 | batch dump / changed only / run report 완료. 의도적 partial failure 실검증은 남음 |
+| Gate F | 프로젝트 단위 배치 덤프 + changed only + 부분 실패 허용 운영 | 완료 | batch dump / changed only / simulated partial failure / run report / index 유지 실검증 완료 |
 | Gate G | 종료 체크리스트 완료 + 회귀 없음 | 부분완료 | 체크리스트 중간 갱신 완료. 1차 회귀 최종 세트는 아직 미실행 |
 
 ---
@@ -107,7 +111,7 @@ Changelog:
 | 핵심 필수 | `digest.json` 생성 | 완료 | AI 경량 진입용 key counts / overview / top references 확인 |
 | 핵심 필수 | sidecar와 `dump.json` 정합성 유지 | 부분완료 | 실제 sidecar 동작 확인 완료, 전 자산군 전수 비교는 남음 |
 | 핵심 필수 | fingerprint 기반 최신성 판정 | 완료 | manifest fingerprint 기반 skip과 batch precheck 동작 확인 |
-| 핵심 필수 | 옵션 변경 시 강제 재생성 | 판정필요 | 구현은 반영됐으나 옵션 차이 실시나리오 로그를 더 남겨야 함 |
+| 핵심 필수 | 옵션 변경 시 강제 재생성 | 완료 | `freshness_report.json` 기준 `include_details` 변경 시 `options_hash`/`fingerprint` 변경 확인 |
 | 핵심 필수 | extractor/schema 변경 시 강제 재생성 | 판정필요 | 버전 입력은 fingerprint에 반영됨. 실제 재생성 로그는 추가 필요 |
 | 핵심 필수 | 부모/주요 dependency 변경 시 invalidation | 미완료 | 설계/입력 경로는 준비됐지만 실변경 검증이 아직 없음 |
 | 핵심 필수 | BP 복합 값 deep dump | 완료 | `struct/array/map/set` 구조화 출력 확인 |
@@ -126,7 +130,7 @@ Changelog:
 | 핵심 필수 | Map / World 정밀 덤프 확장 | 부분완료 | world summary/details 검증 완료, placed ref 정밀 검증은 추가 필요 |
 | 핵심 필수 | 폴더/프로젝트 단위 batch dump | 완료 | `batchdump`와 `run_report.json` 검증 완료 |
 | 핵심 필수 | `ChangedOnly` 배치 동작 | 완료 | 2회 실행 기준 `succeeded:0, skipped:11` 확인 |
-| 핵심 필수 | 부분 실패 허용 배치 운영 | 부분완료 | report 구조와 실패 집계는 구현 완료, 의도적 실패 주입 검증은 남음 |
+| 핵심 필수 | 부분 실패 허용 배치 운영 | 완료 | `SimulateFailAsset` 기준 `failed_count = 1`, `succeeded_count = 10`, `index_built = true` 확인 |
 | 핵심 필수 | 2차 골든 샘플 검증 | 완료 | `validate` 모드 9케이스 전체 validated, `required_failed_count = 0` 확인 |
 | 핵심 필수 | 1차 범위 회귀 없음 | 판정필요 | 최종 단계에서 전체 회귀 확인 필요 |
 | 보조 | Editor 탭에서 sidecar/manifest 표시 보강 | 미완료 | 필수는 아니지만 운영 편의성 측면에서 유용 |
@@ -154,7 +158,7 @@ Changelog:
 | Input 샘플 | action/mapping 검증 가능 | 완료 | `/Game/CarFight/Input/IA_Brake.IA_Brake`, `/Game/CarFight/Input/IMC_Vehicle_Default.IMC_Vehicle_Default` |
 | Map 샘플 | actor 분포와 placed ref 검증 가능 | 부분완료 | `/Game/Maps/TestMap.TestMap`, placed asset ref 정밀 검증은 남음 |
 | Batch dump 샘플 | 폴더 단위 실행 검증 가능 | 완료 | `/Game/CarFight/Input` -> `Saved/BPDumpBatchTest3` |
-| Invalidation 샘플 | 옵션/버전/부모 변경 검증 가능 | 부분완료 | same-option skip 완료, 나머지 변경 시나리오는 추가 필요 |
+| Invalidation 샘플 | 옵션/버전/부모 변경 검증 가능 | 부분완료 | same-option skip과 옵션 변경 재생성 완료, 버전/부모 변경 시나리오는 추가 필요 |
 
 ---
 
@@ -210,8 +214,8 @@ Changelog:
 
 판정 근거:
 
-1. 핵심 구조와 자산군 확장 실검증은 대부분 닫혔지만, `부모/옵션/버전 변경 invalidation 실검증`, `배치 partial failure 주입`, `1차 회귀 최종 세트`가 남아 있다.
-2. `Gate B`, `Gate F`, `Gate G` 가 아직 `부분완료` 상태다.
+1. 핵심 구조와 자산군 확장, batch 운영 실검증은 대부분 닫혔지만, `버전/부모/주요 dependency invalidation 실검증`, `1차 회귀 최종 세트`가 남아 있다.
+2. `Gate B`, `Gate G` 가 아직 `부분완료` 상태다.
 3. 따라서 현재는 종료 직전 단계이지만 아직 닫을 수는 없다.
 
 ---
