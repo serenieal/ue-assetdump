@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.3.6
+// Version: v0.3.7
 // Changelog:
+// - v0.3.7: validate 기본 샘플을 프로젝트 경로 하드코딩 대신 자산군/클래스 자동 탐색 기반으로 일반화.
 // - v0.3.6: batchdump 검증용 SimulateFailAsset 옵션과 package path 비교 보정을 추가해 partial failure 재현을 지원.
 // - v0.3.6: 현재 프로젝트 기준 validate 기본 샘플 경로를 갱신하고, 프로젝트에 없는 자산군 샘플은 선택 검증으로 낮췄다.
 // - v0.3.5: validate DataTable 기본 샘플 경로, /AssetDump 탐색 루트, 후보 TryLoad fallback을 추가.
@@ -28,7 +29,15 @@
 
 #include "Algo/Sort.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Animation/AnimBlueprint.h"
+#include "Components/ActorComponent.h"
+#include "Curves/CurveFloat.h"
+#include "Engine/Blueprint.h"
+#include "Engine/DataAsset.h"
+#include "Engine/DataTable.h"
 #include "HAL/FileManager.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "Misc/FileHelper.h"
@@ -286,6 +295,7 @@ namespace
 
 		// DiscoveryClassName은 후보가 없을 때 AssetRegistry에서 탐색할 클래스 이름이다.
 		FString DiscoveryClassName;
+		FString DiscoveryAssetFamily;
 
 		// bIsOptionalSample는 샘플이 없어도 전체 실패로 보지 않을지 여부다.
 		bool bIsOptionalSample = false;
@@ -316,6 +326,109 @@ namespace
 	};
 
 	// TryResolveValidationAssetPath는 후보 경로 또는 클래스 탐색으로 validate 샘플 자산 경로를 찾는다.
+	// ResolveValidationAssetFamilyText는 validate 탐색 중 UObject 자산을 asset family 문자열로 분류한다.
+	FString ResolveValidationAssetFamilyText(UObject* InAssetObject)
+	{
+		if (!InAssetObject)
+		{
+			return TEXT("object_asset");
+		}
+
+		if (UBlueprint* BlueprintAsset = Cast<UBlueprint>(InAssetObject))
+		{
+			if (BlueprintAsset->GetClass()->GetName().Equals(TEXT("WidgetBlueprint"), ESearchCase::CaseSensitive))
+			{
+				return TEXT("widget_blueprint");
+			}
+
+			if (Cast<UAnimBlueprint>(BlueprintAsset))
+			{
+				return TEXT("anim_blueprint");
+			}
+
+			UClass* ParentClassObject = BlueprintAsset->ParentClass;
+			if (ParentClassObject && ParentClassObject->IsChildOf(AActor::StaticClass()))
+			{
+				return TEXT("actor_blueprint");
+			}
+
+			if (ParentClassObject && ParentClassObject->IsChildOf(UActorComponent::StaticClass()))
+			{
+				return TEXT("component_blueprint");
+			}
+
+			return TEXT("object_blueprint");
+		}
+
+		if (Cast<UPrimaryDataAsset>(InAssetObject))
+		{
+			return TEXT("primary_data_asset");
+		}
+
+		if (Cast<UInputAction>(InAssetObject))
+		{
+			return TEXT("input_action");
+		}
+
+		if (Cast<UInputMappingContext>(InAssetObject))
+		{
+			return TEXT("input_mapping_context");
+		}
+
+		if (Cast<UDataAsset>(InAssetObject))
+		{
+			return TEXT("data_asset");
+		}
+
+		if (Cast<UDataTable>(InAssetObject))
+		{
+			return TEXT("data_table");
+		}
+
+		if (Cast<UCurveFloat>(InAssetObject))
+		{
+			return TEXT("curve_float");
+		}
+
+		if (Cast<UWorld>(InAssetObject))
+		{
+			return TEXT("world_map");
+		}
+
+		return TEXT("object_asset");
+	}
+
+	// DoesLoadedAssetMatchValidationCase는 로드한 자산이 validate 케이스 조건과 맞는지 확인한다.
+	bool DoesLoadedAssetMatchValidationCase(
+		UObject* InLoadedAssetObject,
+		const FValidationCaseDefinition& InCaseDefinition)
+	{
+		if (!InLoadedAssetObject)
+		{
+			return false;
+		}
+
+		if (!InCaseDefinition.ExpectedAssetClass.IsEmpty())
+		{
+			const FString LoadedAssetClassName = InLoadedAssetObject->GetClass()->GetName();
+			if (!LoadedAssetClassName.Equals(InCaseDefinition.ExpectedAssetClass, ESearchCase::CaseSensitive))
+			{
+				return false;
+			}
+		}
+
+		if (!InCaseDefinition.ExpectedAssetFamily.IsEmpty())
+		{
+			const FString LoadedAssetFamilyText = ResolveValidationAssetFamilyText(InLoadedAssetObject);
+			if (!LoadedAssetFamilyText.Equals(InCaseDefinition.ExpectedAssetFamily, ESearchCase::CaseSensitive))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	bool TryResolveValidationAssetPath(
 		FAssetRegistryModule& InAssetRegistryModule,
 		const FValidationCaseDefinition& InCaseDefinition,
@@ -329,8 +442,12 @@ namespace
 			const FAssetData CandidateAssetData = InAssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(CandidateObjectPath));
 			if (CandidateAssetData.IsValid())
 			{
-				OutResolvedObjectPath = CandidateAssetData.GetObjectPathString();
-				return true;
+				UObject* CandidateLoadedObject = CandidateAssetData.GetAsset();
+				if (DoesLoadedAssetMatchValidationCase(CandidateLoadedObject, InCaseDefinition))
+				{
+					OutResolvedObjectPath = CandidateAssetData.GetObjectPathString();
+					return true;
+				}
 			}
 
 			// CandidateSoftObjectPath는 AssetRegistry에 안 잡히는 플러그인 Content 후보를 직접 로드해 확인한다.
@@ -338,20 +455,20 @@ namespace
 
 			// CandidateLoadedObject는 후보 경로가 실제 로드 가능한 자산인지 직접 확인한 결과다.
 			UObject* CandidateLoadedObject = CandidateSoftObjectPath.TryLoad();
-			if (CandidateLoadedObject)
+			if (DoesLoadedAssetMatchValidationCase(CandidateLoadedObject, InCaseDefinition))
 			{
 				OutResolvedObjectPath = CandidateSoftObjectPath.ToString();
 				return true;
 			}
 		}
 
-		if (InCaseDefinition.DiscoveryClassName.IsEmpty())
+		if (InCaseDefinition.DiscoveryClassName.IsEmpty() && InCaseDefinition.DiscoveryAssetFamily.IsEmpty())
 		{
 			return false;
 		}
 
 		// SearchRootPathArray는 자동 탐색 시 검사할 대표 루트 경로 목록이다.
-		const TArray<FString> SearchRootPathArray = { TEXT("/Game"), TEXT("/Engine"), TEXT("/AssetDump") };
+		const TArray<FString> SearchRootPathArray = { TEXT("/AssetDump"), TEXT("/Game"), TEXT("/Engine") };
 		for (const FString& SearchRootPath : SearchRootPathArray)
 		{
 			// SearchFilter는 현재 루트 경로에서 재귀적으로 자산을 찾는 필터다.
@@ -366,8 +483,17 @@ namespace
 			for (const FAssetData& DiscoveredAssetData : DiscoveredAssetArray)
 			{
 				// DiscoveredClassName는 현재 자산의 AssetRegistry 클래스 이름이다.
-				const FString DiscoveredClassName = DiscoveredAssetData.AssetClassPath.GetAssetName().ToString();
-				if (!DiscoveredClassName.Equals(InCaseDefinition.DiscoveryClassName, ESearchCase::CaseSensitive))
+				if (!InCaseDefinition.DiscoveryClassName.IsEmpty())
+				{
+					const FString DiscoveredClassName = DiscoveredAssetData.AssetClassPath.GetAssetName().ToString();
+					if (!DiscoveredClassName.Equals(InCaseDefinition.DiscoveryClassName, ESearchCase::CaseSensitive))
+					{
+						continue;
+					}
+				}
+
+				UObject* DiscoveredLoadedObject = DiscoveredAssetData.GetAsset();
+				if (!DoesLoadedAssetMatchValidationCase(DiscoveredLoadedObject, InCaseDefinition))
 				{
 					continue;
 				}
@@ -1596,9 +1722,9 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		BlueprintCase.CaseName = TEXT("actor_blueprint");
 		BlueprintCase.ExpectedAssetFamily = TEXT("actor_blueprint");
 		BlueprintCase.ExpectedAssetClass = TEXT("Blueprint");
-		BlueprintCase.CandidateObjectPathArray = {
-			TEXT("/Game/Prototype/Player/BP_HmdPlayerPawn.BP_HmdPlayerPawn")
-		};
+		BlueprintCase.DiscoveryClassName = TEXT("Blueprint");
+		BlueprintCase.DiscoveryAssetFamily = TEXT("actor_blueprint");
+		BlueprintCase.bIsOptionalSample = true;
 		BlueprintCase.MinGraphCount = 1;
 		BlueprintCase.MinPropertyCount = 1;
 		BlueprintCase.MinReferenceCount = 1;
@@ -1609,7 +1735,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		WidgetCase.CaseName = TEXT("widget_blueprint");
 		WidgetCase.ExpectedAssetFamily = TEXT("widget_blueprint");
 		WidgetCase.ExpectedAssetClass = TEXT("WidgetBlueprint");
-		WidgetCase.CandidateObjectPathArray = {};
+		WidgetCase.DiscoveryClassName = TEXT("WidgetBlueprint");
 		WidgetCase.bIsOptionalSample = true;
 		WidgetCase.MinWidgetBindingCount = 1;
 		WidgetCase.MinGraphCount = 1;
@@ -1620,7 +1746,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		AnimCase.CaseName = TEXT("anim_blueprint");
 		AnimCase.ExpectedAssetFamily = TEXT("anim_blueprint");
 		AnimCase.ExpectedAssetClass = TEXT("AnimBlueprint");
-		AnimCase.CandidateObjectPathArray = {};
+		AnimCase.DiscoveryClassName = TEXT("AnimBlueprint");
 		AnimCase.bIsOptionalSample = true;
 		AnimCase.MinGraphCount = 1;
 		ValidationCaseArray.Add(AnimCase);
@@ -1630,7 +1756,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		DataAssetCase.CaseName = TEXT("primary_data_asset");
 		DataAssetCase.ExpectedAssetFamily = TEXT("primary_data_asset");
 		DataAssetCase.ExpectedAssetClass = FString();
-		DataAssetCase.CandidateObjectPathArray = {};
+		DataAssetCase.DiscoveryAssetFamily = TEXT("primary_data_asset");
 		DataAssetCase.bIsOptionalSample = true;
 		DataAssetCase.MinPropertyCount = 1;
 		DataAssetCase.MinReferenceCount = 1;
@@ -1641,9 +1767,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		InputActionCase.CaseName = TEXT("input_action");
 		InputActionCase.ExpectedAssetFamily = TEXT("input_action");
 		InputActionCase.ExpectedAssetClass = TEXT("InputAction");
-		InputActionCase.CandidateObjectPathArray = {
-			TEXT("/Game/Prototype/Player/Input/IA_MoveX.IA_MoveX")
-		};
+		InputActionCase.DiscoveryClassName = TEXT("InputAction");
+		InputActionCase.bIsOptionalSample = true;
 		InputActionCase.MinPropertyCount = 1;
 		ValidationCaseArray.Add(InputActionCase);
 
@@ -1652,9 +1777,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		InputMappingCase.CaseName = TEXT("input_mapping_context");
 		InputMappingCase.ExpectedAssetFamily = TEXT("input_mapping_context");
 		InputMappingCase.ExpectedAssetClass = TEXT("InputMappingContext");
-		InputMappingCase.CandidateObjectPathArray = {
-			TEXT("/Game/Prototype/Player/Input/IMC_Player.IMC_Player")
-		};
+		InputMappingCase.DiscoveryClassName = TEXT("InputMappingContext");
+		InputMappingCase.bIsOptionalSample = true;
 		InputMappingCase.MinInputMappingCount = 1;
 		ValidationCaseArray.Add(InputMappingCase);
 
@@ -1663,7 +1787,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		CurveCase.CaseName = TEXT("curve_float");
 		CurveCase.ExpectedAssetFamily = TEXT("curve_float");
 		CurveCase.ExpectedAssetClass = TEXT("CurveFloat");
-		CurveCase.CandidateObjectPathArray = {};
+		CurveCase.DiscoveryClassName = TEXT("CurveFloat");
 		CurveCase.bIsOptionalSample = true;
 		CurveCase.MinCurveKeyCount = 1;
 		CurveCase.MinPropertyCount = 1;
@@ -1674,9 +1798,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		WorldCase.CaseName = TEXT("world_map");
 		WorldCase.ExpectedAssetFamily = TEXT("world_map");
 		WorldCase.ExpectedAssetClass = TEXT("World");
-		WorldCase.CandidateObjectPathArray = {
-			TEXT("/Game/Level/TestMap.TestMap")
-		};
+		WorldCase.DiscoveryClassName = TEXT("World");
+		WorldCase.bIsOptionalSample = true;
 		WorldCase.MinWorldActorCount = 1;
 		ValidationCaseArray.Add(WorldCase);
 
