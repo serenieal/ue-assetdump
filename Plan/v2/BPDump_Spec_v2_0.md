@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Spec_v2_0.md
-Version: v2.0.0
+Version: v2.1.0
 Changelog:
+- v2.1.0: 실제 구현 기준으로 메인 산출물 파일명을 `<AssetKey>.dump.json` 으로 고정하고 generated_files 예시를 정합화.
 - v2.0.0: 2차 개선안의 출력 구조, 스키마, fingerprint, 자산군 확장, batch dump, 검증 기준을 한 문서로 고정한 통합 명세 초안 작성.
 -->
 
@@ -55,7 +56,7 @@ Changelog:
 
 여기에는 아래 파일이 생성되어야 한다.
 
-1. `dump.json`
+1. `<AssetKey>.dump.json`
 2. `manifest.json`
 3. `digest.json`
 4. `summary.json`
@@ -87,7 +88,7 @@ Changelog:
 
 ## 4. 파일별 역할
 
-## 4.1 dump.json
+## 4.1 메인 dump 파일 (`<AssetKey>.dump.json`)
 
 기존 호환용 전체 스냅샷이다.
 
@@ -95,7 +96,7 @@ Changelog:
 
 1. 1차의 핵심 필드명은 가능한 유지한다.
 2. 2차 신규 정보는 additive 로만 붙인다.
-3. 기존 자동화가 `dump.json` 만 읽어도 최소 기능은 유지되어야 한다.
+3. 기존 자동화가 메인 dump 파일만 읽어도 최소 기능은 유지되어야 한다.
 
 ## 4.2 manifest.json
 
@@ -180,7 +181,7 @@ AI의 기본 진입용 초경량 요약 파일이다.
     "link_kind": "all"
   },
   "generated_files": [
-    "dump.json",
+    "Game_UI_WBP_MainMenu.dump.json",
     "manifest.json",
     "digest.json",
     "summary.json",

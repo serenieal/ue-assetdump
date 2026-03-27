@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Close_Checklist_v2_0.md
-Version: v0.7.0
+Version: v0.8.0
 Changelog:
+- v0.8.0: 실제 구현 기준으로 메인 산출물 파일명을 `<AssetKey>.dump.json` 으로 명시하고 배치/참조 정합성 보강 사항을 반영.
 - v0.7.0: 현재 프로젝트 기준 validate 기본 샘플 세트를 재정의하고 validate 재실행 결과(required_failed_count=0)를 반영해 Gate G 종료 판단을 갱신.
 - v0.6.0: 임시 Blueprint 재부모화 검증을 통해 부모 클래스 변경 invalidation 을 실제로 확인하고 Gate B 상태와 필수 항목 메모를 갱신.
 - v0.5.0: 2026-03-27 현재 작업 환경 기준으로 빌드, 개별 dump, batch dump, partial failure, dependency invalidation 검증 결과를 반영하고 Gate B/G 상태를 재정리.
@@ -172,7 +173,7 @@ Changelog:
 
 | 구분 | 항목 | 상태 | 메모 |
 |---|---|---|---|
-| 필수 | 기존 `dump.json` 경로 유지 | 부분 완료 | 현재 환경의 실제 산출물은 정상. 다만 1차 당시 샘플 세트 전체와의 직접 비교는 이번 환경에서 재현하지 못함 |
+| 필수 | 기존 메인 dump 역할 유지 | 완료 | 현재 구현의 실제 메인 파일명은 `<AssetKey>.dump.json` 이며 sidecar 및 기존 메인 dump 역할은 유지된다 |
 | 필수 | sidecar 산출물 생성 | 완료 | 전체 `bpdump` 결과에서 모두 확인 |
 | 필수 | `manifest.json` 생성 | 완료 | 확인 |
 | 필수 | `digest.json` 생성 | 완료 | 확인 |

@@ -166,7 +166,7 @@ Changelog:
 
 `Saved/BPDump/<AssetKey>/`
 
-1. `dump.json`
+1. `<AssetKey>.dump.json`
 2. `manifest.json`
 3. `digest.json`
 4. `summary.json`
@@ -185,7 +185,7 @@ Changelog:
 
 ### 5.1 각 파일 역할
 
-1. `dump.json`
+1. `<AssetKey>.dump.json`
 - 기존 호환용 전체 스냅샷
 
 2. `manifest.json`
@@ -340,7 +340,7 @@ Public/Private 경로 규칙은 반드시 지킨다.
 
 ### 완료 기준
 
-1. 자산별 폴더에 `dump.json + 6개 sidecar` 가 함께 생성된다.
+1. 자산별 폴더에 `<AssetKey>.dump.json + 6개 sidecar` 가 함께 생성된다.
 2. `manifest.json` 만 읽어도 해당 덤프의 최신성 판단 입력이 보인다.
 3. `digest.json` 만 읽어도 AI가 다음에 어떤 파일을 더 읽을지 결정할 수 있다.
 

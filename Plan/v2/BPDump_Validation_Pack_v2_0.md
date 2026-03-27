@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Validation_Pack_v2_0.md
-Version: v2.6.0
+Version: v2.7.0
 Changelog:
+- v2.7.0: 실제 구현 기준으로 공통 산출물의 메인 파일명을 `<AssetKey>.dump.json` 으로 정리.
 - v2.6.0: 현재 프로젝트 기준 validate 기본 샘플 세트를 코드에 반영하고 validate 재실행 결과(required_failed_count=0, optional_missing_count=4)를 검증 팩에 반영.
 - v2.5.0: 임시 Blueprint 재부모화 검증을 통해 부모 클래스 변경 invalidation 실제 성공 사례를 추가하고 남은 검증 항목을 재정리.
 - v2.4.0: 2026-03-27 현재 환경 기준 샘플 자산과 실제 commandlet 검증 결과를 반영하고, 레거시 샘플 세트와 현재 환경 샘플 세트를 분리 정리.
@@ -97,7 +98,7 @@ Changelog:
 
 1. `manifest.json`
 2. `digest.json`
-3. `dump.json`
+3. `<AssetKey>.dump.json`
 
 옵션 포함 전체 dump 에서는 아래 파일도 같이 생성되어야 한다.
 
