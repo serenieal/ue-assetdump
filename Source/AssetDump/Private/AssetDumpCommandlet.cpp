@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.2.9
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: commandlet bpdump 경로에서 Skip If Up To Date 결과를 다시 저장해 기존 파일을 덮어쓰던 문제를 수정.
 // - v0.2.9: 잘린 파일을 복구하고 asset_details / bpgraph 레거시 모드를 공통 서비스 경유 레거시 JSON 변환 구조로 정리.
 // - v0.2.8: asset_details 모드를 추가하고, 수정한 구간의 깨진 주석을 UTF-8로 읽히게 정리함.
 // - v0.2.7: links_only 그래프 출력용 LinksMeta 옵션 추가.
@@ -93,6 +94,37 @@ namespace
 		}
 
 		return WarningArray;
+	}
+
+	// HasMeaningfulDumpData는 commandlet가 실제 덤프 산출물을 다시 저장해야 하는지 판별한다.
+	bool HasMeaningfulDumpData(const FADumpResult& InDumpResult)
+	{
+		return !InDumpResult.Graphs.IsEmpty()
+			|| InDumpResult.Details.ClassDefaults.Num() > 0
+			|| InDumpResult.Details.Components.Num() > 0
+			|| InDumpResult.References.Hard.Num() > 0
+			|| InDumpResult.References.Soft.Num() > 0
+			|| !InDumpResult.Summary.ParentClassPath.IsEmpty()
+			|| InDumpResult.Summary.GraphCount > 0
+			|| InDumpResult.Summary.VariableCount > 0;
+	}
+
+	// IsCommandletSkipResult는 service가 skip으로 종료했고 기존 dump를 그대로 유지해야 하는지 판별한다.
+	bool IsCommandletSkipResult(const FADumpRunOpts& InDumpRunOpts, const FADumpResult& InDumpResult)
+	{
+		if (!InDumpRunOpts.bSkipIfUpToDate)
+		{
+			return false;
+		}
+
+		if (HasMeaningfulDumpData(InDumpResult))
+		{
+			return false;
+		}
+
+		// ResolvedOutputFilePath는 이미 존재하는 최신 dump 파일인지 확인할 최종 출력 경로다.
+		const FString ResolvedOutputFilePath = InDumpRunOpts.ResolveOutputFilePath();
+		return IFileManager::Get().FileExists(*ResolvedOutputFilePath);
 	}
 
 	// BuildLegacyPropertyJson은 공통 details 프로퍼티를 레거시 property 객체로 변환한다.
@@ -449,6 +481,14 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 			DumpService.SaveDumpJson(DumpRunOpts.ResolveOutputFilePath(), DumpResult, SaveErrorMessage);
 			UE_LOG(LogTemp, Error, TEXT("BPDump failed for asset: %s"), *AssetPath);
 			return 2;
+		}
+
+		if (IsCommandletSkipResult(DumpRunOpts, DumpResult))
+		{
+			// ResolvedOutputFilePath는 skip 결과에서 그대로 유지해야 하는 기존 dump 파일 경로다.
+			const FString ResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
+			UE_LOG(LogTemp, Display, TEXT("Skipped BPDump JSON rewrite because existing dump is up to date: %s"), *ResolvedOutputFilePath);
+			return 0;
 		}
 
 		FString SaveErrorMessage;

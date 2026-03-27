@@ -1,6 +1,7 @@
 // File: ADumpEditorTab.cpp
-// Version: v0.6.2
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: Dump Open BP, Retry Last Failed, 마지막 실행 시간(ms) UI 표시를 추가.
 // - v0.6.2: 자동 계산된 출력 경로가 입력값으로 굳지 않도록 분리하고 체크박스 문구를 읽기 쉬운 한국어로 정리.
 // - v0.6.1: Compile Before Dump, Skip If Up To Date UI 옵션과 ini 저장을 추가.
 // - v0.6.0: 전체 탭 스크롤, 옵션 ini 저장/복원, 출력 폴더 경로 정규화, UnknownAsset 추적 로그 추가.
@@ -160,6 +161,14 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 							.AutoWrapText(true)
 							.Text(this, &SADumpEditorTab::GetDetailText)
 						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.AutoWrapText(true)
+							.Text(this, &SADumpEditorTab::GetLastExecutionMillisecondsText)
+						]
 					]
 				]
 
@@ -205,10 +214,33 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 							.Padding(0.0f, 0.0f, 6.0f, 0.0f)
 							[
 								SNew(SButton)
+								.Text(LOCTEXT("DumpOpenBtn", "Dump Open BP"))
+								.OnClicked(this, &SADumpEditorTab::HandleDumpOpenBlueprintClicked)
+								.IsEnabled(this, &SADumpEditorTab::CanStartDump)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+							[
+								SNew(SButton)
+								.Text(LOCTEXT("RetryLastFailedBtn", "Retry Last Failed"))
+								.OnClicked(this, &SADumpEditorTab::HandleRetryLastFailedClicked)
+								.IsEnabled(this, &SADumpEditorTab::CanRetryLastFailed)
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							[
+								SNew(SButton)
 								.Text(LOCTEXT("CancelBtn", "덤프 취소"))
 								.OnClicked(this, &SADumpEditorTab::HandleCancelDumpClicked)
 								.IsEnabled(this, &SADumpEditorTab::CanCancelDump)
 							]
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						.Padding(0.0f, 8.0f, 0.0f, 0.0f)
+						[
+							SNew(SHorizontalBox)
 							+ SHorizontalBox::Slot()
 							.FillWidth(1.0f)
 							.Padding(0.0f, 0.0f, 6.0f, 0.0f)
@@ -509,6 +541,8 @@ void SADumpEditorTab::RefreshRuntimeState()
 	CurrentDetailText = UADumpEditorApi::GetDumpDetailText();
 	WarningCount = UADumpEditorApi::GetDumpWarningCount();
 	ErrorCount = UADumpEditorApi::GetDumpErrorCount();
+	LastExecutionMilliseconds = UADumpEditorApi::GetLastExecutionMilliseconds();
+	bHasRetryableFailedDump = UADumpEditorApi::HasRetryableFailedDump();
 
 	const FString RuntimeOutputPath = UADumpEditorApi::GetDumpResolvedOutputPath();
 	if (!RuntimeOutputPath.IsEmpty())
@@ -549,8 +583,13 @@ FReply SADumpEditorTab::HandleRefreshSelectionClicked()
 
 FReply SADumpEditorTab::HandleDumpSelectedClicked()
 {
+	// SavedOutputPathText는 이번 실행에 사용할 출력 파일 입력값 스냅샷이다.
 	SavedOutputPathText = OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString();
+
+	// SavedGraphNameFilterText는 이번 실행에 사용할 그래프 이름 필터 스냅샷이다.
 	SavedGraphNameFilterText = GraphNameFilterTextBox.IsValid() ? GraphNameFilterTextBox->GetText().ToString() : FString();
+
+	// SavedLinkKindText는 이번 실행에 사용할 링크 종류 스냅샷이다.
 	SavedLinkKindText = LinkKindTextBox.IsValid() ? LinkKindTextBox->GetText().ToString() : TEXT("all");
 	if (SavedLinkKindText.IsEmpty())
 	{
@@ -574,9 +613,69 @@ FReply SADumpEditorTab::HandleDumpSelectedClicked()
 	return FReply::Handled();
 }
 
+// HandleDumpOpenBlueprintClicked는 현재 열려 있는 Blueprint 대상으로 덤프를 시작한다.
+FReply SADumpEditorTab::HandleDumpOpenBlueprintClicked()
+{
+	// SavedOutputPathText는 열린 Blueprint 덤프에도 재사용할 출력 파일 입력값 스냅샷이다.
+	SavedOutputPathText = OutputPathTextBox.IsValid() ? OutputPathTextBox->GetText().ToString() : FString();
+
+	// SavedGraphNameFilterText는 열린 Blueprint 덤프에도 재사용할 그래프 이름 필터 스냅샷이다.
+	SavedGraphNameFilterText = GraphNameFilterTextBox.IsValid() ? GraphNameFilterTextBox->GetText().ToString() : FString();
+
+	// SavedLinkKindText는 열린 Blueprint 덤프에도 재사용할 링크 종류 스냅샷이다.
+	SavedLinkKindText = LinkKindTextBox.IsValid() ? LinkKindTextBox->GetText().ToString() : TEXT("all");
+	if (SavedLinkKindText.IsEmpty())
+	{
+		SavedLinkKindText = TEXT("all");
+	}
+	SaveUiOptions();
+
+	FString DumpMessage;
+	if (UADumpEditorApi::StartDumpOpenBlueprint(
+			SavedOutputPathText,
+			bIncludeSummary,
+			bIncludeDetails,
+			bIncludeGraphs,
+			bIncludeReferences,
+			bCompileBeforeDump,
+			bSkipIfUpToDate,
+			SavedGraphNameFilterText,
+			bLinksOnly,
+			SavedLinkKindText,
+			DumpMessage))
+	{
+		StatusMessage = DumpMessage;
+		bIsDumpRunning = true;
+		RefreshRuntimeState();
+		return FReply::Handled();
+	}
+
+	StatusMessage = DumpMessage;
+	RefreshRuntimeState();
+	return FReply::Handled();
+}
+
 FReply SADumpEditorTab::HandleCancelDumpClicked()
 {
 	UADumpEditorApi::CancelActiveDump();
+	RefreshRuntimeState();
+	return FReply::Handled();
+}
+
+// HandleRetryLastFailedClicked는 마지막 failed 실행 옵션으로 재시도를 시작한다.
+FReply SADumpEditorTab::HandleRetryLastFailedClicked()
+{
+	// RetryMessage는 마지막 실패 재시도 결과를 사용자에게 보여줄 상태 메시지다.
+	FString RetryMessage;
+	if (UADumpEditorApi::RetryLastFailedDump(RetryMessage))
+	{
+		StatusMessage = RetryMessage;
+		bIsDumpRunning = true;
+		RefreshRuntimeState();
+		return FReply::Handled();
+	}
+
+	StatusMessage = RetryMessage;
 	RefreshRuntimeState();
 	return FReply::Handled();
 }
@@ -758,6 +857,17 @@ FText SADumpEditorTab::GetErrorCountText() const
 	return FText::FromString(FString::Printf(TEXT("오류 수: %d"), ErrorCount));
 }
 
+// GetLastExecutionMillisecondsText는 마지막 종료 실행 시간(ms) 문자열을 만든다.
+FText SADumpEditorTab::GetLastExecutionMillisecondsText() const
+{
+	if (LastExecutionMilliseconds <= 0)
+	{
+		return FText::FromString(TEXT("마지막 실행 시간(ms): 아직 완료된 실행 기록이 없습니다."));
+	}
+
+	return FText::FromString(FString::Printf(TEXT("마지막 실행 시간(ms): %lld"), LastExecutionMilliseconds));
+}
+
 FText SADumpEditorTab::GetLogText() const
 {
 	return FText::FromString(LogText.IsEmpty() ? FString(TEXT("아직 기록된 로그가 없습니다.")) : LogText);
@@ -776,6 +886,12 @@ bool SADumpEditorTab::CanStartDump() const
 bool SADumpEditorTab::CanCancelDump() const
 {
 	return bIsDumpRunning;
+}
+
+// CanRetryLastFailed는 마지막 failed 실행을 다시 시작할 수 있는지 반환한다.
+bool SADumpEditorTab::CanRetryLastFailed() const
+{
+	return !bIsDumpRunning && bHasRetryableFailedDump;
 }
 
 bool SADumpEditorTab::HasOutputPath() const

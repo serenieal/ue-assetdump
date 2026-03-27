@@ -1,6 +1,8 @@
 // File: ADumpExecCtrl.cpp
-// Version: v0.2.0
+// Version: v0.3.1
 // Changelog:
+// - v0.3.1: 세션 로그 파일에 issue code/severity/phase를 함께 남겨 실패 원인 직접 검증 근거를 보강.
+// - v0.3.0: 마지막 failed 실행 재사용과 마지막 실행 시간(ms) 스냅샷 갱신을 추가.
 // - v0.2.0: 세션 종료 시 Saved/BPDump/Logs 에 실행 로그 파일 저장 기능 추가.
 // - v0.1.0: 에디터 탭용 단계 실행 컨트롤러와 로그 누적 구현 추가.
 
@@ -34,6 +36,7 @@ bool FADumpExecCtrl::StartDump(const FADumpRunOpts& InRunOpts, FString& OutMessa
 		return false;
 	}
 
+	ActiveRunOpts = InRunOpts;
 	bIsRunning = true;
 	AppendLogLine(TEXT("덤프 실행을 시작했습니다."));
 	AppendLogLine(OutMessage);
@@ -56,6 +59,23 @@ bool FADumpExecCtrl::TickDump(FString& OutMessage)
 
 	if (!DumpService.IsSessionActive())
 	{
+		// FinishedResult는 방금 종료된 세션의 최종 결과 스냅샷이다.
+		const FADumpResult& FinishedResult = DumpService.GetActiveResult();
+
+		// FinishedMilliseconds는 마지막 실행 시간(ms) 표시용 총 처리 시간이다.
+		const int64 FinishedMilliseconds = FMath::RoundToInt64(FinishedResult.Perf.TotalSeconds * 1000.0);
+		LastExecutionMilliseconds = FinishedMilliseconds;
+
+		if (FinishedResult.DumpStatus == EADumpStatus::Failed)
+		{
+			LastFailedRunOpts = ActiveRunOpts;
+			bHasLastFailedRunOpts = true;
+		}
+		else if (FinishedResult.DumpStatus == EADumpStatus::Succeeded || FinishedResult.DumpStatus == EADumpStatus::PartialSuccess)
+		{
+			bHasLastFailedRunOpts = false;
+		}
+
 		bIsRunning = false;
 		AppendLogLine(TEXT("덤프 세션이 종료되었습니다."));
 	}
@@ -82,6 +102,26 @@ void FADumpExecCtrl::CancelDump()
 	AppendLogLine(TEXT("덤프 취소를 요청했습니다."));
 }
 
+// RetryLastFailedDump는 마지막 failed 실행 옵션으로 새 덤프 세션을 다시 시작한다.
+bool FADumpExecCtrl::RetryLastFailedDump(FString& OutMessage)
+{
+	if (bIsRunning)
+	{
+		OutMessage = TEXT("이미 덤프가 실행 중이라 마지막 실패를 재시도할 수 없습니다.");
+		AppendLogLine(OutMessage);
+		return false;
+	}
+
+	if (!bHasLastFailedRunOpts)
+	{
+		OutMessage = TEXT("재시도할 마지막 실패 실행 정보가 없습니다.");
+		AppendLogLine(OutMessage);
+		return false;
+	}
+
+	return StartDump(LastFailedRunOpts, OutMessage);
+}
+
 bool FADumpExecCtrl::IsRunning() const
 {
 	return bIsRunning;
@@ -100,6 +140,34 @@ void FADumpExecCtrl::AppendLogLine(const FString& InLine)
 	}
 
 	LogLines.Add(InLine);
+}
+
+// BuildIssueLinesText는 현재 세션 결과의 issue 배열을 로그 파일용 문자열로 정리한다.
+static FString BuildIssueLinesText(const TArray<FADumpIssue>& InIssueList)
+{
+	if (InIssueList.Num() <= 0)
+	{
+		return TEXT("(없음)");
+	}
+
+	// IssueLineArray는 로그 파일에 한 줄씩 기록할 issue 요약 문자열 목록이다.
+	TArray<FString> IssueLineArray;
+	IssueLineArray.Reserve(InIssueList.Num());
+
+	for (const FADumpIssue& IssueItem : InIssueList)
+	{
+		// IssueLineText는 code/severity/phase/target/message를 한 줄로 묶은 문자열이다.
+		const FString IssueLineText = FString::Printf(
+			TEXT("- code=%s severity=%s phase=%s target=%s message=%s"),
+			*IssueItem.Code,
+			ToString(IssueItem.Severity),
+			ToString(IssueItem.Phase),
+			IssueItem.TargetPath.IsEmpty() ? TEXT("-") : *IssueItem.TargetPath,
+			IssueItem.Message.IsEmpty() ? TEXT("-") : *IssueItem.Message);
+		IssueLineArray.Add(IssueLineText);
+	}
+
+	return FString::Join(IssueLineArray, TEXT("\n"));
 }
 
 // BuildLogFilePath는 현재 세션 로그 파일의 저장 경로를 계산한다.
@@ -131,13 +199,21 @@ FString FADumpExecCtrl::BuildLogFilePath() const
 // BuildLogFileText는 파일로 남길 실행 로그 문자열을 구성한다.
 FString FADumpExecCtrl::BuildLogFileText() const
 {
+	// ResultSnapshot은 로그 파일에 남길 마지막 세션 결과 스냅샷이다.
+	const FADumpResult& ResultSnapshot = DumpService.GetActiveResult();
+
+	// IssueText는 issue code/severity/phase를 포함한 직접 검증용 문자열 블록이다.
+	const FString IssueText = BuildIssueLinesText(ResultSnapshot.Issues);
+
+	// LogBodyText는 UI 로그 패널 누적 줄을 파일용 본문 문자열로 합친 결과다.
 	const FString LogBodyText = FString::Join(LogLines, TEXT("\n"));
 	return FString::Printf(
-		TEXT("Status: %s\nOutput: %s\nWarnings: %d\nErrors: %d\n\n%s\n"),
+		TEXT("Status: %s\nOutput: %s\nWarnings: %d\nErrors: %d\nIssues:\n%s\n\n%s\n"),
 		*DumpService.GetStatusMessage(),
 		*DumpService.GetResolvedOutputFilePath(),
 		DumpService.GetWarningCount(),
 		DumpService.GetErrorCount(),
+		*IssueText,
 		*LogBodyText);
 }
 
@@ -175,5 +251,7 @@ FADumpExecSnapshot FADumpExecCtrl::BuildSnapshot() const
 	Snapshot.ResolvedOutputFilePath = DumpService.GetResolvedOutputFilePath();
 	Snapshot.StatusMessage = DumpService.GetStatusMessage();
 	Snapshot.LogText = FString::Join(LogLines, TEXT("\n"));
+	Snapshot.bHasLastFailedRun = bHasLastFailedRunOpts;
+	Snapshot.LastExecutionMilliseconds = LastExecutionMilliseconds;
 	return Snapshot;
 }

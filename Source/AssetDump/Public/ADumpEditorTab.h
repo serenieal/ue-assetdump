@@ -1,6 +1,7 @@
 // File: ADumpEditorTab.h
-// Version: v0.6.1
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: Dump Open BP, Retry Last Failed, 마지막 실행 시간(ms) UI 상태와 액션을 추가.
 // - v0.6.1: Compile Before Dump, Skip If Up To Date 체크박스와 ini 저장 상태를 추가.
 // - v0.6.0: 전체 탭 스크롤, 옵션 ini 저장/복원, 출력 경로 정규화 helper 선언 추가.
 // - v0.4.1: 진행률 바 바인딩용 Getter를 정리하고 선언부 포맷을 정돈.
@@ -46,7 +47,13 @@ private:
 	int32 WarningCount = 0;
 	int32 ErrorCount = 0;
 
+	// LastExecutionMilliseconds는 마지막 종료 실행의 총 처리 시간을 ms 단위로 표시한다.
+	int64 LastExecutionMilliseconds = 0;
+
 	bool bIsDumpRunning = false;
+
+	// bHasRetryableFailedDump는 Retry Last Failed 버튼 활성화 조건이다.
+	bool bHasRetryableFailedDump = false;
 	bool bIncludeSummary = true;
 	bool bIncludeDetails = false;
 	bool bIncludeGraphs = false;
@@ -61,7 +68,11 @@ private:
 
 	FReply HandleRefreshSelectionClicked();
 	FReply HandleDumpSelectedClicked();
+	// HandleDumpOpenBlueprintClicked는 현재 열려 있는 Blueprint 대상으로 덤프를 시작한다.
+	FReply HandleDumpOpenBlueprintClicked();
 	FReply HandleCancelDumpClicked();
+	// HandleRetryLastFailedClicked는 마지막 failed 실행 옵션으로 재시도를 시작한다.
+	FReply HandleRetryLastFailedClicked();
 	FReply HandleOpenOutputFolderClicked();
 	FReply HandleCopyOutputPathClicked();
 
@@ -94,11 +105,15 @@ private:
 	FText GetDetailText() const;
 	FText GetWarningCountText() const;
 	FText GetErrorCountText() const;
+	// GetLastExecutionMillisecondsText는 마지막 실행 시간(ms) 표시 문자열을 반환한다.
+	FText GetLastExecutionMillisecondsText() const;
 	FText GetLogText() const;
 
 	bool IsDumpRunningEnabled() const;
 	bool CanStartDump() const;
 	bool CanCancelDump() const;
+	// CanRetryLastFailed는 마지막 failed 실행 재시도 가능 여부를 반환한다.
+	bool CanRetryLastFailed() const;
 	bool HasOutputPath() const;
 
 	void LoadUiOptions();

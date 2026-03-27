@@ -148,7 +148,7 @@ namespace
 		PropertyObject->SetStringField(TEXT("display_name"), InPropertyItem.DisplayName);
 		PropertyObject->SetStringField(TEXT("category"), InPropertyItem.Category);
 		PropertyObject->SetStringField(TEXT("tooltip"), InPropertyItem.Tooltip);
-		PropertyObject->SetStringField(TEXT("property_type"), InPropertyItem.CppType);
+		PropertyObject->SetStringField(TEXT("property_type"), InPropertyItem.PropertyType.IsEmpty() ? InPropertyItem.CppType : InPropertyItem.PropertyType);
 		PropertyObject->SetStringField(TEXT("value_kind"), ToString(InPropertyItem.ValueKind));
 		PropertyObject->SetStringField(TEXT("value_text"), InPropertyItem.ValueText);
 		PropertyObject->SetBoolField(TEXT("is_editable"), InPropertyItem.bIsEditable);

@@ -275,7 +275,10 @@ struct FADumpPropertyItem
 	// Tooltip은 프로퍼티 설명 문구다.
 	FString Tooltip;
 
-	// CppType는 reflection 기준 타입 문자열이다.
+	// PropertyType는 details.property_type에 기록할 reflection 프로퍼티 클래스명이다.
+	FString PropertyType;
+
+	// CppType는 C++ 기준 타입 문자열 또는 레거시 호환용 타입 표기다.
 	FString CppType;
 
 	// ValueKind는 값 분류다.

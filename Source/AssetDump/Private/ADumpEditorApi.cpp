@@ -1,6 +1,7 @@
 // File: ADumpEditorApi.cpp
-// Version: v0.4.1
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: 열린 Blueprint 자산 조회, 마지막 실패 재시도, 마지막 실행 시간(ms) 조회 API를 추가.
 // - v0.4.1: Compile Before Dump, Skip If Up To Date 옵션을 공통 실행 옵션으로 전달하도록 API 시그니처와 빌더를 확장.
 // - v0.4.0: 단계 실행형 덤프 컨트롤러 연동, 상태/로그/진행률 조회 API 추가, 외부 문자열 한국어화.
 // - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 공통 서비스에 전달하도록 확장.
@@ -18,6 +19,8 @@
 #include "Engine/Blueprint.h"
 #include "IContentBrowserSingleton.h"
 #include "Modules/ModuleManager.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+#include "Editor.h"
 
 namespace
 {
@@ -68,6 +71,7 @@ namespace
 	// BuildRunOpts는 Editor UI 입력을 공통 실행 옵션 구조로 변환한다.
 	FADumpRunOpts BuildRunOpts(
 		const FString& AssetObjectPath,
+		EADumpSourceKind InSourceKind,
 		const FString& OutputFilePath,
 		bool bIncludeSummary,
 		bool bIncludeDetails,
@@ -81,7 +85,7 @@ namespace
 	{
 		FADumpRunOpts DumpRunOpts;
 		DumpRunOpts.AssetObjectPath = AssetObjectPath;
-		DumpRunOpts.SourceKind = EADumpSourceKind::EditorSelection;
+		DumpRunOpts.SourceKind = InSourceKind;
 		DumpRunOpts.OutputFilePath = OutputFilePath;
 		DumpRunOpts.bIncludeSummary = bIncludeSummary;
 		DumpRunOpts.bIncludeDetails = bIncludeDetails;
@@ -93,6 +97,40 @@ namespace
 		DumpRunOpts.bLinksOnly = bLinksOnly;
 		DumpRunOpts.LinkKind = ParseLinkKindText(LinkKindText);
 		return DumpRunOpts;
+	}
+
+	// ResolveOpenBlueprintAsset는 현재 에디터에 열려 있는 첫 Blueprint 에셋을 찾는다.
+	bool ResolveOpenBlueprintAsset(FAssetData& OutAssetData, FString& OutMessage)
+	{
+		OutMessage.Reset();
+
+		if (GEditor == nullptr)
+		{
+			OutMessage = TEXT("에디터 서브시스템에 접근할 수 없습니다.");
+			return false;
+		}
+
+		// AssetEditorSubsystem는 현재 열려 있는 에셋 편집기 목록을 제공한다.
+		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+		if (AssetEditorSubsystem == nullptr)
+		{
+			OutMessage = TEXT("AssetEditorSubsystem을 찾지 못했습니다.");
+			return false;
+		}
+
+		// EditedAssetList는 현재 편집기에서 열려 있는 모든 에셋 객체 목록이다.
+		const TArray<UObject*> EditedAssetList = AssetEditorSubsystem->GetAllEditedAssets();
+		for (UObject* EditedAssetObject : EditedAssetList)
+		{
+			if (const UBlueprint* EditedBlueprint = Cast<UBlueprint>(EditedAssetObject))
+			{
+				OutAssetData = FAssetData(EditedBlueprint);
+				return true;
+			}
+		}
+
+		OutMessage = TEXT("현재 열려 있는 블루프린트 에셋이 없습니다.");
+		return false;
 	}
 }
 
@@ -136,6 +174,68 @@ bool UADumpEditorApi::StartDumpSelectedBlueprint(
 
 	const FADumpRunOpts DumpRunOpts = BuildRunOpts(
 		SelectedAssetObjectPath,
+		EADumpSourceKind::EditorSelection,
+		OutputFilePath,
+		bIncludeSummary,
+		bIncludeDetails,
+		bIncludeGraphs,
+		bIncludeReferences,
+		bCompileBeforeDump,
+		bSkipIfUpToDate,
+		GraphNameFilter,
+		bLinksOnly,
+		LinkKindText);
+
+	return FADumpExecCtrl::Get().StartDump(DumpRunOpts, OutMessage);
+}
+
+// GetOpenBlueprintObjectPath는 현재 에디터에 열려 있는 Blueprint의 오브젝트 경로를 반환한다.
+bool UADumpEditorApi::GetOpenBlueprintObjectPath(FString& OutAssetObjectPath, FString& OutDisplayName, FString& OutMessage)
+{
+	OutAssetObjectPath.Reset();
+	OutDisplayName.Reset();
+	OutMessage.Reset();
+
+	// OpenBlueprintAsset는 현재 에디터에 열려 있는 Blueprint 자산 데이터다.
+	FAssetData OpenBlueprintAsset;
+	if (!ResolveOpenBlueprintAsset(OpenBlueprintAsset, OutMessage))
+	{
+		return false;
+	}
+
+	OutAssetObjectPath = OpenBlueprintAsset.GetObjectPathString();
+	OutDisplayName = OpenBlueprintAsset.AssetName.ToString();
+	OutMessage = TEXT("열려 있는 블루프린트 에셋을 확인했습니다.");
+	return true;
+}
+
+// StartDumpOpenBlueprint는 현재 열려 있는 Blueprint 기준으로 단계 실행형 덤프를 시작한다.
+bool UADumpEditorApi::StartDumpOpenBlueprint(
+	const FString& OutputFilePath,
+	bool bIncludeSummary,
+	bool bIncludeDetails,
+	bool bIncludeGraphs,
+	bool bIncludeReferences,
+	bool bCompileBeforeDump,
+	bool bSkipIfUpToDate,
+	const FString& GraphNameFilter,
+	bool bLinksOnly,
+	const FString& LinkKindText,
+	FString& OutMessage)
+{
+	// OpenAssetObjectPath는 현재 열려 있는 Blueprint 오브젝트 경로다.
+	FString OpenAssetObjectPath;
+
+	// OpenDisplayName는 상태 메시지에 사용할 열린 Blueprint 표시 이름이다.
+	FString OpenDisplayName;
+	if (!GetOpenBlueprintObjectPath(OpenAssetObjectPath, OpenDisplayName, OutMessage))
+	{
+		return false;
+	}
+
+	const FADumpRunOpts DumpRunOpts = BuildRunOpts(
+		OpenAssetObjectPath,
+		EADumpSourceKind::EditorOpenBlueprint,
 		OutputFilePath,
 		bIncludeSummary,
 		bIncludeDetails,
@@ -158,6 +258,12 @@ bool UADumpEditorApi::TickActiveDump(FString& OutMessage)
 void UADumpEditorApi::CancelActiveDump()
 {
 	FADumpExecCtrl::Get().CancelDump();
+}
+
+// RetryLastFailedDump는 마지막 failed 실행 옵션으로 덤프 재시도를 시작한다.
+bool UADumpEditorApi::RetryLastFailedDump(FString& OutMessage)
+{
+	return FADumpExecCtrl::Get().RetryLastFailedDump(OutMessage);
 }
 
 bool UADumpEditorApi::IsDumpRunning()
@@ -203,6 +309,18 @@ FString UADumpEditorApi::GetDumpStatusMessage()
 FString UADumpEditorApi::GetDumpLogText()
 {
 	return FADumpExecCtrl::Get().GetSnapshot().LogText;
+}
+
+// HasRetryableFailedDump는 마지막 failed 실행 재시도 가능 여부를 반환한다.
+bool UADumpEditorApi::HasRetryableFailedDump()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().bHasLastFailedRun;
+}
+
+// GetLastExecutionMilliseconds는 마지막 종료 실행의 총 처리 시간을 ms 단위로 반환한다.
+int64 UADumpEditorApi::GetLastExecutionMilliseconds()
+{
+	return FADumpExecCtrl::Get().GetSnapshot().LastExecutionMilliseconds;
 }
 
 bool UADumpEditorApi::DumpSelectedBlueprint(
@@ -263,6 +381,7 @@ bool UADumpEditorApi::DumpBlueprintByPath(
 
 	const FADumpRunOpts DumpRunOpts = BuildRunOpts(
 		AssetObjectPath,
+		EADumpSourceKind::EditorWidget,
 		OutputFilePath,
 		bIncludeSummary,
 		bIncludeDetails,

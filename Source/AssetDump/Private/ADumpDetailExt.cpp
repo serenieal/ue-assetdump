@@ -1,6 +1,8 @@
 // File: ADumpDetailExt.cpp
-// Version: v0.3.0
+// Version: v0.4.1
 // Changelog:
+// - v0.4.1: details.property_type가 명세 예시와 맞도록 reflection 프로퍼티 클래스명을 별도 기록하도록 보정.
+// - v0.4.0: 부모 CDO 기준의 is_overridden 비교를 단순 지원 타입과 부모 컴포넌트 매핑 범위까지 복구.
 // - v0.3.0: details 스키마용 owner/property/editable 필드를 채우고 델리게이트 계열 노이즈를 기본 제외.
 // - v0.2.4: 내부 컴포넌트 참조 복구, actor CDO 컴포넌트 수집, Root/UpdatedComponent fallback을 복원해 details 회귀를 수정.
 // - v0.2.3: FClassProperty의 TObjectPtr 반환 타입에 맞게 안전한 class path 추출로 수정.
@@ -50,6 +52,12 @@ namespace
 
 		// OwningActorDefaultObject는 RootComponent / UpdatedComponent fallback에 사용할 actor CDO다.
 		const AActor* OwningActorDefaultObject = nullptr;
+
+		// ParentClassDefaultObject는 class default override 비교에 사용할 부모 CDO다.
+		const UObject* ParentClassDefaultObject = nullptr;
+
+		// ParentComponentByKey는 부모 컴포넌트 이름+클래스 키를 비교용 컴포넌트 객체로 매핑한다.
+		TMap<FString, const UObject*> ParentComponentByKey;
 	};
 
 	// AddDetailIssue는 detail 추출기에서 공통 issue 기록을 단순화한다.
@@ -137,6 +145,14 @@ namespace
 		}
 
 		return NormalizeReferenceText(InObject->GetName());
+	}
+
+	// GetPropertyTypeText는 details.property_type에 기록할 reflection 프로퍼티 클래스명을 반환한다.
+	FString GetPropertyTypeText(const FProperty& InProperty)
+	{
+		// PropertyClassObject는 현재 reflection 프로퍼티를 설명하는 필드 클래스 객체다.
+		const FFieldClass* PropertyClassObject = InProperty.GetClass();
+		return PropertyClassObject ? PropertyClassObject->GetName() : FString();
 	}
 
 	// RegisterFriendlyAlias는 alias 이름을 friendly path로 저장한다.
@@ -310,6 +326,34 @@ namespace
 		return FString::Printf(TEXT("%s.%s"), *InPrefix, *InPropertyName);
 	}
 
+	// BuildComponentCompareKey는 컴포넌트 이름과 클래스명으로 부모 비교 키를 만든다.
+	FString BuildComponentCompareKey(const FString& InComponentName, const FString& InComponentClass)
+	{
+		return FString::Printf(TEXT("%s|%s"), *InComponentName, *InComponentClass);
+	}
+
+	// RegisterParentComponentCompareEntry는 부모 컴포넌트 비교 맵에 이름/클래스 키를 등록한다.
+	void RegisterParentComponentCompareEntry(
+		FDetailExtractContext& InOutExtractContext,
+		const FString& InComponentName,
+		const FString& InComponentClass,
+		const UObject* InComponentObject)
+	{
+		// NormalizedComponentName은 비어 있는 비교 키 생성을 막기 위한 정규화된 이름이다.
+		const FString NormalizedComponentName = NormalizeReferenceText(InComponentName);
+
+		// NormalizedComponentClass는 비어 있는 비교 키 생성을 막기 위한 정규화된 클래스명이다.
+		const FString NormalizedComponentClass = NormalizeReferenceText(InComponentClass);
+		if (!InComponentObject || NormalizedComponentName.IsEmpty() || NormalizedComponentClass.IsEmpty())
+		{
+			return;
+		}
+
+		// ParentComponentKey는 부모 컴포넌트 조회에 사용할 고정 키다.
+		const FString ParentComponentKey = BuildComponentCompareKey(NormalizedComponentName, NormalizedComponentClass);
+		InOutExtractContext.ParentComponentByKey.FindOrAdd(ParentComponentKey) = InComponentObject;
+	}
+
 	// GetValueKind는 reflection property를 dump schema의 value kind로 매핑한다.
 	EADumpValueKind GetValueKind(const FProperty& InProperty)
 	{
@@ -394,6 +438,29 @@ namespace
 		}
 
 		return EADumpValueKind::Unsupported;
+	}
+
+	// IsOverrideComparableKind는 이번 종료 범위에서 override 비교를 지원하는 타입인지 판별한다.
+	bool IsOverrideComparableKind(EADumpValueKind InValueKind)
+	{
+		switch (InValueKind)
+		{
+		case EADumpValueKind::Bool:
+		case EADumpValueKind::Int:
+		case EADumpValueKind::Float:
+		case EADumpValueKind::Double:
+		case EADumpValueKind::Enum:
+		case EADumpValueKind::String:
+		case EADumpValueKind::Name:
+		case EADumpValueKind::Text:
+		case EADumpValueKind::ObjectRef:
+		case EADumpValueKind::ClassRef:
+		case EADumpValueKind::SoftObjectRef:
+		case EADumpValueKind::SoftClassRef:
+			return true;
+		default:
+			return false;
+		}
 	}
 
 	// ExportValueText는 property 값을 안전한 텍스트로 내보낸다.
@@ -605,13 +672,61 @@ namespace
 		return MakeShared<FJsonValueNull>();
 	}
 
-	// ComputeIsOverride는 안전성 확보 전까지 override 비교를 비활성화한다.
+	// ResolveCompareProperty는 부모 owner struct에서 동일 이름의 비교 대상 property를 찾는다.
+	const FProperty* ResolveCompareProperty(const FProperty& InProperty, const UStruct* InCompareOwnerStruct)
+	{
+		if (!InCompareOwnerStruct)
+		{
+			return nullptr;
+		}
+
+		// CompareProperty는 부모 owner struct에서 찾은 동명 프로퍼티다.
+		const FProperty* CompareProperty = FindFProperty<FProperty>(InCompareOwnerStruct, InProperty.GetFName());
+		if (!CompareProperty)
+		{
+			return nullptr;
+		}
+
+		if (GetValueKind(*CompareProperty) != GetValueKind(InProperty))
+		{
+			return nullptr;
+		}
+
+		return CompareProperty;
+	}
+
+	// ComputeIsOverride는 지원 타입에 한해 부모 값과 현재 값을 비교해 override 여부를 반환한다.
 	bool ComputeIsOverride(
 		const FProperty& InProperty,
 		const void* InCurrentContainerPtr,
+		const FProperty* InCompareProperty,
 		const void* InCompareContainerPtr)
 	{
-		return false;
+		if (!InCurrentContainerPtr || !InCompareProperty || !InCompareContainerPtr)
+		{
+			return false;
+		}
+
+		// CurrentValueKind는 현재 프로퍼티의 dump 비교 타입 분류다.
+		const EADumpValueKind CurrentValueKind = GetValueKind(InProperty);
+		if (!IsOverrideComparableKind(CurrentValueKind))
+		{
+			return false;
+		}
+
+		// CompareValueKind는 부모 프로퍼티의 dump 비교 타입 분류다.
+		const EADumpValueKind CompareValueKind = GetValueKind(*InCompareProperty);
+		if (CurrentValueKind != CompareValueKind)
+		{
+			return false;
+		}
+
+		// CurrentValueText는 현재 CDO/컴포넌트의 정규 비교 문자열이다.
+		const FString CurrentValueText = NormalizeReferenceText(ExportValueText(InProperty, InCurrentContainerPtr));
+
+		// CompareValueText는 부모 CDO/부모 컴포넌트의 정규 비교 문자열이다.
+		const FString CompareValueText = NormalizeReferenceText(ExportValueText(*InCompareProperty, InCompareContainerPtr));
+		return !CurrentValueText.Equals(CompareValueText, ESearchCase::CaseSensitive);
 	}
 
 	// ResolveReferenceValueText는 object/class reference 계열 property의 최종 텍스트를 복구한다.
@@ -674,6 +789,7 @@ namespace
 		const FProperty& InProperty,
 		const void* InCurrentContainerPtr,
 		const UObject* InCurrentContainerObject,
+		const FProperty* InCompareProperty,
 		const void* InCompareContainerPtr,
 		const FString& InOwnerKind,
 		const FString& InOwnerName,
@@ -688,6 +804,7 @@ namespace
 		PropertyItem.DisplayName = InProperty.GetDisplayNameText().ToString();
 		PropertyItem.Category = InProperty.GetMetaData(TEXT("Category"));
 		PropertyItem.Tooltip = InProperty.GetToolTipText().ToString();
+		PropertyItem.PropertyType = GetPropertyTypeText(InProperty);
 		PropertyItem.CppType = InProperty.GetCPPType();
 		PropertyItem.ValueKind = GetValueKind(InProperty);
 		PropertyItem.ValueText = ExportValueText(InProperty, InCurrentContainerPtr);
@@ -716,6 +833,7 @@ namespace
 		PropertyItem.bIsOverride = ComputeIsOverride(
 			InProperty,
 			InCurrentContainerPtr,
+			InCompareProperty,
 			InCompareContainerPtr);
 		return PropertyItem;
 	}
@@ -725,6 +843,7 @@ namespace
 		const UStruct* InOwnerStruct,
 		const void* InCurrentContainerPtr,
 		const UObject* InCurrentContainerObject,
+		const UStruct* InCompareOwnerStruct,
 		const void* InCompareContainerPtr,
 		const FString& InOwnerKind,
 		const FString& InOwnerName,
@@ -745,10 +864,14 @@ namespace
 				continue;
 			}
 
+			// CompareProperty는 부모 owner struct에서 찾은 동일 이름 프로퍼티다.
+			const FProperty* CompareProperty = ResolveCompareProperty(*Property, InCompareOwnerStruct);
+
 			FADumpPropertyItem PropertyItem = BuildPropertyItem(
 				*Property,
 				InCurrentContainerPtr,
 				InCurrentContainerObject,
+				CompareProperty,
 				InCompareContainerPtr,
 				InOwnerKind,
 				InOwnerName,
@@ -833,6 +956,7 @@ namespace ADumpDetailExt
 		ExtractContext.OwnerAssetPath = AssetObjectPath;
 		ExtractContext.Issues = &OutIssues;
 		ExtractContext.Perf = &InOutPerf;
+		ExtractContext.ParentClassDefaultObject = ParentClassDefaultObject;
 
 		TSet<FString> SeenComponentKeys;
 		TInlineComponentArray<UActorComponent*> ActorComponentList;
@@ -860,6 +984,27 @@ namespace ADumpDetailExt
 			}
 		}
 
+		if (const AActor* ParentActorDefaultObject = Cast<AActor>(ParentClassDefaultObject))
+		{
+			// ParentActorComponentList는 부모 actor CDO에서 비교 가능한 컴포넌트 목록이다.
+			TInlineComponentArray<UActorComponent*> ParentActorComponentList;
+			const_cast<AActor*>(ParentActorDefaultObject)->GetComponents(ParentActorComponentList);
+
+			for (UActorComponent* ParentActorComponent : ParentActorComponentList)
+			{
+				if (!ParentActorComponent)
+				{
+					continue;
+				}
+
+				RegisterParentComponentCompareEntry(
+					ExtractContext,
+					ParentActorComponent->GetName(),
+					ParentActorComponent->GetClass()->GetName(),
+					ParentActorComponent);
+			}
+		}
+
 		if (BlueprintAsset->SimpleConstructionScript)
 		{
 			const TArray<USCS_Node*>& AllScsNodes = BlueprintAsset->SimpleConstructionScript->GetAllNodes();
@@ -882,12 +1027,54 @@ namespace ADumpDetailExt
 			}
 		}
 
+		if (const UBlueprintGeneratedClass* ParentGeneratedClass = Cast<UBlueprintGeneratedClass>(GeneratedClass->GetSuperClass()))
+		{
+			// ParentBlueprintAsset는 부모 Blueprint SCS 템플릿 비교에 사용할 원본 Blueprint다.
+			const UBlueprint* ParentBlueprintAsset = Cast<UBlueprint>(ParentGeneratedClass->ClassGeneratedBy);
+			if (ParentBlueprintAsset && ParentBlueprintAsset->SimpleConstructionScript)
+			{
+				// ParentScsNodes는 부모 Blueprint SCS 전체 노드 목록이다.
+				const TArray<USCS_Node*>& ParentScsNodes = ParentBlueprintAsset->SimpleConstructionScript->GetAllNodes();
+				for (USCS_Node* ParentScsNode : ParentScsNodes)
+				{
+					if (!ParentScsNode || !ParentScsNode->ComponentTemplate)
+					{
+						continue;
+					}
+
+					// ParentComponentTemplate는 부모 SCS 템플릿 비교에 사용할 실제 객체다.
+					UActorComponent* ParentComponentTemplate = ParentScsNode->ComponentTemplate;
+
+					// ParentVariableName은 부모 SCS 변수명 비교 키다.
+					const FString ParentVariableName = ParentScsNode->GetVariableName().ToString();
+
+					// ParentComponentName은 변수명이 비면 템플릿 이름을 쓰는 비교용 이름이다.
+					const FString ParentComponentName = ParentVariableName.IsEmpty() ? ParentComponentTemplate->GetName() : ParentVariableName;
+
+					// ParentComponentClassName은 부모 템플릿 클래스명 비교 키다.
+					const FString ParentComponentClassName = ParentComponentTemplate->GetClass()->GetName();
+
+					RegisterParentComponentCompareEntry(
+						ExtractContext,
+						ParentComponentTemplate->GetName(),
+						ParentComponentClassName,
+						ParentComponentTemplate);
+					RegisterParentComponentCompareEntry(
+						ExtractContext,
+						ParentComponentName,
+						ParentComponentClassName,
+						ParentComponentTemplate);
+				}
+			}
+		}
+
 		if (ClassDefaultObject)
 		{
 			PopulatePropertyItems(
 				GeneratedClass,
 				ClassDefaultObject,
 				ClassDefaultObject,
+				GeneratedClass->GetSuperClass(),
 				ParentClassDefaultObject,
 				TEXT("class_default"),
 				ClassDefaultObject->GetName(),
@@ -925,14 +1112,19 @@ namespace ADumpDetailExt
 				ComponentItem.AttachParentName = SceneComponent->GetAttachParent() ? SceneComponent->GetAttachParent()->GetName() : FString();
 			}
 
-			const FString ComponentKey = FString::Printf(TEXT("%s|%s"), *ComponentItem.ComponentName, *ComponentItem.ComponentClass);
+			// ComponentKey는 현재 컴포넌트의 중복 방지 및 부모 비교 조회 키다.
+			const FString ComponentKey = BuildComponentCompareKey(ComponentItem.ComponentName, ComponentItem.ComponentClass);
 			SeenComponentKeys.Add(ComponentKey);
+
+			// ParentCompareComponent는 동일 이름/클래스 기준으로 찾은 부모 컴포넌트다.
+			const UObject* ParentCompareComponent = ExtractContext.ParentComponentByKey.FindRef(ComponentKey);
 
 			PopulatePropertyItems(
 				ActorComponent->GetClass(),
 				ActorComponent,
 				ActorComponent,
-				nullptr,
+				ParentCompareComponent ? ParentCompareComponent->GetClass() : nullptr,
+				ParentCompareComponent,
 				TEXT("component_template"),
 				ComponentItem.ComponentName,
 				FString::Printf(TEXT("components.%s"), *ComponentItem.ComponentName),
@@ -975,23 +1167,28 @@ namespace ADumpDetailExt
 				ComponentItem.bIsSceneComponent = Cast<USceneComponent>(ComponentTemplate) != nullptr;
 				ComponentItem.bFromSCS = true;
 
-				const FString ComponentKey = FString::Printf(TEXT("%s|%s"), *ComponentItem.ComponentName, *ComponentItem.ComponentClass);
+				// ComponentKey는 SCS 컴포넌트의 중복 방지 및 부모 비교 조회 키다.
+				const FString ComponentKey = BuildComponentCompareKey(ComponentItem.ComponentName, ComponentItem.ComponentClass);
 				if (SeenComponentKeys.Contains(ComponentKey))
 				{
 					continue;
 				}
 				SeenComponentKeys.Add(ComponentKey);
 
-			PopulatePropertyItems(
-				ComponentTemplate->GetClass(),
-				ComponentTemplate,
-				ComponentTemplate,
-				nullptr,
-				TEXT("component_template"),
-				ComponentItem.ComponentName,
-				FString::Printf(TEXT("components.%s"), *ComponentItem.ComponentName),
-				ExtractContext,
-				ComponentItem.Properties);
+				// ParentCompareComponent는 동일 이름/클래스 기준으로 찾은 부모 SCS 컴포넌트다.
+				const UObject* ParentCompareComponent = ExtractContext.ParentComponentByKey.FindRef(ComponentKey);
+
+				PopulatePropertyItems(
+					ComponentTemplate->GetClass(),
+					ComponentTemplate,
+					ComponentTemplate,
+					ParentCompareComponent ? ParentCompareComponent->GetClass() : nullptr,
+					ParentCompareComponent,
+					TEXT("component_template"),
+					ComponentItem.ComponentName,
+					FString::Printf(TEXT("components.%s"), *ComponentItem.ComponentName),
+					ExtractContext,
+					ComponentItem.Properties);
 
 				OutDetails.Components.Add(MoveTemp(ComponentItem));
 				InOutPerf.ComponentCount++;

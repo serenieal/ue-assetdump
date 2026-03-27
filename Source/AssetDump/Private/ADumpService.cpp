@@ -1,6 +1,8 @@
 // File: ADumpService.cpp
-// Version: v0.5.0
+// Version: v0.5.2
 // Changelog:
+// - v0.5.2: 추출 데이터 없이 취소된 세션이 save fail처럼 보이지 않도록 최종 상태 메시지를 취소 전용 문구로 보정.
+// - v0.5.1: 취소 후 Save 단계로 넘어간 세션이 다음 tick에서 실제 partial 저장을 수행하도록 분기를 보정.
 // - v0.5.0: 최종 상태를 저장 파일에 반영하고 취소 시 부분 저장 경로, 단계 시간 누적, 저장 후 결과 확정을 추가.
 // - v0.4.1: dump 파일 실제 저장 여부를 추적하고 저장 실패 메시지를 명확하게 정리.
 // - v0.4.0: 단계별 실행 세션, 저장 단계, 진행률 스냅샷, 한국어 상태 메시지, 경고/오류 카운트 갱신 추가.
@@ -332,9 +334,13 @@ void FADumpService::FinalizeStatus(FADumpResult& InOutResult, bool bTreatAsOutpu
 	InOutResult.Progress.Percent01 = GetPhasePercent(EADumpPhase::Complete);
 	InOutResult.Progress.bIsCancelable = false;
 
-	if (bHasSaveFailureIssue || !bTreatAsOutputSaved)
+	if (bHasSaveFailureIssue)
 	{
 		StatusMessage = TEXT("dump.json 파일 저장에 실패했습니다.");
+	}
+	else if (bIsCancelRequested && !bTreatAsOutputSaved)
+	{
+		StatusMessage = TEXT("취소 요청으로 덤프가 저장 없이 종료되었습니다.");
 	}
 	else if (bIsCancelRequested && InOutResult.DumpStatus == EADumpStatus::PartialSuccess)
 	{
@@ -379,10 +385,10 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		return false;
 	}
 
-	if (bIsCancelRequested)
+	if (bIsCancelRequested && ActivePhase != EADumpPhase::Save)
 	{
 		bAllRequestedSectionsSucceeded = false;
-		if (HasExtractedData(ActiveResult) && ActivePhase != EADumpPhase::Save)
+		if (HasExtractedData(ActiveResult))
 		{
 			ActivePhase = EADumpPhase::Save;
 			StatusMessage = TEXT("취소 요청을 반영해 현재까지의 결과를 저장합니다.");

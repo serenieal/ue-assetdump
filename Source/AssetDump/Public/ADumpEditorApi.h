@@ -1,6 +1,7 @@
 // File: ADumpEditorApi.h
-// Version: v0.4.1
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: 열린 Blueprint 덤프, 마지막 실패 재시도, 마지막 실행 시간(ms) 조회 API를 추가.
 // - v0.4.1: Compile Before Dump, Skip If Up To Date 옵션을 공통 실행 옵션으로 전달하도록 API 시그니처를 확장.
 // - v0.4.0: 단계 실행형 덤프 시작/진행/취소/상태 조회 API 추가.
 // - v0.3.0: 수동 덤프에서 그래프 필터 옵션(GraphNameFilter/LinksOnly/LinkKind)을 전달할 수 있도록 API를 확장.
@@ -41,6 +42,27 @@ public:
 		const FString& LinkKindText,
 		FString& OutMessage);
 
+	// GetOpenBlueprintObjectPath는 현재 열려 있는 Blueprint 에셋 중 하나의 오브젝트 경로를 반환한다.
+	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
+		meta = (ToolTip = "현재 에디터에 열려 있는 Blueprint 에셋 중 하나의 오브젝트 경로와 표시 이름을 반환합니다."))
+	static bool GetOpenBlueprintObjectPath(FString& OutAssetObjectPath, FString& OutDisplayName, FString& OutMessage);
+
+	// StartDumpOpenBlueprint는 현재 열려 있는 Blueprint 에셋을 기준으로 단계 실행형 덤프를 시작한다.
+	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
+		meta = (ToolTip = "현재 에디터에 열려 있는 Blueprint 에셋에 대해 진행률/취소가 가능한 단계 실행형 덤프를 시작합니다."))
+	static bool StartDumpOpenBlueprint(
+		const FString& OutputFilePath,
+		bool bIncludeSummary,
+		bool bIncludeDetails,
+		bool bIncludeGraphs,
+		bool bIncludeReferences,
+		bool bCompileBeforeDump,
+		bool bSkipIfUpToDate,
+		const FString& GraphNameFilter,
+		bool bLinksOnly,
+		const FString& LinkKindText,
+		FString& OutMessage);
+
 	// TickActiveDump는 현재 단계 실행형 덤프의 다음 단계를 한 번 진행한다.
 	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
 		meta = (ToolTip = "현재 실행 중인 덤프의 다음 단계를 한 번 진행합니다."))
@@ -50,6 +72,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
 		meta = (ToolTip = "현재 실행 중인 덤프 취소를 요청합니다."))
 	static void CancelActiveDump();
+
+	// RetryLastFailedDump는 마지막 failed 실행 옵션으로 단계 실행형 덤프를 다시 시작한다.
+	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
+		meta = (ToolTip = "마지막 failed 실행의 옵션과 대상 경로를 재사용해 덤프를 다시 시작합니다."))
+	static bool RetryLastFailedDump(FString& OutMessage);
 
 	// IsDumpRunning은 현재 덤프가 실행 중인지 반환한다.
 	UFUNCTION(BlueprintPure, Category = "AssetDump|Editor",
@@ -95,6 +122,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "AssetDump|Editor",
 		meta = (ToolTip = "현재 덤프의 전체 로그 문자열을 반환합니다."))
 	static FString GetDumpLogText();
+
+	// HasRetryableFailedDump는 Retry Last Failed 버튼 활성화 여부를 반환한다.
+	UFUNCTION(BlueprintPure, Category = "AssetDump|Editor",
+		meta = (ToolTip = "마지막 failed 실행을 재시도할 수 있는지 반환합니다."))
+	static bool HasRetryableFailedDump();
+
+	// GetLastExecutionMilliseconds는 마지막 종료 실행의 총 처리 시간을 ms 단위로 반환한다.
+	UFUNCTION(BlueprintPure, Category = "AssetDump|Editor",
+		meta = (ToolTip = "마지막 성공/부분성공/실패 실행의 총 처리 시간을 ms 단위로 반환합니다."))
+	static int64 GetLastExecutionMilliseconds();
 
 	// DumpSelectedBlueprint는 현재 선택된 Blueprint를 옵션 기반으로 동기 덤프한다.
 	UFUNCTION(BlueprintCallable, Category = "AssetDump|Editor",
