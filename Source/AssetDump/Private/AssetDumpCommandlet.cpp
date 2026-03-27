@@ -2,6 +2,7 @@
 // Version: v0.3.6
 // Changelog:
 // - v0.3.6: batchdump 검증용 SimulateFailAsset 옵션과 package path 비교 보정을 추가해 partial failure 재현을 지원.
+// - v0.3.6: 현재 프로젝트 기준 validate 기본 샘플 경로를 갱신하고, 프로젝트에 없는 자산군 샘플은 선택 검증으로 낮췄다.
 // - v0.3.5: validate DataTable 기본 샘플 경로, /AssetDump 탐색 루트, 후보 TryLoad fallback을 추가.
 // - v0.3.4: 대표 샘플 자산 덤프와 기본 산출물 검증을 한 번에 수행하는 validate 모드를 추가.
 // - v0.3.3: 폴더 단위 batchdump 실행과 run_report.json 생성, 배치 종료 후 index 재생성을 추가.
@@ -1596,7 +1597,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		BlueprintCase.ExpectedAssetFamily = TEXT("actor_blueprint");
 		BlueprintCase.ExpectedAssetClass = TEXT("Blueprint");
 		BlueprintCase.CandidateObjectPathArray = {
-			TEXT("/Game/CarFight/Vehicles/BP_CFVehiclePawn.BP_CFVehiclePawn")
+			TEXT("/Game/Prototype/Player/BP_HmdPlayerPawn.BP_HmdPlayerPawn")
 		};
 		BlueprintCase.MinGraphCount = 1;
 		BlueprintCase.MinPropertyCount = 1;
@@ -1608,9 +1609,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		WidgetCase.CaseName = TEXT("widget_blueprint");
 		WidgetCase.ExpectedAssetFamily = TEXT("widget_blueprint");
 		WidgetCase.ExpectedAssetClass = TEXT("WidgetBlueprint");
-		WidgetCase.CandidateObjectPathArray = {
-			TEXT("/Game/CarFight/UI/WBP_VehicleDebug.WBP_VehicleDebug")
-		};
+		WidgetCase.CandidateObjectPathArray = {};
+		WidgetCase.bIsOptionalSample = true;
 		WidgetCase.MinWidgetBindingCount = 1;
 		WidgetCase.MinGraphCount = 1;
 		ValidationCaseArray.Add(WidgetCase);
@@ -1620,10 +1620,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		AnimCase.CaseName = TEXT("anim_blueprint");
 		AnimCase.ExpectedAssetFamily = TEXT("anim_blueprint");
 		AnimCase.ExpectedAssetClass = TEXT("AnimBlueprint");
-		AnimCase.CandidateObjectPathArray = {
-			TEXT("/Game/Vehicles/SportsCar/ABP_SportsCar.ABP_SportsCar"),
-			TEXT("/Game/Vehicles/OffroadCar/Offroad_AnimBP.Offroad_AnimBP")
-		};
+		AnimCase.CandidateObjectPathArray = {};
+		AnimCase.bIsOptionalSample = true;
 		AnimCase.MinGraphCount = 1;
 		ValidationCaseArray.Add(AnimCase);
 
@@ -1632,9 +1630,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		DataAssetCase.CaseName = TEXT("primary_data_asset");
 		DataAssetCase.ExpectedAssetFamily = TEXT("primary_data_asset");
 		DataAssetCase.ExpectedAssetClass = FString();
-		DataAssetCase.CandidateObjectPathArray = {
-			TEXT("/Game/CarFight/Data/Cars/DA_PoliceCar.DA_PoliceCar")
-		};
+		DataAssetCase.CandidateObjectPathArray = {};
+		DataAssetCase.bIsOptionalSample = true;
 		DataAssetCase.MinPropertyCount = 1;
 		DataAssetCase.MinReferenceCount = 1;
 		ValidationCaseArray.Add(DataAssetCase);
@@ -1645,7 +1642,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		InputActionCase.ExpectedAssetFamily = TEXT("input_action");
 		InputActionCase.ExpectedAssetClass = TEXT("InputAction");
 		InputActionCase.CandidateObjectPathArray = {
-			TEXT("/Game/CarFight/Input/IA_Brake.IA_Brake")
+			TEXT("/Game/Prototype/Player/Input/IA_MoveX.IA_MoveX")
 		};
 		InputActionCase.MinPropertyCount = 1;
 		ValidationCaseArray.Add(InputActionCase);
@@ -1656,7 +1653,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		InputMappingCase.ExpectedAssetFamily = TEXT("input_mapping_context");
 		InputMappingCase.ExpectedAssetClass = TEXT("InputMappingContext");
 		InputMappingCase.CandidateObjectPathArray = {
-			TEXT("/Game/CarFight/Input/IMC_Vehicle_Default.IMC_Vehicle_Default")
+			TEXT("/Game/Prototype/Player/Input/IMC_Player.IMC_Player")
 		};
 		InputMappingCase.MinInputMappingCount = 1;
 		ValidationCaseArray.Add(InputMappingCase);
@@ -1666,10 +1663,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		CurveCase.CaseName = TEXT("curve_float");
 		CurveCase.ExpectedAssetFamily = TEXT("curve_float");
 		CurveCase.ExpectedAssetClass = TEXT("CurveFloat");
-		CurveCase.CandidateObjectPathArray = {
-			TEXT("/Game/VehicleTemplate/Blueprints/SportsCar/FC_Torque_SportsCar.FC_Torque_SportsCar"),
-			TEXT("/Game/VehicleTemplate/Blueprints/OffroadCar/OffroadCar_TorqueCurve.OffroadCar_TorqueCurve")
-		};
+		CurveCase.CandidateObjectPathArray = {};
+		CurveCase.bIsOptionalSample = true;
 		CurveCase.MinCurveKeyCount = 1;
 		CurveCase.MinPropertyCount = 1;
 		ValidationCaseArray.Add(CurveCase);
@@ -1680,7 +1675,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		WorldCase.ExpectedAssetFamily = TEXT("world_map");
 		WorldCase.ExpectedAssetClass = TEXT("World");
 		WorldCase.CandidateObjectPathArray = {
-			TEXT("/Game/Maps/TestMap.TestMap")
+			TEXT("/Game/Level/TestMap.TestMap")
 		};
 		WorldCase.MinWorldActorCount = 1;
 		ValidationCaseArray.Add(WorldCase);
