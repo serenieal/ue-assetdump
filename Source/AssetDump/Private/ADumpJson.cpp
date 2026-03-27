@@ -1,6 +1,7 @@
 // File: ADumpJson.cpp
-// Version: v0.6.2
+// Version: v0.6.3
 // Changelog:
+// - v0.6.3: references.json에 relations 배열을 추가하고 relations 필드를 hard/soft 참조에서 직접 파생해 명세 정합성을 보강.
 // - v0.6.2: DataTable row 요약 메타를 summary/digest에 직렬화하고 data_table_overview를 추가.
 // - v0.6.1: Map/World 요약 메타를 summary/digest에 직렬화하고 world_overview를 추가.
 // - v0.6.0: CurveFloat 요약 메타를 summary/digest에 직렬화하고 curve_overview를 추가.
@@ -543,6 +544,36 @@ namespace
 		return RefObject;
 	}
 
+	// ResolveRelationStrengthText는 참조 배열 종류를 relation strength 문자열로 변환한다.
+	const TCHAR* ResolveRelationStrengthText(bool bIsHardReference)
+	{
+		return bIsHardReference ? TEXT("hard") : TEXT("soft");
+	}
+
+	// ResolveRelationSourceKindText는 기존 reference source를 relations.source_kind 값으로 정규화한다.
+	FString ResolveRelationSourceKindText(const FString& InSourceText)
+	{
+		if (InSourceText == TEXT("property_ref") || InSourceText == TEXT("component_ref"))
+		{
+			return TEXT("details");
+		}
+
+		return TEXT("graph");
+	}
+
+	// MakeRelationObject는 참조 항목을 references.json.relations 한 건으로 변환한다.
+	TSharedRef<FJsonObject> MakeRelationObject(const FADumpRefItem& InRefItem, bool bIsHardReference)
+	{
+		// RelationObject는 references.json.relations 배열에 들어갈 직렬화 결과다.
+		TSharedRef<FJsonObject> RelationObject = MakeShared<FJsonObject>();
+		RelationObject->SetStringField(TEXT("source_kind"), ResolveRelationSourceKindText(InRefItem.Source));
+		RelationObject->SetStringField(TEXT("target_path"), InRefItem.Path);
+		RelationObject->SetStringField(TEXT("reason"), InRefItem.Source);
+		RelationObject->SetStringField(TEXT("source_path"), InRefItem.SourcePath);
+		RelationObject->SetStringField(TEXT("strength"), ResolveRelationStrengthText(bIsHardReference));
+		return RelationObject;
+	}
+
 	// MakeReferencesObject는 references 섹션 object를 만든다.
 	TSharedRef<FJsonObject> MakeReferencesObject(const FADumpReferences& InReferences)
 	{
@@ -564,6 +595,19 @@ namespace
 			SoftRefArray.Add(MakeShared<FJsonValueObject>(MakeRefObject(RefItem)));
 		}
 		ReferencesObject->SetArrayField(TEXT("soft"), SoftRefArray);
+
+		// RelationArray는 references.json에서 직접 읽는 관계 배열이다.
+		TArray<TSharedPtr<FJsonValue>> RelationArray;
+		for (const FADumpRefItem& RefItem : InReferences.Hard)
+		{
+			RelationArray.Add(MakeShared<FJsonValueObject>(MakeRelationObject(RefItem, true)));
+		}
+
+		for (const FADumpRefItem& RefItem : InReferences.Soft)
+		{
+			RelationArray.Add(MakeShared<FJsonValueObject>(MakeRelationObject(RefItem, false)));
+		}
+		ReferencesObject->SetArrayField(TEXT("relations"), RelationArray);
 		return ReferencesObject;
 	}
 

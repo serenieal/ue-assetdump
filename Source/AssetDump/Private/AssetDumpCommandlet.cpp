@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.3.7
+// Version: v0.3.8
 // Changelog:
+// - v0.3.8: batchdump에 Root/ClassFilter/ChangedOnly/WithDependencies/MaxAssets 입력을 추가하고 commandlet의 중복 저장 호출을 제거.
 // - v0.3.7: validate 기본 샘플을 프로젝트 경로 하드코딩 대신 자산군/클래스 자동 탐색 기반으로 일반화.
 // - v0.3.6: batchdump 검증용 SimulateFailAsset 옵션과 package path 비교 보정을 추가해 partial failure 재현을 지원.
 // - v0.3.6: 현재 프로젝트 기준 validate 기본 샘플 경로를 갱신하고, 프로젝트에 없는 자산군 샘플은 선택 검증으로 낮췄다.
@@ -235,6 +236,120 @@ namespace
 		SanitizedAssetKeyText.ReplaceInline(TEXT("/"), TEXT("_"));
 		SanitizedAssetKeyText.ReplaceInline(TEXT("\\"), TEXT("_"));
 		return FPaths::Combine(InDumpRootPath, SanitizedAssetKeyText);
+	}
+
+	// ParseCommandletListValue는 쉼표/세미콜론 구분 문자열을 공백 제거 배열로 정리한다.
+	TArray<FString> ParseCommandletListValue(const FString& InValueText)
+	{
+		// NormalizedValueText는 구분자를 통일한 원본 문자열이다.
+		FString NormalizedValueText = InValueText;
+		NormalizedValueText.ReplaceInline(TEXT(";"), TEXT(","));
+
+		// ParsedValueArray는 빈 항목 제거와 trim이 끝난 결과 배열이다.
+		TArray<FString> ParsedValueArray;
+		NormalizedValueText.ParseIntoArray(ParsedValueArray, TEXT(","), true);
+		for (FString& ParsedValueItem : ParsedValueArray)
+		{
+			ParsedValueItem.TrimStartAndEndInline();
+		}
+
+		ParsedValueArray.RemoveAll([](const FString& ParsedValueItem)
+		{
+			return ParsedValueItem.IsEmpty();
+		});
+		return ParsedValueArray;
+	}
+
+	// DoesAssetMatchClassFilter는 AssetRegistry 자산이 batch ClassFilter 목록과 맞는지 검사한다.
+	bool DoesAssetMatchClassFilter(const FAssetData& InAssetData, const TArray<FString>& InClassFilterArray)
+	{
+		if (InClassFilterArray.Num() == 0)
+		{
+			return true;
+		}
+
+		// AssetClassNameText는 현재 자산의 AssetRegistry 클래스 이름이다.
+		const FString AssetClassNameText = InAssetData.AssetClassPath.GetAssetName().ToString();
+		for (const FString& ClassFilterItem : InClassFilterArray)
+		{
+			if (AssetClassNameText.Equals(ClassFilterItem, ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// AppendBatchDependencyAssets는 현재 배치 자산들의 package dependency를 추가 자산 목록에 합친다.
+	void AppendBatchDependencyAssets(
+		FAssetRegistryModule& InAssetRegistryModule,
+		const TArray<FAssetData>& InSeedAssetArray,
+		const TArray<FString>& InClassFilterArray,
+		TArray<FAssetData>& InOutAssetArray)
+	{
+		// AddedObjectPathSet는 중복 자산 추가를 방지하는 object path 집합이다.
+		TSet<FString> AddedObjectPathSet;
+		for (const FAssetData& ExistingAssetData : InOutAssetArray)
+		{
+			AddedObjectPathSet.Add(ExistingAssetData.GetObjectPathString());
+		}
+
+		// PendingAssetArray는 아직 dependency 확장을 처리하지 않은 자산 큐다.
+		TArray<FAssetData> PendingAssetArray = InSeedAssetArray;
+		for (int32 PendingIndex = 0; PendingIndex < PendingAssetArray.Num(); ++PendingIndex)
+		{
+			// PendingAssetData는 현재 dependency를 조회할 기준 자산이다.
+			const FAssetData& PendingAssetData = PendingAssetArray[PendingIndex];
+
+			// PendingPackageNameText는 현재 자산의 long package name이다.
+			const FString PendingPackageNameText = FPackageName::ObjectPathToPackageName(PendingAssetData.GetObjectPathString());
+			if (PendingPackageNameText.IsEmpty())
+			{
+				continue;
+			}
+
+			// DependencyPackageNameArray는 현재 자산이 직접 참조하는 package 목록이다.
+			TArray<FName> DependencyPackageNameArray;
+			InAssetRegistryModule.Get().GetDependencies(FName(*PendingPackageNameText), DependencyPackageNameArray);
+
+			for (const FName& DependencyPackageName : DependencyPackageNameArray)
+			{
+				// DependencyPackageNameText는 dependency package 문자열이다.
+				const FString DependencyPackageNameText = DependencyPackageName.ToString();
+				if (DependencyPackageNameText.IsEmpty() || DependencyPackageNameText.StartsWith(TEXT("/Script/")))
+				{
+					continue;
+				}
+
+				// DependencyObjectPathText는 dependency package에서 대표 자산 object path 추정값이다.
+				const FString DependencyObjectPathText = FString::Printf(
+					TEXT("%s.%s"),
+					*DependencyPackageNameText,
+					*FPackageName::GetShortName(DependencyPackageNameText));
+
+				// DependencyAssetData는 dependency package에서 대표 자산을 찾은 결과다.
+				const FAssetData DependencyAssetData = InAssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(DependencyObjectPathText));
+				if (!DependencyAssetData.IsValid())
+				{
+					continue;
+				}
+
+				if (!DoesAssetMatchClassFilter(DependencyAssetData, InClassFilterArray))
+				{
+					continue;
+				}
+
+				if (AddedObjectPathSet.Contains(DependencyObjectPathText))
+				{
+					continue;
+				}
+
+				AddedObjectPathSet.Add(DependencyObjectPathText);
+				InOutAssetArray.Add(DependencyAssetData);
+				PendingAssetArray.Add(DependencyAssetData);
+			}
+		}
 	}
 
 	// IsBatchDumpOutputUpToDate는 batchdump 전용으로 manifest fingerprint를 비교해 skip 가능 여부를 판단한다.
@@ -645,6 +760,12 @@ namespace
 		return IFileManager::Get().FileExists(*ResolvedOutputFilePath);
 	}
 
+	// DidCommandletProduceOutputFile는 공통 서비스 실행 후 최종 output file 존재 여부를 확인한다.
+	bool DidCommandletProduceOutputFile(const FString& InOutputFilePath)
+	{
+		return !InOutputFilePath.IsEmpty() && IFileManager::Get().FileExists(*InOutputFilePath);
+	}
+
 	// BuildLegacyPropertyJson은 공통 details 프로퍼티를 레거시 property 객체로 변환한다.
 	TSharedPtr<FJsonValue> BuildLegacyPropertyJson(const FADumpPropertyItem& InPropertyItem)
 	{
@@ -1012,8 +1133,6 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FADumpResult DumpResult;
 		if (!DumpService.DumpBlueprint(DumpRunOpts, DumpResult))
 		{
-			FString SaveErrorMessage;
-			DumpService.SaveDumpJson(DumpRunOpts.ResolveOutputFilePath(), DumpResult, SaveErrorMessage);
 			UE_LOG(LogTemp, Error, TEXT("BPDump failed for asset: %s"), *AssetPath);
 			return 2;
 		}
@@ -1026,10 +1145,9 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 			return 0;
 		}
 
-		FString SaveErrorMessage;
-		if (!DumpService.SaveDumpJson(DumpRunOpts.ResolveOutputFilePath(), DumpResult, SaveErrorMessage))
+		if (!DidCommandletProduceOutputFile(DumpRunOpts.ResolveOutputFilePath()))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to save BPDump json: %s"), *SaveErrorMessage);
+			UE_LOG(LogTemp, Error, TEXT("Failed to produce BPDump json output: %s"), *DumpRunOpts.ResolveOutputFilePath());
 			return 3;
 		}
 
@@ -1040,7 +1158,8 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	{
 		// BatchFilterPath는 배치 덤프 대상 자산 경로 필터다.
 		FString BatchFilterPath;
-		if (!GetCmdValue(CommandLine, TEXT("Filter="), BatchFilterPath))
+		if (!GetCmdValue(CommandLine, TEXT("Root="), BatchFilterPath)
+			&& !GetCmdValue(CommandLine, TEXT("Filter="), BatchFilterPath))
 		{
 			BatchFilterPath = TEXT("/Game");
 		}
@@ -1056,6 +1175,25 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		bool bRebuildIndexAfterBatch = true;
 		FParse::Bool(*CommandLine, TEXT("RebuildIndex="), bRebuildIndexAfterBatch);
 
+		// bChangedOnly는 최신 덤프가 있으면 skip할지 여부다.
+		bool bChangedOnly = false;
+		FParse::Bool(*CommandLine, TEXT("ChangedOnly="), bChangedOnly);
+
+		// bWithDependencies는 루트 검색 결과의 package dependency도 배치 목록에 포함할지 여부다.
+		bool bWithDependencies = false;
+		FParse::Bool(*CommandLine, TEXT("WithDependencies="), bWithDependencies);
+
+		// MaxAssets는 실제 처리할 자산 수 상한이다. 0 이하면 제한 없음으로 본다.
+		int32 MaxAssets = 0;
+		FParse::Value(*CommandLine, TEXT("MaxAssets="), MaxAssets);
+
+		// ClassFilterText는 자산 클래스 이름 필터 원문이다.
+		FString ClassFilterText;
+		GetCmdValue(CommandLine, TEXT("ClassFilter="), ClassFilterText);
+
+		// ClassFilterArray는 허용할 자산 클래스 이름 목록이다.
+		const TArray<FString> ClassFilterArray = ParseCommandletListValue(ClassFilterText);
+
 		// SimulateFailAssetObjectPath는 batch partial failure 검증용으로 강제 실패시킬 자산 경로다.
 		FString SimulateFailAssetObjectPath;
 		GetCmdValue(CommandLine, TEXT("SimulateFailAsset="), SimulateFailAssetObjectPath);
@@ -1070,7 +1208,23 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		// FoundAssets는 필터 경로 아래에서 찾은 자산 목록이다.
 		TArray<FAssetData> FoundAssets;
 		AssetRegistryModule.Get().GetAssets(AssetFilter, FoundAssets);
+		FoundAssets.RemoveAll([&ClassFilterArray](const FAssetData& AssetDataItem)
+		{
+			return !DoesAssetMatchClassFilter(AssetDataItem, ClassFilterArray);
+		});
+
+		if (bWithDependencies)
+		{
+			// SeedAssetArray는 dependency 확장 전 루트 검색 기반 자산 스냅샷이다.
+			const TArray<FAssetData> SeedAssetArray = FoundAssets;
+			AppendBatchDependencyAssets(AssetRegistryModule, SeedAssetArray, ClassFilterArray, FoundAssets);
+		}
+
 		Algo::SortBy(FoundAssets, &FAssetData::GetObjectPathString);
+		if (MaxAssets > 0 && FoundAssets.Num() > MaxAssets)
+		{
+			FoundAssets.SetNum(MaxAssets);
+		}
 
 		// ResultEntryArray는 run_report results 배열 누적값이다.
 		TArray<TSharedPtr<FJsonValue>> ResultEntryArray;
@@ -1098,6 +1252,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 			// DumpRunOpts는 현재 자산에 적용할 통합 실행 옵션이다.
 			FADumpRunOpts DumpRunOpts;
 			ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetObjectPathText, BatchAssetOutputPath, DumpRunOpts);
+			DumpRunOpts.bSkipIfUpToDate = bChangedOnly;
 
 			// ResolvedOutputFilePath는 현재 자산 dump.json 최종 저장 경로다.
 			const FString ResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
@@ -1182,9 +1337,8 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 			}
 			else
 			{
-				// SaveErrorMessage는 save 단계 실패 시 report에 남길 원문 메시지다.
-				FString SaveErrorMessage;
-				const bool bSaveSucceeded = DumpService.SaveDumpJson(ResolvedOutputFilePath, DumpResult, SaveErrorMessage);
+				// bSaveSucceeded는 공통 서비스가 최종 산출물을 정상 저장했는지 여부다.
+				const bool bSaveSucceeded = DidCommandletProduceOutputFile(ResolvedOutputFilePath);
 
 				if (bDumpSucceeded && bSaveSucceeded)
 				{
@@ -1200,13 +1354,13 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 				else if (!bDumpSucceeded && !bSaveSucceeded)
 				{
 					ResultStatusText = TEXT("failed_save");
-					FailureMessageText = SaveErrorMessage.IsEmpty() ? TEXT("Dump extraction and save failed.") : SaveErrorMessage;
+					FailureMessageText = TEXT("Dump extraction failed and output file was not produced.");
 					++FailedCount;
 				}
 				else
 				{
 					ResultStatusText = TEXT("save_failed");
-					FailureMessageText = SaveErrorMessage;
+					FailureMessageText = TEXT("Dump extraction finished but output file was not produced.");
 					++FailedCount;
 				}
 			}
@@ -1242,8 +1396,13 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		// BatchRootObject는 run_report.json 최상위 object다.
 		TSharedRef<FJsonObject> BatchRootObject = MakeShared<FJsonObject>();
 		BatchRootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+		BatchRootObject->SetStringField(TEXT("root_path"), BatchFilterPath);
 		BatchRootObject->SetStringField(TEXT("filter_path"), BatchFilterPath);
 		BatchRootObject->SetStringField(TEXT("dump_root_path"), FPaths::ConvertRelativePathToFull(DumpRootPath));
+		BatchRootObject->SetStringField(TEXT("class_filter"), ClassFilterText);
+		BatchRootObject->SetBoolField(TEXT("changed_only"), bChangedOnly);
+		BatchRootObject->SetBoolField(TEXT("with_dependencies"), bWithDependencies);
+		BatchRootObject->SetNumberField(TEXT("max_assets"), MaxAssets);
 		BatchRootObject->SetBoolField(TEXT("rebuild_index"), bRebuildIndexAfterBatch);
 		BatchRootObject->SetBoolField(TEXT("index_built"), bIndexBuilt);
 		BatchRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
@@ -1902,11 +2061,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		// ResolvedOutputFilePath는 현재 케이스 dump.json 최종 저장 경로다.
 		const FString ResolvedOutputFilePath = DumpRunOpts.ResolveOutputFilePath();
 
-		// SaveErrorMessage는 저장 실패 시 report에 남길 메시지다.
-		FString SaveErrorMessage;
-
-		// bSaveSucceeded는 dump.json과 sidecar 저장 성공 여부다.
-		const bool bSaveSucceeded = DumpService.SaveDumpJson(ResolvedOutputFilePath, DumpResult, SaveErrorMessage);
+		// bSaveSucceeded는 공통 서비스가 dump.json과 sidecar를 저장했는지 여부다.
+		const bool bSaveSucceeded = DidCommandletProduceOutputFile(ResolvedOutputFilePath);
 
 		// CaseCheckArray는 현재 케이스에 대한 개별 검사 결과 배열이다.
 		TArray<TSharedPtr<FJsonValue>> CaseCheckArray;
@@ -1936,7 +2092,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		const FString ReferencesFilePath = FPaths::Combine(OutputDirectoryPath, TEXT("references.json"));
 
 		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("dump_succeeded"), bDumpSucceeded, TEXT("true"), bDumpSucceeded ? TEXT("true") : TEXT("false"), true);
-		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("save_succeeded"), bSaveSucceeded, TEXT("true"), bSaveSucceeded ? TEXT("true") : SaveErrorMessage, true);
+		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("save_succeeded"), bSaveSucceeded, TEXT("true"), bSaveSucceeded ? TEXT("true") : TEXT("output_missing"), true);
 		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("dump_file_exists"), IFileManager::Get().FileExists(*ResolvedOutputFilePath), TEXT("true"), IFileManager::Get().FileExists(*ResolvedOutputFilePath) ? TEXT("true") : TEXT("false"), true);
 		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("manifest_exists"), IFileManager::Get().FileExists(*ManifestFilePath), TEXT("true"), IFileManager::Get().FileExists(*ManifestFilePath) ? TEXT("true") : TEXT("false"), true);
 		AddValidationCheck(CaseCheckArray, bCasePassed, TEXT("digest_exists"), IFileManager::Get().FileExists(*DigestFilePath), TEXT("true"), IFileManager::Get().FileExists(*DigestFilePath) ? TEXT("true") : TEXT("false"), true);
@@ -2059,7 +2215,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 		// FailureMessageText는 dump/save/검사 실패를 묶어 남길 대표 메시지다.
 		const FString FailureMessageText = bCasePassed
 			? FString()
-			: (!SaveErrorMessage.IsEmpty() ? SaveErrorMessage : TEXT("필수 검증 항목 중 하나 이상이 실패했습니다."));
+			: TEXT("필수 검증 항목 중 하나 이상이 실패했습니다.");
 
 		// CaseResultObject는 현재 케이스 최종 결과 object다.
 		TSharedRef<FJsonObject> CaseResultObject = BuildValidationCaseObject(
