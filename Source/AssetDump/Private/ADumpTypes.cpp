@@ -14,7 +14,7 @@
 
 namespace ADumpSchema
 {
-	const TCHAR* GetVersionText()
+		const TCHAR* GetVersionText()
 	{
 		return TEXT("2.0");
 	}
