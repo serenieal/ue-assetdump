@@ -1,12 +1,15 @@
 // File: ADumpExecCtrl.cpp
-// Version: v0.3.1
+// Version: v0.3.2
 // Changelog:
+// - v0.3.2: 세션 로그 저장 경로를 Project Saved/BPDump/Logs에서 AssetDump 플러그인 Dumped/BPDump/logs로 변경.
 // - v0.3.1: 세션 로그 파일에 issue code/severity/phase를 함께 남겨 실패 원인 직접 검증 근거를 보강.
 // - v0.3.0: 마지막 failed 실행 재사용과 마지막 실행 시간(ms) 스냅샷 갱신을 추가.
 // - v0.2.0: 세션 종료 시 Saved/BPDump/Logs 에 실행 로그 파일 저장 기능 추가.
 // - v0.1.0: 에디터 탭용 단계 실행 컨트롤러와 로그 누적 구현 추가.
 
 #include "ADumpExecCtrl.h"
+
+#include "ADumpJson.h"
 
 #include "HAL/FileManager.h"
 #include "Misc/DateTime.h"
@@ -192,8 +195,20 @@ FString FADumpExecCtrl::BuildLogFilePath() const
 	AssetName.ReplaceInline(TEXT("/"), TEXT("_"));
 	AssetName.ReplaceInline(TEXT("\\"), TEXT("_"));
 
+	// TimeStampText는 로그 파일명을 고유하게 만들기 위한 현재 시간 문자열이다.
 	const FString TimeStampText = FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"));
-	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"), TEXT("Logs"), FString::Printf(TEXT("%s_%s.log"), *TimeStampText, *AssetName)));
+
+	// DumpRootDirectory는 AssetDump 플러그인 아래 Dumped 기본 출력 루트다.
+	const FString DumpRootDirectory = ADumpJson::BuildDefaultDumpRootDirectory();
+
+	// LogFilePath는 문서 기준 Dumped/BPDump/logs 아래에 저장되는 최종 로그 파일 경로다.
+	const FString LogFilePath = FPaths::Combine(
+		DumpRootDirectory,
+		TEXT("BPDump"),
+		TEXT("logs"),
+		FString::Printf(TEXT("%s_%s.log"), *TimeStampText, *AssetName));
+
+	return FPaths::ConvertRelativePathToFull(LogFilePath);
 }
 
 // BuildLogFileText는 파일로 남길 실행 로그 문자열을 구성한다.
@@ -217,7 +232,7 @@ FString FADumpExecCtrl::BuildLogFileText() const
 		*LogBodyText);
 }
 
-// WriteSessionLogFile은 현재 세션 로그를 Saved/BPDump/Logs 아래에 저장한다.
+// WriteSessionLogFile은 현재 세션 로그를 AssetDump 플러그인 Dumped/BPDump/logs 아래에 저장한다.
 bool FADumpExecCtrl::WriteSessionLogFile(FString& OutMessage) const
 {
 	OutMessage.Reset();

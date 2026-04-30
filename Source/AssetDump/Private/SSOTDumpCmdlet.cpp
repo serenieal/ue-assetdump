@@ -1,4 +1,5 @@
 ﻿// SSOTDumpCmdlet.cpp
+// v0.4.0 - 기본 출력 경로를 Document/SSOT에서 AssetDump 플러그인 Dumped/SSOT로 변경
 // v0.3b patch (path non-fixed)
 // - DetectInputRoot() with longest common prefix folder
 // - -profile parser (JSON) + CLI overrides
@@ -7,6 +8,8 @@
 // v0.2 - cfg 화이트리스트 + GameplayTags + EnhancedInput 덤프 구현
 
 #include "SSOTDumpCmdlet.h"
+
+#include "ADumpJson.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "GameplayTagsManager.h"
@@ -446,7 +449,7 @@ void USSOTDumpCmdlet::ParseArgs(const FString& CmdLine)
 
 
 	// 기본 출력 폴더
-	OutputDir = TEXT("Document/SSOT");
+	OutputDir = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("SSOT"));
 
 	// [변수] 출력 파일 접두어 기본값(없음)
 	OutputFilePrefix = TEXT("");

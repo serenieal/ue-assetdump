@@ -1,8 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 // File: AssetDumpBuild.cs
-// Version: v0.4.2
+// Version: v0.4.3
 // Changelog:
+// - v0.4.3: 플러그인 루트 기반 Dumped 출력 경로 계산을 위해 Projects 의존성을 추가.
 // - v0.4.2: AnimBlueprint 상태머신 요약 확장을 위해 AnimGraph 의존성을 추가.
 // - v0.4.1: WidgetBlueprint 요약 확장을 위해 UMG / UMGEditor 의존성을 추가.
 // - v0.4.0: 출력 경로 복사 기능 링크 오류 해결을 위해 ApplicationCore 의존성 추가.
@@ -52,6 +53,7 @@ public class AssetDump : ModuleRules
 				"Json",
 				"JsonUtilities",
 				"LevelEditor",
+				"Projects",
 				"Slate",
 				"SlateCore",
 				"ToolMenus",

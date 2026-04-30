@@ -1,6 +1,7 @@
 // File: ADumpEditorTab.cpp
-// Version: v0.7.0
+// Version: v0.7.1
 // Changelog:
+// - v0.7.1: 출력 경로 안내 문구를 이전 기본 경로 표기에서 AssetDump 플러그인 Dumped/BPDump 기준으로 갱신.
 // - v0.7.0: Dump Open BP, Retry Last Failed, 마지막 실행 시간(ms) UI 표시를 추가.
 // - v0.6.2: 자동 계산된 출력 경로가 입력값으로 굳지 않도록 분리하고 체크박스 문구를 읽기 쉬운 한국어로 정리.
 // - v0.6.1: Compile Before Dump, Skip If Up To Date UI 옵션과 ini 저장을 추가.
@@ -430,7 +431,7 @@ void SADumpEditorTab::Construct(const FArguments& InArgs)
 								+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
 								[
 									SAssignNew(OutputPathTextBox, SEditableTextBox)
-									.HintText(LOCTEXT("OutputHint", "비워두면 선택한 블루프린트 이름으로 Saved/BPDump/.../dump.json 경로를 자동 사용합니다."))
+									.HintText(LOCTEXT("OutputHint", "비워두면 선택한 자산 이름으로 AssetDump 플러그인 Dumped/BPDump/... 경로를 자동 사용합니다."))
 									.IsEnabled(this, &SADumpEditorTab::CanStartDump)
 								]
 							]

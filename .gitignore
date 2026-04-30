@@ -7,6 +7,13 @@ Intermediate/
 # DerivedDataCache: 캐시(있을 때)
 DerivedDataCache/
 
+# Dumped: AssetDump 기본 출력물
+Dumped/
+
+# Python cache
+__pycache__/
+*.pyc
+
 # VS/IDE
 .vs/
 *.sln

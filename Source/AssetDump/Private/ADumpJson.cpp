@@ -1,6 +1,7 @@
 // File: ADumpJson.cpp
-// Version: v0.6.3
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: 기본 BPDump 출력 루트를 Project Saved에서 AssetDump 플러그인 Dumped 폴더로 변경.
 // - v0.6.3: references.json에 relations 배열을 추가하고 relations 필드를 hard/soft 참조에서 직접 파생해 명세 정합성을 보강.
 // - v0.6.2: DataTable row 요약 메타를 summary/digest에 직렬화하고 data_table_overview를 추가.
 // - v0.6.1: Map/World 요약 메타를 summary/digest에 직렬화하고 world_overview를 추가.
@@ -27,6 +28,7 @@
 #include "ADumpFingerprint.h"
 
 #include "HAL/FileManager.h"
+#include "Interfaces/IPluginManager.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
@@ -1019,10 +1021,27 @@ namespace
 
 namespace ADumpJson
 {
+	FString BuildDefaultDumpRootDirectory()
+	{
+		// AssetDumpPlugin은 현재 AssetDump 플러그인의 설치 루트 조회 결과다.
+		const TSharedPtr<IPlugin> AssetDumpPlugin = IPluginManager::Get().FindPlugin(TEXT("AssetDump"));
+
+		// PluginBaseDirectory는 Dumped 폴더를 만들 기준 플러그인 루트다.
+		const FString PluginBaseDirectory = AssetDumpPlugin.IsValid()
+			? AssetDumpPlugin->GetBaseDir()
+			: FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("ue-assetdump"));
+
+		return NormalizeOutputPath(FPaths::Combine(PluginBaseDirectory, TEXT("Dumped")));
+	}
+
 	FString BuildDefaultOutputFilePath(const FString& AssetObjectPath)
 	{
+		// AssetName은 자산별 하위 폴더명으로 사용할 안전한 이름이다.
 		const FString AssetName = GetSafeAssetFileNameBase(AssetObjectPath);
-		return NormalizeOutputPath(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"), AssetName, BuildDumpFileName(AssetObjectPath)));
+
+		// DumpRootDirectory는 플러그인 Dumped 기준 기본 출력 루트다.
+		const FString DumpRootDirectory = BuildDefaultDumpRootDirectory();
+		return NormalizeOutputPath(FPaths::Combine(DumpRootDirectory, TEXT("BPDump"), AssetName, BuildDumpFileName(AssetObjectPath)));
 	}
 
 	FString ResolveOutputFilePath(const FString& UserOutputPath, const FString& AssetObjectPath)

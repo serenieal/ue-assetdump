@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.3.8
+// Version: v0.3.9
 // Changelog:
+// - v0.3.9: index/batchdump/validate 기본 출력 루트를 Project Saved에서 AssetDump 플러그인 Dumped 폴더로 변경.
 // - v0.3.8: batchdump에 Root/ClassFilter/ChangedOnly/WithDependencies/MaxAssets 입력을 추가하고 commandlet의 중복 저장 호출을 제거.
 // - v0.3.7: validate 기본 샘플을 프로젝트 경로 하드코딩 대신 자산군/클래스 자동 탐색 기반으로 일반화.
 // - v0.3.6: batchdump 검증용 SimulateFailAsset 옵션과 package path 비교 보정을 추가해 partial failure 재현을 지원.
@@ -25,6 +26,7 @@
 #include "AssetDumpCommandlet.h"
 
 #include "ADumpFingerprint.h"
+#include "ADumpJson.h"
 #include "ADumpRunOpts.h"
 #include "ADumpService.h"
 
@@ -999,7 +1001,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FString DumpRootPath;
 		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
 		{
-			DumpRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"));
+			DumpRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDump"));
 		}
 
 		// IndexFilePath는 저장할 index.json 최종 경로다.
@@ -1042,7 +1044,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FString ValidationRootPath;
 		if (!GetCmdValue(CommandLine, TEXT("ValidationRoot="), ValidationRootPath))
 		{
-			ValidationRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDumpValidation"));
+			ValidationRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDumpValidation"));
 		}
 
 		if (OutputFilePath.IsEmpty())
@@ -1168,7 +1170,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FString DumpRootPath;
 		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
 		{
-			DumpRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDump"));
+			DumpRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDump"));
 		}
 
 		// bRebuildIndexAfterBatch는 배치 종료 후 인덱스 재생성 여부다.
@@ -1865,7 +1867,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	FString ValidationRootPath;
 	if (!GetCmdValue(CommandLine, TEXT("ValidationRoot="), ValidationRootPath))
 	{
-		ValidationRootPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("BPDumpValidation"));
+		ValidationRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDumpValidation"));
 	}
 	ValidationRootPath = FPaths::ConvertRelativePathToFull(ValidationRootPath);
 

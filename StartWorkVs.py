@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 StartWorkVs.py
-v2.0.0
+v2.1.0
 
 목적(Visual Studio 기준 작업 세션 기록):
   1) (Start) Git/C++ 상태 스냅샷 저장
@@ -26,6 +26,7 @@ v2.0.0
   - v2.0.0: ssot_delta.txt 자동 생성(파일셋 + JSON semantic 비교)
             + session_report.txt / session_report.json 통합 리포트 생성
             + summary.txt에 통합 리포트/델타 파일 경로 추가
+  - v2.1.0: 기본 WorkLog 출력 루트를 Uproject Saved에서 AssetDump 플러그인 Dumped 폴더로 변경
 """
 
 import datetime
@@ -43,7 +44,12 @@ from typing import Any, Dict, List, Optional, Tuple
 # ------------------------------
 # [VAR] 스크립트 버전
 # ------------------------------
-SCRIPT_VERSION: str = "2.0.0"
+SCRIPT_VERSION: str = "2.1.0"
+
+# ------------------------------
+# [VAR] AssetDump 플러그인 루트 디렉터리
+# ------------------------------
+PLUGIN_ROOT_DIR: Path = Path(__file__).resolve().parent
 
 # ------------------------------
 # [VAR] UnrealEditor-Cmd.exe 경로 (SSOTDump용)
@@ -66,8 +72,8 @@ DUMP_TARGET: str = "all"
 AUTO_DETECT_FLAG: str = "-autodetect"
 
 # ------------------------------
-# [VAR] 세션 로그 루트 (비워두면 Uproject 기준으로 자동 결정)
-#      기본: <UprojectDir>\Saved\WorkLog
+# [VAR] 세션 로그 루트 (비워두면 AssetDump 플러그인 기준으로 자동 결정)
+#      기본: <PluginRoot>\Dumped\WorkLog
 # ------------------------------
 WORKLOG_ROOT_DIR: str = ""
 
@@ -977,7 +983,7 @@ def main() -> int:
         repo_root_dir = get_repo_root(uproject_dir)
 
         # [VAR] WorkLogRoot
-        worklog_root_dir = WORKLOG_ROOT_DIR.strip() or str(Path(uproject_dir) / "Saved" / "WorkLog")
+        worklog_root_dir = WORKLOG_ROOT_DIR.strip() or str(PLUGIN_ROOT_DIR / "Dumped" / "WorkLog")
 
         # [VAR] devenv.exe 경로
         devenv_path = find_devenv_path()

@@ -1,6 +1,7 @@
 // File: ADumpExecCtrl.h
-// Version: v0.3.0
+// Version: v0.3.1
 // Changelog:
+// - v0.3.1: 세션 로그 저장 경로 설명을 AssetDump 플러그인 Dumped/BPDump/logs 기준으로 갱신.
 // - v0.3.0: 마지막 실패 재시도와 마지막 실행 시간(ms) 스냅샷 필드를 추가.
 // - v0.2.0: 세션 종료 시 Saved/BPDump/Logs 에 실행 로그 파일 저장 기능 추가.
 // - v0.1.0: 에디터 탭용 단계 실행 컨트롤러와 로그 스냅샷 API 추가.
@@ -83,7 +84,7 @@ private:
 	// BuildLogFileText는 파일로 남길 실행 로그 본문을 구성한다.
 	FString BuildLogFileText() const;
 
-	// WriteSessionLogFile은 현재 세션 로그를 Saved/BPDump/Logs 아래에 저장한다.
+	// WriteSessionLogFile은 현재 세션 로그를 AssetDump 플러그인 Dumped/BPDump/logs 아래에 저장한다.
 	bool WriteSessionLogFile(FString& OutMessage) const;
 
 private:
