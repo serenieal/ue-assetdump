@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Roadmap_v2_0.md
-Version: v2.0.0
+Version: v2.1.0
 Changelog:
+- v2.1.0: 기본 출력 루트를 Project Saved에서 `UE/Plugins/ue-assetdump/Dumped` 기준으로 갱신.
 - v2.0.0: 2차 개선안 전체 범위를 줄이지 않으면서도, 후속 세션이 이 문서만으로 구현을 끝낼 수 있도록 단계별 로드맵/토큰 절약 규칙/완료 기준을 통합 정리.
 -->
 
@@ -164,7 +165,7 @@ Changelog:
 
 2차 완료 시 자산별 출력 폴더는 아래 구조를 가진다.
 
-`Saved/BPDump/<AssetKey>/`
+`UE/Plugins/ue-assetdump/Dumped/BPDump/<AssetKey>/`
 
 1. `<AssetKey>.dump.json`
 2. `manifest.json`
@@ -176,7 +177,7 @@ Changelog:
 
 프로젝트 단위 공통 산출물은 아래를 가진다.
 
-`Saved/BPDump/`
+`UE/Plugins/ue-assetdump/Dumped/BPDump/`
 
 1. `index.json`
 2. `dependency_index.json`

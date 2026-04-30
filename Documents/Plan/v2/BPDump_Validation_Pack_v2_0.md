@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Validation_Pack_v2_0.md
-Version: v2.7.0
+Version: v2.8.0
 Changelog:
+- v2.8.0: 기본 산출물 루트가 `UE/Plugins/ue-assetdump/Dumped` 로 변경된 사실을 검증 기준에 반영하고, 기존 Saved 경로는 legacy evidence로 구분.
 - v2.7.0: 실제 구현 기준으로 공통 산출물의 메인 파일명을 `<AssetKey>.dump.json` 으로 정리.
 - v2.6.0: 현재 프로젝트 기준 validate 기본 샘플 세트를 코드에 반영하고 validate 재실행 결과(required_failed_count=0, optional_missing_count=4)를 검증 팩에 반영.
 - v2.5.0: 임시 Blueprint 재부모화 검증을 통해 부모 클래스 변경 invalidation 실제 성공 사례를 추가하고 남은 검증 항목을 재정리.
@@ -21,6 +22,15 @@ Changelog:
 이번 버전에서는 예전 문서가 가정한 샘플 세트와 현재 실제 프로젝트에서 확인되는 샘플 세트를 구분해서 적는다. 이렇게 구분하는 이유는, 현재 작업 환경에서는 예전 `CarFight` 기반 샘플 상당수가 존재하지 않아 같은 이름의 검증을 그대로 재실행할 수 없기 때문이다.
 
 ## 1. 검증 운영 원칙
+
+현재 기본 산출물 루트는 아래처럼 고정한다.
+
+1. BPDump 기본 출력: `UE/Plugins/ue-assetdump/Dumped/BPDump/`
+2. validate 기본 출력: `UE/Plugins/ue-assetdump/Dumped/BPDumpValidation/`
+3. SSOTDump 단독 기본 출력: `UE/Plugins/ue-assetdump/Dumped/SSOT/`
+4. `StartWorkVs.py` 세션 출력: `UE/Plugins/ue-assetdump/Dumped/WorkLog/<session_id>/`
+
+이 문서에 남아 있는 `Saved/...` 절대경로는 2026-03-27 이전 검증 증거 경로로만 해석한다. 새 검증을 실행할 때는 위 `Dumped` 기준 경로를 사용한다.
 
 1. 최종 판단은 실제 UE 실행 결과와 산출물을 기준으로 한다.
 2. 문서가 오래되었더라도 현재 프로젝트 자산과 맞지 않으면 그대로 통과 처리하지 않는다.
@@ -124,7 +134,7 @@ Changelog:
 
 ### 확인 결과
 
-아래 출력이 실제로 생성되었다.
+아래 출력은 기존 환경에서 실제로 생성된 legacy evidence다. 현재 기본 경로 검증은 `UE/Plugins/ue-assetdump/Dumped/BPDump/` 아래 산출물을 기준으로 다시 판정한다.
 
 - `C:\Playground\HMD_Template\UE\Saved\BPDumpProbe\BP_HmdPlayerPawn_asset.json`
 - `C:\Playground\HMD_Template\UE\Saved\BPDumpProbe\BP_HmdPlayerPawn_details.json`
@@ -142,7 +152,8 @@ Changelog:
 ### 실행 결과
 
 - 리포트:
-  - `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex\validation_report.json`
+  - legacy evidence: `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex\validation_report.json`
+  - current default: `UE/Plugins/ue-assetdump/Dumped/BPDumpValidation/validation_report.json`
 - 결과 요약:
   - `case_count = 9`
   - `validated_count = 1`
@@ -158,7 +169,8 @@ Changelog:
 ### 재실행 결과
 
 - 리포트:
-  - `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex_Current\validation_report.json`
+  - legacy evidence: `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex_Current\validation_report.json`
+  - current default: `UE/Plugins/ue-assetdump/Dumped/BPDumpValidation/validation_report.json`
 - 결과 요약:
   - `case_count = 9`
   - `validated_count = 5`
@@ -252,7 +264,8 @@ Changelog:
 ### 정상 batch
 
 - 리포트:
-  - `C:\Playground\HMD_Template\UE\Saved\BPDumpBatch_Codex\run_report.json`
+  - legacy evidence: `C:\Playground\HMD_Template\UE\Saved\BPDumpBatch_Codex\run_report.json`
+  - current default: `UE/Plugins/ue-assetdump/Dumped/BPDump/run_report.json`
 - 결과:
   - `asset_count = 14`
   - `succeeded_count = 14`
@@ -261,7 +274,8 @@ Changelog:
 ### partial failure 시뮬레이션
 
 - 리포트:
-  - `C:\Playground\HMD_Template\UE\Saved\BPDumpBatchPartial_Codex\run_report.json`
+  - legacy evidence: `C:\Playground\HMD_Template\UE\Saved\BPDumpBatchPartial_Codex\run_report.json`
+  - current default: `UE/Plugins/ue-assetdump/Dumped/BPDump/run_report.json`
 - 결과:
   - `asset_count = 14`
   - `succeeded_count = 13`
@@ -290,7 +304,7 @@ Changelog:
 
 ## 7. 수집해야 할 최종 증거
 
-문서 종료 전에 아래 파일은 남겨 두는 것이 좋다.
+문서 종료 전에 아래 legacy evidence 파일은 과거 검증 증거로 남겨 두는 것이 좋다. 새 검증 증거는 `UE/Plugins/ue-assetdump/Dumped/` 아래에서 수집한다.
 
 1. `C:\Playground\HMD_Template\UE\Saved\BPDumpProbe\BP_HmdPlayerPawnFull\manifest.json`
 2. `C:\Playground\HMD_Template\UE\Saved\BPDumpProbe\BP_HmdPlayerPawnFull\digest.json`

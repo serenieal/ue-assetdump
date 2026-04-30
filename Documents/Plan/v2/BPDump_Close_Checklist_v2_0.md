@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Close_Checklist_v2_0.md
-Version: v0.8.0
+Version: v0.9.0
 Changelog:
+- v0.9.0: 기본 산출물 루트가 `UE/Plugins/ue-assetdump/Dumped` 로 변경된 사실을 반영하고, 기존 Saved 산출물은 legacy evidence로 구분.
 - v0.8.0: 실제 구현 기준으로 메인 산출물 파일명을 `<AssetKey>.dump.json` 으로 명시하고 배치/참조 정합성 보강 사항을 반영.
 - v0.7.0: 현재 프로젝트 기준 validate 기본 샘플 세트를 재정의하고 validate 재실행 결과(required_failed_count=0)를 반영해 Gate G 종료 판단을 갱신.
 - v0.6.0: 임시 Blueprint 재부모화 검증을 통해 부모 클래스 변경 invalidation 을 실제로 확인하고 Gate B 상태와 필수 항목 메모를 갱신.
@@ -20,6 +21,8 @@ Changelog:
 
 이번 갱신은 2026-03-27 현재 작업 환경에서 다시 실행한 결과를 기준으로 작성했다.
 
+현재 기본 산출물 루트는 `UE/Plugins/ue-assetdump/Dumped/` 이다. 아래 `Saved/...` 경로는 기존 검증 증거인 legacy evidence로만 해석하고, 새 검증은 `Dumped` 기준 경로에서 확인한다.
+
 ## 1. 이번 점검에서 실제로 확인한 산출물
 
 ### 1.1 빌드
@@ -32,7 +35,8 @@ Changelog:
 
 - 실행 결과: 리포트 생성 성공
 - 리포트 경로:
-  - `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex\validation_report.json`
+  - legacy evidence: `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex\validation_report.json`
+  - current default: `UE/Plugins/ue-assetdump/Dumped/BPDumpValidation/validation_report.json`
 - 핵심 결과:
   - `case_count = 9`
   - `validated_count = 1`
@@ -49,7 +53,8 @@ Changelog:
 현재 프로젝트 기준 샘플 세트로 validate 기본 경로를 다시 맞춘 뒤 재실행한 결과는 아래와 같다.
 
 - 리포트 경로:
-  - `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex_Current\validation_report.json`
+  - legacy evidence: `C:\Playground\HMD_Template\UE\Saved\BPDumpValidation_Codex_Current\validation_report.json`
+  - current default: `UE/Plugins/ue-assetdump/Dumped/BPDumpValidation/validation_report.json`
 - 핵심 결과:
   - `case_count = 9`
   - `validated_count = 5`
@@ -67,6 +72,7 @@ Changelog:
 
 아래 명령 계열은 모두 성공했다.
 
+- 아래 개별 dump 경로는 legacy evidence다. 현재 기본 출력은 `UE/Plugins/ue-assetdump/Dumped/BPDump/` 아래에서 확인한다.
 - `asset` 모드:
   - 대상: `/Game/Prototype/Player/BP_HmdPlayerPawn.BP_HmdPlayerPawn`
   - 출력: `C:\Playground\HMD_Template\UE\Saved\BPDumpProbe\BP_HmdPlayerPawn_asset.json`
@@ -155,7 +161,7 @@ Changelog:
 판단:
 
 - 부모 클래스 변경 invalidation 은 현재 환경에서 실제로 검증되었다.
-- 검증용 임시 자산은 확인 후 삭제했고, 산출물만 `Saved/BPDump/BP_ParentProbe` 아래에 남겨 두었다.
+- 검증용 임시 자산은 확인 후 삭제했고, legacy evidence 산출물만 `Saved/BPDump/BP_ParentProbe` 아래에 남겨 두었다. 새 산출물은 `UE/Plugins/ue-assetdump/Dumped/BPDump/BP_ParentProbe` 기준으로 수집한다.
 
 ## 2. Gate 상태
 

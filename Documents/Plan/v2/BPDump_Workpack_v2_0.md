@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Workpack_v2_0.md
-Version: v2.0.0
+Version: v2.1.0
 Changelog:
+- v2.1.0: 기본 산출물 루트를 `UE/Plugins/ue-assetdump/Dumped` 기준으로 명시.
 - v2.0.0: 2차 개선안 구현 세션이 저장소 전체를 재탐색하지 않고도 바로 작업에 들어갈 수 있도록 단계별 수정 파일, 작업 경계, 검증 루틴을 정리한 실행 팩 작성.
 -->
 
@@ -33,6 +34,13 @@ Changelog:
 1. `Plan_BPDump/BPDump_Close_Checklist_v2_0.md`
 2. `Plan_BPDump/BPDump_Validation_Pack_v2_0.md`
 3. `Archive/1st` 문서
+
+현재 기본 산출물 루트는 아래 기준을 따른다.
+
+1. BPDump: `UE/Plugins/ue-assetdump/Dumped/BPDump/`
+2. BPDumpValidation: `UE/Plugins/ue-assetdump/Dumped/BPDumpValidation/`
+3. SSOTDump: `UE/Plugins/ue-assetdump/Dumped/SSOT/`
+4. WorkLog: `UE/Plugins/ue-assetdump/Dumped/WorkLog/<session_id>/`
 
 ---
 
