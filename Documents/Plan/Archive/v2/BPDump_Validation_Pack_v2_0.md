@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Validation_Pack_v2_0.md
-Version: v2.19.0
+Version: v2.20.0
 Changelog:
+- v2.20.0: 레거시 `StartWorkVs.py` 제거에 맞춰 WorkLog 경로를 현재 운영 경로가 아닌 과거 증거 경로로 재분류.
 - v2.19.0: 공용 fixture 계획서 완료 후 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 로 아카이브한 상태를 반영.
 - v2.18.0: 공용 fixture 계획서가 v2 아카이브 소속이 아님을 반영해 참조 경로를 `Documents/Plan/ADump_FixturePlan.md` 로 정정.
 - v2.17.0: v2 문서 아카이브 이동 후 공용 fixture 계획 참조 경로를 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 로 갱신.
@@ -39,9 +40,8 @@ Changelog:
 1. BPDump 기본 출력: `UE/Plugins/ue-assetdump/Dumped/BPDump/`
 2. validate 기본 출력: `UE/Plugins/ue-assetdump/Dumped/BPDumpValidation/`
 3. SSOTDump 단독 기본 출력: `UE/Plugins/ue-assetdump/Dumped/SSOT/`
-4. `StartWorkVs.py` 세션 출력: `UE/Plugins/ue-assetdump/Dumped/WorkLog/<session_id>/`
 
-이 문서에 남아 있는 `Saved/...` 절대경로는 2026-03-27 이전 검증 증거 경로로만 해석한다. 새 검증을 실행할 때는 위 `Dumped` 기준 경로를 사용한다.
+이 문서에 남아 있는 `Saved/...` 절대경로와 레거시 `StartWorkVs.py` WorkLog 경로는 과거 검증 증거 경로로만 해석한다. 새 검증을 실행할 때는 위 `Dumped` 기준 경로와 `Scripts/RunBPDumpRegression.ps1` 를 사용한다.
 
 1. 최종 판단은 실제 UE 실행 결과와 산출물을 기준으로 한다.
 2. 문서가 오래되었더라도 현재 프로젝트 자산과 맞지 않으면 그대로 통과 처리하지 않는다.
