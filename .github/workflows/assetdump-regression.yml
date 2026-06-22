@@ -1,0 +1,162 @@
+# File: assetdump-regression.yml
+# Version: v1.0
+# Changelog:
+# - v1.0: AssetDump 공용 fixture/project 회귀 검증을 self-hosted Windows runner에서 정기 실행하고 JSON/log artifact를 보존.
+
+name: AssetDump Regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_file:
+        description: "검증에 사용할 .uproject 절대 경로. 비우면 ASSETDUMP_PROJECT_FILE repository variable을 사용한다."
+        required: false
+        default: ""
+      engine_root:
+        description: "Unreal Engine 설치 루트. 비우면 ASSETDUMP_ENGINE_ROOT repository variable 또는 D:\\UE_5.7을 사용한다."
+        required: false
+        default: ""
+      build_target:
+        description: "UBT 빌드 타깃. 비우면 프로젝트 파일명 + Editor로 계산한다."
+        required: false
+        default: ""
+      validation_profile:
+        description: "검증 범위."
+        required: true
+        default: "Both"
+        type: choice
+        options:
+          - Both
+          - Plugin
+          - Project
+      skip_build:
+        description: "빌드 단계를 건너뛸지 여부."
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 18 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assetdump-regression-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    name: Run AssetDump Regression
+    runs-on:
+      - self-hosted
+      - Windows
+      - Unreal
+    timeout-minutes: 90
+
+    env:
+      DEFAULT_ENGINE_ROOT: D:\UE_5.7
+      DEFAULT_BATCH_ROOT: /Game/CarFight
+      DEFAULT_BATCH_CLASS_FILTER: Blueprint;WidgetBlueprint;InputAction;InputMappingContext;CFVehicleCameraData;CFVehicleData
+      DEFAULT_VERSION_PROBE_ASSET: /Game/CarFight/Vehicles/BP_CFVehiclePawn.BP_CFVehiclePawn
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run regression
+        shell: powershell
+        run: |
+          # ProjectFileInput은 수동 실행에서 받은 프로젝트 파일 경로다.
+          $ProjectFileInput = "${{ github.event.inputs.project_file }}"
+
+          # ProjectFileVariable은 repository variable에서 받은 프로젝트 파일 경로다.
+          $ProjectFileVariable = "${{ vars.ASSETDUMP_PROJECT_FILE }}"
+
+          # ProjectFilePath는 최종 검증 대상 .uproject 절대 경로다.
+          $ProjectFilePath = if (-not [string]::IsNullOrWhiteSpace($ProjectFileInput)) {
+            $ProjectFileInput
+          } else {
+            $ProjectFileVariable
+          }
+
+          if ([string]::IsNullOrWhiteSpace($ProjectFilePath)) {
+            throw "ProjectFile이 비어 있습니다. workflow_dispatch 입력 또는 ASSETDUMP_PROJECT_FILE repository variable을 설정하세요."
+          }
+
+          # EngineRootInput은 수동 실행에서 받은 Unreal Engine 루트 경로다.
+          $EngineRootInput = "${{ github.event.inputs.engine_root }}"
+
+          # EngineRootVariable은 repository variable에서 받은 Unreal Engine 루트 경로다.
+          $EngineRootVariable = "${{ vars.ASSETDUMP_ENGINE_ROOT }}"
+
+          # EngineRootPath는 최종 Unreal Engine 설치 루트 경로다.
+          $EngineRootPath = if (-not [string]::IsNullOrWhiteSpace($EngineRootInput)) {
+            $EngineRootInput
+          } elseif (-not [string]::IsNullOrWhiteSpace($EngineRootVariable)) {
+            $EngineRootVariable
+          } else {
+            $env:DEFAULT_ENGINE_ROOT
+          }
+
+          # BuildTargetInput은 수동 실행에서 받은 UBT 빌드 타깃 이름이다.
+          $BuildTargetInput = "${{ github.event.inputs.build_target }}"
+
+          # ValidationProfileInput은 수동 실행에서 받은 검증 범위다.
+          $ValidationProfileInput = "${{ github.event.inputs.validation_profile }}"
+
+          # ValidationProfileValue는 최종 검증 범위다.
+          $ValidationProfileValue = if ([string]::IsNullOrWhiteSpace($ValidationProfileInput)) {
+            "Both"
+          } else {
+            $ValidationProfileInput
+          }
+
+          # SkipBuildInput은 수동 실행에서 받은 빌드 생략 여부다.
+          $SkipBuildInput = "${{ github.event.inputs.skip_build }}"
+
+          # bSkipBuild는 최종 빌드 생략 여부다.
+          $bSkipBuild = $SkipBuildInput -eq "true"
+
+          # RegressionScriptPath는 회귀 검증 PowerShell 스크립트 경로다.
+          $RegressionScriptPath = Join-Path $PWD "Scripts\RunBPDumpRegression.ps1"
+
+          # RegressionArguments는 회귀 검증 스크립트에 넘길 인자 목록이다.
+          $RegressionArguments = @(
+            "-ProjectFile", $ProjectFilePath,
+            "-EngineRoot", $EngineRootPath,
+            "-BatchRoot", $env:DEFAULT_BATCH_ROOT,
+            "-BatchClassFilter", $env:DEFAULT_BATCH_CLASS_FILTER,
+            "-VersionProbeAsset", $env:DEFAULT_VERSION_PROBE_ASSET,
+            "-ValidationProfile", $ValidationProfileValue,
+            "-CompactLog"
+          )
+
+          if (-not [string]::IsNullOrWhiteSpace($BuildTargetInput)) {
+            $RegressionArguments += @("-BuildTarget", $BuildTargetInput)
+          }
+
+          if ($bSkipBuild) {
+            $RegressionArguments += "-SkipBuild"
+          }
+
+          & $RegressionScriptPath @RegressionArguments
+
+      - name: Upload regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assetdump-regression-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            Dumped/BPDumpValidationPlugin/fixture_report.json
+            Dumped/BPDumpValidationPlugin/validation_report.json
+            Dumped/BPDumpValidation/validation_report.json
+            Dumped/BPDumpVersionProbe/*.dump.json
+            Dumped/BPDumpProjectBatch/run_report.json
+            Dumped/BPDumpProjectBatch/run_report_full.json
+            Dumped/BPDumpProjectBatch/run_report_changed_only.json
+            Dumped/BPDumpProjectBatch/asset_list.json
+            Dumped/BPDumpProjectBatch/index.json
+            Dumped/BPDumpProjectBatch/dependency_index.json
+            Dumped/BPDumpRegressionLogs/*.log
