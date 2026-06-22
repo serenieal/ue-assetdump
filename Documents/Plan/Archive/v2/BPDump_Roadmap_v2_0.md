@@ -1,7 +1,9 @@
 <!--
 File: BPDump_Roadmap_v2_0.md
-Version: v2.1.0
+Version: v2.3.0
 Changelog:
+- v2.3.0: v2 문서 아카이브 이동 후 최종 판정 문서 경로를 `Documents/Plan/Archive/v2` 기준으로 갱신.
+- v2.2.0: 2차 마감 결과를 반영해 아카이브 경로를 `Documents/Plan/Archive/v2` 로 고정하고 종료 메모를 추가.
 - v2.1.0: 기본 출력 루트를 Project Saved에서 `UE/Plugins/ue-assetdump/Dumped` 기준으로 갱신.
 - v2.0.0: 2차 개선안 전체 범위를 줄이지 않으면서도, 후속 세션이 이 문서만으로 구현을 끝낼 수 있도록 단계별 로드맵/토큰 절약 규칙/완료 기준을 통합 정리.
 -->
@@ -678,7 +680,7 @@ Blueprint 외 핵심 UE 자산군을 AI가 읽을 수 있도록 확장한다.
 12. batch dump 샘플
 13. 변경 감지 / skip / stale invalidation 샘플
 14. `manifest / digest / index / dependency_index` 정합성 검증을 추가한다.
-15. 2차 종료 후 1차 문서처럼 `Archive/2nd/` 구조로 정리할지 여부를 마지막에 결정한다.
+15. 2차 종료 후 1차 문서처럼 `Documents/Plan/Archive/v2/` 구조로 아카이브한다.
 
 ### 완료 기준
 
@@ -790,3 +792,15 @@ Phase 7 완료
 2. 대신 `manifest / digest / sidecar / index` 구조를 도입해 AI가 읽는 비용을 줄인다.
 
 이 문서에 따라 Phase 0 부터 Gate G 까지 통과하면, 2차 개선안은 완료로 본다.
+
+## 12. 마감 메모
+
+2026-06-22 기준 Gate A부터 Gate G까지 문서상 완료로 판정했다.
+
+최종 판정은 아래 문서를 기준으로 확인한다.
+
+1. `Documents/Plan/Archive/v2/BPDump_Archive_v2.md`
+2. `Documents/Plan/Archive/v2/BPDump_Close_Checklist_v2_0.md`
+3. `Documents/Plan/Archive/v2/BPDump_Validation_Pack_v2_0.md`
+
+아카이브 스냅샷은 `Documents/Plan/Archive/v2/` 에 보존한다.
