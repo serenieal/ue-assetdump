@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Archive_v2.md
-Version: v0.4.0
+Version: v0.5.0
 Changelog:
+- v0.5.0: 공용 fixture 계획서를 v2 아카이브 밖의 `Documents/Plan/ADump_FixturePlan.md` 로 되돌리고 참조 경로를 정정.
 - v0.4.0: v2 원본 문서를 `Documents/Plan/Archive/v2` 로 이동한 상태에 맞춰 최종 읽기 경로를 갱신.
 - v0.3.0: v2 문서 묶음의 아카이브 스냅샷 검증 완료 상태를 반영하고 최종 판정을 마감 완료로 고정.
 - v0.2.0: 공용 fixture 생성/검증 보강 작업을 `Documents/Plan/ADump_FixturePlan.md` 별도 계획으로 분리해 참조.
@@ -44,7 +45,7 @@ Changelog:
 
 `Documents/Plan/v2/` 원본 문서는 아카이브 완료 후 이 폴더로 이동했다. 이후 v2 기준 문서는 `Documents/Plan/Archive/v2/` 를 기준으로 읽는다.
 
-공용 fixture 보강 계획도 같은 아카이브 폴더의 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 로 이동했다.
+공용 fixture 보강 계획은 v2 문서 묶음에 속하지 않으므로 `Documents/Plan/ADump_FixturePlan.md` 에 별도 계획서로 둔다.
 
 아카이브 스냅샷은 2026-06-22 기준 원본 문서와 해시 일치가 확인된 상태다.
 
@@ -66,7 +67,7 @@ Changelog:
 
 세부 내용은 아래 문서를 기준으로 한다.
 
-`Documents/Plan/Archive/v2/ADump_FixturePlan.md`
+`Documents/Plan/ADump_FixturePlan.md`
 
 ## 4. 검증 증거
 
@@ -115,4 +116,4 @@ Changelog:
   - 항목: `Archive/2nd` 표현
   - 상태: Note. 실제 저장소 관례는 `Archive/v1`이므로 `Archive/v2`를 사용한다.
   - 항목: 공용 fixture 보강 작업의 소속
-  - 상태: Note. v2 마감 근거로 사용하되, 작업 기록은 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 로 함께 아카이브한다.
+  - 상태: Note. v2 마감 근거로 사용하되, 작업 관리는 `Documents/Plan/ADump_FixturePlan.md` 로 분리한다.

@@ -1,7 +1,8 @@
 <!--
 File: ADump_FixturePlan.md
-Version: v0.2.0
+Version: v0.3.0
 Changelog:
+- v0.3.0: v2 아카이브 소속이 아닌 별도 계획서로 위치를 되돌리고 참조 경로를 정정.
 - v0.2.0: v2 문서 아카이브 이동 후 참조 경로를 `Documents/Plan/Archive/v2` 기준으로 갱신.
 - v0.1.0: 공용 플러그인 fixture 생성/검증 보강 작업을 v2 문서 마감과 분리해 별도 계획으로 기록.
 -->
@@ -150,7 +151,7 @@ release 후보 전체 확인은 아래 흐름을 사용한다.
 1. v2 문서 마감 여부 확인:
    - `Documents/Plan/Archive/v2/BPDump_Archive_v2.md`
 2. 공용 fixture 보강 흐름 확인:
-   - `Documents/Plan/Archive/v2/ADump_FixturePlan.md`
+   - `Documents/Plan/ADump_FixturePlan.md`
 
 ## 10. 남은 작업
 

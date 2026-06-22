@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Validation_Pack_v2_0.md
-Version: v2.17.0
+Version: v2.18.0
 Changelog:
+- v2.18.0: 공용 fixture 계획서가 v2 아카이브 소속이 아님을 반영해 참조 경로를 `Documents/Plan/ADump_FixturePlan.md` 로 정정.
 - v2.17.0: v2 문서 아카이브 이동 후 공용 fixture 계획 참조 경로를 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 로 갱신.
 - v2.16.0: 공용 fixture 생성/검증 보강 작업의 상세 계획을 `Documents/Plan/ADump_FixturePlan.md` 로 분리했음을 명시.
 - v2.15.0: `makefixtures` 모드와 공용 플러그인 fixture 6종 validate 6/6 통과 결과를 반영.
@@ -142,7 +143,7 @@ Changelog:
 5. `/AssetDump/Validation/CF_ADumpFixture.CF_ADumpFixture`
 6. `/AssetDump/Validation/DT_ADumpValid.DT_ADumpValid`
 
-공용 fixture 생성/검증 보강의 상세 계획과 작업 경계는 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 를 기준으로 한다.
+공용 fixture 생성/검증 보강의 상세 계획과 작업 경계는 `Documents/Plan/ADump_FixturePlan.md` 를 기준으로 한다.
 
 ## 3. 공통 산출물 체크
 
