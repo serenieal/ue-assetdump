@@ -1,6 +1,10 @@
 // File: ADumpJson.cpp
-// Version: v0.7.0
+// Version: v1.1.0
 // Changelog:
+// - v1.1.0: World/Map 배치 StaticMeshComponent socket world-space Transform JSON 직렬화 추가.
+// - v1.0.0: StaticMeshComponent socket component-space 및 parent-relative Transform JSON 직렬화 추가.
+// - v0.9.0: Blueprint StaticMeshComponent 참조 socket details/summary/digest JSON 직렬화 추가.
+// - v0.8.0: StaticMesh Socket details/summary/digest JSON 직렬화 추가.
 // - v0.7.0: 기본 BPDump 출력 루트를 Project Saved에서 AssetDump 플러그인 Dumped 폴더로 변경.
 // - v0.6.3: references.json에 relations 배열을 추가하고 relations 필드를 hard/soft 참조에서 직접 파생해 명세 정합성을 보강.
 // - v0.6.2: DataTable row 요약 메타를 summary/digest에 직렬화하고 data_table_overview를 추가.
@@ -207,6 +211,39 @@ namespace
 		return JsonStringArray;
 	}
 
+	// MakeVectorObject는 FVector 값을 x/y/z JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeVectorObject(const FVector& InVector)
+	{
+		// VectorObject는 FVector 직렬화 결과 object다.
+		TSharedRef<FJsonObject> VectorObject = MakeShared<FJsonObject>();
+		VectorObject->SetNumberField(TEXT("x"), InVector.X);
+		VectorObject->SetNumberField(TEXT("y"), InVector.Y);
+		VectorObject->SetNumberField(TEXT("z"), InVector.Z);
+		return VectorObject;
+	}
+
+	// MakeRotatorObject는 FRotator 값을 pitch/yaw/roll JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeRotatorObject(const FRotator& InRotator)
+	{
+		// RotatorObject는 FRotator 직렬화 결과 object다.
+		TSharedRef<FJsonObject> RotatorObject = MakeShared<FJsonObject>();
+		RotatorObject->SetNumberField(TEXT("pitch"), InRotator.Pitch);
+		RotatorObject->SetNumberField(TEXT("yaw"), InRotator.Yaw);
+		RotatorObject->SetNumberField(TEXT("roll"), InRotator.Roll);
+		return RotatorObject;
+	}
+
+	// MakeTransformObject는 FTransform 값을 location/rotation/scale JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeTransformObject(const FTransform& InTransform)
+	{
+		// TransformObject는 FTransform 직렬화 결과 object다.
+		TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
+		TransformObject->SetObjectField(TEXT("location"), MakeVectorObject(InTransform.GetLocation()));
+		TransformObject->SetObjectField(TEXT("rotation"), MakeRotatorObject(InTransform.Rotator()));
+		TransformObject->SetObjectField(TEXT("scale"), MakeVectorObject(InTransform.GetScale3D()));
+		return TransformObject;
+	}
+
 	// MakeWidgetBindingArray는 Widget binding 구조화 배열을 JSON object 배열로 변환한다.
 	TArray<TSharedPtr<FJsonValue>> MakeWidgetBindingArray(const TArray<FADumpWidgetBindingItem>& InBindingArray)
 	{
@@ -354,6 +391,12 @@ namespace
 		SummaryObject->SetBoolField(TEXT("is_world_partitioned"), InSummary.bIsWorldPartitioned);
 		SummaryObject->SetStringField(TEXT("world_settings_class"), InSummary.WorldSettingsClassPath);
 		SummaryObject->SetArrayField(TEXT("world_actor_preview"), MakeStringArray(InSummary.WorldActorPreview));
+		SummaryObject->SetNumberField(TEXT("world_static_mesh_socket_transform_count"), InSummary.WorldStaticMeshSocketTransformCount);
+		SummaryObject->SetArrayField(TEXT("world_static_mesh_socket_transform_preview"), MakeStringArray(InSummary.WorldStaticMeshSocketTransformPreview));
+		SummaryObject->SetNumberField(TEXT("static_mesh_socket_count"), InSummary.StaticMeshSocketCount);
+		SummaryObject->SetArrayField(TEXT("static_mesh_socket_preview"), MakeStringArray(InSummary.StaticMeshSocketPreview));
+		SummaryObject->SetNumberField(TEXT("component_static_mesh_socket_count"), InSummary.ComponentStaticMeshSocketCount);
+		SummaryObject->SetArrayField(TEXT("component_static_mesh_socket_preview"), MakeStringArray(InSummary.ComponentStaticMeshSocketPreview));
 		return SummaryObject;
 	}
 
@@ -400,6 +443,113 @@ namespace
 		return ComponentObject;
 	}
 
+	// MakeStaticMeshSocketObject는 StaticMesh socket 항목을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeStaticMeshSocketObject(const FADumpStaticMeshSocketItem& InSocketItem)
+	{
+		// SocketObject는 StaticMesh socket 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> SocketObject = MakeShared<FJsonObject>();
+		SocketObject->SetStringField(TEXT("socket_name"), InSocketItem.SocketName);
+		SocketObject->SetObjectField(TEXT("relative_location"), MakeVectorObject(InSocketItem.RelativeLocation));
+		SocketObject->SetObjectField(TEXT("relative_rotation"), MakeRotatorObject(InSocketItem.RelativeRotation));
+		SocketObject->SetObjectField(TEXT("relative_scale"), MakeVectorObject(InSocketItem.RelativeScale));
+		SocketObject->SetStringField(TEXT("tag"), InSocketItem.Tag);
+		SocketObject->SetStringField(TEXT("preview_static_mesh"), InSocketItem.PreviewStaticMeshPath);
+		SocketObject->SetBoolField(TEXT("created_at_import"), InSocketItem.bCreatedAtImport);
+		return SocketObject;
+	}
+
+	// CountComponentStaticMeshSockets는 컴포넌트별 StaticMesh socket 총합을 계산한다.
+	int32 CountComponentStaticMeshSockets(const TArray<FADumpCompMeshSockets>& InComponentSocketItems)
+	{
+		// SocketCount는 컴포넌트 참조 StaticMesh socket 총합이다.
+		int32 SocketCount = 0;
+		// ComponentSocketItem은 socket 총합 계산 대상 컴포넌트별 socket 묶음이다.
+		for (const FADumpCompMeshSockets& ComponentSocketItem : InComponentSocketItems)
+		{
+			SocketCount += ComponentSocketItem.Sockets.Num();
+		}
+
+		return SocketCount;
+	}
+
+	// CountComponentSocketTransforms는 컴포넌트별 socket Transform 총합을 계산한다.
+	int32 CountComponentSocketTransforms(const TArray<FADumpCompMeshSockets>& InComponentSocketItems)
+	{
+		// TransformCount는 컴포넌트 참조 socket Transform 총합이다.
+		int32 TransformCount = 0;
+		// ComponentSocketItem은 Transform 총합 계산 대상 컴포넌트별 socket 묶음이다.
+		for (const FADumpCompMeshSockets& ComponentSocketItem : InComponentSocketItems)
+		{
+			TransformCount += ComponentSocketItem.SocketTransforms.Num();
+		}
+
+		return TransformCount;
+	}
+
+	// MakeCompSocketXformObject는 컴포넌트 참조 socket Transform 항목을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeCompSocketXformObject(const FADumpCompSocketXform& InSocketTransformItem)
+	{
+		// SocketTransformObject는 socket Transform 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> SocketTransformObject = MakeShared<FJsonObject>();
+		SocketTransformObject->SetStringField(TEXT("socket_name"), InSocketTransformItem.SocketName);
+		SocketTransformObject->SetObjectField(TEXT("component_space_transform"), MakeTransformObject(InSocketTransformItem.ComponentSpaceTransform));
+		SocketTransformObject->SetObjectField(TEXT("parent_relative_transform"), MakeTransformObject(InSocketTransformItem.ParentRelativeTransform));
+		SocketTransformObject->SetStringField(TEXT("parent_relative_space"), TEXT("component_attach_parent"));
+		return SocketTransformObject;
+	}
+
+	// MakeCompMeshSocketsObject는 컴포넌트별 StaticMesh socket 묶음을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeCompMeshSocketsObject(const FADumpCompMeshSockets& InComponentSocketItem)
+	{
+		// ComponentSocketObject는 컴포넌트별 StaticMesh socket 묶음 직렬화 결과다.
+		TSharedRef<FJsonObject> ComponentSocketObject = MakeShared<FJsonObject>();
+		ComponentSocketObject->SetStringField(TEXT("component_name"), InComponentSocketItem.ComponentName);
+		ComponentSocketObject->SetStringField(TEXT("component_class"), InComponentSocketItem.ComponentClass);
+		ComponentSocketObject->SetStringField(TEXT("static_mesh"), InComponentSocketItem.StaticMeshPath);
+		ComponentSocketObject->SetBoolField(TEXT("from_scs"), InComponentSocketItem.bFromSCS);
+		ComponentSocketObject->SetObjectField(TEXT("component_relative_transform"), MakeTransformObject(InComponentSocketItem.ComponentRelativeTransform));
+		ComponentSocketObject->SetNumberField(TEXT("socket_count"), InComponentSocketItem.Sockets.Num());
+		ComponentSocketObject->SetNumberField(TEXT("socket_transform_count"), InComponentSocketItem.SocketTransforms.Num());
+
+		// SocketArray는 참조 StaticMesh socket 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> SocketArray;
+		// SocketItem은 참조 StaticMesh socket 직렬화 대상 항목이다.
+		for (const FADumpStaticMeshSocketItem& SocketItem : InComponentSocketItem.Sockets)
+		{
+			SocketArray.Add(MakeShared<FJsonValueObject>(MakeStaticMeshSocketObject(SocketItem)));
+		}
+		ComponentSocketObject->SetArrayField(TEXT("sockets"), SocketArray);
+
+		// SocketTransformArray는 참조 StaticMesh socket Transform 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> SocketTransformArray;
+		// SocketTransformItem은 참조 StaticMesh socket Transform 직렬화 대상 항목이다.
+		for (const FADumpCompSocketXform& SocketTransformItem : InComponentSocketItem.SocketTransforms)
+		{
+			SocketTransformArray.Add(MakeShared<FJsonValueObject>(MakeCompSocketXformObject(SocketTransformItem)));
+		}
+		ComponentSocketObject->SetArrayField(TEXT("socket_transforms"), SocketTransformArray);
+		return ComponentSocketObject;
+	}
+
+	// MakeWorldMeshSocketXformObject는 월드 배치 socket Transform 항목을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeWorldMeshSocketXformObject(const FADumpWorldMeshSocketXform& InSocketTransformItem)
+	{
+		// SocketTransformObject는 월드 socket Transform 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> SocketTransformObject = MakeShared<FJsonObject>();
+		SocketTransformObject->SetStringField(TEXT("actor_name"), InSocketTransformItem.ActorName);
+		SocketTransformObject->SetStringField(TEXT("actor_class"), InSocketTransformItem.ActorClass);
+		SocketTransformObject->SetStringField(TEXT("actor_path"), InSocketTransformItem.ActorPath);
+		SocketTransformObject->SetStringField(TEXT("component_name"), InSocketTransformItem.ComponentName);
+		SocketTransformObject->SetStringField(TEXT("component_class"), InSocketTransformItem.ComponentClass);
+		SocketTransformObject->SetStringField(TEXT("static_mesh"), InSocketTransformItem.StaticMeshPath);
+		SocketTransformObject->SetStringField(TEXT("socket_name"), InSocketTransformItem.SocketName);
+		SocketTransformObject->SetObjectField(TEXT("component_world_transform"), MakeTransformObject(InSocketTransformItem.ComponentWorldTransform));
+		SocketTransformObject->SetObjectField(TEXT("socket_component_space_transform"), MakeTransformObject(InSocketTransformItem.SocketComponentSpaceTransform));
+		SocketTransformObject->SetObjectField(TEXT("socket_world_transform"), MakeTransformObject(InSocketTransformItem.SocketWorldTransform));
+		SocketTransformObject->SetStringField(TEXT("socket_transform_space"), TEXT("world"));
+		return SocketTransformObject;
+	}
+
 	// MakeDetailsObject는 details 섹션 object를 만든다.
 	TSharedRef<FJsonObject> MakeDetailsObject(const FADumpResult& InDumpResult)
 	{
@@ -422,10 +572,41 @@ namespace
 		}
 		DetailsObject->SetArrayField(TEXT("components"), ComponentArray);
 
+		// StaticMeshSocketArray는 StaticMesh socket 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> StaticMeshSocketArray;
+		for (const FADumpStaticMeshSocketItem& SocketItem : InDumpResult.Details.StaticMeshSockets)
+		{
+			StaticMeshSocketArray.Add(MakeShared<FJsonValueObject>(MakeStaticMeshSocketObject(SocketItem)));
+		}
+		DetailsObject->SetArrayField(TEXT("static_mesh_sockets"), StaticMeshSocketArray);
+
+		// ComponentStaticMeshSocketArray는 StaticMeshComponent 참조 StaticMesh socket 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> ComponentStaticMeshSocketArray;
+		// ComponentSocketItem은 details에 기록할 컴포넌트별 StaticMesh socket 묶음이다.
+		for (const FADumpCompMeshSockets& ComponentSocketItem : InDumpResult.Details.ComponentStaticMeshSockets)
+		{
+			ComponentStaticMeshSocketArray.Add(MakeShared<FJsonValueObject>(MakeCompMeshSocketsObject(ComponentSocketItem)));
+		}
+		DetailsObject->SetArrayField(TEXT("component_static_mesh_sockets"), ComponentStaticMeshSocketArray);
+
+		// WorldStaticMeshSocketTransformArray는 월드 배치 StaticMeshComponent socket Transform 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> WorldStaticMeshSocketTransformArray;
+		// WorldSocketTransformItem은 details에 기록할 월드 socket Transform 항목이다.
+		for (const FADumpWorldMeshSocketXform& WorldSocketTransformItem : InDumpResult.Details.WorldStaticMeshSocketTransforms)
+		{
+			WorldStaticMeshSocketTransformArray.Add(MakeShared<FJsonValueObject>(MakeWorldMeshSocketXformObject(WorldSocketTransformItem)));
+		}
+		DetailsObject->SetArrayField(TEXT("world_static_mesh_socket_transforms"), WorldStaticMeshSocketTransformArray);
+
 		// DetailsMetaObject는 details 메타 정보 object다.
 		TSharedRef<FJsonObject> DetailsMetaObject = MakeShared<FJsonObject>();
 		DetailsMetaObject->SetNumberField(TEXT("property_count"), InDumpResult.Perf.PropertyCount);
 		DetailsMetaObject->SetNumberField(TEXT("component_count"), InDumpResult.Details.Components.Num());
+		DetailsMetaObject->SetNumberField(TEXT("socket_count"), InDumpResult.Details.StaticMeshSockets.Num());
+		DetailsMetaObject->SetNumberField(TEXT("component_static_mesh_ref_count"), InDumpResult.Details.ComponentStaticMeshSockets.Num());
+		DetailsMetaObject->SetNumberField(TEXT("component_static_mesh_socket_count"), CountComponentStaticMeshSockets(InDumpResult.Details.ComponentStaticMeshSockets));
+		DetailsMetaObject->SetNumberField(TEXT("component_static_mesh_socket_transform_count"), CountComponentSocketTransforms(InDumpResult.Details.ComponentStaticMeshSockets));
+		DetailsMetaObject->SetNumberField(TEXT("world_static_mesh_socket_transform_count"), InDumpResult.Details.WorldStaticMeshSocketTransforms.Num());
 		DetailsObject->SetObjectField(TEXT("meta"), DetailsMetaObject);
 		return DetailsObject;
 	}
@@ -805,6 +986,9 @@ namespace
 		KeyCountsObject->SetNumberField(TEXT("data_table_rows"), InDumpResult.Summary.DataTableRowCount);
 		KeyCountsObject->SetNumberField(TEXT("world_actors"), InDumpResult.Summary.WorldActorCount);
 		KeyCountsObject->SetNumberField(TEXT("world_streaming_levels"), InDumpResult.Summary.WorldStreamingLevelCount);
+		KeyCountsObject->SetNumberField(TEXT("world_static_mesh_socket_transforms"), InDumpResult.Summary.WorldStaticMeshSocketTransformCount);
+		KeyCountsObject->SetNumberField(TEXT("static_mesh_sockets"), InDumpResult.Summary.StaticMeshSocketCount);
+		KeyCountsObject->SetNumberField(TEXT("component_static_mesh_sockets"), InDumpResult.Summary.ComponentStaticMeshSocketCount);
 		DigestObject->SetObjectField(TEXT("key_counts"), KeyCountsObject);
 
 		// WidgetOverviewObject는 WidgetBlueprint 경량 진입용 위젯 트리 개요다.
@@ -860,7 +1044,23 @@ namespace
 		WorldOverviewObject->SetBoolField(TEXT("is_partitioned"), InDumpResult.Summary.bIsWorldPartitioned);
 		WorldOverviewObject->SetStringField(TEXT("world_settings_class"), InDumpResult.Summary.WorldSettingsClassPath);
 		WorldOverviewObject->SetArrayField(TEXT("actor_preview"), MakeStringArray(InDumpResult.Summary.WorldActorPreview));
+		WorldOverviewObject->SetNumberField(TEXT("static_mesh_socket_transform_count"), InDumpResult.Summary.WorldStaticMeshSocketTransformCount);
+		WorldOverviewObject->SetArrayField(TEXT("static_mesh_socket_transform_preview"), MakeStringArray(InDumpResult.Summary.WorldStaticMeshSocketTransformPreview));
 		DigestObject->SetObjectField(TEXT("world_overview"), WorldOverviewObject);
+
+		// StaticMeshOverviewObject는 StaticMesh 자산 경량 진입용 socket 개요 object다.
+		TSharedRef<FJsonObject> StaticMeshOverviewObject = MakeShared<FJsonObject>();
+		StaticMeshOverviewObject->SetNumberField(TEXT("socket_count"), InDumpResult.Summary.StaticMeshSocketCount);
+		StaticMeshOverviewObject->SetArrayField(TEXT("socket_preview"), MakeStringArray(InDumpResult.Summary.StaticMeshSocketPreview));
+		DigestObject->SetObjectField(TEXT("static_mesh_overview"), StaticMeshOverviewObject);
+
+		// ComponentStaticMeshOverviewObject는 Blueprint StaticMeshComponent 참조 socket 경량 개요 object다.
+		TSharedRef<FJsonObject> ComponentStaticMeshOverviewObject = MakeShared<FJsonObject>();
+		ComponentStaticMeshOverviewObject->SetNumberField(TEXT("ref_count"), InDumpResult.Details.ComponentStaticMeshSockets.Num());
+		ComponentStaticMeshOverviewObject->SetNumberField(TEXT("socket_count"), InDumpResult.Summary.ComponentStaticMeshSocketCount);
+		ComponentStaticMeshOverviewObject->SetNumberField(TEXT("socket_transform_count"), CountComponentSocketTransforms(InDumpResult.Details.ComponentStaticMeshSockets));
+		ComponentStaticMeshOverviewObject->SetArrayField(TEXT("socket_preview"), MakeStringArray(InDumpResult.Summary.ComponentStaticMeshSocketPreview));
+		DigestObject->SetObjectField(TEXT("component_static_mesh_overview"), ComponentStaticMeshOverviewObject);
 
 		// GraphOverviewArray는 대표 그래프 몇 개만 싣는 경량 개요 배열이다.
 		TArray<TSharedPtr<FJsonValue>> GraphOverviewArray;

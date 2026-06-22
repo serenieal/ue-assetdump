@@ -1,6 +1,12 @@
 // File: ADumpDetailExt.cpp
-// Version: v0.7.2
+// Version: v1.1.2
 // Changelog:
+// - v1.1.2: 로드된 map component의 ComponentToWorld가 stale인 경우 relative/actor Transform으로 world Transform을 계산.
+// - v1.1.1: 로드된 StaticMeshActor의 native StaticMeshComponent도 world socket Transform 추출 대상에 포함.
+// - v1.1.0: World/Map에 배치된 StaticMeshComponent socket의 world-space Transform details 추출 추가.
+// - v1.0.0: StaticMeshComponent socket의 component-space 및 parent-relative Transform details 추출 추가.
+// - v0.9.0: Blueprint StaticMeshComponent 참조 StaticMesh socket details 추출 추가.
+// - v0.8.0: StaticMesh 자산의 Socket 목록과 상대 Transform details 추출 추가.
 // - v0.7.2: UWorld도 generic reflected property 경로로 details 추출을 지원.
 // - v0.7.1: CurveFloat도 generic reflected property 경로로 details 추출을 지원.
 // - v0.7.0: DataTable도 row별 property 펼침 방식으로 details 추출을 지원.
@@ -23,6 +29,7 @@
 #include "Components/ActorComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Curves/CurveFloat.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -30,6 +37,10 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/DataAsset.h"
 #include "Engine/DataTable.h"
+#include "Engine/Level.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMeshSocket.h"
 #include "Engine/World.h"
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
@@ -348,6 +359,241 @@ namespace
 	FString BuildDataTableRowPathPrefix(const FName& InRowName)
 	{
 		return FString::Printf(TEXT("rows.%s"), *InRowName.ToString());
+	}
+
+	// BuildStaticMeshSocketItem은 UStaticMeshSocket을 details 출력용 중간 구조로 변환한다.
+	FADumpStaticMeshSocketItem BuildStaticMeshSocketItem(const UStaticMeshSocket& InSocketItem)
+	{
+		// SocketItem은 details에 저장할 StaticMesh socket 항목이다.
+		FADumpStaticMeshSocketItem SocketItem;
+		SocketItem.SocketName = InSocketItem.SocketName.ToString();
+		SocketItem.RelativeLocation = InSocketItem.RelativeLocation;
+		SocketItem.RelativeRotation = InSocketItem.RelativeRotation;
+		SocketItem.RelativeScale = InSocketItem.RelativeScale;
+		SocketItem.Tag = InSocketItem.Tag;
+#if WITH_EDITORONLY_DATA
+		SocketItem.PreviewStaticMeshPath = InSocketItem.PreviewStaticMesh ? InSocketItem.PreviewStaticMesh->GetPathName() : FString();
+		SocketItem.bCreatedAtImport = InSocketItem.bSocketCreatedAtImport;
+#endif
+		return SocketItem;
+	}
+
+	// PopulateStaticMeshSocketItems는 StaticMesh asset의 socket 목록을 details에 채운다.
+	void PopulateStaticMeshSocketItems(const UStaticMesh& InStaticMeshAsset, TArray<FADumpStaticMeshSocketItem>& OutSocketItems)
+	{
+		for (const TObjectPtr<UStaticMeshSocket>& SocketObjectPtr : InStaticMeshAsset.Sockets)
+		{
+			// SocketObject는 details에 기록할 StaticMesh socket 객체다.
+			const UStaticMeshSocket* SocketObject = SocketObjectPtr.Get();
+			if (!SocketObject)
+			{
+				continue;
+			}
+
+			OutSocketItems.Add(BuildStaticMeshSocketItem(*SocketObject));
+		}
+	}
+
+	// BuildSocketComponentSpaceTransform은 StaticMeshComponent 로컬 기준 socket Transform을 만든다.
+	FTransform BuildSocketComponentSpaceTransform(const UStaticMeshSocket& InSocketItem)
+	{
+		return FTransform(
+			InSocketItem.RelativeRotation,
+			InSocketItem.RelativeLocation,
+			InSocketItem.RelativeScale);
+	}
+
+	// BuildCompSocketXform은 컴포넌트 참조 socket Transform 한 건을 만든다.
+	FADumpCompSocketXform BuildCompSocketXform(
+		const UStaticMeshSocket& InSocketItem,
+		const FTransform& InComponentRelativeTransform)
+	{
+		// SocketTransformItem은 details에 저장할 socket Transform 항목이다.
+		FADumpCompSocketXform SocketTransformItem;
+		SocketTransformItem.SocketName = InSocketItem.SocketName.ToString();
+
+		// SocketComponentSpaceTransform은 StaticMeshComponent 로컬 기준 socket Transform이다.
+		const FTransform SocketComponentSpaceTransform = BuildSocketComponentSpaceTransform(InSocketItem);
+		SocketTransformItem.ComponentSpaceTransform = SocketComponentSpaceTransform;
+		SocketTransformItem.ParentRelativeTransform = SocketComponentSpaceTransform * InComponentRelativeTransform;
+		return SocketTransformItem;
+	}
+
+	// ResolveSceneComponentWorldTransform은 로드된 map component의 저장된 상대 Transform을 따라 world Transform을 계산한다.
+	FTransform ResolveSceneComponentWorldTransform(const AActor& InActor, const USceneComponent& InSceneComponent)
+	{
+		// AttachParentComponent는 현재 컴포넌트의 부모 SceneComponent다.
+		const USceneComponent* AttachParentComponent = InSceneComponent.GetAttachParent();
+		if (AttachParentComponent)
+		{
+			return InSceneComponent.GetRelativeTransform() * ResolveSceneComponentWorldTransform(InActor, *AttachParentComponent);
+		}
+
+		if (InActor.GetRootComponent() == &InSceneComponent)
+		{
+			return InSceneComponent.GetRelativeTransform();
+		}
+
+		return InSceneComponent.GetRelativeTransform() * InActor.GetActorTransform();
+	}
+
+	// BuildWorldMeshSocketXform은 월드에 배치된 StaticMeshComponent socket Transform 한 건을 만든다.
+	FADumpWorldMeshSocketXform BuildWorldMeshSocketXform(
+		const AActor& InActor,
+		const UStaticMeshComponent& InStaticMeshComponent,
+		const UStaticMesh& InStaticMeshAsset,
+		const UStaticMeshSocket& InSocketItem)
+	{
+		// SocketTransformItem은 details에 저장할 월드 socket Transform 항목이다.
+		FADumpWorldMeshSocketXform SocketTransformItem;
+		SocketTransformItem.ActorName = InActor.GetName();
+		SocketTransformItem.ActorClass = InActor.GetClass() ? InActor.GetClass()->GetName() : FString();
+		SocketTransformItem.ActorPath = InActor.GetPathName();
+		SocketTransformItem.ComponentName = InStaticMeshComponent.GetName();
+		SocketTransformItem.ComponentClass = InStaticMeshComponent.GetClass() ? InStaticMeshComponent.GetClass()->GetName() : FString();
+		SocketTransformItem.StaticMeshPath = InStaticMeshAsset.GetPathName();
+		SocketTransformItem.SocketName = InSocketItem.SocketName.ToString();
+		SocketTransformItem.ComponentWorldTransform = ResolveSceneComponentWorldTransform(InActor, InStaticMeshComponent);
+		SocketTransformItem.SocketComponentSpaceTransform = BuildSocketComponentSpaceTransform(InSocketItem);
+		SocketTransformItem.SocketWorldTransform =
+			SocketTransformItem.SocketComponentSpaceTransform * SocketTransformItem.ComponentWorldTransform;
+		return SocketTransformItem;
+	}
+
+	// PopulateComponentSocketTransforms는 컴포넌트 참조 StaticMesh socket Transform 목록을 채운다.
+	void PopulateComponentSocketTransforms(
+		const UStaticMesh& InStaticMeshAsset,
+		const FTransform& InComponentRelativeTransform,
+		TArray<FADumpCompSocketXform>& OutSocketTransformItems)
+	{
+		// SocketObjectPtr는 참조 StaticMesh의 socket UObject 포인터다.
+		for (const TObjectPtr<UStaticMeshSocket>& SocketObjectPtr : InStaticMeshAsset.Sockets)
+		{
+			// SocketObject는 Transform을 계산할 StaticMesh socket 객체다.
+			const UStaticMeshSocket* SocketObject = SocketObjectPtr.Get();
+			if (!SocketObject)
+			{
+				continue;
+			}
+
+			OutSocketTransformItems.Add(BuildCompSocketXform(*SocketObject, InComponentRelativeTransform));
+		}
+	}
+
+	// PopulateComponentStaticMeshSockets는 StaticMeshComponent가 참조하는 StaticMesh socket 목록을 details에 채운다.
+	void PopulateComponentStaticMeshSockets(
+		const UActorComponent& InActorComponent,
+		const FADumpComponentItem& InComponentItem,
+		TArray<FADumpCompMeshSockets>& OutComponentSocketItems)
+	{
+		// StaticMeshComponent는 socket 추출 대상 컴포넌트 타입이다.
+		const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(&InActorComponent);
+		if (!StaticMeshComponent)
+		{
+			return;
+		}
+
+		// StaticMeshAsset은 컴포넌트가 참조하는 StaticMesh 자산이다.
+		const UStaticMesh* StaticMeshAsset = StaticMeshComponent->GetStaticMesh();
+		if (!StaticMeshAsset)
+		{
+			return;
+		}
+
+		// ComponentSocketItem은 details에 저장할 컴포넌트별 StaticMesh socket 묶음이다.
+		FADumpCompMeshSockets ComponentSocketItem;
+		ComponentSocketItem.ComponentName = InComponentItem.ComponentName;
+		ComponentSocketItem.ComponentClass = InComponentItem.ComponentClass;
+		ComponentSocketItem.StaticMeshPath = StaticMeshAsset->GetPathName();
+		ComponentSocketItem.bFromSCS = InComponentItem.bFromSCS;
+		ComponentSocketItem.ComponentRelativeTransform = StaticMeshComponent->GetRelativeTransform();
+		PopulateStaticMeshSocketItems(*StaticMeshAsset, ComponentSocketItem.Sockets);
+		PopulateComponentSocketTransforms(*StaticMeshAsset, ComponentSocketItem.ComponentRelativeTransform, ComponentSocketItem.SocketTransforms);
+		if (ComponentSocketItem.Sockets.Num() <= 0)
+		{
+			return;
+		}
+
+		OutComponentSocketItems.Add(MoveTemp(ComponentSocketItem));
+	}
+
+	// PopulateWorldStaticMeshSocketTransforms는 World/Map에 배치된 StaticMeshComponent socket의 월드 Transform 목록을 채운다.
+	void PopulateWorldStaticMeshSocketTransforms(
+		const UWorld& InWorldAsset,
+		TArray<FADumpWorldMeshSocketXform>& OutSocketTransformItems)
+	{
+		// PersistentLevelObject는 actor 순회 대상 월드 기본 레벨이다.
+		const ULevel* PersistentLevelObject = InWorldAsset.PersistentLevel;
+		if (!PersistentLevelObject)
+		{
+			return;
+		}
+
+		// ActorItem은 Persistent Level에 배치된 개별 actor다.
+		for (AActor* ActorItem : PersistentLevelObject->Actors)
+		{
+			if (!ActorItem)
+			{
+				continue;
+			}
+
+			// StaticMeshComponentArray는 현재 actor에 포함된 StaticMeshComponent 목록이다.
+			TArray<const UStaticMeshComponent*> StaticMeshComponentArray;
+
+			// StaticMeshActor는 native StaticMeshComponent를 직접 가진 actor인지 확인하는 캐스팅 결과다.
+			if (const AStaticMeshActor* StaticMeshActor = Cast<AStaticMeshActor>(ActorItem))
+			{
+				// StaticMeshActorComponent는 StaticMeshActor의 native StaticMeshComponent다.
+				if (const UStaticMeshComponent* StaticMeshActorComponent = StaticMeshActor->GetStaticMeshComponent())
+				{
+					StaticMeshComponentArray.AddUnique(StaticMeshActorComponent);
+				}
+			}
+
+			// OwnedStaticMeshComponentArray는 actor owned component 순회로 확인한 StaticMeshComponent 목록이다.
+			TInlineComponentArray<UStaticMeshComponent*> OwnedStaticMeshComponentArray;
+			ActorItem->GetComponents(OwnedStaticMeshComponentArray);
+			for (const UStaticMeshComponent* OwnedStaticMeshComponent : OwnedStaticMeshComponentArray)
+			{
+				if (OwnedStaticMeshComponent)
+				{
+					StaticMeshComponentArray.AddUnique(OwnedStaticMeshComponent);
+				}
+			}
+
+			// StaticMeshComponent는 socket Transform 계산 대상 컴포넌트다.
+			for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponentArray)
+			{
+				if (!StaticMeshComponent)
+				{
+					continue;
+				}
+
+				// StaticMeshAsset은 컴포넌트가 참조하는 StaticMesh 자산이다.
+				const UStaticMesh* StaticMeshAsset = StaticMeshComponent->GetStaticMesh();
+				if (!StaticMeshAsset || StaticMeshAsset->Sockets.Num() <= 0)
+				{
+					continue;
+				}
+
+				// SocketObjectPtr는 참조 StaticMesh의 socket UObject 포인터다.
+				for (const TObjectPtr<UStaticMeshSocket>& SocketObjectPtr : StaticMeshAsset->Sockets)
+				{
+					// SocketObject는 월드 Transform을 계산할 StaticMesh socket 객체다.
+					const UStaticMeshSocket* SocketObject = SocketObjectPtr.Get();
+					if (!SocketObject)
+					{
+						continue;
+					}
+
+					OutSocketTransformItems.Add(BuildWorldMeshSocketXform(
+						*ActorItem,
+						*StaticMeshComponent,
+						*StaticMeshAsset,
+						*SocketObject));
+				}
+			}
+		}
 	}
 
 	// RegisterParentComponentCompareEntry는 부모 컴포넌트 비교 맵에 이름/클래스 키를 등록한다.
@@ -1141,6 +1387,9 @@ namespace ADumpDetailExt
 
 		OutDetails.ClassDefaults.Reset();
 		OutDetails.Components.Reset();
+		OutDetails.StaticMeshSockets.Reset();
+		OutDetails.ComponentStaticMeshSockets.Reset();
+		OutDetails.WorldStaticMeshSocketTransforms.Reset();
 
 		// LoadedAssetObject는 details 추출 대상 자산 객체다.
 		UObject* LoadedAssetObject = nullptr;
@@ -1156,17 +1405,32 @@ namespace ADumpDetailExt
 		UBlueprint* BlueprintAsset = Cast<UBlueprint>(LoadedAssetObject);
 		if (!BlueprintAsset)
 		{
-			if (!Cast<UDataAsset>(LoadedAssetObject) && !Cast<UDataTable>(LoadedAssetObject) && !Cast<UCurveFloat>(LoadedAssetObject) && !Cast<UWorld>(LoadedAssetObject))
+			if (!Cast<UDataAsset>(LoadedAssetObject) && !Cast<UDataTable>(LoadedAssetObject) && !Cast<UCurveFloat>(LoadedAssetObject) && !Cast<UStaticMesh>(LoadedAssetObject) && !Cast<UWorld>(LoadedAssetObject))
 			{
 				AddDetailIssue(
 					OutIssues,
 					TEXT("DETAILS_UNSUPPORTED_ASSET_CLASS"),
-					FString::Printf(TEXT("Details extraction currently supports Blueprint, DataAsset, DataTable, CurveFloat, and UWorld only: %s"), *LoadedAssetObject->GetClass()->GetName()),
+					FString::Printf(TEXT("Details extraction currently supports Blueprint, DataAsset, DataTable, CurveFloat, StaticMesh, and UWorld only: %s"), *LoadedAssetObject->GetClass()->GetName()),
 					EADumpIssueSeverity::Error,
 					EADumpPhase::Details,
 					AssetObjectPath);
 				InOutPerf.DetailsSeconds += (FPlatformTime::Seconds() - DetailsStartSeconds);
 				return false;
+			}
+
+			// StaticMeshAsset는 asset socket 목록 추출 대상 StaticMesh 자산이다.
+			UStaticMesh* StaticMeshAsset = Cast<UStaticMesh>(LoadedAssetObject);
+			if (StaticMeshAsset)
+			{
+				PopulateStaticMeshSocketItems(*StaticMeshAsset, OutDetails.StaticMeshSockets);
+				InOutPerf.DetailsSeconds += (FPlatformTime::Seconds() - DetailsStartSeconds);
+				return true;
+			}
+
+			// WorldAsset는 배치 actor 기준 socket 월드 Transform 추출 대상 Map/World 자산이다.
+			if (const UWorld* WorldAsset = Cast<UWorld>(LoadedAssetObject))
+			{
+				PopulateWorldStaticMeshSocketTransforms(*WorldAsset, OutDetails.WorldStaticMeshSocketTransforms);
 			}
 
 			// DataTableAsset는 row 기반 details 확장 처리 대상 DataTable 자산이다.
@@ -1457,6 +1721,7 @@ namespace ADumpDetailExt
 				ExtractContext,
 				ComponentItem.Properties);
 
+			PopulateComponentStaticMeshSockets(*ActorComponent, ComponentItem, OutDetails.ComponentStaticMeshSockets);
 			OutDetails.Components.Add(MoveTemp(ComponentItem));
 			InOutPerf.ComponentCount++;
 		}
@@ -1516,6 +1781,7 @@ namespace ADumpDetailExt
 					ExtractContext,
 					ComponentItem.Properties);
 
+				PopulateComponentStaticMeshSockets(*ComponentTemplate, ComponentItem, OutDetails.ComponentStaticMeshSockets);
 				OutDetails.Components.Add(MoveTemp(ComponentItem));
 				InOutPerf.ComponentCount++;
 			}

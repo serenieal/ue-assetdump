@@ -1,6 +1,14 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.4.2
+// Version: v0.4.10
 // Changelog:
+// - v0.4.10: World fixture root StaticMeshComponent relative Transform을 비-identity 기준값으로 강제하고 validate 검사 추가.
+// - v0.4.9: World fixture actor/component 수정 시 Modify 호출을 추가해 map 저장 안정성을 보강.
+// - v0.4.8: World fixture 저장 후 initialized World 정리를 수행해 commandlet 종료 크래시를 방지.
+// - v0.4.7: World/Map socket world-space Transform 검증 fixture와 validate 검사를 추가.
+// - v0.4.6: Actor Blueprint fixture의 StaticMeshComponent 상대 Transform과 socket Transform 검증을 추가.
+// - v0.4.5: Actor Blueprint fixture에 StaticMeshComponent socket 참조 검증 구성을 추가.
+// - v0.4.4: StaticMesh Socket fixture를 빈 메시가 아닌 엔진 Cube 복제본 기반으로 보정.
+// - v0.4.3: StaticMesh Socket 검증 fixture와 validate 최소 socket count 검사를 추가.
 // - v0.4.2: 공용 플러그인 검증 자산을 생성하는 makefixtures 모드와 plugin validate 6종 fixture 케이스를 추가.
 // - v0.4.1: 공용 플러그인 fixture 검증과 프로젝트 샘플 검증을 분리할 수 있도록 validate ValidationProfile 옵션을 추가.
 // - v0.4.0: 현재 프로젝트의 바인딩 없는 WidgetBlueprint 샘플도 validate 통과가 가능하도록 widget binding 최소 개수 요구를 제거.
@@ -41,6 +49,7 @@
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/ActorComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Components/TextBlock.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/Blueprint.h"
@@ -48,11 +57,19 @@
 #include "Engine/DataAsset.h"
 #include "Engine/DataTable.h"
 #include "HAL/FileManager.h"
+#include "Engine/SCS_Node.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMeshSocket.h"
+#include "Factories/WorldFactory.h"
+#include "GameFramework/Actor.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputCoreTypes.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
@@ -86,6 +103,27 @@ namespace
 
 	// AssetDumpDataTableFixtureName은 DataTable fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpDataTableFixtureName = TEXT("DT_ADumpValid");
+
+	// AssetDumpStaticMeshFixtureName은 StaticMesh Socket 검증 fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpStaticMeshFixtureName = TEXT("SM_ADumpSocket");
+
+	// AssetDumpStaticMeshSourcePath는 StaticMesh fixture 복제 원본으로 사용할 엔진 기본 Cube 경로다.
+	constexpr const TCHAR* AssetDumpStaticMeshSourcePath = TEXT("/Engine/BasicShapes/Cube.Cube");
+
+	// AssetDumpStaticMeshSocketName은 StaticMesh fixture에 생성할 고정 socket 이름이다.
+	constexpr const TCHAR* AssetDumpStaticMeshSocketName = TEXT("ADump_TestSocket");
+
+	// AssetDumpSocketComponentName은 Actor Blueprint fixture에 넣을 StaticMeshComponent 이름이다.
+	constexpr const TCHAR* AssetDumpSocketComponentName = TEXT("SMC_ADumpSocket");
+
+	// AssetDumpWorldFixtureName은 World/Map socket Transform 검증 fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpWorldFixtureName = TEXT("Map_ADumpSocket");
+
+	// AssetDumpWorldSocketActorName은 World fixture에 배치할 StaticMeshActor 이름이다.
+	constexpr const TCHAR* AssetDumpWorldSocketActorName = TEXT("A_ADumpWorldSocket");
+
+	// AssetDumpWorldSocketComponentName은 World fixture의 StaticMeshComponent 이름이다.
+	constexpr const TCHAR* AssetDumpWorldSocketComponentName = TEXT("SMC_ADumpWorldSocket");
 
 	// SerializeJsonObjectText는 루트 JsonObject를 JSON 문자열로 직렬화한다.
 	bool SerializeJsonObjectText(const TSharedRef<FJsonObject>& InRootObject, FString& OutJsonText)
@@ -473,8 +511,23 @@ namespace
 		// MinWorldActorCount는 world actor 최소 기대 개수다.
 		int32 MinWorldActorCount = 0;
 
+		// MinWorldStaticMeshSocketTransformCount는 world 배치 StaticMeshComponent socket Transform 최소 기대 개수다.
+		int32 MinWorldStaticMeshSocketTransformCount = 0;
+
+		// bRequireWorldComponentTransformNonIdentity는 world socket fixture가 비-identity component world Transform을 가져야 하는지 여부다.
+		bool bRequireWorldComponentTransformNonIdentity = false;
+
 		// MinDataTableRowCount는 DataTable row 최소 기대 개수다.
 		int32 MinDataTableRowCount = 0;
+
+		// MinStaticMeshSocketCount는 StaticMesh socket 최소 기대 개수다.
+		int32 MinStaticMeshSocketCount = 0;
+
+		// MinComponentStaticMeshSocketCount는 StaticMeshComponent 참조 StaticMesh socket 최소 기대 개수다.
+		int32 MinComponentStaticMeshSocketCount = 0;
+
+		// MinComponentStaticMeshSocketTransformCount는 StaticMeshComponent 참조 socket Transform 최소 기대 개수다.
+		int32 MinComponentStaticMeshSocketTransformCount = 0;
 	};
 
 	// TryResolveValidationAssetPath는 후보 경로 또는 클래스 탐색으로 validate 샘플 자산 경로를 찾는다.
@@ -535,6 +588,11 @@ namespace
 		if (Cast<UDataTable>(InAssetObject))
 		{
 			return TEXT("data_table");
+		}
+
+		if (Cast<UStaticMesh>(InAssetObject))
+		{
+			return TEXT("static_mesh");
 		}
 
 		if (Cast<UCurveFloat>(InAssetObject))
@@ -725,7 +783,7 @@ namespace
 		// ObjectPath는 fixture 자산의 full object path다.
 		FString ObjectPath;
 
-		// SavedFilePath는 저장에 성공한 uasset 파일 경로다.
+		// SavedFilePath는 저장에 성공한 package 파일 경로다.
 		FString SavedFilePath;
 
 		// ResultStatus는 created / existing / updated / failed 중 하나다.
@@ -795,7 +853,7 @@ namespace
 		return FixturePackage;
 	}
 
-	// SaveValidationFixtureAsset는 fixture 자산 package를 uasset 파일로 저장한다.
+	// SaveValidationFixtureAsset는 fixture 자산 package를 uasset 또는 umap 파일로 저장한다.
 	bool SaveValidationFixtureAsset(UObject* InAssetObject, FString& OutSavedFilePath, FString& OutFailureMessage)
 	{
 		OutSavedFilePath.Reset();
@@ -823,11 +881,16 @@ namespace
 			return false;
 		}
 
-		// PackageFilePath는 실제 저장될 .uasset 파일의 절대 경로다.
+		// PackageExtensionText는 자산 종류에 맞는 package 확장자다.
+		const FString PackageExtensionText = Cast<UWorld>(InAssetObject)
+			? FPackageName::GetMapPackageExtension()
+			: FPackageName::GetAssetPackageExtension();
+
+		// PackageFilePath는 실제 저장될 package 파일의 절대 경로다.
 		const FString PackageFilePath = FPaths::ConvertRelativePathToFull(
 			FPackageName::LongPackageNameToFilename(
 				PackageNameText,
-				FPackageName::GetAssetPackageExtension()));
+				PackageExtensionText));
 
 		// SaveArgs는 UE 5.7 SavePackage 호출에 필요한 저장 옵션이다.
 		FSavePackageArgs SaveArgs;
@@ -932,6 +995,118 @@ namespace
 		{
 			OutResult.FailureMessage = TEXT("Actor Blueprint fixture의 부모 클래스가 Actor 계열이 아닙니다.");
 			return;
+		}
+
+		// SocketMeshAsset은 Actor Blueprint fixture가 참조할 StaticMesh socket fixture다.
+		UStaticMesh* SocketMeshAsset = Cast<UStaticMesh>(LoadValidationFixtureAsset(AssetDumpStaticMeshFixtureName));
+		if (!SocketMeshAsset)
+		{
+			OutResult.FailureMessage = TEXT("Actor Blueprint fixture가 참조할 StaticMesh socket fixture를 찾지 못했습니다.");
+			return;
+		}
+
+		if (!BlueprintAsset->SimpleConstructionScript)
+		{
+			BlueprintAsset->SimpleConstructionScript = NewObject<USimpleConstructionScript>(
+				BlueprintAsset,
+				USimpleConstructionScript::StaticClass(),
+				TEXT("SimpleConstructionScript"),
+				RF_Transactional);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// SocketComponentNode는 socket fixture StaticMesh를 참조하는 SCS 컴포넌트 노드다.
+		USCS_Node* SocketComponentNode = nullptr;
+		if (BlueprintAsset->SimpleConstructionScript)
+		{
+			// AllScsNodes는 Actor Blueprint fixture의 SCS 노드 전체 목록이다.
+			const TArray<USCS_Node*>& AllScsNodes = BlueprintAsset->SimpleConstructionScript->GetAllNodes();
+			for (USCS_Node* ScsNode : AllScsNodes)
+			{
+				if (!ScsNode)
+				{
+					continue;
+				}
+
+				if (ScsNode->GetVariableName() == FName(AssetDumpSocketComponentName))
+				{
+					SocketComponentNode = ScsNode;
+					break;
+				}
+			}
+		}
+
+		if (!SocketComponentNode)
+		{
+			SocketComponentNode = BlueprintAsset->SimpleConstructionScript->CreateNode(
+				UStaticMeshComponent::StaticClass(),
+				FName(AssetDumpSocketComponentName));
+			if (!SocketComponentNode)
+			{
+				OutResult.FailureMessage = TEXT("Actor Blueprint fixture StaticMeshComponent SCS 노드 생성에 실패했습니다.");
+				return;
+			}
+
+			SocketComponentNode->SetVariableName(FName(AssetDumpSocketComponentName));
+			BlueprintAsset->SimpleConstructionScript->AddNode(SocketComponentNode);
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(BlueprintAsset);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// SocketComponentTemplate은 SCS 노드가 생성할 StaticMeshComponent 템플릿이다.
+		UStaticMeshComponent* SocketComponentTemplate = SocketComponentNode
+			? Cast<UStaticMeshComponent>(SocketComponentNode->ComponentTemplate)
+			: nullptr;
+		if (!SocketComponentTemplate)
+		{
+			OutResult.FailureMessage = TEXT("Actor Blueprint fixture StaticMeshComponent 템플릿을 찾지 못했습니다.");
+			return;
+		}
+
+		if (SocketComponentTemplate->GetStaticMesh() != SocketMeshAsset)
+		{
+			SocketComponentTemplate->SetStaticMesh(SocketMeshAsset);
+			FBlueprintEditorUtils::MarkBlueprintAsModified(BlueprintAsset);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// ExpectedComponentLocation은 component/socket Transform 검증을 위한 컴포넌트 상대 위치 기준값이다.
+		const FVector ExpectedComponentLocation(100.0f, -50.0f, 25.0f);
+
+		// ExpectedComponentRotation은 component/socket Transform 검증을 위한 컴포넌트 상대 회전 기준값이다.
+		const FRotator ExpectedComponentRotation(0.0f, 45.0f, 0.0f);
+
+		// ExpectedComponentScale은 component/socket Transform 검증을 위한 컴포넌트 상대 스케일 기준값이다.
+		const FVector ExpectedComponentScale(1.5f, 1.0f, 0.5f);
+
+		// bComponentTransformNeedsUpdate는 fixture 컴포넌트 Transform 저장 필요 여부다.
+		bool bComponentTransformNeedsUpdate = false;
+		if (!SocketComponentTemplate->GetRelativeLocation().Equals(ExpectedComponentLocation, KINDA_SMALL_NUMBER))
+		{
+			SocketComponentTemplate->SetRelativeLocation(ExpectedComponentLocation);
+			bComponentTransformNeedsUpdate = true;
+		}
+
+		if (!SocketComponentTemplate->GetRelativeRotation().Equals(ExpectedComponentRotation, KINDA_SMALL_NUMBER))
+		{
+			SocketComponentTemplate->SetRelativeRotation(ExpectedComponentRotation);
+			bComponentTransformNeedsUpdate = true;
+		}
+
+		if (!SocketComponentTemplate->GetRelativeScale3D().Equals(ExpectedComponentScale, KINDA_SMALL_NUMBER))
+		{
+			SocketComponentTemplate->SetRelativeScale3D(ExpectedComponentScale);
+			bComponentTransformNeedsUpdate = true;
+		}
+
+		if (bComponentTransformNeedsUpdate)
+		{
+			FBlueprintEditorUtils::MarkBlueprintAsModified(BlueprintAsset);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
 		}
 
 		if (bNeedsSave)
@@ -1354,6 +1529,422 @@ namespace
 		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
 	}
 
+	// IsValidationStaticMeshUsable은 fixture StaticMesh가 최소 렌더 소스 모델을 가지고 있는지 확인한다.
+	bool IsValidationStaticMeshUsable(const UStaticMesh* InStaticMeshAsset)
+	{
+		return InStaticMeshAsset && InStaticMeshAsset->GetNumSourceModels() > 0;
+	}
+
+	// DuplicateStaticMeshFixture는 엔진 기본 Cube를 fixture package 안으로 복제한다.
+	UStaticMesh* DuplicateStaticMeshFixture(UPackage* InFixturePackage, const FString& InAssetName, FString& OutFailureMessage)
+	{
+		OutFailureMessage.Reset();
+
+		if (!InFixturePackage)
+		{
+			OutFailureMessage = TEXT("StaticMesh fixture package가 없습니다.");
+			return nullptr;
+		}
+
+		// SourceObjectPath는 복제 원본 엔진 StaticMesh의 object path다.
+		const FSoftObjectPath SourceObjectPath(AssetDumpStaticMeshSourcePath);
+
+		// SourceObject는 복제 원본으로 로드한 UObject다.
+		UObject* SourceObject = SourceObjectPath.TryLoad();
+
+		// SourceStaticMesh는 복제 원본으로 사용할 엔진 기본 StaticMesh다.
+		UStaticMesh* SourceStaticMesh = Cast<UStaticMesh>(SourceObject);
+		if (!SourceStaticMesh)
+		{
+			OutFailureMessage = FString::Printf(TEXT("StaticMesh fixture 원본을 로드하지 못했습니다: %s"), AssetDumpStaticMeshSourcePath);
+			return nullptr;
+		}
+
+		// DuplicatedObject는 fixture package에 복제된 새 UObject다.
+		UObject* DuplicatedObject = StaticDuplicateObject(SourceStaticMesh, InFixturePackage, FName(*InAssetName));
+
+		// DuplicatedStaticMesh는 fixture로 저장할 복제 StaticMesh다.
+		UStaticMesh* DuplicatedStaticMesh = Cast<UStaticMesh>(DuplicatedObject);
+		if (!DuplicatedStaticMesh)
+		{
+			OutFailureMessage = TEXT("StaticMesh fixture 복제에 실패했습니다.");
+			return nullptr;
+		}
+
+		DuplicatedStaticMesh->SetFlags(RF_Public | RF_Standalone | RF_Transactional);
+		DuplicatedStaticMesh->Sockets.Reset();
+		return DuplicatedStaticMesh;
+	}
+
+	// EnsureStaticMeshSocketFixture는 StaticMesh socket 검증 fixture를 생성하거나 확인한다.
+	void EnsureStaticMeshSocketFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("static_mesh_socket"),
+			AssetDumpStaticMeshFixtureName,
+			TEXT("StaticMesh"));
+
+		// ExistingObject는 이미 저장된 StaticMesh fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// StaticMeshAsset은 생성 또는 로드된 StaticMesh fixture 자산이다.
+		UStaticMesh* StaticMeshAsset = Cast<UStaticMesh>(ExistingObject);
+		if (ExistingObject && !StaticMeshAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 StaticMesh가 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (StaticMeshAsset && !IsValidationStaticMeshUsable(StaticMeshAsset))
+		{
+			// ReplacedFixtureObjectName은 교체 전 빈 fixture를 임시 패키지로 옮길 때 사용할 이름이다.
+			const FString ReplacedFixtureObjectName = FString::Printf(TEXT("%s_Replaced"), *OutResult.AssetName);
+
+			// RenameFlags는 기존 fixture 교체 중 redirector와 transaction 생성을 막기 위한 옵션이다.
+			const ERenameFlags RenameFlags = REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional;
+			StaticMeshAsset->Rename(*ReplacedFixtureObjectName, GetTransientPackage(), RenameFlags);
+			StaticMeshAsset = nullptr;
+			OutResult.bUpdated = true;
+			bNeedsSave = true;
+		}
+
+		if (!StaticMeshAsset)
+		{
+			// FixturePackage는 새 StaticMesh fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("StaticMesh fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			StaticMeshAsset = DuplicateStaticMeshFixture(FixturePackage, OutResult.AssetName, OutResult.FailureMessage);
+			if (!StaticMeshAsset)
+			{
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(StaticMeshAsset);
+			OutResult.bCreated = !ExistingObject;
+			OutResult.bUpdated = ExistingObject != nullptr;
+			bNeedsSave = true;
+		}
+
+		// FixtureSocket은 fixture StaticMesh에 있어야 하는 고정 검증 socket이다.
+		UStaticMeshSocket* FixtureSocket = StaticMeshAsset->FindSocket(FName(AssetDumpStaticMeshSocketName));
+		if (!FixtureSocket)
+		{
+			FixtureSocket = NewObject<UStaticMeshSocket>(
+				StaticMeshAsset,
+				UStaticMeshSocket::StaticClass(),
+				FName(AssetDumpStaticMeshSocketName),
+				RF_Transactional);
+			if (!FixtureSocket)
+			{
+				OutResult.FailureMessage = TEXT("StaticMesh fixture socket 생성에 실패했습니다.");
+				return;
+			}
+
+			FixtureSocket->SocketName = FName(AssetDumpStaticMeshSocketName);
+			StaticMeshAsset->AddSocket(FixtureSocket);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// ExpectedSocketLocation은 JSON에서 검증할 socket 상대 위치 기준값이다.
+		const FVector ExpectedSocketLocation(12.5f, -34.0f, 56.25f);
+
+		// ExpectedSocketRotation은 JSON에서 검증할 socket 상대 회전 기준값이다.
+		const FRotator ExpectedSocketRotation(10.0f, 20.0f, -30.0f);
+
+		// ExpectedSocketScale은 JSON에서 검증할 socket 상대 스케일 기준값이다.
+		const FVector ExpectedSocketScale(1.25f, 0.75f, 2.0f);
+
+		// ExpectedSocketTag는 JSON에서 검증할 socket tag 기준값이다.
+		const FString ExpectedSocketTag(TEXT("assetdump_validation"));
+
+		// bSocketNeedsUpdate는 기존 socket 값이 기준값과 달라 저장이 필요한지 여부다.
+		bool bSocketNeedsUpdate = false;
+		if (!FixtureSocket->RelativeLocation.Equals(ExpectedSocketLocation, KINDA_SMALL_NUMBER))
+		{
+			FixtureSocket->RelativeLocation = ExpectedSocketLocation;
+			bSocketNeedsUpdate = true;
+		}
+
+		if (!FixtureSocket->RelativeRotation.Equals(ExpectedSocketRotation, KINDA_SMALL_NUMBER))
+		{
+			FixtureSocket->RelativeRotation = ExpectedSocketRotation;
+			bSocketNeedsUpdate = true;
+		}
+
+		if (!FixtureSocket->RelativeScale.Equals(ExpectedSocketScale, KINDA_SMALL_NUMBER))
+		{
+			FixtureSocket->RelativeScale = ExpectedSocketScale;
+			bSocketNeedsUpdate = true;
+		}
+
+		if (!FixtureSocket->Tag.Equals(ExpectedSocketTag, ESearchCase::CaseSensitive))
+		{
+			FixtureSocket->Tag = ExpectedSocketTag;
+			bSocketNeedsUpdate = true;
+		}
+
+#if WITH_EDITORONLY_DATA
+		if (FixtureSocket->bSocketCreatedAtImport)
+		{
+			FixtureSocket->bSocketCreatedAtImport = false;
+			bSocketNeedsUpdate = true;
+		}
+#endif // WITH_EDITORONLY_DATA
+
+		if (bSocketNeedsUpdate)
+		{
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (bNeedsSave)
+		{
+			OutResult.bSaved = SaveValidationFixtureAsset(StaticMeshAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
+	// EnsureWorldSocketFixture는 StaticMesh socket이 배치된 공용 World/Map fixture를 생성하거나 확인한다.
+	void EnsureWorldSocketFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("world_map_socket"),
+			AssetDumpWorldFixtureName,
+			TEXT("World"));
+
+		// SocketMeshAsset은 World fixture에 배치할 StaticMesh socket fixture다.
+		UStaticMesh* SocketMeshAsset = Cast<UStaticMesh>(LoadValidationFixtureAsset(AssetDumpStaticMeshFixtureName));
+		if (!SocketMeshAsset)
+		{
+			OutResult.FailureMessage = TEXT("World fixture가 참조할 StaticMesh socket fixture를 찾지 못했습니다.");
+			return;
+		}
+
+		// ExistingObject는 이미 저장된 World fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// WorldAsset은 생성 또는 로드된 World fixture 자산이다.
+		UWorld* WorldAsset = Cast<UWorld>(ExistingObject);
+		if (ExistingObject && !WorldAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 World가 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!WorldAsset)
+		{
+			// FixturePackage는 새 World fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("World fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			// WorldFactory는 Editor World 자산을 생성할 Unreal factory다.
+			UWorldFactory* WorldFactory = NewObject<UWorldFactory>();
+			if (!WorldFactory)
+			{
+				OutResult.FailureMessage = TEXT("World fixture factory 생성에 실패했습니다.");
+				return;
+			}
+
+			WorldFactory->WorldType = EWorldType::Editor;
+			WorldFactory->bInformEngineOfWorld = false;
+			WorldFactory->bCreateWorldPartition = false;
+			WorldFactory->bEnableWorldPartitionStreaming = false;
+
+			// CreatedWorldObject는 factory가 반환한 새 World UObject다.
+			UObject* CreatedWorldObject = WorldFactory->FactoryCreateNew(
+				UWorld::StaticClass(),
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				RF_Public | RF_Standalone | RF_Transactional,
+				nullptr,
+				GWarn);
+			WorldAsset = Cast<UWorld>(CreatedWorldObject);
+			if (!WorldAsset)
+			{
+				OutResult.FailureMessage = TEXT("World fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			WorldAsset->SetFlags(RF_Public | RF_Standalone | RF_Transactional);
+			FAssetRegistryModule::AssetCreated(WorldAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (!WorldAsset->PersistentLevel)
+		{
+			OutResult.FailureMessage = TEXT("World fixture의 PersistentLevel을 찾지 못했습니다.");
+			return;
+		}
+
+		// ExpectedActorTransform은 world-space socket Transform 검증을 위한 배치 액터 기준값이다.
+		const FTransform ExpectedActorTransform(
+			FRotator(0.0f, 30.0f, 0.0f),
+			FVector(250.0f, -125.0f, 75.0f),
+			FVector(1.0f, 1.0f, 1.0f));
+
+		// SocketActor는 fixture map 안에 배치된 검증용 actor다.
+		AActor* SocketActor = nullptr;
+		for (AActor* ActorItem : WorldAsset->PersistentLevel->Actors)
+		{
+			if (ActorItem && ActorItem->GetFName() == FName(AssetDumpWorldSocketActorName))
+			{
+				SocketActor = ActorItem;
+				break;
+			}
+		}
+
+		if (!SocketActor)
+		{
+			// SpawnParameters는 fixture actor를 PersistentLevel에 고정 이름으로 배치하기 위한 설정이다.
+			FActorSpawnParameters SpawnParameters;
+			SpawnParameters.Name = FName(AssetDumpWorldSocketActorName);
+			SpawnParameters.ObjectFlags = RF_Transactional;
+			SpawnParameters.OverrideLevel = WorldAsset->PersistentLevel;
+			SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+			SocketActor = WorldAsset->SpawnActor<AStaticMeshActor>(
+				AStaticMeshActor::StaticClass(),
+				ExpectedActorTransform,
+				SpawnParameters);
+			if (!SocketActor)
+			{
+				OutResult.FailureMessage = TEXT("World fixture actor 생성에 실패했습니다.");
+				return;
+			}
+
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// SocketComponent는 fixture actor에 포함된 StaticMeshComponent다.
+		UStaticMeshComponent* SocketComponent = nullptr;
+
+		// StaticMeshActor는 World fixture actor가 native StaticMeshComponent를 가진 타입인지 확인하는 캐스팅 결과다.
+		if (AStaticMeshActor* StaticMeshActor = Cast<AStaticMeshActor>(SocketActor))
+		{
+			SocketComponent = StaticMeshActor->GetStaticMeshComponent();
+		}
+
+		if (!SocketComponent)
+		{
+			// StaticMeshComponentArray는 기존 actor에 이미 붙어 있는 StaticMeshComponent 목록이다.
+			TInlineComponentArray<UStaticMeshComponent*> StaticMeshComponentArray;
+			SocketActor->GetComponents(StaticMeshComponentArray);
+			for (UStaticMeshComponent* ComponentItem : StaticMeshComponentArray)
+			{
+				if (ComponentItem && ComponentItem->GetFName() == FName(AssetDumpWorldSocketComponentName))
+				{
+					SocketComponent = ComponentItem;
+					break;
+				}
+			}
+		}
+
+		if (!SocketComponent)
+		{
+			SocketComponent = NewObject<UStaticMeshComponent>(
+				SocketActor,
+				FName(AssetDumpWorldSocketComponentName),
+				RF_Transactional);
+			if (!SocketComponent)
+			{
+				OutResult.FailureMessage = TEXT("World fixture StaticMeshComponent 생성에 실패했습니다.");
+				return;
+			}
+
+			SocketComponent->CreationMethod = EComponentCreationMethod::Instance;
+			SocketActor->AddInstanceComponent(SocketComponent);
+			if (!SocketActor->GetRootComponent())
+			{
+				SocketActor->SetRootComponent(SocketComponent);
+			}
+
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (SocketComponent->GetFName() != FName(AssetDumpWorldSocketComponentName)
+			&& !StaticFindObjectFast(UObject::StaticClass(), SocketActor, FName(AssetDumpWorldSocketComponentName)))
+		{
+			SocketComponent->Modify();
+			SocketComponent->Rename(
+				AssetDumpWorldSocketComponentName,
+				SocketActor,
+				REN_DontCreateRedirectors | REN_NonTransactional);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (SocketComponent->GetStaticMesh() != SocketMeshAsset)
+		{
+			SocketActor->Modify();
+			SocketComponent->Modify();
+			SocketComponent->SetStaticMesh(SocketMeshAsset);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (!SocketActor->GetActorTransform().Equals(ExpectedActorTransform, KINDA_SMALL_NUMBER))
+		{
+			SocketActor->Modify();
+			SocketActor->SetActorTransform(ExpectedActorTransform);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (SocketActor->GetRootComponent() == SocketComponent
+			&& !SocketComponent->GetRelativeTransform().Equals(ExpectedActorTransform, KINDA_SMALL_NUMBER))
+		{
+			SocketActor->Modify();
+			SocketComponent->Modify();
+			SocketComponent->SetRelativeTransform(ExpectedActorTransform);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		SocketComponent->UpdateComponentToWorld();
+		WorldAsset->Modify();
+		WorldAsset->PersistentLevel->Modify();
+
+		if (bNeedsSave)
+		{
+			OutResult.bSaved = SaveValidationFixtureAsset(WorldAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		if (WorldAsset->IsInitialized())
+		{
+			WorldAsset->CleanupWorld(true, true);
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
 	// CloneJsonValueOrNull은 value_json이 비어 있으면 null을 반환한다.
 	TSharedPtr<FJsonValue> CloneJsonValueOrNull(const TSharedPtr<FJsonValue>& InValue)
 	{
@@ -1419,11 +2010,15 @@ namespace
 		return !InDumpResult.Graphs.IsEmpty()
 			|| InDumpResult.Details.ClassDefaults.Num() > 0
 			|| InDumpResult.Details.Components.Num() > 0
+			|| InDumpResult.Details.StaticMeshSockets.Num() > 0
+			|| InDumpResult.Details.WorldStaticMeshSocketTransforms.Num() > 0
 			|| InDumpResult.References.Hard.Num() > 0
 			|| InDumpResult.References.Soft.Num() > 0
 			|| !InDumpResult.Summary.ParentClassPath.IsEmpty()
 			|| InDumpResult.Summary.GraphCount > 0
-			|| InDumpResult.Summary.VariableCount > 0;
+			|| InDumpResult.Summary.VariableCount > 0
+			|| InDumpResult.Summary.StaticMeshSocketCount > 0
+			|| InDumpResult.Summary.WorldStaticMeshSocketTransformCount > 0;
 	}
 
 	// IsCommandletSkipResult는 service가 skip으로 종료했고 기존 dump를 그대로 유지해야 하는지 판별한다.
@@ -2709,6 +3304,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 			BlueprintCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpActorFixtureName));
 			BlueprintCase.bIsOptionalSample = false;
 			BlueprintCase.MinGraphCount = 1;
+			BlueprintCase.MinComponentStaticMeshSocketCount = 1;
+			BlueprintCase.MinComponentStaticMeshSocketTransformCount = 1;
 			ValidationCaseArray.Add(BlueprintCase);
 
 			// WidgetCase는 공용 Widget Blueprint fixture 검증 케이스다.
@@ -2750,6 +3347,28 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 			CurveCase.bIsOptionalSample = false;
 			CurveCase.MinCurveKeyCount = 2;
 			ValidationCaseArray.Add(CurveCase);
+
+			// StaticMeshCase는 공용 StaticMesh Socket fixture 검증 케이스다.
+			FValidationCaseDefinition StaticMeshCase;
+			StaticMeshCase.CaseName = TEXT("static_mesh_socket");
+			StaticMeshCase.ExpectedAssetFamily = TEXT("static_mesh");
+			StaticMeshCase.ExpectedAssetClass = TEXT("StaticMesh");
+			StaticMeshCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpStaticMeshFixtureName));
+			StaticMeshCase.bIsOptionalSample = false;
+			StaticMeshCase.MinStaticMeshSocketCount = 1;
+			ValidationCaseArray.Add(StaticMeshCase);
+
+			// WorldSocketCase는 공용 World/Map socket Transform fixture 검증 케이스다.
+			FValidationCaseDefinition WorldSocketCase;
+			WorldSocketCase.CaseName = TEXT("world_map_socket");
+			WorldSocketCase.ExpectedAssetFamily = TEXT("world_map");
+			WorldSocketCase.ExpectedAssetClass = TEXT("World");
+			WorldSocketCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpWorldFixtureName));
+			WorldSocketCase.bIsOptionalSample = false;
+			WorldSocketCase.MinWorldActorCount = 1;
+			WorldSocketCase.MinWorldStaticMeshSocketTransformCount = 1;
+			WorldSocketCase.bRequireWorldComponentTransformNonIdentity = true;
+			ValidationCaseArray.Add(WorldSocketCase);
 		}
 
 		// DataTableCase는 플러그인 Content에 포함된 공용 DataTable fixture 검증 케이스다.
@@ -2987,6 +3606,52 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 				true);
 		}
 
+		if (ValidationCase.MinWorldStaticMeshSocketTransformCount > 0)
+		{
+			// DetailWorldSocketTransformCount는 details에 실제 직렬화될 월드 배치 socket Transform 수다.
+			const int32 DetailWorldSocketTransformCount = DumpResult.Details.WorldStaticMeshSocketTransforms.Num();
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("world_static_mesh_socket_transform_detail_count_min"),
+				DetailWorldSocketTransformCount >= ValidationCase.MinWorldStaticMeshSocketTransformCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinWorldStaticMeshSocketTransformCount),
+				FString::FromInt(DetailWorldSocketTransformCount),
+				true);
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("world_static_mesh_socket_transform_summary_count_min"),
+				DumpResult.Summary.WorldStaticMeshSocketTransformCount >= ValidationCase.MinWorldStaticMeshSocketTransformCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinWorldStaticMeshSocketTransformCount),
+				FString::FromInt(DumpResult.Summary.WorldStaticMeshSocketTransformCount),
+				true);
+		}
+
+		if (ValidationCase.bRequireWorldComponentTransformNonIdentity)
+		{
+			// bHasNonIdentityWorldComponentTransform은 fixture socket 중 비-identity component world Transform 존재 여부다.
+			bool bHasNonIdentityWorldComponentTransform = false;
+			for (const FADumpWorldMeshSocketXform& WorldSocketTransformItem : DumpResult.Details.WorldStaticMeshSocketTransforms)
+			{
+				if (!WorldSocketTransformItem.ComponentWorldTransform.Equals(FTransform::Identity, KINDA_SMALL_NUMBER))
+				{
+					bHasNonIdentityWorldComponentTransform = true;
+					break;
+				}
+			}
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("world_static_mesh_component_world_transform_non_identity"),
+				bHasNonIdentityWorldComponentTransform,
+				TEXT("non_identity"),
+				bHasNonIdentityWorldComponentTransform ? TEXT("non_identity") : TEXT("identity_or_missing"),
+				true);
+		}
+
 		if (ValidationCase.MinDataTableRowCount > 0)
 		{
 			AddValidationCheck(
@@ -2996,6 +3661,78 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 				DumpResult.Summary.DataTableRowCount >= ValidationCase.MinDataTableRowCount,
 				FString::Printf(TEXT(">=%d"), ValidationCase.MinDataTableRowCount),
 				FString::FromInt(DumpResult.Summary.DataTableRowCount),
+				true);
+		}
+
+		if (ValidationCase.MinStaticMeshSocketCount > 0)
+		{
+			// DetailStaticMeshSocketCount는 details에 실제 직렬화될 StaticMesh socket 수다.
+			const int32 DetailStaticMeshSocketCount = DumpResult.Details.StaticMeshSockets.Num();
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("static_mesh_detail_socket_count_min"),
+				DetailStaticMeshSocketCount >= ValidationCase.MinStaticMeshSocketCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinStaticMeshSocketCount),
+				FString::FromInt(DetailStaticMeshSocketCount),
+				true);
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("static_mesh_summary_socket_count_min"),
+				DumpResult.Summary.StaticMeshSocketCount >= ValidationCase.MinStaticMeshSocketCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinStaticMeshSocketCount),
+				FString::FromInt(DumpResult.Summary.StaticMeshSocketCount),
+				true);
+		}
+
+		if (ValidationCase.MinComponentStaticMeshSocketCount > 0)
+		{
+			// DetailComponentStaticMeshSocketCount는 details에 실제 직렬화될 컴포넌트 참조 StaticMesh socket 수다.
+			int32 DetailComponentStaticMeshSocketCount = 0;
+			// ComponentSocketItem은 details에 기록된 컴포넌트별 StaticMesh socket 묶음이다.
+			for (const FADumpCompMeshSockets& ComponentSocketItem : DumpResult.Details.ComponentStaticMeshSockets)
+			{
+				DetailComponentStaticMeshSocketCount += ComponentSocketItem.Sockets.Num();
+			}
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("component_static_mesh_detail_socket_count_min"),
+				DetailComponentStaticMeshSocketCount >= ValidationCase.MinComponentStaticMeshSocketCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinComponentStaticMeshSocketCount),
+				FString::FromInt(DetailComponentStaticMeshSocketCount),
+				true);
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("component_static_mesh_summary_socket_count_min"),
+				DumpResult.Summary.ComponentStaticMeshSocketCount >= ValidationCase.MinComponentStaticMeshSocketCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinComponentStaticMeshSocketCount),
+				FString::FromInt(DumpResult.Summary.ComponentStaticMeshSocketCount),
+				true);
+		}
+
+		if (ValidationCase.MinComponentStaticMeshSocketTransformCount > 0)
+		{
+			// DetailComponentSocketTransformCount는 details에 실제 직렬화될 컴포넌트 참조 socket Transform 수다.
+			int32 DetailComponentSocketTransformCount = 0;
+			// ComponentSocketItem은 details에 기록된 컴포넌트별 StaticMesh socket 묶음이다.
+			for (const FADumpCompMeshSockets& ComponentSocketItem : DumpResult.Details.ComponentStaticMeshSockets)
+			{
+				DetailComponentSocketTransformCount += ComponentSocketItem.SocketTransforms.Num();
+			}
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("component_static_mesh_socket_transform_count_min"),
+				DetailComponentSocketTransformCount >= ValidationCase.MinComponentStaticMeshSocketTransformCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinComponentStaticMeshSocketTransformCount),
+				FString::FromInt(DetailComponentSocketTransformCount),
 				true);
 		}
 
@@ -3060,7 +3797,21 @@ bool UAssetDumpCommandlet::BuildValidationFixtureJson(const FString& CommandLine
 
 	// FixtureResultArray는 생성/확인한 fixture 결과 목록이다.
 	TArray<FValidationFixtureBuildResult> FixtureResultArray;
-	FixtureResultArray.Reserve(6);
+	FixtureResultArray.Reserve(8);
+
+	{
+		// StaticMeshResult는 StaticMesh Socket fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult StaticMeshResult;
+		EnsureStaticMeshSocketFixture(StaticMeshResult);
+		FixtureResultArray.Add(StaticMeshResult);
+	}
+
+	{
+		// WorldResult는 World/Map socket Transform fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult WorldResult;
+		EnsureWorldSocketFixture(WorldResult);
+		FixtureResultArray.Add(WorldResult);
+	}
 
 	{
 		// ActorResult는 Actor Blueprint fixture 생성/확인 결과다.

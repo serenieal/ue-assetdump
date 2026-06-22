@@ -1,6 +1,10 @@
 // File: ADumpTypes.h
-// Version: v0.3.8
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: World/Map에 배치된 StaticMeshComponent socket의 world-space Transform 구조를 추가.
+// - v0.6.0: StaticMeshComponent socket의 component-space 및 parent-relative Transform 구조를 추가.
+// - v0.5.0: Blueprint StaticMeshComponent가 참조하는 StaticMesh socket 요약 구조와 summary 필드를 추가.
+// - v0.4.0: StaticMesh Socket 출력용 중간 데이터 구조와 summary 필드를 추가.
 // - v0.3.8: DataTable row count / row struct / row preview 요약 필드를 추가.
 // - v0.3.7: Map/World 요약 필드를 추가해 actor/streaming/world partition 개요를 기록.
 // - v0.3.6: CurveFloat 요약 필드를 추가해 curve key/range/preview를 summary와 digest에 기록.
@@ -395,6 +399,121 @@ struct FADumpSummary
 
 	// WorldActorPreview는 대표 actor 몇 건을 한 줄 문자열로 요약한 배열이다.
 	TArray<FString> WorldActorPreview;
+
+	// WorldStaticMeshSocketTransformCount는 World/Map에 배치된 StaticMeshComponent socket Transform 총 개수다.
+	int32 WorldStaticMeshSocketTransformCount = 0;
+
+	// WorldStaticMeshSocketTransformPreview는 World/Map 기준 대표 socket Transform 몇 건을 한 줄 문자열로 요약한 배열이다.
+	TArray<FString> WorldStaticMeshSocketTransformPreview;
+
+	// StaticMeshSocketCount는 StaticMesh 자산에 정의된 socket 개수다.
+	int32 StaticMeshSocketCount = 0;
+
+	// StaticMeshSocketPreview는 대표 StaticMesh socket 몇 건을 한 줄 문자열로 요약한 배열이다.
+	TArray<FString> StaticMeshSocketPreview;
+
+	// ComponentStaticMeshSocketCount는 Blueprint StaticMeshComponent가 참조하는 StaticMesh socket 총 개수다.
+	int32 ComponentStaticMeshSocketCount = 0;
+
+	// ComponentStaticMeshSocketPreview는 StaticMeshComponent 기준 대표 socket 몇 건을 한 줄 문자열로 요약한 배열이다.
+	TArray<FString> ComponentStaticMeshSocketPreview;
+};
+
+// FADumpStaticMeshSocketItem은 StaticMesh asset socket 한 건을 표현한다.
+struct FADumpStaticMeshSocketItem
+{
+	// SocketName은 StaticMesh socket 이름이다.
+	FString SocketName;
+
+	// RelativeLocation은 StaticMesh 로컬 기준 socket 상대 위치다.
+	FVector RelativeLocation = FVector::ZeroVector;
+
+	// RelativeRotation은 StaticMesh 로컬 기준 socket 상대 회전이다.
+	FRotator RelativeRotation = FRotator::ZeroRotator;
+
+	// RelativeScale은 StaticMesh 로컬 기준 socket 상대 스케일이다.
+	FVector RelativeScale = FVector::OneVector;
+
+	// Tag는 StaticMesh socket에 지정된 선택 태그 문자열이다.
+	FString Tag;
+
+	// PreviewStaticMeshPath는 socket 미리보기 StaticMesh object path다.
+	FString PreviewStaticMeshPath;
+
+	// bCreatedAtImport는 importer가 생성한 socket인지 여부다.
+	bool bCreatedAtImport = false;
+};
+
+// FADumpCompSocketXform은 컴포넌트 참조 socket Transform 한 건을 표현한다.
+struct FADumpCompSocketXform
+{
+	// SocketName은 StaticMesh socket 이름이다.
+	FString SocketName;
+
+	// ComponentSpaceTransform은 StaticMeshComponent 로컬 기준 socket Transform이다.
+	FTransform ComponentSpaceTransform = FTransform::Identity;
+
+	// ParentRelativeTransform은 component relative Transform과 socket Transform을 합성한 부모 기준 Transform이다.
+	FTransform ParentRelativeTransform = FTransform::Identity;
+};
+
+// FADumpCompMeshSockets는 컴포넌트가 참조하는 StaticMesh socket 묶음을 표현한다.
+struct FADumpCompMeshSockets
+{
+	// ComponentName은 StaticMeshComponent 이름이다.
+	FString ComponentName;
+
+	// ComponentClass는 StaticMeshComponent 클래스 이름이다.
+	FString ComponentClass;
+
+	// StaticMeshPath는 컴포넌트가 참조하는 StaticMesh 자산 경로다.
+	FString StaticMeshPath;
+
+	// bFromSCS는 SimpleConstructionScript 기반 컴포넌트 템플릿 여부다.
+	bool bFromSCS = false;
+
+	// ComponentRelativeTransform은 StaticMeshComponent 템플릿의 부모 기준 상대 Transform이다.
+	FTransform ComponentRelativeTransform = FTransform::Identity;
+
+	// Sockets는 참조 StaticMesh에 정의된 socket 목록이다.
+	TArray<FADumpStaticMeshSocketItem> Sockets;
+
+	// SocketTransforms는 component-space와 parent-relative socket Transform 목록이다.
+	TArray<FADumpCompSocketXform> SocketTransforms;
+};
+
+// FADumpWorldMeshSocketXform은 월드에 배치된 StaticMeshComponent socket Transform 한 건을 표현한다.
+struct FADumpWorldMeshSocketXform
+{
+	// ActorName은 socket이 포함된 액터 이름이다.
+	FString ActorName;
+
+	// ActorClass는 socket이 포함된 액터 클래스 이름이다.
+	FString ActorClass;
+
+	// ActorPath는 socket이 포함된 액터 object path다.
+	FString ActorPath;
+
+	// ComponentName은 StaticMeshComponent 이름이다.
+	FString ComponentName;
+
+	// ComponentClass는 StaticMeshComponent 클래스 이름이다.
+	FString ComponentClass;
+
+	// StaticMeshPath는 컴포넌트가 참조하는 StaticMesh 자산 경로다.
+	FString StaticMeshPath;
+
+	// SocketName은 StaticMesh socket 이름이다.
+	FString SocketName;
+
+	// ComponentWorldTransform은 StaticMeshComponent의 월드 기준 Transform이다.
+	FTransform ComponentWorldTransform = FTransform::Identity;
+
+	// SocketComponentSpaceTransform은 StaticMeshComponent 로컬 기준 socket Transform이다.
+	FTransform SocketComponentSpaceTransform = FTransform::Identity;
+
+	// SocketWorldTransform은 StaticMeshComponent 월드 Transform과 socket 로컬 Transform을 합성한 월드 기준 Transform이다.
+	FTransform SocketWorldTransform = FTransform::Identity;
 };
 
 // FADumpPropertyItem은 하나의 직렬화 가능한 프로퍼티 항목이다.
@@ -473,6 +592,15 @@ struct FADumpDetails
 
 	// Components는 컴포넌트 목록이다.
 	TArray<FADumpComponentItem> Components;
+
+	// StaticMeshSockets는 StaticMesh asset에 직접 정의된 socket 목록이다.
+	TArray<FADumpStaticMeshSocketItem> StaticMeshSockets;
+
+	// ComponentStaticMeshSockets는 StaticMeshComponent 참조 StaticMesh의 socket 목록이다.
+	TArray<FADumpCompMeshSockets> ComponentStaticMeshSockets;
+
+	// WorldStaticMeshSocketTransforms는 World/Map에 배치된 StaticMeshComponent socket의 월드 기준 Transform 목록이다.
+	TArray<FADumpWorldMeshSocketXform> WorldStaticMeshSocketTransforms;
 };
 
 // FADumpGraphPin은 그래프 핀 하나를 표현한다.

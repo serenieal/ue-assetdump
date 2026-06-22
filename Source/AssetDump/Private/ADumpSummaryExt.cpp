@@ -1,6 +1,10 @@
 // File: ADumpSummaryExt.cpp
-// Version: v0.4.4
+// Version: v0.7.1
 // Changelog:
+// - v0.7.1: 로드된 StaticMeshActor의 native StaticMeshComponent도 world socket summary 대상에 포함.
+// - v0.7.0: World/Map 배치 StaticMeshComponent socket Transform count/preview summary 추가.
+// - v0.6.0: Blueprint StaticMeshComponent 참조 StaticMesh socket count/preview summary 추가.
+// - v0.5.0: StaticMesh 자산군 분류와 Socket count/preview summary 추가.
 // - v0.4.4: DataTable row count / row struct / row preview 요약을 추가.
 // - v0.4.3: Map/World 자산군 분류와 actor/streaming/world partition summary 추출을 추가.
 // - v0.4.2: CurveFloat 자산군 분류와 key/range/preview summary 추출을 추가.
@@ -24,11 +28,15 @@
 #include "AnimStateTransitionNode.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/ActorComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/Blueprint.h"
 #include "Engine/DataAsset.h"
 #include "Engine/DataTable.h"
 #include "Engine/Level.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMeshSocket.h"
 #include "Engine/World.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
@@ -122,6 +130,11 @@ namespace
 			return TEXT("data_table");
 		}
 
+		if (Cast<UStaticMesh>(InAssetObject))
+		{
+			return TEXT("static_mesh");
+		}
+
 		if (Cast<UCurveFloat>(InAssetObject))
 		{
 			return TEXT("curve_float");
@@ -194,6 +207,67 @@ namespace
 		return FString::Printf(TEXT("(t=%.3f, v=%.3f)"), InKeyItem.Time, InKeyItem.Value);
 	}
 
+	// BuildStaticMeshSocketPreviewText는 StaticMesh socket 한 건을 AI가 읽기 쉬운 한 줄 요약으로 만든다.
+	FString BuildStaticMeshSocketPreviewText(const UStaticMeshSocket& InSocketItem)
+	{
+		return FString::Printf(
+			TEXT("%s (loc=%.3f,%.3f,%.3f rot=%.3f,%.3f,%.3f scale=%.3f,%.3f,%.3f)"),
+			*InSocketItem.SocketName.ToString(),
+			InSocketItem.RelativeLocation.X,
+			InSocketItem.RelativeLocation.Y,
+			InSocketItem.RelativeLocation.Z,
+			InSocketItem.RelativeRotation.Pitch,
+			InSocketItem.RelativeRotation.Yaw,
+			InSocketItem.RelativeRotation.Roll,
+			InSocketItem.RelativeScale.X,
+			InSocketItem.RelativeScale.Y,
+			InSocketItem.RelativeScale.Z);
+	}
+
+	// AddComponentStaticMeshSocketSummary는 StaticMeshComponent 참조 StaticMesh socket 요약을 누적한다.
+	void AddComponentStaticMeshSocketSummary(
+		const UActorComponent& InActorComponent,
+		const FString& InComponentName,
+		FADumpSummary& OutSummary)
+	{
+		// StaticMeshComponent는 socket 요약 대상 컴포넌트 타입이다.
+		const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(&InActorComponent);
+		if (!StaticMeshComponent)
+		{
+			return;
+		}
+
+		// StaticMeshAsset은 컴포넌트가 참조하는 StaticMesh 자산이다.
+		const UStaticMesh* StaticMeshAsset = StaticMeshComponent->GetStaticMesh();
+		if (!StaticMeshAsset)
+		{
+			return;
+		}
+
+		// SocketItemPtr는 참조 StaticMesh의 socket UObject 포인터다.
+		for (const TObjectPtr<UStaticMeshSocket>& SocketItemPtr : StaticMeshAsset->Sockets)
+		{
+			// SocketItem은 summary preview에 사용할 참조 StaticMesh socket 객체다.
+			const UStaticMeshSocket* SocketItem = SocketItemPtr.Get();
+			if (!SocketItem)
+			{
+				continue;
+			}
+
+			++OutSummary.ComponentStaticMeshSocketCount;
+			if (OutSummary.ComponentStaticMeshSocketPreview.Num() < 5)
+			{
+				// SocketPreviewText는 기존 StaticMesh socket preview 형식을 재사용한 문자열이다.
+				const FString SocketPreviewText = BuildStaticMeshSocketPreviewText(*SocketItem);
+				OutSummary.ComponentStaticMeshSocketPreview.Add(FString::Printf(
+					TEXT("%s -> %s.%s"),
+					*InComponentName,
+					*StaticMeshAsset->GetName(),
+					*SocketPreviewText));
+			}
+		}
+	}
+
 	// BuildWorldActorPreviewText는 World actor 한 건을 AI가 읽기 쉬운 한 줄 요약으로 만든다.
 	FString BuildWorldActorPreviewText(const AActor* InActorObject)
 	{
@@ -208,6 +282,86 @@ namespace
 		// ActorClassText는 preview에 기록할 actor 클래스 이름이다.
 		const FString ActorClassText = InActorObject->GetClass() ? InActorObject->GetClass()->GetName() : TEXT("UnknownClass");
 		return FString::Printf(TEXT("%s (%s)"), *ActorNameText, *ActorClassText);
+	}
+
+	// BuildWorldStaticMeshSocketPreviewText는 월드 배치 socket Transform 한 건을 AI가 읽기 쉬운 한 줄 요약으로 만든다.
+	FString BuildWorldStaticMeshSocketPreviewText(
+		const AActor& InActorObject,
+		const UStaticMeshComponent& InStaticMeshComponent,
+		const UStaticMesh& InStaticMeshAsset,
+		const UStaticMeshSocket& InSocketItem)
+	{
+		return FString::Printf(
+			TEXT("%s.%s -> %s.%s"),
+			*InActorObject.GetName(),
+			*InStaticMeshComponent.GetName(),
+			*InStaticMeshAsset.GetName(),
+			*InSocketItem.SocketName.ToString());
+	}
+
+	// AddWorldStaticMeshSocketSummary는 World/Map 배치 StaticMeshComponent socket Transform 요약을 누적한다.
+	void AddWorldStaticMeshSocketSummary(const AActor& InActorObject, FADumpSummary& OutSummary)
+	{
+		// StaticMeshComponentArray는 현재 actor에 포함된 StaticMeshComponent 목록이다.
+		TArray<const UStaticMeshComponent*> StaticMeshComponentArray;
+
+		// StaticMeshActor는 native StaticMeshComponent를 직접 가진 actor인지 확인하는 캐스팅 결과다.
+		if (const AStaticMeshActor* StaticMeshActor = Cast<AStaticMeshActor>(&InActorObject))
+		{
+			// StaticMeshActorComponent는 StaticMeshActor의 native StaticMeshComponent다.
+			if (const UStaticMeshComponent* StaticMeshActorComponent = StaticMeshActor->GetStaticMeshComponent())
+			{
+				StaticMeshComponentArray.AddUnique(StaticMeshActorComponent);
+			}
+		}
+
+		// OwnedStaticMeshComponentArray는 actor owned component 순회로 확인한 StaticMeshComponent 목록이다.
+		TInlineComponentArray<UStaticMeshComponent*> OwnedStaticMeshComponentArray;
+		InActorObject.GetComponents(OwnedStaticMeshComponentArray);
+		for (const UStaticMeshComponent* OwnedStaticMeshComponent : OwnedStaticMeshComponentArray)
+		{
+			if (OwnedStaticMeshComponent)
+			{
+				StaticMeshComponentArray.AddUnique(OwnedStaticMeshComponent);
+			}
+		}
+
+		// StaticMeshComponent는 socket 요약 대상 컴포넌트다.
+		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponentArray)
+		{
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+
+			// StaticMeshAsset은 컴포넌트가 참조하는 StaticMesh 자산이다.
+			const UStaticMesh* StaticMeshAsset = StaticMeshComponent->GetStaticMesh();
+			if (!StaticMeshAsset || StaticMeshAsset->Sockets.Num() <= 0)
+			{
+				continue;
+			}
+
+			// SocketItemPtr는 참조 StaticMesh의 socket UObject 포인터다.
+			for (const TObjectPtr<UStaticMeshSocket>& SocketItemPtr : StaticMeshAsset->Sockets)
+			{
+				// SocketItem은 summary preview에 사용할 StaticMesh socket 객체다.
+				const UStaticMeshSocket* SocketItem = SocketItemPtr.Get();
+				if (!SocketItem)
+				{
+					continue;
+				}
+
+				++OutSummary.WorldStaticMeshSocketTransformCount;
+				if (OutSummary.WorldStaticMeshSocketTransformPreview.Num() < 5)
+				{
+					OutSummary.WorldStaticMeshSocketTransformPreview.Add(BuildWorldStaticMeshSocketPreviewText(
+						InActorObject,
+						*StaticMeshComponent,
+						*StaticMeshAsset,
+						*SocketItem));
+				}
+			}
+		}
 	}
 
 	// BuildWidgetBindingPreviewText는 widget binding 한 건을 AI가 읽기 쉬운 한 줄 요약으로 만든다.
@@ -446,6 +600,26 @@ namespace ADumpSummaryExt
 				}
 			}
 
+			// StaticMeshAsset는 socket 요약을 추출할 StaticMesh 자산이다.
+			if (const UStaticMesh* StaticMeshAsset = Cast<UStaticMesh>(AssetObject))
+			{
+				for (const TObjectPtr<UStaticMeshSocket>& SocketItemPtr : StaticMeshAsset->Sockets)
+				{
+					// SocketItem은 summary preview에 사용할 StaticMesh socket 객체다.
+					const UStaticMeshSocket* SocketItem = SocketItemPtr.Get();
+					if (!SocketItem)
+					{
+						continue;
+					}
+
+					++OutSummary.StaticMeshSocketCount;
+					if (OutSummary.StaticMeshSocketPreview.Num() < 5)
+					{
+						OutSummary.StaticMeshSocketPreview.Add(BuildStaticMeshSocketPreviewText(*SocketItem));
+					}
+				}
+			}
+
 			if (const UCurveFloat* CurveFloatAsset = Cast<UCurveFloat>(AssetObject))
 			{
 				// CurveKeyArray는 CurveFloat 내부 rich curve key 배열이다.
@@ -495,6 +669,8 @@ namespace ADumpSummaryExt
 						{
 							OutSummary.WorldActorPreview.Add(BuildWorldActorPreviewText(ActorItem));
 						}
+
+						AddWorldStaticMeshSocketSummary(*ActorItem, OutSummary);
 					}
 				}
 
@@ -655,6 +831,7 @@ namespace ADumpSummaryExt
 			BlueprintAsset->UbergraphPages.Num() +
 			BlueprintAsset->DelegateSignatureGraphs.Num();
 
+		// UniqueComponentKeys는 CDO 컴포넌트와 SCS 템플릿의 중복 집계를 막는 키 집합이다.
 		TSet<FString> UniqueComponentKeys;
 		if (UClass* GeneratedClassObject = BlueprintAsset->GeneratedClass)
 		{
@@ -669,7 +846,13 @@ namespace ADumpSummaryExt
 						continue;
 					}
 
-					UniqueComponentKeys.Add(FString::Printf(TEXT("%s|%s"), *ActorComponent->GetName(), *ActorComponent->GetClass()->GetName()));
+					// ComponentKey는 컴포넌트 이름과 클래스 기준 중복 방지 키다.
+					const FString ComponentKey = FString::Printf(TEXT("%s|%s"), *ActorComponent->GetName(), *ActorComponent->GetClass()->GetName());
+					if (!UniqueComponentKeys.Contains(ComponentKey))
+					{
+						UniqueComponentKeys.Add(ComponentKey);
+						AddComponentStaticMeshSocketSummary(*ActorComponent, ActorComponent->GetName(), OutSummary);
+					}
 				}
 			}
 		}
@@ -687,7 +870,14 @@ namespace ADumpSummaryExt
 				const FString ComponentName = ScsNode->GetVariableName().IsNone()
 					? ScsNode->ComponentTemplate->GetName()
 					: ScsNode->GetVariableName().ToString();
-				UniqueComponentKeys.Add(FString::Printf(TEXT("%s|%s"), *ComponentName, *ScsNode->ComponentTemplate->GetClass()->GetName()));
+
+				// ComponentKey는 SCS 컴포넌트 이름과 클래스 기준 중복 방지 키다.
+				const FString ComponentKey = FString::Printf(TEXT("%s|%s"), *ComponentName, *ScsNode->ComponentTemplate->GetClass()->GetName());
+				if (!UniqueComponentKeys.Contains(ComponentKey))
+				{
+					UniqueComponentKeys.Add(ComponentKey);
+					AddComponentStaticMeshSocketSummary(*ScsNode->ComponentTemplate, ComponentName, OutSummary);
+				}
 			}
 
 			OutSummary.bHasConstructionScript = AllScsNodes.Num() > 0;
