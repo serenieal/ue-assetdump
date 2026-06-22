@@ -1,7 +1,8 @@
 <!--
 File: BPDump_Validation_Pack_v2_0.md
-Version: v2.18.0
+Version: v2.19.0
 Changelog:
+- v2.19.0: 공용 fixture 계획서 완료 후 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 로 아카이브한 상태를 반영.
 - v2.18.0: 공용 fixture 계획서가 v2 아카이브 소속이 아님을 반영해 참조 경로를 `Documents/Plan/ADump_FixturePlan.md` 로 정정.
 - v2.17.0: v2 문서 아카이브 이동 후 공용 fixture 계획 참조 경로를 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 로 갱신.
 - v2.16.0: 공용 fixture 생성/검증 보강 작업의 상세 계획을 `Documents/Plan/ADump_FixturePlan.md` 로 분리했음을 명시.
@@ -143,7 +144,7 @@ Changelog:
 5. `/AssetDump/Validation/CF_ADumpFixture.CF_ADumpFixture`
 6. `/AssetDump/Validation/DT_ADumpValid.DT_ADumpValid`
 
-공용 fixture 생성/검증 보강의 상세 계획과 작업 경계는 `Documents/Plan/ADump_FixturePlan.md` 를 기준으로 한다.
+공용 fixture 생성/검증 보강의 상세 계획과 작업 경계는 완료 아카이브인 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 를 기준으로 한다.
 
 ## 3. 공통 산출물 체크
 
@@ -409,10 +410,10 @@ extractor version 변경 후 `SkipIfUpToDate=true` 재실행
 
 현재 시점에서 2차 종료 판단을 막는 핵심 미검증 항목은 없다.
 
-추가로 보강하면 좋은 항목은 아래 정도다.
+아카이브 이후 보류 항목은 아래 정도다.
 
-1. CI에서 `Scripts/RunBPDumpRegression.ps1 -CompactLog -ValidationProfile Both` 를 정기 실행한다.
-2. `Dumped/BPDumpRegressionLogs/*.log` 와 주요 JSON report 를 artifact 로 보존한다.
+1. marketplace 배포 시 fixture Content 포함 정책을 최종 확인한다.
+2. 다른 UE 프로젝트가 생기면 `ValidationProfile=plugin` 단독 실행을 확인한다.
 
 ## 6. 추천 실행 순서
 
@@ -462,4 +463,4 @@ extractor version 변경 후 `SkipIfUpToDate=true` 재실행
 - 기존 증거 기준 dependency invalidation 은 성공했다.
 - 기존 증거 기준 부모 클래스 변경 invalidation 은 성공했다.
 
-따라서 현재 프로젝트 기준 종료 검증은 문서상 성립한다. 남은 품질 보강 항목은 CI 정기 실행과 evidence artifact 보존이다.
+따라서 현재 프로젝트 기준 종료 검증은 문서상 성립한다. CI 정기 실행, evidence artifact 보존, GoPyMCP `ue.validate_safe` 브라우저 호출 검증도 완료되었다.

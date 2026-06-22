@@ -1,7 +1,10 @@
 <!--
 File: ADump_FixturePlan.md
-Version: v0.3.1
+Version: v0.5.0
 Changelog:
+- v0.5.0: 필수 구현/검증/MCP helper/browser 호출 검증 완료 후 계획서를 `Documents/Plan/Archive/v2` 로 이동.
+- v0.4.1: 후속 개선 후보였던 MCP validate helper를 GoPyMCP `ue.validate_safe` 구현 완료 상태로 갱신.
+- v0.4.0: self-hosted Windows runner용 GitHub Actions workflow와 artifact 보존 기준을 추가하고 후속 작업 상태를 갱신.
 - v0.3.1: 실제 변경 범위에 `ADumpTypes.cpp` extractor version 상향을 추가하고, 검증 증거 보존 정책을 명확히 기록.
 - v0.3.0: v2 아카이브 소속이 아닌 별도 계획서로 위치를 되돌리고 참조 경로를 정정.
 - v0.2.0: v2 문서 아카이브 이동 후 참조 경로를 `Documents/Plan/Archive/v2` 기준으로 갱신.
@@ -15,6 +18,8 @@ Changelog:
 이 문서는 AssetDump 플러그인의 공용 검증 fixture 생성/검증 흐름을 별도 작업으로 관리하기 위한 계획서다.
 
 이 작업은 `Documents/Plan/v2` 문서 마감 중 발견된 문제를 해결하기 위해 진행되었지만, 실제 변경 범위가 코드, 플러그인 Content, 회귀 스크립트까지 포함하므로 v2 문서 마감 작업과 분리해서 기록한다.
+
+현재 필수 구현과 검증이 완료되어 이 문서는 `Documents/Plan/Archive/v2/ADump_FixturePlan.md` 에 완료 아카이브로 보존한다.
 
 ## 1. 분리 이유
 
@@ -58,6 +63,8 @@ Changelog:
 
 1. 에디터 UI 리디자인
 2. MCP wrapper 신규 구현
+   - 원래 fixture 구현 범위에서는 제외했다.
+   - 후속 개선으로 GoPyMCP `ue.validate_safe`가 별도 완료되었다.
 3. 런타임 모듈 분리
 4. CarFight 전용 검증 자산 추가
 5. marketplace 배포용 fixture 패키징 정책 확정
@@ -72,12 +79,13 @@ Changelog:
 2. `Source/AssetDump/Public/AssetDumpCommandlet.h`
 3. `Source/AssetDump/Private/ADumpTypes.cpp`
 4. `Scripts/RunBPDumpRegression.ps1`
-5. `Content/Validation/BP_ADumpActorFixture.uasset`
-6. `Content/Validation/WBP_ADumpWidgetFixture.uasset`
-7. `Content/Validation/IA_ADumpFixture.uasset`
-8. `Content/Validation/IMC_ADumpFixture.uasset`
-9. `Content/Validation/CF_ADumpFixture.uasset`
-10. `Content/Validation/DT_ADumpValid.uasset`
+5. `.github/workflows/assetdump-regression.yml`
+6. `Content/Validation/BP_ADumpActorFixture.uasset`
+7. `Content/Validation/WBP_ADumpWidgetFixture.uasset`
+8. `Content/Validation/IA_ADumpFixture.uasset`
+9. `Content/Validation/IMC_ADumpFixture.uasset`
+10. `Content/Validation/CF_ADumpFixture.uasset`
+11. `Content/Validation/DT_ADumpValid.uasset`
 
 ## 5. 검증 기준
 
@@ -107,6 +115,8 @@ Changelog:
 6. `Dumped/BPDumpRegressionLogs/Plugin_MakeFixtures.log`
 7. `Dumped/BPDumpRegressionLogs/Plugin_Validate.log`
 
+CI에서는 같은 경로 묶음을 `assetdump-regression-<run_number>` artifact로 14일 보존한다.
+
 ## 7. 실행 명령
 
 공용 fixture만 빠르게 확인할 때는 아래 흐름을 사용한다.
@@ -134,6 +144,31 @@ release 후보 전체 확인은 아래 흐름을 사용한다.
   -CompactLog
 ```
 
+## 7.1 CI 실행
+
+CI 정기 실행은 아래 workflow가 담당한다.
+
+`/.github/workflows/assetdump-regression.yml`
+
+이 workflow는 Unreal Engine 설치가 있는 self-hosted Windows runner 전용이다.
+
+필수 runner label은 아래와 같다.
+
+1. `self-hosted`
+2. `Windows`
+3. `Unreal`
+
+정기 실행 시간은 매일 UTC 18:00이다. 한국 시간 기준으로는 다음 날 03:00이다.
+
+CI 환경에서 최소로 필요한 설정은 아래와 같다.
+
+1. repository variable `ASSETDUMP_PROJECT_FILE`
+   - 예: `D:\Work\CarFight_git\UE\CarFight_Re.uproject`
+2. repository variable `ASSETDUMP_ENGINE_ROOT`
+   - 예: `D:\UE_5.7`
+
+수동 실행(`workflow_dispatch`)에서는 `project_file`, `engine_root`, `build_target`, `validation_profile`, `skip_build`를 입력으로 덮어쓸 수 있다.
+
 ## 8. 마이그레이션 지침
 
 기존 사용자는 아래 순서로 이해하면 된다.
@@ -155,37 +190,51 @@ release 후보 전체 확인은 아래 흐름을 사용한다.
 1. v2 문서 마감 여부 확인:
    - `Documents/Plan/Archive/v2/BPDump_Archive_v2.md`
 2. 공용 fixture 보강 흐름 확인:
-   - `Documents/Plan/ADump_FixturePlan.md`
+   - `Documents/Plan/Archive/v2/ADump_FixturePlan.md`
 
 ## 10. 남은 작업
 
 현재 이 계획의 필수 작업은 완료 상태다.
 
-후속 개선 후보는 아래로 분리한다.
+완료한 후속 개선은 아래와 같다.
 
-1. CI에서 `RunBPDumpRegression.ps1 -CompactLog -ValidationProfile Both` 정기 실행
-2. 회귀 로그와 JSON report artifact 보존
-3. marketplace 배포 시 fixture Content 포함 정책 확인
-4. MCP wrapper에서 plugin/project validate를 안전하게 호출하는 helper 추가
+1. CI에서 `RunBPDumpRegression.ps1 -CompactLog -ValidationProfile Both` 정기 실행 구성
+2. 회귀 로그와 JSON report artifact 보존 구성
+3. MCP wrapper에서 plugin/project validate를 안전하게 호출하는 helper 추가
+   - GoPyMCP adapter surface: `ue.validate_safe`
+   - 지원 profile: `Both`, `Plugin`, `Project`
+   - `Both` 실행 순서: `makefixtures` -> `ValidationProfile=plugin` -> `ValidationProfile=project`
+   - 검증: `test_adapter_imports.py`, `test_ue_safe_wrappers.py` 대상 10개 테스트 통과
+   - 브라우저 호출 검증: `validation_profile=Both`, `return_codes=[0,0,0]`, `required_failed_count=0`
+
+아카이브 이후 보류 항목은 아래로 분리한다.
+
+1. marketplace 배포 시 fixture Content 포함 정책 최종 확인
+   - 현재 `AssetDump.uplugin`의 `CanContainContent`는 `true`라서 플러그인 Content 포함은 가능한 구조다.
+   - marketplace 제출 정책 자체는 배포 직전에 최신 기준으로 별도 확인한다.
+2. 다른 프로젝트에 플러그인을 복사한 뒤 `ValidationProfile=plugin` 단독 실행 검증
+   - 현재 적용된 UE 프로젝트가 CarFight뿐이므로 외부 프로젝트 실증은 보류한다.
 
 ## 11. Change Note
 
 - 변경 유형:
-  - 구조 개선 / 작업 범위 분리 / 계획서 신규 작성 / 증거 보존 정책 보강
+  - 구조 개선 / 작업 범위 분리 / 계획서 신규 작성 / 증거 보존 정책 보강 / CI workflow 추가 / MCP helper 완료 상태 갱신 / 완료 아카이브 이동
 - 유지한 핵심:
   - 요구사항: 공용 플러그인이 프로젝트 전용 자산에 기대지 않고 검증 가능해야 함
   - 제약사항: CarFight 전용 fixture나 이름을 공용 검증 기준으로 쓰지 않음
   - 결정 이유: v2 문서 마감과 코드/fixture 보강 작업의 책임 경계를 분리
   - 예외 조건: CarFight 프로젝트 샘플은 project profile 검증 근거로만 사용
-  - 검증 기준: fixture 6/6, plugin validate 6/6, project validate 9/9, batch 25/25
+  - 검증 기준: fixture 6/6, plugin validate 6/6, project validate 9/9, batch 25/25, ChangedOnly 25/25 skip
   - 작업 맥락: v2 문서 마감 중 발견된 공용성 검증 부족 보강
 - 축약 또는 삭제:
   - 항목: 없음
-  - 이유: 신규 계획서로 분리하고 실제 변경 범위 누락만 보강
+  - 이유: 신규 계획서로 분리하고 실제 변경 범위와 자동화 상태만 보강
   - 정보 손실 여부: 없음
 - 통합한 중복:
-  - 항목: fixture 생성/검증 근거
-  - 통합 방식: v2 문서에 흩어진 fixture 보강 맥락을 별도 계획서에 모음
+  - 항목: fixture 생성/검증 근거와 artifact 보존 기준
+  - 통합 방식: v2 문서에 흩어진 fixture 보강 맥락과 CI 증거 보존 기준을 별도 계획서에 모음
 - 충돌 또는 확인 필요:
-  - 항목: 없음
-  - 상태: 없음
+  - 항목: marketplace 제출 정책
+  - 상태: Open Question. 플러그인 Content 포함 구조는 가능하지만, 제출 직전 최신 marketplace 기준 확인이 필요하다.
+  - 항목: 외부 UE 프로젝트 단독 검증
+  - 상태: Open Question. 현재 적용 프로젝트가 CarFight뿐이므로 새 적용 프로젝트가 생길 때 `ValidationProfile=plugin` 단독 실행을 확인한다.
