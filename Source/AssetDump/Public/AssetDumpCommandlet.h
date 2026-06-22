@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.h
-// Version: v0.3.4
+// Version: v0.3.5
 // Changelog:
+// - v0.3.5: 공용 플러그인 검증 자산을 생성하는 makefixtures 모드용 내부 선언을 추가.
 // - v0.3.4: 골든 샘플 덤프와 기본 산출물 검증을 한 번에 실행하는 validate 모드를 추가.
 // - v0.3.3: 폴더 단위 batchdump 실행과 run_report.json 생성용 commandlet 모드를 추가.
 // - v0.3.2: 저장된 BPDump 결과를 스캔해 index.json / dependency_index.json 을 생성하는 index 모드를 추가.
@@ -61,6 +62,9 @@ private:
 
 	// BuildValidationJson은 대표 샘플 자산을 덤프하고 산출물 기본 검증 결과를 JSON으로 직렬화한다.
 	bool BuildValidationJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount);
+
+	// BuildValidationFixtureJson은 공용 플러그인 검증 자산을 생성하고 결과를 JSON으로 직렬화한다.
+	bool BuildValidationFixtureJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount);
 
 	// SaveJsonToFile은 BOM 없는 UTF-8로 JSON 텍스트를 디스크에 저장한다.
 	bool SaveJsonToFile(const FString& OutputFilePath, const FString& JsonText);

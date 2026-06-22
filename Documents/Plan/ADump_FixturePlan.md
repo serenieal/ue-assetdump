@@ -1,7 +1,8 @@
 <!--
 File: ADump_FixturePlan.md
-Version: v0.3.0
+Version: v0.3.1
 Changelog:
+- v0.3.1: 실제 변경 범위에 `ADumpTypes.cpp` extractor version 상향을 추가하고, 검증 증거 보존 정책을 명확히 기록.
 - v0.3.0: v2 아카이브 소속이 아닌 별도 계획서로 위치를 되돌리고 참조 경로를 정정.
 - v0.2.0: v2 문서 아카이브 이동 후 참조 경로를 `Documents/Plan/Archive/v2` 기준으로 갱신.
 - v0.1.0: 공용 플러그인 fixture 생성/검증 보강 작업을 v2 문서 마감과 분리해 별도 계획으로 기록.
@@ -69,13 +70,14 @@ Changelog:
 
 1. `Source/AssetDump/Private/AssetDumpCommandlet.cpp`
 2. `Source/AssetDump/Public/AssetDumpCommandlet.h`
-3. `Scripts/RunBPDumpRegression.ps1`
-4. `Content/Validation/BP_ADumpActorFixture.uasset`
-5. `Content/Validation/WBP_ADumpWidgetFixture.uasset`
-6. `Content/Validation/IA_ADumpFixture.uasset`
-7. `Content/Validation/IMC_ADumpFixture.uasset`
-8. `Content/Validation/CF_ADumpFixture.uasset`
-9. `Content/Validation/DT_ADumpValid.uasset`
+3. `Source/AssetDump/Private/ADumpTypes.cpp`
+4. `Scripts/RunBPDumpRegression.ps1`
+5. `Content/Validation/BP_ADumpActorFixture.uasset`
+6. `Content/Validation/WBP_ADumpWidgetFixture.uasset`
+7. `Content/Validation/IA_ADumpFixture.uasset`
+8. `Content/Validation/IMC_ADumpFixture.uasset`
+9. `Content/Validation/CF_ADumpFixture.uasset`
+10. `Content/Validation/DT_ADumpValid.uasset`
 
 ## 5. 검증 기준
 
@@ -94,6 +96,8 @@ Changelog:
 ## 6. 최신 검증 증거
 
 최신 검증 증거는 아래 경로를 기준으로 한다.
+
+`Dumped/` 아래 검증 증거는 `.gitignore` 대상이므로 Git 커밋 대상이 아니라 로컬 또는 CI artifact로 보존한다.
 
 1. `Dumped/BPDumpValidationPlugin/fixture_report.json`
 2. `Dumped/BPDumpValidationPlugin/validation_report.json`
@@ -167,7 +171,7 @@ release 후보 전체 확인은 아래 흐름을 사용한다.
 ## 11. Change Note
 
 - 변경 유형:
-  - 구조 개선 / 작업 범위 분리 / 계획서 신규 작성
+  - 구조 개선 / 작업 범위 분리 / 계획서 신규 작성 / 증거 보존 정책 보강
 - 유지한 핵심:
   - 요구사항: 공용 플러그인이 프로젝트 전용 자산에 기대지 않고 검증 가능해야 함
   - 제약사항: CarFight 전용 fixture나 이름을 공용 검증 기준으로 쓰지 않음
@@ -177,7 +181,7 @@ release 후보 전체 확인은 아래 흐름을 사용한다.
   - 작업 맥락: v2 문서 마감 중 발견된 공용성 검증 부족 보강
 - 축약 또는 삭제:
   - 항목: 없음
-  - 이유: 신규 계획서로 분리만 수행
+  - 이유: 신규 계획서로 분리하고 실제 변경 범위 누락만 보강
   - 정보 손실 여부: 없음
 - 통합한 중복:
   - 항목: fixture 생성/검증 근거

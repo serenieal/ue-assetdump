@@ -1,6 +1,9 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.3.9
+// Version: v0.4.2
 // Changelog:
+// - v0.4.2: 공용 플러그인 검증 자산을 생성하는 makefixtures 모드와 plugin validate 6종 fixture 케이스를 추가.
+// - v0.4.1: 공용 플러그인 fixture 검증과 프로젝트 샘플 검증을 분리할 수 있도록 validate ValidationProfile 옵션을 추가.
+// - v0.4.0: 현재 프로젝트의 바인딩 없는 WidgetBlueprint 샘플도 validate 통과가 가능하도록 widget binding 최소 개수 요구를 제거.
 // - v0.3.9: index/batchdump/validate 기본 출력 루트를 Project Saved에서 AssetDump 플러그인 Dumped 폴더로 변경.
 // - v0.3.8: batchdump에 Root/ClassFilter/ChangedOnly/WithDependencies/MaxAssets 입력을 추가하고 commandlet의 중복 저장 호출을 제거.
 // - v0.3.7: validate 기본 샘플을 프로젝트 경로 하드코딩 대신 자산군/클래스 자동 탐색 기반으로 일반화.
@@ -25,6 +28,7 @@
 
 #include "AssetDumpCommandlet.h"
 
+#include "ADumpValidRow.h"
 #include "ADumpFingerprint.h"
 #include "ADumpJson.h"
 #include "ADumpRunOpts.h"
@@ -33,25 +37,56 @@
 #include "Algo/Sort.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Animation/AnimBlueprint.h"
+#include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetBlueprintGeneratedClass.h"
+#include "Blueprint/WidgetTree.h"
 #include "Components/ActorComponent.h"
+#include "Components/TextBlock.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/Blueprint.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/DataAsset.h"
 #include "Engine/DataTable.h"
 #include "HAL/FileManager.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
+#include "InputCoreTypes.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
+#include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "UObject/Package.h"
+#include "UObject/SavePackage.h"
 #include "UObject/SoftObjectPath.h"
+#include "WidgetBlueprint.h"
 
 namespace
 {
+	// AssetDumpValidationRootPath는 공용 검증 fixture를 보관할 플러그인 Content 루트 경로다.
+	constexpr const TCHAR* AssetDumpValidationRootPath = TEXT("/AssetDump/Validation");
+
+	// AssetDumpActorFixtureName은 일반 Actor Blueprint fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpActorFixtureName = TEXT("BP_ADumpActorFixture");
+
+	// AssetDumpWidgetFixtureName은 Widget Blueprint fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpWidgetFixtureName = TEXT("WBP_ADumpWidgetFixture");
+
+	// AssetDumpInputActionFixtureName은 Enhanced Input Action fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpInputActionFixtureName = TEXT("IA_ADumpFixture");
+
+	// AssetDumpInputMappingFixtureName은 Enhanced Input Mapping Context fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpInputMappingFixtureName = TEXT("IMC_ADumpFixture");
+
+	// AssetDumpCurveFloatFixtureName은 CurveFloat fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpCurveFloatFixtureName = TEXT("CF_ADumpFixture");
+
+	// AssetDumpDataTableFixtureName은 DataTable fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpDataTableFixtureName = TEXT("DT_ADumpValid");
+
 	// SerializeJsonObjectText는 루트 JsonObject를 JSON 문자열로 직렬화한다.
 	bool SerializeJsonObjectText(const TSharedRef<FJsonObject>& InRootObject, FString& OutJsonText)
 	{
@@ -672,6 +707,653 @@ namespace
 		return CaseObject;
 	}
 
+	// FValidationFixtureBuildResult는 makefixtures 한 건의 생성/보정 결과를 담는다.
+	struct FValidationFixtureBuildResult
+	{
+		// CaseName은 validate report와 대응되는 fixture 케이스 이름이다.
+		FString CaseName;
+
+		// AssetName은 Content Browser에 표시되는 fixture 자산 이름이다.
+		FString AssetName;
+
+		// AssetClass는 기대하는 Unreal 자산 클래스 이름이다.
+		FString AssetClass;
+
+		// PackagePath는 fixture 자산의 long package name이다.
+		FString PackagePath;
+
+		// ObjectPath는 fixture 자산의 full object path다.
+		FString ObjectPath;
+
+		// SavedFilePath는 저장에 성공한 uasset 파일 경로다.
+		FString SavedFilePath;
+
+		// ResultStatus는 created / existing / updated / failed 중 하나다.
+		FString ResultStatus;
+
+		// FailureMessage는 실패 시 사용자가 확인할 원인 메시지다.
+		FString FailureMessage;
+
+		// bPassed는 fixture 생성 또는 확인이 성공했는지 여부다.
+		bool bPassed = false;
+
+		// bCreated는 이번 실행에서 새 자산을 만들었는지 여부다.
+		bool bCreated = false;
+
+		// bUpdated는 기존 자산을 보정했는지 여부다.
+		bool bUpdated = false;
+
+		// bSaved는 이번 실행에서 디스크 저장을 수행했는지 여부다.
+		bool bSaved = false;
+	};
+
+	// BuildValidationFixturePackagePath는 fixture 자산의 long package name을 만든다.
+	FString BuildValidationFixturePackagePath(const FString& InAssetName)
+	{
+		return FString::Printf(TEXT("%s/%s"), AssetDumpValidationRootPath, *InAssetName);
+	}
+
+	// BuildValidationFixtureObjectPath는 fixture 자산의 full object path를 만든다.
+	FString BuildValidationFixtureObjectPath(const FString& InAssetName)
+	{
+		return FString::Printf(TEXT("%s/%s.%s"), AssetDumpValidationRootPath, *InAssetName, *InAssetName);
+	}
+
+	// InitializeValidationFixtureResult는 fixture 결과 구조의 공통 식별자를 채운다.
+	void InitializeValidationFixtureResult(
+		FValidationFixtureBuildResult& OutResult,
+		const FString& InCaseName,
+		const FString& InAssetName,
+		const FString& InAssetClass)
+	{
+		OutResult.CaseName = InCaseName;
+		OutResult.AssetName = InAssetName;
+		OutResult.AssetClass = InAssetClass;
+		OutResult.PackagePath = BuildValidationFixturePackagePath(InAssetName);
+		OutResult.ObjectPath = BuildValidationFixtureObjectPath(InAssetName);
+		OutResult.ResultStatus = TEXT("failed");
+	}
+
+	// LoadValidationFixtureAsset는 fixture 자산이 이미 있으면 로드한다.
+	UObject* LoadValidationFixtureAsset(const FString& InAssetName)
+	{
+		// FixtureObjectPath는 로드할 fixture full object path다.
+		const FString FixtureObjectPath = BuildValidationFixtureObjectPath(InAssetName);
+		return StaticLoadObject(UObject::StaticClass(), nullptr, *FixtureObjectPath, nullptr, LOAD_NoWarn);
+	}
+
+	// CreateValidationFixturePackage는 fixture 저장에 사용할 package를 준비한다.
+	UPackage* CreateValidationFixturePackage(const FString& InPackagePath)
+	{
+		// FixturePackage는 새 자산을 담을 Unreal package다.
+		UPackage* FixturePackage = CreatePackage(*InPackagePath);
+		if (FixturePackage)
+		{
+			FixturePackage->FullyLoad();
+		}
+
+		return FixturePackage;
+	}
+
+	// SaveValidationFixtureAsset는 fixture 자산 package를 uasset 파일로 저장한다.
+	bool SaveValidationFixtureAsset(UObject* InAssetObject, FString& OutSavedFilePath, FString& OutFailureMessage)
+	{
+		OutSavedFilePath.Reset();
+		OutFailureMessage.Reset();
+
+		if (!InAssetObject)
+		{
+			OutFailureMessage = TEXT("저장할 fixture 자산이 없습니다.");
+			return false;
+		}
+
+		// FixturePackage는 저장 대상 자산의 outer package다.
+		UPackage* FixturePackage = InAssetObject->GetOutermost();
+		if (!FixturePackage)
+		{
+			OutFailureMessage = TEXT("fixture 자산 package를 찾지 못했습니다.");
+			return false;
+		}
+
+		// PackageNameText는 저장 파일 경로 계산에 사용할 long package name이다.
+		const FString PackageNameText = FixturePackage->GetName();
+		if (!FPackageName::IsValidLongPackageName(PackageNameText))
+		{
+			OutFailureMessage = FString::Printf(TEXT("유효하지 않은 fixture package 경로입니다: %s"), *PackageNameText);
+			return false;
+		}
+
+		// PackageFilePath는 실제 저장될 .uasset 파일의 절대 경로다.
+		const FString PackageFilePath = FPaths::ConvertRelativePathToFull(
+			FPackageName::LongPackageNameToFilename(
+				PackageNameText,
+				FPackageName::GetAssetPackageExtension()));
+
+		// SaveArgs는 UE 5.7 SavePackage 호출에 필요한 저장 옵션이다.
+		FSavePackageArgs SaveArgs;
+		SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+		SaveArgs.SaveFlags = SAVE_NoError;
+
+		FixturePackage->MarkPackageDirty();
+
+		// bSaved는 SavePackage 호출 성공 여부다.
+		const bool bSaved = UPackage::SavePackage(FixturePackage, InAssetObject, *PackageFilePath, SaveArgs);
+		if (!bSaved)
+		{
+			OutFailureMessage = FString::Printf(TEXT("fixture package 저장에 실패했습니다: %s"), *PackageFilePath);
+			return false;
+		}
+
+		OutSavedFilePath = PackageFilePath;
+		return true;
+	}
+
+	// FinalizeValidationFixtureResult는 성공한 fixture 결과 상태를 정리한다.
+	void FinalizeValidationFixtureResult(FValidationFixtureBuildResult& OutResult, bool bInNeedsSave)
+	{
+		OutResult.bPassed = true;
+		OutResult.ResultStatus = OutResult.bCreated
+			? TEXT("created")
+			: (bInNeedsSave ? TEXT("updated") : TEXT("existing"));
+	}
+
+	// BuildValidationFixtureObject는 makefixtures report에 들어갈 fixture object를 만든다.
+	TSharedRef<FJsonObject> BuildValidationFixtureObject(const FValidationFixtureBuildResult& InResult)
+	{
+		// FixtureObject는 fixture 한 건의 결과 JSON object다.
+		TSharedRef<FJsonObject> FixtureObject = MakeShared<FJsonObject>();
+		FixtureObject->SetStringField(TEXT("case_name"), InResult.CaseName);
+		FixtureObject->SetStringField(TEXT("asset_name"), InResult.AssetName);
+		FixtureObject->SetStringField(TEXT("asset_class"), InResult.AssetClass);
+		FixtureObject->SetStringField(TEXT("package_path"), InResult.PackagePath);
+		FixtureObject->SetStringField(TEXT("object_path"), InResult.ObjectPath);
+		FixtureObject->SetStringField(TEXT("saved_file_path"), InResult.SavedFilePath);
+		FixtureObject->SetStringField(TEXT("result_status"), InResult.ResultStatus);
+		FixtureObject->SetStringField(TEXT("failure_message"), InResult.FailureMessage);
+		FixtureObject->SetBoolField(TEXT("passed"), InResult.bPassed);
+		FixtureObject->SetBoolField(TEXT("created"), InResult.bCreated);
+		FixtureObject->SetBoolField(TEXT("updated"), InResult.bUpdated);
+		FixtureObject->SetBoolField(TEXT("saved"), InResult.bSaved);
+		return FixtureObject;
+	}
+
+	// EnsureActorBlueprintFixture는 공용 Actor Blueprint fixture를 생성하거나 확인한다.
+	void EnsureActorBlueprintFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("actor_blueprint"),
+			AssetDumpActorFixtureName,
+			TEXT("Blueprint"));
+
+		// ExistingObject는 이미 저장된 fixture 자산 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// BlueprintAsset은 생성 또는 로드된 Actor Blueprint 자산이다.
+		UBlueprint* BlueprintAsset = Cast<UBlueprint>(ExistingObject);
+		if (ExistingObject && !BlueprintAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 Blueprint가 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!BlueprintAsset)
+		{
+			// FixturePackage는 새 Blueprint fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("Actor Blueprint fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			BlueprintAsset = FKismetEditorUtilities::CreateBlueprint(
+				AActor::StaticClass(),
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				BPTYPE_Normal,
+				UBlueprint::StaticClass(),
+				UBlueprintGeneratedClass::StaticClass(),
+				TEXT("AssetDumpFixture"));
+			if (!BlueprintAsset)
+			{
+				OutResult.FailureMessage = TEXT("Actor Blueprint fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(BlueprintAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (!BlueprintAsset->ParentClass || !BlueprintAsset->ParentClass->IsChildOf(AActor::StaticClass()))
+		{
+			OutResult.FailureMessage = TEXT("Actor Blueprint fixture의 부모 클래스가 Actor 계열이 아닙니다.");
+			return;
+		}
+
+		if (bNeedsSave)
+		{
+			FKismetEditorUtilities::CompileBlueprint(BlueprintAsset, EBlueprintCompileOptions::SkipSave);
+			OutResult.bSaved = SaveValidationFixtureAsset(BlueprintAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
+	// EnsureWidgetBlueprintFixture는 공용 Widget Blueprint fixture를 생성하거나 확인한다.
+	void EnsureWidgetBlueprintFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("widget_blueprint"),
+			AssetDumpWidgetFixtureName,
+			TEXT("WidgetBlueprint"));
+
+		// ExistingObject는 이미 저장된 Widget Blueprint fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// WidgetBlueprintAsset은 생성 또는 로드된 Widget Blueprint 자산이다.
+		UWidgetBlueprint* WidgetBlueprintAsset = Cast<UWidgetBlueprint>(ExistingObject);
+		if (ExistingObject && !WidgetBlueprintAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 WidgetBlueprint가 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!WidgetBlueprintAsset)
+		{
+			// FixturePackage는 새 Widget Blueprint fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("Widget Blueprint fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			// CreatedBlueprint는 CreateBlueprint가 반환한 기본 Blueprint 포인터다.
+			UBlueprint* CreatedBlueprint = FKismetEditorUtilities::CreateBlueprint(
+				UUserWidget::StaticClass(),
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				BPTYPE_Normal,
+				UWidgetBlueprint::StaticClass(),
+				UWidgetBlueprintGeneratedClass::StaticClass(),
+				TEXT("AssetDumpFixture"));
+			WidgetBlueprintAsset = Cast<UWidgetBlueprint>(CreatedBlueprint);
+			if (!WidgetBlueprintAsset)
+			{
+				OutResult.FailureMessage = TEXT("Widget Blueprint fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(WidgetBlueprintAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (!WidgetBlueprintAsset->WidgetTree)
+		{
+			WidgetBlueprintAsset->WidgetTree = NewObject<UWidgetTree>(WidgetBlueprintAsset, TEXT("WidgetTree"), RF_Transactional);
+			OutResult.bUpdated = true;
+			bNeedsSave = true;
+		}
+
+		if (WidgetBlueprintAsset->WidgetTree && !WidgetBlueprintAsset->WidgetTree->RootWidget)
+		{
+			// RootTextBlock은 Widget Blueprint fixture의 최소 루트 위젯이다.
+			UTextBlock* RootTextBlock = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UTextBlock>(
+				UTextBlock::StaticClass(),
+				TEXT("Txt_ADumpFixture"));
+			if (!RootTextBlock)
+			{
+				OutResult.FailureMessage = TEXT("Widget Blueprint fixture 루트 TextBlock 생성에 실패했습니다.");
+				return;
+			}
+
+			RootTextBlock->SetText(FText::FromString(TEXT("AssetDump Fixture")));
+			WidgetBlueprintAsset->WidgetTree->RootWidget = RootTextBlock;
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (bNeedsSave)
+		{
+			FKismetEditorUtilities::CompileBlueprint(WidgetBlueprintAsset, EBlueprintCompileOptions::SkipSave);
+			OutResult.bSaved = SaveValidationFixtureAsset(WidgetBlueprintAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
+	// EnsureInputActionFixture는 공용 InputAction fixture를 생성하거나 확인한다.
+	void EnsureInputActionFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("input_action"),
+			AssetDumpInputActionFixtureName,
+			TEXT("InputAction"));
+
+		// ExistingObject는 이미 저장된 InputAction fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// InputActionAsset은 생성 또는 로드된 InputAction 자산이다.
+		UInputAction* InputActionAsset = Cast<UInputAction>(ExistingObject);
+		if (ExistingObject && !InputActionAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 InputAction이 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!InputActionAsset)
+		{
+			// FixturePackage는 새 InputAction fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("InputAction fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			InputActionAsset = NewObject<UInputAction>(
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				RF_Public | RF_Standalone | RF_Transactional);
+			if (!InputActionAsset)
+			{
+				OutResult.FailureMessage = TEXT("InputAction fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(InputActionAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (InputActionAsset->ValueType != EInputActionValueType::Boolean)
+		{
+			InputActionAsset->ValueType = EInputActionValueType::Boolean;
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (!InputActionAsset->ActionDescription.ToString().Equals(TEXT("AssetDump validation input action fixture."), ESearchCase::CaseSensitive))
+		{
+			InputActionAsset->ActionDescription = FText::FromString(TEXT("AssetDump validation input action fixture."));
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (bNeedsSave)
+		{
+			OutResult.bSaved = SaveValidationFixtureAsset(InputActionAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
+	// EnsureInputMappingFixture는 공용 InputMappingContext fixture를 생성하거나 확인한다.
+	void EnsureInputMappingFixture(const UInputAction* InInputActionAsset, FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("input_mapping_context"),
+			AssetDumpInputMappingFixtureName,
+			TEXT("InputMappingContext"));
+
+		if (!InInputActionAsset)
+		{
+			OutResult.FailureMessage = TEXT("InputMappingContext fixture에 연결할 InputAction fixture가 없습니다.");
+			return;
+		}
+
+		// ExistingObject는 이미 저장된 InputMappingContext fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// InputMappingAsset은 생성 또는 로드된 InputMappingContext 자산이다.
+		UInputMappingContext* InputMappingAsset = Cast<UInputMappingContext>(ExistingObject);
+		if (ExistingObject && !InputMappingAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 InputMappingContext가 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!InputMappingAsset)
+		{
+			// FixturePackage는 새 InputMappingContext fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("InputMappingContext fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			InputMappingAsset = NewObject<UInputMappingContext>(
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				RF_Public | RF_Standalone | RF_Transactional);
+			if (!InputMappingAsset)
+			{
+				OutResult.FailureMessage = TEXT("InputMappingContext fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(InputMappingAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (!InputMappingAsset->ContextDescription.ToString().Equals(TEXT("AssetDump validation input mapping fixture."), ESearchCase::CaseSensitive))
+		{
+			InputMappingAsset->ContextDescription = FText::FromString(TEXT("AssetDump validation input mapping fixture."));
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// bHasFixtureMapping은 SpaceBar 매핑이 이미 있는지 확인한 결과다.
+		bool bHasFixtureMapping = false;
+
+		// MappingItem은 기존 InputMappingContext fixture에 들어 있는 개별 키 매핑이다.
+		for (const FEnhancedActionKeyMapping& MappingItem : InputMappingAsset->GetMappings())
+		{
+			if (MappingItem.Action == InInputActionAsset && MappingItem.Key == EKeys::SpaceBar)
+			{
+				bHasFixtureMapping = true;
+				break;
+			}
+		}
+
+		if (!bHasFixtureMapping)
+		{
+			InputMappingAsset->MapKey(InInputActionAsset, EKeys::SpaceBar);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (bNeedsSave)
+		{
+			OutResult.bSaved = SaveValidationFixtureAsset(InputMappingAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
+	// EnsureCurveFloatFixture는 공용 CurveFloat fixture를 생성하거나 확인한다.
+	void EnsureCurveFloatFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("curve_float"),
+			AssetDumpCurveFloatFixtureName,
+			TEXT("CurveFloat"));
+
+		// ExistingObject는 이미 저장된 CurveFloat fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// CurveFloatAsset은 생성 또는 로드된 CurveFloat 자산이다.
+		UCurveFloat* CurveFloatAsset = Cast<UCurveFloat>(ExistingObject);
+		if (ExistingObject && !CurveFloatAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 CurveFloat가 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!CurveFloatAsset)
+		{
+			// FixturePackage는 새 CurveFloat fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("CurveFloat fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			CurveFloatAsset = NewObject<UCurveFloat>(
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				RF_Public | RF_Standalone | RF_Transactional);
+			if (!CurveFloatAsset)
+			{
+				OutResult.FailureMessage = TEXT("CurveFloat fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(CurveFloatAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (CurveFloatAsset->FloatCurve.GetNumKeys() < 2)
+		{
+			CurveFloatAsset->FloatCurve.Reset();
+			CurveFloatAsset->FloatCurve.AddKey(0.0f, 0.0f);
+			CurveFloatAsset->FloatCurve.AddKey(1.0f, 1.0f);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (bNeedsSave)
+		{
+			OutResult.bSaved = SaveValidationFixtureAsset(CurveFloatAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
+	// EnsureDataTableFixture는 공용 DataTable fixture를 생성하거나 확인한다.
+	void EnsureDataTableFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("data_table"),
+			AssetDumpDataTableFixtureName,
+			TEXT("DataTable"));
+
+		// ExistingObject는 이미 저장된 DataTable fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// DataTableAsset은 생성 또는 로드된 DataTable 자산이다.
+		UDataTable* DataTableAsset = Cast<UDataTable>(ExistingObject);
+		if (ExistingObject && !DataTableAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 fixture 클래스가 DataTable이 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 보정해서 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!DataTableAsset)
+		{
+			// FixturePackage는 새 DataTable fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("DataTable fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			DataTableAsset = NewObject<UDataTable>(
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				RF_Public | RF_Standalone | RF_Transactional);
+			if (!DataTableAsset)
+			{
+				OutResult.FailureMessage = TEXT("DataTable fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(DataTableAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (DataTableAsset->RowStruct != FADumpValidRow::StaticStruct())
+		{
+			DataTableAsset->EmptyTable();
+			DataTableAsset->RowStruct = FADumpValidRow::StaticStruct();
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// FixtureRowName은 DataTable fixture에 사용할 고정 row 이름이다.
+		const FName FixtureRowName(TEXT("Default"));
+		if (!DataTableAsset->GetRowMap().Contains(FixtureRowName))
+		{
+			// FixtureRow는 DataTable fixture에 넣을 최소 검증 row다.
+			FADumpValidRow FixtureRow;
+			FixtureRow.DisplayName = TEXT("AssetDump Fixture");
+			FixtureRow.SoftCurve = TSoftObjectPtr<UCurveFloat>(FSoftObjectPath(BuildValidationFixtureObjectPath(AssetDumpCurveFloatFixtureName)));
+			FixtureRow.SampleNumbers.Add(0.0f);
+			FixtureRow.SampleNumbers.Add(1.0f);
+			FixtureRow.SampleNumbers.Add(2.0f);
+			DataTableAsset->AddRow(FixtureRowName, FixtureRow);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (bNeedsSave)
+		{
+			OutResult.bSaved = SaveValidationFixtureAsset(DataTableAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
 	// CloneJsonValueOrNull은 value_json이 비어 있으면 null을 반환한다.
 	TSharedPtr<FJsonValue> CloneJsonValueOrNull(const TSharedPtr<FJsonValue>& InValue)
 	{
@@ -978,7 +1660,7 @@ namespace
 
 int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 {
-	// ModeValue는 list / asset / asset_details / map / bpgraph / bpdump / batchdump / index / validate 중 실행 모드를 고른다.
+	// ModeValue는 list / asset / asset_details / map / bpgraph / bpdump / batchdump / index / validate / makefixtures 중 실행 모드를 고른다.
 	FString ModeValue;
 	// OutputFilePath는 저장할 JSON 파일 경로다.
 	FString OutputFilePath;
@@ -991,7 +1673,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 	if (!GetCmdValue(CommandLine, TEXT("Mode="), ModeValue))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|validate"));
+		UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|validate|makefixtures"));
 		return 1;
 	}
 
@@ -1023,7 +1705,8 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	// bRequireExplicitOutputPath는 레거시 JSON 변환 모드에서 명시 출력 경로를 요구하는지 여부다.
 	const bool bRequireExplicitOutputPath = !ModeValue.Equals(TEXT("bpdump"), ESearchCase::IgnoreCase)
 		&& !ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase)
-		&& !ModeValue.Equals(TEXT("validate"), ESearchCase::IgnoreCase);
+		&& !ModeValue.Equals(TEXT("validate"), ESearchCase::IgnoreCase)
+		&& !ModeValue.Equals(TEXT("makefixtures"), ESearchCase::IgnoreCase);
 	if (bRequireExplicitOutputPath && !GetCmdValue(CommandLine, TEXT("Output="), OutputFilePath))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Missing -Output=. Example: -Output=C:/Temp/out.json"));
@@ -1038,7 +1721,32 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	// JsonText는 최종 저장할 JSON 문자열이다.
 	FString JsonText;
 
-	if (ModeValue.Equals(TEXT("validate"), ESearchCase::IgnoreCase))
+	if (ModeValue.Equals(TEXT("makefixtures"), ESearchCase::IgnoreCase))
+	{
+		if (OutputFilePath.IsEmpty())
+		{
+			OutputFilePath = FPaths::Combine(
+				ADumpJson::BuildDefaultDumpRootDirectory(),
+				TEXT("BPDumpValidationPlugin"),
+				TEXT("fixture_report.json"));
+		}
+
+		// FixtureFailureCount는 생성/보정 실패 fixture 개수다.
+		int32 FixtureFailureCount = 0;
+		if (!BuildValidationFixtureJson(CommandLine, JsonText, FixtureFailureCount))
+		{
+			return 2;
+		}
+
+		if (!SaveJsonToFile(OutputFilePath, JsonText))
+		{
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved fixture report JSON: %s"), *OutputFilePath);
+		return FixtureFailureCount > 0 ? 2 : 0;
+	}
+	else if (ModeValue.Equals(TEXT("validate"), ESearchCase::IgnoreCase))
 	{
 		// ValidationRootPath는 validate 산출물 루트 폴더다.
 		FString ValidationRootPath;
@@ -1875,101 +2583,181 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	FString DataTableAssetOverridePath;
 	GetCmdValue(CommandLine, TEXT("DataTableAsset="), DataTableAssetOverridePath);
 
+	// ValidationProfileText는 validate 케이스 묶음을 선택하는 사용자 입력값이다.
+	FString ValidationProfileText;
+	GetCmdValue(CommandLine, TEXT("ValidationProfile="), ValidationProfileText);
+
+	// NormalizedValidationProfileText는 빈 값과 대소문자를 정리한 validation profile 이름이다.
+	FString NormalizedValidationProfileText = ValidationProfileText.TrimStartAndEnd().ToLower();
+	if (NormalizedValidationProfileText.IsEmpty())
+	{
+		NormalizedValidationProfileText = TEXT("project");
+	}
+	else if (NormalizedValidationProfileText.Equals(TEXT("fixture"), ESearchCase::CaseSensitive))
+	{
+		NormalizedValidationProfileText = TEXT("plugin");
+	}
+	else if (!NormalizedValidationProfileText.Equals(TEXT("plugin"), ESearchCase::CaseSensitive)
+		&& !NormalizedValidationProfileText.Equals(TEXT("project"), ESearchCase::CaseSensitive))
+	{
+		NormalizedValidationProfileText = TEXT("project");
+	}
+
+	// bUsePluginFixtureOnly는 프로젝트 자산 자동 탐색 없이 플러그인 fixture만 검증할지 여부다.
+	const bool bUsePluginFixtureOnly = NormalizedValidationProfileText.Equals(TEXT("plugin"), ESearchCase::CaseSensitive);
+
+	// bIncludeProjectValidationCases는 프로젝트 자산 자동 탐색 케이스를 포함할지 여부다.
+	const bool bIncludeProjectValidationCases = !bUsePluginFixtureOnly;
+
 	// ValidationCaseArray는 이번 validate 모드에서 순차 실행할 대표 샘플 정의 목록이다.
 	TArray<FValidationCaseDefinition> ValidationCaseArray;
 	{
-		// BlueprintCase는 대표 일반 Blueprint 검증 케이스다.
-		FValidationCaseDefinition BlueprintCase;
-		BlueprintCase.CaseName = TEXT("actor_blueprint");
-		BlueprintCase.ExpectedAssetFamily = TEXT("actor_blueprint");
-		BlueprintCase.ExpectedAssetClass = TEXT("Blueprint");
-		BlueprintCase.DiscoveryClassName = TEXT("Blueprint");
-		BlueprintCase.DiscoveryAssetFamily = TEXT("actor_blueprint");
-		BlueprintCase.bIsOptionalSample = true;
-		BlueprintCase.MinGraphCount = 1;
-		BlueprintCase.MinPropertyCount = 1;
-		BlueprintCase.MinReferenceCount = 1;
-		ValidationCaseArray.Add(BlueprintCase);
+		if (bIncludeProjectValidationCases)
+		{
+			// BlueprintCase는 대표 일반 Blueprint 검증 케이스다.
+			FValidationCaseDefinition BlueprintCase;
+			BlueprintCase.CaseName = TEXT("actor_blueprint");
+			BlueprintCase.ExpectedAssetFamily = TEXT("actor_blueprint");
+			BlueprintCase.ExpectedAssetClass = TEXT("Blueprint");
+			BlueprintCase.DiscoveryClassName = TEXT("Blueprint");
+			BlueprintCase.DiscoveryAssetFamily = TEXT("actor_blueprint");
+			BlueprintCase.bIsOptionalSample = true;
+			BlueprintCase.MinGraphCount = 1;
+			BlueprintCase.MinPropertyCount = 1;
+			BlueprintCase.MinReferenceCount = 1;
+			ValidationCaseArray.Add(BlueprintCase);
 
-		// WidgetCase는 WidgetBlueprint 요약/바인딩 검증 케이스다.
-		FValidationCaseDefinition WidgetCase;
-		WidgetCase.CaseName = TEXT("widget_blueprint");
-		WidgetCase.ExpectedAssetFamily = TEXT("widget_blueprint");
-		WidgetCase.ExpectedAssetClass = TEXT("WidgetBlueprint");
-		WidgetCase.DiscoveryClassName = TEXT("WidgetBlueprint");
-		WidgetCase.bIsOptionalSample = true;
-		WidgetCase.MinWidgetBindingCount = 1;
-		WidgetCase.MinGraphCount = 1;
-		ValidationCaseArray.Add(WidgetCase);
+			// WidgetCase는 WidgetBlueprint 요약/그래프 검증 케이스다.
+			FValidationCaseDefinition WidgetCase;
+			WidgetCase.CaseName = TEXT("widget_blueprint");
+			WidgetCase.ExpectedAssetFamily = TEXT("widget_blueprint");
+			WidgetCase.ExpectedAssetClass = TEXT("WidgetBlueprint");
+			WidgetCase.DiscoveryClassName = TEXT("WidgetBlueprint");
+			WidgetCase.bIsOptionalSample = true;
+			WidgetCase.MinGraphCount = 1;
+			ValidationCaseArray.Add(WidgetCase);
 
-		// AnimCase는 AnimBlueprint 검증 케이스다.
-		FValidationCaseDefinition AnimCase;
-		AnimCase.CaseName = TEXT("anim_blueprint");
-		AnimCase.ExpectedAssetFamily = TEXT("anim_blueprint");
-		AnimCase.ExpectedAssetClass = TEXT("AnimBlueprint");
-		AnimCase.DiscoveryClassName = TEXT("AnimBlueprint");
-		AnimCase.bIsOptionalSample = true;
-		AnimCase.MinGraphCount = 1;
-		ValidationCaseArray.Add(AnimCase);
+			// AnimCase는 AnimBlueprint 검증 케이스다.
+			FValidationCaseDefinition AnimCase;
+			AnimCase.CaseName = TEXT("anim_blueprint");
+			AnimCase.ExpectedAssetFamily = TEXT("anim_blueprint");
+			AnimCase.ExpectedAssetClass = TEXT("AnimBlueprint");
+			AnimCase.DiscoveryClassName = TEXT("AnimBlueprint");
+			AnimCase.bIsOptionalSample = true;
+			AnimCase.MinGraphCount = 1;
+			ValidationCaseArray.Add(AnimCase);
 
-		// DataAssetCase는 PrimaryDataAsset 계열 검증 케이스다.
-		FValidationCaseDefinition DataAssetCase;
-		DataAssetCase.CaseName = TEXT("primary_data_asset");
-		DataAssetCase.ExpectedAssetFamily = TEXT("primary_data_asset");
-		DataAssetCase.ExpectedAssetClass = FString();
-		DataAssetCase.DiscoveryAssetFamily = TEXT("primary_data_asset");
-		DataAssetCase.bIsOptionalSample = true;
-		DataAssetCase.MinPropertyCount = 1;
-		DataAssetCase.MinReferenceCount = 1;
-		ValidationCaseArray.Add(DataAssetCase);
+			// DataAssetCase는 PrimaryDataAsset 계열 검증 케이스다.
+			FValidationCaseDefinition DataAssetCase;
+			DataAssetCase.CaseName = TEXT("primary_data_asset");
+			DataAssetCase.ExpectedAssetFamily = TEXT("primary_data_asset");
+			DataAssetCase.ExpectedAssetClass = FString();
+			DataAssetCase.DiscoveryAssetFamily = TEXT("primary_data_asset");
+			DataAssetCase.bIsOptionalSample = true;
+			DataAssetCase.MinPropertyCount = 1;
+			DataAssetCase.MinReferenceCount = 1;
+			ValidationCaseArray.Add(DataAssetCase);
 
-		// InputActionCase는 InputAction 요약 검증 케이스다.
-		FValidationCaseDefinition InputActionCase;
-		InputActionCase.CaseName = TEXT("input_action");
-		InputActionCase.ExpectedAssetFamily = TEXT("input_action");
-		InputActionCase.ExpectedAssetClass = TEXT("InputAction");
-		InputActionCase.DiscoveryClassName = TEXT("InputAction");
-		InputActionCase.bIsOptionalSample = true;
-		InputActionCase.MinPropertyCount = 1;
-		ValidationCaseArray.Add(InputActionCase);
+			// InputActionCase는 InputAction 요약 검증 케이스다.
+			FValidationCaseDefinition InputActionCase;
+			InputActionCase.CaseName = TEXT("input_action");
+			InputActionCase.ExpectedAssetFamily = TEXT("input_action");
+			InputActionCase.ExpectedAssetClass = TEXT("InputAction");
+			InputActionCase.DiscoveryClassName = TEXT("InputAction");
+			InputActionCase.bIsOptionalSample = true;
+			InputActionCase.MinPropertyCount = 1;
+			ValidationCaseArray.Add(InputActionCase);
 
-		// InputMappingCase는 InputMappingContext 검증 케이스다.
-		FValidationCaseDefinition InputMappingCase;
-		InputMappingCase.CaseName = TEXT("input_mapping_context");
-		InputMappingCase.ExpectedAssetFamily = TEXT("input_mapping_context");
-		InputMappingCase.ExpectedAssetClass = TEXT("InputMappingContext");
-		InputMappingCase.DiscoveryClassName = TEXT("InputMappingContext");
-		InputMappingCase.bIsOptionalSample = true;
-		InputMappingCase.MinInputMappingCount = 1;
-		ValidationCaseArray.Add(InputMappingCase);
+			// InputMappingCase는 InputMappingContext 검증 케이스다.
+			FValidationCaseDefinition InputMappingCase;
+			InputMappingCase.CaseName = TEXT("input_mapping_context");
+			InputMappingCase.ExpectedAssetFamily = TEXT("input_mapping_context");
+			InputMappingCase.ExpectedAssetClass = TEXT("InputMappingContext");
+			InputMappingCase.DiscoveryClassName = TEXT("InputMappingContext");
+			InputMappingCase.bIsOptionalSample = true;
+			InputMappingCase.MinInputMappingCount = 1;
+			ValidationCaseArray.Add(InputMappingCase);
 
-		// CurveCase는 CurveFloat 검증 케이스다.
-		FValidationCaseDefinition CurveCase;
-		CurveCase.CaseName = TEXT("curve_float");
-		CurveCase.ExpectedAssetFamily = TEXT("curve_float");
-		CurveCase.ExpectedAssetClass = TEXT("CurveFloat");
-		CurveCase.DiscoveryClassName = TEXT("CurveFloat");
-		CurveCase.bIsOptionalSample = true;
-		CurveCase.MinCurveKeyCount = 1;
-		CurveCase.MinPropertyCount = 1;
-		ValidationCaseArray.Add(CurveCase);
+			// CurveCase는 CurveFloat 검증 케이스다.
+			FValidationCaseDefinition CurveCase;
+			CurveCase.CaseName = TEXT("curve_float");
+			CurveCase.ExpectedAssetFamily = TEXT("curve_float");
+			CurveCase.ExpectedAssetClass = TEXT("CurveFloat");
+			CurveCase.DiscoveryClassName = TEXT("CurveFloat");
+			CurveCase.bIsOptionalSample = true;
+			CurveCase.MinCurveKeyCount = 1;
+			CurveCase.MinPropertyCount = 1;
+			ValidationCaseArray.Add(CurveCase);
 
-		// WorldCase는 World/Map 검증 케이스다.
-		FValidationCaseDefinition WorldCase;
-		WorldCase.CaseName = TEXT("world_map");
-		WorldCase.ExpectedAssetFamily = TEXT("world_map");
-		WorldCase.ExpectedAssetClass = TEXT("World");
-		WorldCase.DiscoveryClassName = TEXT("World");
-		WorldCase.bIsOptionalSample = true;
-		WorldCase.MinWorldActorCount = 1;
-		ValidationCaseArray.Add(WorldCase);
+			// WorldCase는 World/Map 검증 케이스다.
+			FValidationCaseDefinition WorldCase;
+			WorldCase.CaseName = TEXT("world_map");
+			WorldCase.ExpectedAssetFamily = TEXT("world_map");
+			WorldCase.ExpectedAssetClass = TEXT("World");
+			WorldCase.DiscoveryClassName = TEXT("World");
+			WorldCase.bIsOptionalSample = true;
+			WorldCase.MinWorldActorCount = 1;
+			ValidationCaseArray.Add(WorldCase);
+		}
+		else
+		{
+			// BlueprintCase는 공용 Actor Blueprint fixture 검증 케이스다.
+			FValidationCaseDefinition BlueprintCase;
+			BlueprintCase.CaseName = TEXT("actor_blueprint");
+			BlueprintCase.ExpectedAssetFamily = TEXT("actor_blueprint");
+			BlueprintCase.ExpectedAssetClass = TEXT("Blueprint");
+			BlueprintCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpActorFixtureName));
+			BlueprintCase.bIsOptionalSample = false;
+			BlueprintCase.MinGraphCount = 1;
+			ValidationCaseArray.Add(BlueprintCase);
 
-		// DataTableCase는 DataTable 샘플이 있을 때 row 메타를 검증하는 선택 케이스다.
+			// WidgetCase는 공용 Widget Blueprint fixture 검증 케이스다.
+			FValidationCaseDefinition WidgetCase;
+			WidgetCase.CaseName = TEXT("widget_blueprint");
+			WidgetCase.ExpectedAssetFamily = TEXT("widget_blueprint");
+			WidgetCase.ExpectedAssetClass = TEXT("WidgetBlueprint");
+			WidgetCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpWidgetFixtureName));
+			WidgetCase.bIsOptionalSample = false;
+			WidgetCase.MinGraphCount = 1;
+			ValidationCaseArray.Add(WidgetCase);
+
+			// InputActionCase는 공용 InputAction fixture 검증 케이스다.
+			FValidationCaseDefinition InputActionCase;
+			InputActionCase.CaseName = TEXT("input_action");
+			InputActionCase.ExpectedAssetFamily = TEXT("input_action");
+			InputActionCase.ExpectedAssetClass = TEXT("InputAction");
+			InputActionCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpInputActionFixtureName));
+			InputActionCase.bIsOptionalSample = false;
+			InputActionCase.MinPropertyCount = 1;
+			ValidationCaseArray.Add(InputActionCase);
+
+			// InputMappingCase는 공용 InputMappingContext fixture 검증 케이스다.
+			FValidationCaseDefinition InputMappingCase;
+			InputMappingCase.CaseName = TEXT("input_mapping_context");
+			InputMappingCase.ExpectedAssetFamily = TEXT("input_mapping_context");
+			InputMappingCase.ExpectedAssetClass = TEXT("InputMappingContext");
+			InputMappingCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpInputMappingFixtureName));
+			InputMappingCase.bIsOptionalSample = false;
+			InputMappingCase.MinInputMappingCount = 1;
+			ValidationCaseArray.Add(InputMappingCase);
+
+			// CurveCase는 공용 CurveFloat fixture 검증 케이스다.
+			FValidationCaseDefinition CurveCase;
+			CurveCase.CaseName = TEXT("curve_float");
+			CurveCase.ExpectedAssetFamily = TEXT("curve_float");
+			CurveCase.ExpectedAssetClass = TEXT("CurveFloat");
+			CurveCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpCurveFloatFixtureName));
+			CurveCase.bIsOptionalSample = false;
+			CurveCase.MinCurveKeyCount = 2;
+			ValidationCaseArray.Add(CurveCase);
+		}
+
+		// DataTableCase는 플러그인 Content에 포함된 공용 DataTable fixture 검증 케이스다.
 		FValidationCaseDefinition DataTableCase;
 		DataTableCase.CaseName = TEXT("data_table");
 		DataTableCase.ExpectedAssetFamily = TEXT("data_table");
 		DataTableCase.ExpectedAssetClass = TEXT("DataTable");
-		DataTableCase.CandidateObjectPathArray.Add(TEXT("/AssetDump/Validation/DT_ADumpValid"));
+		DataTableCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpDataTableFixtureName));
 		if (!DataTableAssetOverridePath.IsEmpty())
 		{
 			DataTableCase.CandidateObjectPathArray.Add(DataTableAssetOverridePath);
@@ -2252,6 +3040,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	// ValidationRootObject는 validate report 최상위 JSON object다.
 	TSharedRef<FJsonObject> ValidationRootObject = MakeShared<FJsonObject>();
 	ValidationRootObject->SetStringField(TEXT("generated_time"), FDateTime::UtcNow().ToIso8601());
+	ValidationRootObject->SetStringField(TEXT("validation_profile"), NormalizedValidationProfileText);
 	ValidationRootObject->SetStringField(TEXT("validation_root_path"), ValidationRootPath);
 	ValidationRootObject->SetNumberField(TEXT("case_count"), ValidationCaseArray.Num());
 	ValidationRootObject->SetNumberField(TEXT("validated_count"), ValidatedCount);
@@ -2263,6 +3052,128 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	ValidationRootObject->SetArrayField(TEXT("cases"), ValidationCaseResultArray);
 
 	return SerializeJsonObjectText(ValidationRootObject, OutJsonText);
+}
+
+bool UAssetDumpCommandlet::BuildValidationFixtureJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount)
+{
+	OutFailureCount = 0;
+
+	// FixtureResultArray는 생성/확인한 fixture 결과 목록이다.
+	TArray<FValidationFixtureBuildResult> FixtureResultArray;
+	FixtureResultArray.Reserve(6);
+
+	{
+		// ActorResult는 Actor Blueprint fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult ActorResult;
+		EnsureActorBlueprintFixture(ActorResult);
+		FixtureResultArray.Add(ActorResult);
+	}
+
+	{
+		// WidgetResult는 Widget Blueprint fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult WidgetResult;
+		EnsureWidgetBlueprintFixture(WidgetResult);
+		FixtureResultArray.Add(WidgetResult);
+	}
+
+	{
+		// InputActionResult는 InputAction fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult InputActionResult;
+		EnsureInputActionFixture(InputActionResult);
+		FixtureResultArray.Add(InputActionResult);
+	}
+
+	// InputActionAsset은 InputMappingContext fixture가 참조할 InputAction fixture다.
+	UInputAction* InputActionAsset = Cast<UInputAction>(LoadValidationFixtureAsset(AssetDumpInputActionFixtureName));
+
+	{
+		// InputMappingResult는 InputMappingContext fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult InputMappingResult;
+		EnsureInputMappingFixture(InputActionAsset, InputMappingResult);
+		FixtureResultArray.Add(InputMappingResult);
+	}
+
+	{
+		// CurveResult는 CurveFloat fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult CurveResult;
+		EnsureCurveFloatFixture(CurveResult);
+		FixtureResultArray.Add(CurveResult);
+	}
+
+	{
+		// DataTableResult는 DataTable fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult DataTableResult;
+		EnsureDataTableFixture(DataTableResult);
+		FixtureResultArray.Add(DataTableResult);
+	}
+
+	// FixtureObjectArray는 report fixtures 배열에 들어갈 JSON 값 목록이다.
+	TArray<TSharedPtr<FJsonValue>> FixtureObjectArray;
+	FixtureObjectArray.Reserve(FixtureResultArray.Num());
+
+	// CreatedCount는 이번 실행에서 새로 만든 fixture 개수다.
+	int32 CreatedCount = 0;
+
+	// ExistingCount는 이미 유효해서 그대로 둔 fixture 개수다.
+	int32 ExistingCount = 0;
+
+	// UpdatedCount는 기존 자산을 보정한 fixture 개수다.
+	int32 UpdatedCount = 0;
+
+	// SavedCount는 이번 실행에서 uasset 저장이 수행된 fixture 개수다.
+	int32 SavedCount = 0;
+
+	// PassedCount는 생성 또는 확인에 성공한 fixture 개수다.
+	int32 PassedCount = 0;
+
+	// FixtureResult는 makefixtures에서 생성 또는 확인한 fixture 한 건의 결과다.
+	for (const FValidationFixtureBuildResult& FixtureResult : FixtureResultArray)
+	{
+		FixtureObjectArray.Add(MakeShared<FJsonValueObject>(BuildValidationFixtureObject(FixtureResult)));
+
+		if (FixtureResult.bPassed)
+		{
+			++PassedCount;
+		}
+		else
+		{
+			++OutFailureCount;
+		}
+
+		if (FixtureResult.bCreated)
+		{
+			++CreatedCount;
+		}
+		else if (FixtureResult.bUpdated)
+		{
+			++UpdatedCount;
+		}
+		else if (FixtureResult.bPassed)
+		{
+			++ExistingCount;
+		}
+
+		if (FixtureResult.bSaved)
+		{
+			++SavedCount;
+		}
+	}
+
+	// FixtureRootObject는 makefixtures report 최상위 JSON object다.
+	TSharedRef<FJsonObject> FixtureRootObject = MakeShared<FJsonObject>();
+	FixtureRootObject->SetStringField(TEXT("generated_time"), FDateTime::UtcNow().ToIso8601());
+	FixtureRootObject->SetStringField(TEXT("fixture_root"), AssetDumpValidationRootPath);
+	FixtureRootObject->SetStringField(TEXT("command_line"), CommandLine);
+	FixtureRootObject->SetNumberField(TEXT("fixture_count"), FixtureResultArray.Num());
+	FixtureRootObject->SetNumberField(TEXT("passed_count"), PassedCount);
+	FixtureRootObject->SetNumberField(TEXT("created_count"), CreatedCount);
+	FixtureRootObject->SetNumberField(TEXT("existing_count"), ExistingCount);
+	FixtureRootObject->SetNumberField(TEXT("updated_count"), UpdatedCount);
+	FixtureRootObject->SetNumberField(TEXT("saved_count"), SavedCount);
+	FixtureRootObject->SetNumberField(TEXT("failed_count"), OutFailureCount);
+	FixtureRootObject->SetArrayField(TEXT("fixtures"), FixtureObjectArray);
+
+	return SerializeJsonObjectText(FixtureRootObject, OutJsonText);
 }
 
 bool UAssetDumpCommandlet::SaveJsonToFile(const FString& OutputFilePath, const FString& JsonText)

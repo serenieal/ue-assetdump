@@ -1,6 +1,7 @@
 // File: ADumpTypes.cpp
-// Version: v0.3.1
+// Version: v0.3.2
 // Changelog:
+// - v0.3.2: validate 기준 조정 이후 extractor fingerprint invalidation 검증을 위해 extractor version을 2.0.1로 상향.
 // - v0.3.1: graph_type에서 delegate/uber/other를 unknown으로 뭉개지 않고 그대로 보존하도록 조정.
 // - v0.3.0: 2차 개선안 Phase 0 기준선 적용을 위해 schema/extractor 기본 버전을 2.0 계열로 상향.
 // - v0.2.0: 문서 v1.2 기준 schema/source/status/graph enum 문자열과 기본 결과 메타를 정렬.
@@ -21,7 +22,7 @@ namespace ADumpSchema
 
 	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("2.0.0");
+		return TEXT("2.0.1");
 	}
 }
 
