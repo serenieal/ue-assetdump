@@ -1,6 +1,8 @@
 // File: ADumpService.cpp
-// Version: v0.7.0
+// Version: v0.7.2
 // Changelog:
+// - v0.7.2: v0.6.3 Profile 메타가 포함된 요청 스냅샷을 changed-only 판정에 그대로 사용.
+// - v0.7.1: v0.6.2 Intent 메타를 포함한 시작 요청 스냅샷을 changed-only 판단에도 재사용.
 // - v0.7.0: v0.6.1 명시적 섹션 선택에 따라 details/graphs/references/Widget Designer builder를 생략.
 // - v0.6.0: DataAsset 등 비Blueprint 자산도 load/service 경로에서 막히지 않도록 공통 자산 로드로 전환.
 // - v0.5.6: references-only 경로에서도 summary 보조 추출을 수행해 widget binding 기반 참조 입력을 비우지 않도록 보강.
@@ -479,7 +481,8 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		const FString ResolvedOutputFilePath = ActiveRunOpts.ResolveOutputFilePath();
 
 		// RequestInfo는 최신성 판정에 사용할 실행 옵션 스냅샷이다.
-		const FADumpRequestInfo RequestInfo = ActiveRunOpts.BuildRequestInfo();
+		// RequestInfo는 Intent/Profile/section_source를 포함해 결과와 동일한 최신성 판단 입력을 사용한다.
+		const FADumpRequestInfo& RequestInfo = ActiveResult.Request;
 		if (ActiveRunOpts.bSkipIfUpToDate && IsDumpOutputUpToDate(ActiveRunOpts.AssetObjectPath, RequestInfo, ResolvedOutputFilePath))
 		{
 			bOutputFileSaved = true;

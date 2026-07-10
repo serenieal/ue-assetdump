@@ -1,6 +1,8 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.6.1
+// Version: v0.6.3
 // Changelog:
+// - v0.6.3: -Profile= 프리셋, Sections > Intent > Profile 우선순위, 요청 메타 및 스모크 검사를 추가.
+// - v0.6.2: -Intent= 정규화, 섹션 매핑, -Sections= 우선순위, Intent 스모크 검사를 추가.
 // - v0.6.1: 명시적 섹션 선택이 실제 builder 계획을 제어하는지 validation smoke 검사를 추가.
 // - v0.6.0: -Sections= 파싱, 유효성 오류, 직렬화 스모크 검증을 추가하고 기존 생략 동작을 유지.
 // - v0.5.0: WidgetBlueprint Designer hierarchy fixture와 validation gate를 추가.
@@ -219,6 +221,18 @@ namespace
 		return TEXT("summary,digest,details,graphs,references,widget_designer");
 	}
 
+	// GetValidIntentNamesText는 -Intent=에서 허용하는 정식 분석 목적 이름 목록을 반환한다.
+	FString GetValidIntentNamesText()
+	{
+		return TEXT("quick_overview,widget_layout,blueprint_logic,dependency_trace");
+	}
+
+	// GetValidProfileNamesText는 -Profile=에서 허용하는 정식 출력 프리셋 이름 목록을 반환한다.
+	FString GetValidProfileNamesText()
+	{
+		return TEXT("full,summary_only,digest_only,ai_context");
+	}
+
 	// TryResolveDumpSection은 정규화한 이름을 주요 JSON 섹션 값으로 변환한다.
 	bool TryResolveDumpSection(const FString& InSectionName, EADumpSection& OutSection)
 	{
@@ -277,6 +291,282 @@ namespace
 			}
 		}
 		return false;
+	}
+
+	// TryParseSectionSelection은 Intent 검증 helper가 재사용할 -Sections= 파서 선언이다.
+	bool TryParseSectionSelection(
+		const FString& InCommandLine,
+		FADumpSectionSelection& OutSectionSelection,
+		FString& OutErrorMessage);
+
+	// TryResolveIntentSelection은 정규화한 Intent 이름을 정식 섹션 선택으로 변환한다.
+	bool TryResolveIntentSelection(const FString& InIntentName, FADumpSectionSelection& OutSectionSelection)
+	{
+		OutSectionSelection.ResetToExplicitMode();
+		if (InIntentName == TEXT("quick_overview"))
+		{
+			OutSectionSelection.Enable(EADumpSection::Summary);
+			OutSectionSelection.Enable(EADumpSection::Digest);
+			return true;
+		}
+		if (InIntentName == TEXT("widget_layout"))
+		{
+			OutSectionSelection.Enable(EADumpSection::Summary);
+			OutSectionSelection.Enable(EADumpSection::Digest);
+			OutSectionSelection.Enable(EADumpSection::WidgetDesigner);
+			return true;
+		}
+		if (InIntentName == TEXT("blueprint_logic"))
+		{
+			OutSectionSelection.Enable(EADumpSection::Summary);
+			OutSectionSelection.Enable(EADumpSection::Digest);
+			OutSectionSelection.Enable(EADumpSection::Graphs);
+			OutSectionSelection.Enable(EADumpSection::References);
+			return true;
+		}
+		if (InIntentName == TEXT("dependency_trace"))
+		{
+			OutSectionSelection.Enable(EADumpSection::Summary);
+			OutSectionSelection.Enable(EADumpSection::Digest);
+			OutSectionSelection.Enable(EADumpSection::References);
+			return true;
+		}
+		OutSectionSelection.ResetToFullMode();
+		return false;
+	}
+
+	// TryResolveProfileSelection은 정규화한 Profile 이름을 전체 모드 또는 정식 섹션 선택으로 변환한다.
+	bool TryResolveProfileSelection(const FString& InProfileName, FADumpSectionSelection& OutSectionSelection)
+	{
+		if (InProfileName == TEXT("full"))
+		{
+			OutSectionSelection.ResetToFullMode();
+			return true;
+		}
+
+		OutSectionSelection.ResetToExplicitMode();
+		if (InProfileName == TEXT("summary_only"))
+		{
+			OutSectionSelection.Enable(EADumpSection::Summary);
+			return true;
+		}
+		if (InProfileName == TEXT("digest_only") || InProfileName == TEXT("ai_context"))
+		{
+			OutSectionSelection.Enable(EADumpSection::Summary);
+			OutSectionSelection.Enable(EADumpSection::Digest);
+			return true;
+		}
+
+		OutSectionSelection.ResetToFullMode();
+		return false;
+	}
+
+	// TryParseIntentSelection은 단일 -Intent= 값을 검증하고 정식 섹션 선택으로 변환한다.
+	bool TryParseIntentSelection(
+		const FString& InCommandLine,
+		FString& OutIntentName,
+		FADumpSectionSelection& OutSectionSelection,
+		FString& OutErrorMessage)
+	{
+		OutIntentName.Reset();
+		OutSectionSelection.ResetToFullMode();
+		OutErrorMessage.Reset();
+
+		// CommandLineCursor는 FParse::Token으로 순회할 현재 commandlet 문자열 위치다.
+		const TCHAR* CommandLineCursor = *InCommandLine;
+
+		// CommandToken은 현재 순회에서 읽은 공백 구분 commandlet 토큰이다.
+		FString CommandToken;
+		while (FParse::Token(CommandLineCursor, CommandToken, true))
+		{
+			// NormalizedToken은 선택적인 선행 하이픈을 제거한 옵션 토큰이다.
+			FString NormalizedToken = CommandToken;
+			NormalizedToken.RemoveFromStart(TEXT("-"));
+			if (!NormalizedToken.StartsWith(TEXT("Intent="), ESearchCase::IgnoreCase))
+			{
+				continue;
+			}
+			if (!OutIntentName.IsEmpty())
+			{
+				OutErrorMessage = FString::Printf(TEXT("-Intent= accepts exactly one value. Valid intents: %s"), *GetValidIntentNamesText());
+				return false;
+			}
+			OutIntentName = NormalizedToken.Mid(7);
+			OutIntentName.TrimStartAndEndInline();
+			OutIntentName.ToLowerInline();
+			if (OutIntentName.IsEmpty())
+			{
+				OutErrorMessage = FString::Printf(TEXT("-Intent= requires one value. Valid intents: %s"), *GetValidIntentNamesText());
+				return false;
+			}
+		}
+
+		if (OutIntentName.IsEmpty())
+		{
+			return true;
+		}
+		if (!TryResolveIntentSelection(OutIntentName, OutSectionSelection))
+		{
+			OutErrorMessage = FString::Printf(TEXT("Unknown intent '%s' in -Intent=. Valid intents: %s"), *OutIntentName, *GetValidIntentNamesText());
+			return false;
+		}
+		return true;
+	}
+
+	// TryParseProfileSelection은 단일 -Profile= 값을 검증하고 정식 섹션 선택으로 변환한다.
+	bool TryParseProfileSelection(
+		const FString& InCommandLine,
+		FString& OutProfileName,
+		FADumpSectionSelection& OutSectionSelection,
+		FString& OutErrorMessage)
+	{
+		OutProfileName.Reset();
+		OutSectionSelection.ResetToFullMode();
+		OutErrorMessage.Reset();
+
+		// CommandLineCursor는 FParse::Token으로 순회할 현재 commandlet 문자열 위치다.
+		const TCHAR* CommandLineCursor = *InCommandLine;
+
+		// CommandToken은 현재 순회에서 읽은 공백 구분 commandlet 토큰이다.
+		FString CommandToken;
+		while (FParse::Token(CommandLineCursor, CommandToken, true))
+		{
+			// NormalizedToken은 선택적인 선행 하이픈을 제거한 옵션 토큰이다.
+			FString NormalizedToken = CommandToken;
+			NormalizedToken.RemoveFromStart(TEXT("-"));
+			if (!NormalizedToken.StartsWith(TEXT("Profile="), ESearchCase::IgnoreCase))
+			{
+				continue;
+			}
+			if (!OutProfileName.IsEmpty())
+			{
+				OutErrorMessage = FString::Printf(TEXT("-Profile= accepts exactly one value. Valid profiles: %s"), *GetValidProfileNamesText());
+				return false;
+			}
+			OutProfileName = NormalizedToken.Mid(8);
+			OutProfileName.TrimStartAndEndInline();
+			OutProfileName.ToLowerInline();
+			if (OutProfileName.IsEmpty())
+			{
+				OutErrorMessage = FString::Printf(TEXT("-Profile= requires one value. Valid profiles: %s"), *GetValidProfileNamesText());
+				return false;
+			}
+		}
+
+		if (OutProfileName.IsEmpty())
+		{
+			return true;
+		}
+		if (!TryResolveProfileSelection(OutProfileName, OutSectionSelection))
+		{
+			OutErrorMessage = FString::Printf(TEXT("Unknown profile '%s' in -Profile=. Valid profiles: %s"), *OutProfileName, *GetValidProfileNamesText());
+			return false;
+		}
+		return true;
+	}
+
+	// ResolveEffectiveSelection은 Sections > Intent > Profile > implicit full 우선순위로 최종 선택값과 출처를 결정한다.
+	void ResolveEffectiveSelection(
+		const FADumpSectionSelection& InExplicitSelection,
+		const FString& InIntentName,
+		const FADumpSectionSelection& InIntentSelection,
+		const FString& InProfileName,
+		const FADumpSectionSelection& InProfileSelection,
+		FADumpSectionSelection& OutSelection,
+		FString& OutSectionSource)
+	{
+		OutSelection.ResetToFullMode();
+		OutSectionSource = TEXT("full");
+		if (!InProfileName.IsEmpty())
+		{
+			OutSelection = InProfileSelection;
+			OutSectionSource = TEXT("profile");
+		}
+		if (!InIntentName.IsEmpty())
+		{
+			OutSelection = InIntentSelection;
+			OutSectionSource = TEXT("intent");
+		}
+		if (InExplicitSelection.bIsExplicit)
+		{
+			OutSelection = InExplicitSelection;
+			OutSectionSource = TEXT("sections");
+		}
+	}
+
+	// VerifyIntentResolution은 Intent 매핑과 -Sections= 우선순위의 request/builder 결과를 검증한다.
+	bool VerifyIntentResolution(
+		const FString& InCommandLine,
+		const FString& InExpectedIntentName,
+		const FString& InExpectedProfileName,
+		const FString& InExpectedSectionSource,
+		const FString& InExpectedSectionsText,
+		const FString& InExpectedBuilderSectionsText,
+		FString& OutDetailText)
+	{
+		// ExplicitSelection은 -Sections=에서 파싱한 명시적 선택값이다.
+		FADumpSectionSelection ExplicitSelection;
+
+		// IntentSelection은 -Intent= 매핑에서 파생한 선택값이다.
+		FADumpSectionSelection IntentSelection;
+
+		// ProfileSelection은 -Profile= 매핑에서 파생된 선택값이다.
+		FADumpSectionSelection ProfileSelection;
+
+		// IntentName은 -Intent=에서 정규화한 이름이다.
+		FString IntentName;
+
+		// ProfileName은 -Profile=에서 정규화한 이름이다.
+		FString ProfileName;
+
+		// ParseError는 섹션 또는 Intent 파싱 실패 이유다.
+		FString ParseError;
+		if (!TryParseSectionSelection(InCommandLine, ExplicitSelection, ParseError)
+			|| !TryParseIntentSelection(InCommandLine, IntentName, IntentSelection, ParseError)
+			|| !TryParseProfileSelection(InCommandLine, ProfileName, ProfileSelection, ParseError))
+		{
+			OutDetailText = ParseError;
+			return false;
+		}
+
+		// EffectiveSelection은 명시 Sections 우선순위가 적용된 최종 선택값이다.
+		FADumpSectionSelection EffectiveSelection;
+
+		// SectionSource는 우선순위가 적용된 최종 선택값의 출처다.
+		FString SectionSource;
+		ResolveEffectiveSelection(ExplicitSelection, IntentName, IntentSelection, ProfileName, ProfileSelection, EffectiveSelection, SectionSource);
+
+		// RunOpts는 선택값이 실제 builder 계획으로 연결되는지 검증할 실행 옵션이다.
+		FADumpRunOpts RunOpts;
+		RunOpts.AssetObjectPath = TEXT("/Game/AssetDumpValidation/BP_ADumpFixture.BP_ADumpFixture");
+		RunOpts.SectionSelection = EffectiveSelection;
+		RunOpts.Intent = IntentName;
+		RunOpts.Profile = ProfileName;
+		RunOpts.SectionSource = SectionSource;
+
+		// RequestInfo는 JSON 및 fingerprint가 사용할 최종 요청 스냅샷이다.
+		const FADumpRequestInfo RequestInfo = RunOpts.BuildRequestInfo();
+
+		// ActualSectionsText는 레지스트리 순서로 연결한 실제 출력 섹션 목록이다.
+		const FString ActualSectionsText = FString::Join(RequestInfo.SectionSelection.GetEnabledNames(), TEXT(","));
+
+		// ActualBuilderSectionsText는 실제 실행 예정 builder 목록이다.
+		const FString ActualBuilderSectionsText = FString::Join(RequestInfo.BuilderSections, TEXT(","));
+
+		// bPassed는 Intent, 출처, 출력 섹션, builder 계획이 모두 기대값과 같은지 나타낸다.
+		const bool bPassed = RequestInfo.Intent == InExpectedIntentName
+			&& RequestInfo.Profile == InExpectedProfileName
+			&& RequestInfo.SectionSource == InExpectedSectionSource
+			&& ActualSectionsText == InExpectedSectionsText
+			&& ActualBuilderSectionsText == InExpectedBuilderSectionsText;
+		OutDetailText = FString::Printf(
+			TEXT("intent=%s profile=%s source=%s sections=%s builder_sections=%s"),
+			*RequestInfo.Intent,
+			*RequestInfo.Profile,
+			*RequestInfo.SectionSource,
+			*ActualSectionsText,
+			*ActualBuilderSectionsText);
+		return bPassed;
 	}
 
 	// TryParseSectionSelection은 -Sections= 목록을 검증하고 선택 구조로 변환한다.
@@ -342,12 +632,18 @@ namespace
 		const FString& InAssetPath,
 		const FString& InOutputPath,
 		const FADumpSectionSelection& InSectionSelection,
+		const FString& InIntentName,
+		const FString& InProfileName,
+		const FString& InSectionSource,
 		FADumpRunOpts& OutDumpRunOpts)
 	{
 		OutDumpRunOpts.AssetObjectPath = InAssetPath;
 		OutDumpRunOpts.SourceKind = EADumpSourceKind::Commandlet;
 		OutDumpRunOpts.OutputFilePath = InOutputPath;
 		OutDumpRunOpts.SectionSelection = InSectionSelection;
+		OutDumpRunOpts.Intent = InIntentName;
+		OutDumpRunOpts.Profile = InProfileName;
+		OutDumpRunOpts.SectionSource = InSectionSource;
 		OutDumpRunOpts.bIncludeSummary = true;
 		OutDumpRunOpts.bIncludeDetails = false;
 		OutDumpRunOpts.bIncludeGraphs = false;
@@ -2542,6 +2838,114 @@ namespace
 		// CheckArray는 섹션 선택 스모크 검사 결과 목록이다.
 		TArray<TSharedPtr<FJsonValue>> CheckArray;
 
+		// QuickOverviewDetail은 quick_overview Intent 해석 결과다.
+		FString QuickOverviewDetail;
+		// bQuickOverviewPassed는 quick_overview가 summary,digest와 summary builder로 해석되는지 나타낸다.
+		const bool bQuickOverviewPassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Intent=quick_overview"), TEXT("quick_overview"), TEXT(""), TEXT("intent"), TEXT("summary,digest"), TEXT("summary"), QuickOverviewDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("intent_quick_overview"), bQuickOverviewPassed, QuickOverviewDetail);
+
+		// WidgetLayoutDetail은 widget_layout Intent 해석 결과다.
+		FString WidgetLayoutDetail;
+		// bWidgetLayoutPassed는 widget_layout이 Widget Designer builder까지 계획하는지 나타낸다.
+		const bool bWidgetLayoutPassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Intent=widget_layout"), TEXT("widget_layout"), TEXT(""), TEXT("intent"), TEXT("summary,digest,widget_designer"), TEXT("summary,widget_designer"), WidgetLayoutDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("intent_widget_layout"), bWidgetLayoutPassed, WidgetLayoutDetail);
+
+		// BlueprintLogicDetail은 blueprint_logic Intent 해석 결과다.
+		FString BlueprintLogicDetail;
+		// bBlueprintLogicPassed는 blueprint_logic이 보수적 references 사전 builder를 유지하는지 나타낸다.
+		const bool bBlueprintLogicPassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Intent=blueprint_logic"), TEXT("blueprint_logic"), TEXT(""), TEXT("intent"), TEXT("summary,digest,graphs,references"), TEXT("summary,graphs,details,references"), BlueprintLogicDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("intent_blueprint_logic"), bBlueprintLogicPassed, BlueprintLogicDetail);
+
+		// DependencyTraceDetail은 dependency_trace Intent 해석 결과다.
+		FString DependencyTraceDetail;
+		// bDependencyTracePassed는 dependency_trace가 references builder 사전 조건을 유지하는지 나타낸다.
+		const bool bDependencyTracePassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Intent=dependency_trace"), TEXT("dependency_trace"), TEXT(""), TEXT("intent"), TEXT("summary,digest,references"), TEXT("summary,details,graphs,references"), DependencyTraceDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("intent_dependency_trace"), bDependencyTracePassed, DependencyTraceDetail);
+
+		// PrecedenceDetail은 Intent와 Sections 동시 지정 해석 결과다.
+		FString PrecedenceDetail;
+		// bPrecedencePassed는 -Sections=가 출력과 builder 계획을 우선하는지 나타낸다.
+		const bool bPrecedencePassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Intent=widget_layout -Sections=summary,digest"), TEXT("widget_layout"), TEXT(""), TEXT("sections"), TEXT("summary,digest"), TEXT("summary"), PrecedenceDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("intent_sections_precedence"), bPrecedencePassed, PrecedenceDetail);
+
+		// FullProfileDetail은 full Profile이 기존 전체 모드를 유지하는지 검증한다.
+		FString FullProfileDetail;
+		// bFullProfilePassed는 full Profile의 전체 모드 및 builder 호환 여부다.
+		const bool bFullProfilePassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,graphs,references,widget_designer"), FullProfileDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_full"), bFullProfilePassed, FullProfileDetail);
+
+		// SummaryProfileDetail은 summary_only Profile 매핑 검증 결과다.
+		FString SummaryProfileDetail;
+		// bSummaryProfilePassed는 summary_only Profile의 섹션 및 builder 매핑 여부다.
+		const bool bSummaryProfilePassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=summary_only"), TEXT(""), TEXT("summary_only"), TEXT("profile"), TEXT("summary"), TEXT("summary"), SummaryProfileDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_summary_only"), bSummaryProfilePassed, SummaryProfileDetail);
+
+		// DigestProfileDetail은 digest_only Profile 매핑 검증 결과다.
+		FString DigestProfileDetail;
+		// bDigestProfilePassed는 digest_only Profile의 섹션 및 builder 매핑 여부다.
+		const bool bDigestProfilePassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=digest_only"), TEXT(""), TEXT("digest_only"), TEXT("profile"), TEXT("summary,digest"), TEXT("summary"), DigestProfileDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_digest_only"), bDigestProfilePassed, DigestProfileDetail);
+
+		// AiContextProfileDetail은 ai_context Profile의 Intent 없는 기본 매핑 검증 결과다.
+		FString AiContextProfileDetail;
+		// bAiContextProfilePassed는 ai_context Profile의 기본 섹션 및 builder 매핑 여부다.
+		const bool bAiContextProfilePassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=ai_context"), TEXT(""), TEXT("ai_context"), TEXT("profile"), TEXT("summary,digest"), TEXT("summary"), AiContextProfileDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_ai_context"), bAiContextProfilePassed, AiContextProfileDetail);
+
+		// ProfileIntentDetail은 Intent가 Profile보다 우선하는지 검증한다.
+		FString ProfileIntentDetail;
+		// bProfileIntentPassed는 Intent 우선순위 적용 여부다.
+		const bool bProfileIntentPassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=summary_only -Intent=widget_layout"), TEXT("widget_layout"), TEXT("summary_only"), TEXT("intent"), TEXT("summary,digest,widget_designer"), TEXT("summary,widget_designer"), ProfileIntentDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_intent_precedence"), bProfileIntentPassed, ProfileIntentDetail);
+
+		// ProfileIntentSectionsDetail은 Sections가 Intent와 Profile보다 우선하는지 검증한다.
+		FString ProfileIntentSectionsDetail;
+		// bProfileIntentSectionsPassed는 Sections 우선순위 적용 여부다.
+		const bool bProfileIntentSectionsPassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=ai_context -Intent=widget_layout -Sections=summary,digest"), TEXT("widget_layout"), TEXT("ai_context"), TEXT("sections"), TEXT("summary,digest"), TEXT("summary"), ProfileIntentSectionsDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_intent_sections_precedence"), bProfileIntentSectionsPassed, ProfileIntentSectionsDetail);
+
+		// InvalidProfileName은 허용되지 않는 Profile 실패 검증에 사용할 이름이다.
+		FString InvalidProfileName;
+
+		// InvalidProfileSelection은 허용되지 않는 Profile이 선택을 만들지 않는지 확인할 값이다.
+		FADumpSectionSelection InvalidProfileSelection;
+
+		// InvalidProfileError는 허용되지 않는 Profile의 사용자 표시 오류다.
+		FString InvalidProfileError;
+
+		// bInvalidProfileParsed는 invalid_profile이 잘못 통과했는지 나타낸다.
+		const bool bInvalidProfileParsed = TryParseProfileSelection(TEXT("-Mode=bpdump -Profile=invalid_profile"), InvalidProfileName, InvalidProfileSelection, InvalidProfileError);
+		// bInvalidProfilePassed는 오류에 잘못된 이름과 전체 허용 Profile 목록이 포함되는지 나타낸다.
+		const bool bInvalidProfilePassed = !bInvalidProfileParsed
+			&& InvalidProfileError.Contains(TEXT("invalid_profile"))
+			&& InvalidProfileError.Contains(GetValidProfileNamesText());
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("invalid_profile_rejected"), bInvalidProfilePassed, InvalidProfileError);
+
+		// InvalidIntentName은 허용되지 않는 Intent 실패 검증에 사용할 이름이다.
+		FString InvalidIntentName;
+		// InvalidIntentSelection은 허용되지 않는 Intent가 선택을 만들지 않는지 확인할 값이다.
+		FADumpSectionSelection InvalidIntentSelection;
+		// InvalidIntentError는 허용되지 않는 Intent의 사용자 표시 오류다.
+		FString InvalidIntentError;
+		// bInvalidIntentParsed는 invalid_intent가 잘못 통과했는지 나타낸다.
+		const bool bInvalidIntentParsed = TryParseIntentSelection(TEXT("-Mode=bpdump -Intent=invalid_intent"), InvalidIntentName, InvalidIntentSelection, InvalidIntentError);
+		// bInvalidIntentPassed는 오류에 잘못된 이름과 전체 허용 Intent 목록이 포함되는지 나타낸다.
+		const bool bInvalidIntentPassed = !bInvalidIntentParsed
+			&& InvalidIntentError.Contains(TEXT("invalid_intent"))
+			&& InvalidIntentError.Contains(GetValidIntentNamesText());
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("invalid_intent_rejected"), bInvalidIntentPassed, InvalidIntentError);
+
 		// FullDumpResult는 -Sections= 생략 시 기존 최상위 구조를 검증할 최소 결과다.
 		FADumpResult FullDumpResult = FADumpResult::CreateDefault();
 
@@ -2748,20 +3152,43 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		return 1;
 	}
 
-	// SectionSelection은 -Sections=가 생략되면 전체 모드, 지정되면 검증된 명시 선택값이다.
+	// SectionSelection은 Sections > Intent > Profile 우선순위가 적용된 최종 주요 JSON 섹션 선택값이다.
 	FADumpSectionSelection SectionSelection;
 
-	// SectionSelectionError는 알 수 없거나 비어 있는 섹션 이름의 명확한 실패 메시지다.
+	// SectionSelectionError는 알 수 없거나 비어 있는 섹션/Intent 이름의 명확한 실패 메시지다.
 	FString SectionSelectionError;
+
+	// IntentName은 -Intent=에서 받은 정규화된 분석 목적 이름이다.
+	FString IntentName;
+
+	// IntentSectionSelection은 Intent 매핑에서 파생된 정식 섹션 선택값이다.
+	FADumpSectionSelection IntentSectionSelection;
+
+	// ProfileName은 -Profile=에서 받은 정규화된 출력 프리셋 이름이다.
+	FString ProfileName;
+
+	// ProfileSectionSelection은 Profile 매핑에서 파생된 정식 섹션 선택값이다.
+	FADumpSectionSelection ProfileSectionSelection;
+
+	// SectionSource는 최종 섹션 선택 출처(full, profile, intent, sections)다.
+	FString SectionSource = TEXT("full");
 
 	// bUsesSectionSerialization은 주요 dump.json 직렬화를 사용하는 commandlet 모드인지 나타낸다.
 	const bool bUsesSectionSerialization = ModeValue.Equals(TEXT("bpdump"), ESearchCase::IgnoreCase)
 		|| ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase);
 	if (bUsesSectionSerialization
-		&& !TryParseSectionSelection(CommandLine, SectionSelection, SectionSelectionError))
+		&& (!TryParseSectionSelection(CommandLine, SectionSelection, SectionSelectionError)
+			|| !TryParseIntentSelection(CommandLine, IntentName, IntentSectionSelection, SectionSelectionError)
+			|| !TryParseProfileSelection(CommandLine, ProfileName, ProfileSectionSelection, SectionSelectionError)))
 	{
 		UE_LOG(LogTemp, Error, TEXT("%s"), *SectionSelectionError);
 		return 1;
+	}
+	if (bUsesSectionSerialization)
+	{
+		// ExplicitSectionSelection은 우선순위 계산 전에 보존한 -Sections= 직접 선택값이다.
+		FADumpSectionSelection ExplicitSectionSelection = SectionSelection;
+		ResolveEffectiveSelection(ExplicitSectionSelection, IntentName, IntentSectionSelection, ProfileName, ProfileSectionSelection, SectionSelection, SectionSource);
 	}
 
 	if (ModeValue.Equals(TEXT("index"), ESearchCase::IgnoreCase))
@@ -2924,7 +3351,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 		// DumpRunOpts는 공통 서비스에 전달할 통합 실행 옵션이다.
 		FADumpRunOpts DumpRunOpts;
-		ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetPath, OutputFilePath, SectionSelection, DumpRunOpts);
+		ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetPath, OutputFilePath, SectionSelection, IntentName, ProfileName, SectionSource, DumpRunOpts);
 
 		FADumpService DumpService;
 		FADumpResult DumpResult;
@@ -3048,7 +3475,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 			// DumpRunOpts는 현재 자산에 적용할 통합 실행 옵션이다.
 			FADumpRunOpts DumpRunOpts;
-			ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetObjectPathText, BatchAssetOutputPath, SectionSelection, DumpRunOpts);
+			ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetObjectPathText, BatchAssetOutputPath, SectionSelection, IntentName, ProfileName, SectionSource, DumpRunOpts);
 			DumpRunOpts.bSkipIfUpToDate = bChangedOnly;
 
 			// ResolvedOutputFilePath는 현재 자산 dump.json 최종 저장 경로다.
@@ -3955,6 +4382,9 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 			ResolvedObjectPathText,
 			CaseOutputDirectoryPath,
 			FullSectionSelection,
+			TEXT(""),
+			TEXT(""),
+			TEXT("full"),
 			DumpRunOpts);
 		DumpRunOpts.bIncludeSummary = true;
 		DumpRunOpts.bIncludeDetails = true;

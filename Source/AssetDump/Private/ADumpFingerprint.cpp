@@ -1,6 +1,8 @@
 // File: ADumpFingerprint.cpp
-// Version: v0.3.1
+// Version: v0.4.0
 // Changelog:
+// - v0.4.0: v0.6.3 Profile 요청 메타와 최종 선택 출처를 fingerprint 입력에 반영.
+// - v0.3.2: v0.6.2 Intent 및 section_source 요청 메타 변경을 fingerprint 입력에 반영.
 // - v0.3.1: v0.6.1 builder 제어는 섹션 선택에서 파생되므로 v0.6.0 fingerprint 입력을 그대로 유지.
 // - v0.3.0: -Sections= 선택 변경이 changed-only fingerprint에 반영되도록 보강.
 // - v0.2.0: fingerprint 계산에 부모 클래스 경로와 AssetRegistry 기반 dependency 상태를 포함해 부모/의존성 변경 시 skip이 해제되도록 보강.
@@ -83,8 +85,11 @@ namespace
 		// SectionNamesText는 활성 섹션을 레지스트리 순서로 연결한 fingerprint 입력값이다.
 		const FString SectionNamesText = FString::Join(InRequestInfo.SectionSelection.GetEnabledNames(), TEXT(","));
 		return FString::Printf(
-			TEXT("source=%s|section_mode=%s|sections=%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
+			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
 			ToString(InRequestInfo.SourceKind),
+			*InRequestInfo.Intent,
+			*InRequestInfo.Profile,
+			*InRequestInfo.SectionSource,
 			*SectionModeText,
 			*SectionNamesText,
 			InRequestInfo.bIncludeSummary ? 1 : 0,

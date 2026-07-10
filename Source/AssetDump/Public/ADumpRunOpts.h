@@ -1,6 +1,8 @@
 // File: ADumpRunOpts.h
-// Version: v0.3.0
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: v0.6.3 Profile 요청을 공통 실행 옵션과 결과 요청 스냅샷에 추가.
+// - v0.4.0: v0.6.2 Intent 요청과 최종 섹션 선택 출처를 공통 실행 옵션에 추가.
 // - v0.3.0: v0.6.1 명시적 섹션 선택을 실제 builder 실행 여부로 변환하는 helper를 추가.
 // - v0.2.0: v0.6.0 Sections 직렬화 선택 옵션을 공통 실행 요청에 추가.
 // - v0.1.0: BPDump 공통 실행 옵션 구조와 helper 추가.
@@ -19,6 +21,15 @@ struct FADumpRunOpts
 
 	// SectionSelection은 전체 모드 또는 -Sections=의 명시적 출력 섹션을 보관한다.
 	FADumpSectionSelection SectionSelection;
+
+	// Intent는 -Intent=로 요청한 정규화된 분석 목적 이름이다.
+	FString Intent;
+
+	// Profile은 -Profile=로 요청한 정규화된 출력 프리셋 이름이다.
+	FString Profile;
+
+	// SectionSource는 최종 섹션 선택 출처(full, profile, intent, sections)를 보관한다.
+	FString SectionSource = TEXT("full");
 
 	// bIncludeSummary는 summary 섹션 포함 여부다.
 	bool bIncludeSummary = true;

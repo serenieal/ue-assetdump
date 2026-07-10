@@ -1,6 +1,8 @@
 // File: ADumpTypes.cpp
-// Version: v0.5.0
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: v0.6.3 Profile 요청 메타 추가에 맞춰 extractor 버전을 2.4.1로 갱신.
+// - v0.6.0: v0.6.2 Intent 요청 메타를 결과 요청 스냅샷에 보관할 타입 기반을 추가.
 // - v0.5.0: v0.6.1 builder 제어용 summary 데이터 의존성 helper를 추가.
 // - v0.4.0: v0.6.0 Sections 옵션용 섹션 이름과 선택 helper 구현을 추가.
 // - v0.3.6: World/Map 배치 StaticMeshComponent socket world-space Transform 추출 반영을 위해 extractor version을 2.4.0으로 갱신.
@@ -28,7 +30,7 @@ namespace ADumpSchema
 
 	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("2.4.0");
+		return TEXT("2.4.1");
 	}
 }
 

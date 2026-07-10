@@ -1,6 +1,8 @@
 // File: ADumpTypes.h
-// Version: v0.10.0
+// Version: v0.12.0
 // Changelog:
+// - v0.12.0: v0.6.3 Profile 요청 이름을 결과 요청 메타에 추가.
+// - v0.11.0: v0.6.2 Intent 요청 이름과 최종 섹션 선택 출처 메타를 추가.
 // - v0.10.0: v0.6.1 builder 제어 근거를 남기기 위한 summary 의존 helper와 builder 섹션 메타를 추가.
 // - v0.9.0: v0.6.0 Sections 옵션용 주요 JSON 섹션 선택 구조를 추가.
 // - v0.8.0: WidgetBlueprint Designer hierarchy dump용 구조체와 summary 필드를 추가.
@@ -241,6 +243,15 @@ struct FADumpRequestInfo
 {
 	// SourceKind는 요청 출처를 기록한다.
 	EADumpSourceKind SourceKind = EADumpSourceKind::Unknown;
+
+	// Intent는 -Intent=로 요청한 정규화된 분석 목적 이름이다.
+	FString Intent;
+
+	// Profile은 -Profile=로 요청한 정규화된 출력 프리셋 이름이다.
+	FString Profile;
+
+	// SectionSource는 최종 섹션 선택 출처(full, profile, intent, sections)를 기록한다.
+	FString SectionSource = TEXT("full");
 
 	// SectionSelection은 전체 모드 또는 -Sections=의 명시적 출력 섹션을 기록한다.
 	FADumpSectionSelection SectionSelection;

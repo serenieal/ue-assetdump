@@ -1,6 +1,8 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.4.0
+// Version: v0.6.0
 // Changelog:
+// - v0.6.0: v0.6.3 Profile 요청을 결과 요청 스냅샷에 전달.
+// - v0.5.0: v0.6.2 Intent 요청과 최종 섹션 선택 출처를 결과 요청 스냅샷에 전달.
 // - v0.4.0: v0.6.1 섹션 선택 기반 builder 실행 판단과 builder_sections 요청 메타를 추가.
 // - v0.3.0: v0.6.0 Sections 선택값을 결과 요청 스냅샷에 전달.
 // - v0.2.0: 경로 입력시 폴더면 자산별 파일명, 파일이면 그대로 적용하도록 수정.
@@ -105,6 +107,9 @@ FADumpRequestInfo FADumpRunOpts::BuildRequestInfo() const
 {
 	FADumpRequestInfo RequestInfo;
 	RequestInfo.SourceKind = SourceKind;
+	RequestInfo.Intent = Intent;
+	RequestInfo.Profile = Profile;
+	RequestInfo.SectionSource = SectionSource;
 	RequestInfo.SectionSelection = SectionSelection;
 	RequestInfo.BuilderSections = GetBuilderSectionNames();
 	RequestInfo.bIncludeSummary = bIncludeSummary;

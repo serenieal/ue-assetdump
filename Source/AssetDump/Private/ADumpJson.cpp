@@ -1,6 +1,8 @@
 // File: ADumpJson.cpp
-// Version: v1.4.0
+// Version: v1.6.0
 // Changelog:
+// - v1.6.0: v0.6.3 Profile 요청 이름을 request envelope에 기록.
+// - v1.5.0: v0.6.2 Intent 요청 이름과 섹션 선택 출처를 request envelope에 기록.
 // - v1.4.0: v0.6.1 명시적 모드 request에 실제 실행 예정 builder_sections 메타를 기록.
 // - v1.3.0: v0.6.0 Sections 선택에 따라 메인 JSON과 sidecar 주요 섹션 출력을 필터링.
 // - v1.2.0: WidgetBlueprint Designer hierarchy summary/digest/top-level JSON 직렬화 추가.
@@ -396,6 +398,9 @@ namespace
 		// RequestObject는 request 섹션 직렬화 결과 object다.
 		TSharedRef<FJsonObject> RequestObject = MakeShared<FJsonObject>();
 		RequestObject->SetStringField(TEXT("source"), ToString(InRequestInfo.SourceKind));
+		RequestObject->SetStringField(TEXT("intent"), InRequestInfo.Intent);
+		RequestObject->SetStringField(TEXT("profile"), InRequestInfo.Profile);
+		RequestObject->SetStringField(TEXT("section_source"), InRequestInfo.SectionSource);
 		RequestObject->SetBoolField(TEXT("include_summary"), InRequestInfo.bIncludeSummary);
 		RequestObject->SetBoolField(TEXT("include_details"), InRequestInfo.bIncludeDetails);
 		RequestObject->SetBoolField(TEXT("include_graphs"), InRequestInfo.bIncludeGraphs);
