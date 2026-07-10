@@ -1,0 +1,116 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpWidgetTree.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpWidgetTree.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpSummaryExt.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+u:
+  - "None. If a UE API name differs in the installed engine version, inspect the local UE headers or current compile errors and choose the compatible API rather than guessing"
+  - "---"
+ld:
+  novelty_directives:
+    - "현재 AssetDump 플러그인은 WidgetBlueprint를 식별하고, Widget Tree의 개요 정보를 일부 저장할 수 있다. 하지만 언리얼 에디터의 위젯 블루프린트 Designer 탭에서 보이는 계층구조를 JSON으로 복원할 수 있을 정도의 정보는 아직 제공하지 않는다"
+    - 이 문서의 목적은 WidgetBlueprint의 Designer 탭 분석을 위해 다음 정보를 AssetDump 결과에 추가하는 개선 계획을 정의하는 것이다
+    - Designer 계층구조
+    - Widget별 부모-자식 관계
+    - Widget별 Slot/Layout 요약
+    - 주요 Widget 속성 요약
+    - 검증용 fixture와 validation gate
+    - "---"
+    - 최종적으로 AssetDump 결과에서 다음과 같은 Designer 계층구조를 읽을 수 있어야 한다
+    - "text CanvasPanel_50 [CanvasPanel] Border_Root [Border] VerticalBox_Main [VerticalBox] Text_Title [TextBlock] = \"Vehicle Debug\" ScrollBox_Sections [ScrollBox] VerticalBox_Sections [VerticalBox] Button_Close [Button] Text_Close [TextBlock] = \"Close"
+    - 이를 통해 다음 분석이 가능해야 한다
+    - 루트 위젯 확인
+    - 부모-자식 관계 확인
+    - UI 구조 깊이 확인
+    - 동적 생성 영역 추정
+    - 불필요하게 깊은 계층 확인
+    - 이름 규칙 미준수 위젯 확인
+    - "TextBlock, Image, ProgressBar 등 주요 표시 요소 확인"
+    - "CanvasPanelSlot, VerticalBoxSlot 등 배치 정보 확인"
+    - Implement AssetDump v0.5.0 WidgetBlueprint Designer Hierarchy basic dump
+    - "The implementation must allow AssetDump JSON output to represent the WidgetBlueprint Designer tree from UWidgetBlueprint::WidgetTree->RootWidget, including parent-child hierarchy, node count, max depth, preview lines, and a top-level widget_designer object"
+    - Add Widget Designer data structures to represent hierarchy nodes and slot summary placeholders
+    - Add Widget Designer summary fields to FADumpSummary
+    - Add ADumpWidgetTree.h and ADumpWidgetTree.cpp for WidgetTree traversal
+    - Traverse RootWidget recursively
+    - Support UPanelWidget children through GetChildrenCount() and GetChildAt()
+    - "Support UContentWidget single child traversal so Border, Button, and similar content widgets do not lose their child subtree"
+    - "Add cycle protection for visited UWidget* pointers"
+    - "Populate node count, max depth, root tree, and flat preview"
+    - Call the Widget Designer summary builder from the existing WidgetBlueprint branch in ADumpSummaryExt.cpp
+    - Serialize new summary fields in ADumpJson.cpp
+    - "Extend digest.widget_overview with Designer node count, max depth, and preview"
+    - "Add top-level widget_designer JSON object with schema_version, node_count, max_depth, root, and flat_nodes"
+    - Expand the WidgetBlueprint validation fixture from a single TextBlock into a multi-node hierarchy
+    - Add validation gates for minimum Widget Designer node count and max depth
+  acceptance_criteria:
+    - Build the AssetDump plugin/editor target and fix any compile errors
+    - Run the existing AssetDump validation workflow for the fixture-only WidgetBlueprint case if available
+    - Dump an existing WidgetBlueprint such as /Game/CarFight/UI/WBP_VehicleDebugPanel if it exists in the project
+    - "Inspect the output JSON and confirm the following fields exist:"
+    - text widget_designer_schema_version widget_designer_node_count widget_designer_max_depth widget_designer widget_designer.root widget_designer.root.children widget_designer.flat_nodes digest.widget_overview.designer_node_count digest.widget_overview.designer_max_depth
+    - Confirm widget_designer.flat_nodes.length == widget_designer.node_count
+    - Confirm existing WidgetBlueprint summary fields are still present
+    - Confirm validation passes for the updated fixture
+    - Confirm validation fails if the Designer hierarchy is missing or below minimum thresholds
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/Archive/WidgetDesignerPlan/WidgetDesignerPlan_v1.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/Archive/WidgetDesignerPlan/WidgetDesignerPlan_v1.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Add Widget Designer data structures to represent hierarchy nodes and slot summary placeholders
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpWidgetTree.h
+      reason: Add Widget Designer data structures to represent hierarchy nodes and slot summary placeholders
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpWidgetTree.cpp
+      reason: Add Widget Designer data structures to represent hierarchy nodes and slot summary placeholders
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpSummaryExt.cpp
+      reason: Add Widget Designer data structures to represent hierarchy nodes and slot summary placeholders
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Add Widget Designer data structures to represent hierarchy nodes and slot summary placeholders
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Add Widget Designer data structures to represent hierarchy nodes and slot summary placeholders
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored
