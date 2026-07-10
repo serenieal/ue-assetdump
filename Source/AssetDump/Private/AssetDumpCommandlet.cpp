@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.4.10
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: WidgetBlueprint Designer hierarchy fixture와 validation gate를 추가.
 // - v0.4.10: World fixture root StaticMeshComponent relative Transform을 비-identity 기준값으로 강제하고 validate 검사 추가.
 // - v0.4.9: World fixture actor/component 수정 시 Modify 호출을 추가해 map 저장 안정성을 보강.
 // - v0.4.8: World fixture 저장 후 initialized World 정리를 수행해 commandlet 종료 크래시를 방지.
@@ -49,8 +50,13 @@
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/ActorComponent.h"
+#include "Components/Border.h"
+#include "Components/Button.h"
+#include "Components/CanvasPanel.h"
+#include "Components/ScrollBox.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
@@ -502,6 +508,12 @@ namespace
 		// MinWidgetBindingCount는 widget binding 최소 기대 개수다.
 		int32 MinWidgetBindingCount = 0;
 
+		// MinWidgetDesignerNodeCount는 Widget Designer hierarchy 최소 노드 개수다.
+		int32 MinWidgetDesignerNodeCount = 0;
+
+		// MinWidgetDesignerMaxDepth는 Widget Designer hierarchy 최소 최대 깊이다.
+		int32 MinWidgetDesignerMaxDepth = 0;
+
 		// MinInputMappingCount는 input mapping 최소 기대 개수다.
 		int32 MinInputMappingCount = 0;
 
@@ -837,15 +849,40 @@ namespace
 	{
 		// FixtureObjectPath는 로드할 fixture full object path다.
 		const FString FixtureObjectPath = BuildValidationFixtureObjectPath(InAssetName);
-		return StaticLoadObject(UObject::StaticClass(), nullptr, *FixtureObjectPath, nullptr, LOAD_NoWarn);
+		return StaticLoadObject(UObject::StaticClass(), nullptr, *FixtureObjectPath, nullptr, LOAD_NoWarn | LOAD_DisableCompileOnLoad);
+	}
+
+	// DeleteValidationFixturePackageFile는 재생성 대상 fixture의 기존 package 파일을 제거한다.
+	bool DeleteValidationFixturePackageFile(const FString& InPackagePath, FString& OutFailureMessage)
+	{
+		OutFailureMessage.Reset();
+
+		// PackageFilePath는 long package name에 대응하는 실제 uasset 파일 경로다.
+		const FString PackageFilePath = FPaths::ConvertRelativePathToFull(
+			FPackageName::LongPackageNameToFilename(
+				InPackagePath,
+				FPackageName::GetAssetPackageExtension()));
+
+		if (!IFileManager::Get().FileExists(*PackageFilePath))
+		{
+			return true;
+		}
+
+		if (!IFileManager::Get().Delete(*PackageFilePath, false, true, true))
+		{
+			OutFailureMessage = FString::Printf(TEXT("기존 fixture package 파일 삭제에 실패했습니다: %s"), *PackageFilePath);
+			return false;
+		}
+
+		return true;
 	}
 
 	// CreateValidationFixturePackage는 fixture 저장에 사용할 package를 준비한다.
-	UPackage* CreateValidationFixturePackage(const FString& InPackagePath)
+	UPackage* CreateValidationFixturePackage(const FString& InPackagePath, bool bInFullyLoad = true)
 	{
 		// FixturePackage는 새 자산을 담을 Unreal package다.
 		UPackage* FixturePackage = CreatePackage(*InPackagePath);
-		if (FixturePackage)
+		if (FixturePackage && bInFullyLoad)
 		{
 			FixturePackage->FullyLoad();
 		}
@@ -1123,6 +1160,42 @@ namespace
 	}
 
 	// EnsureWidgetBlueprintFixture는 공용 Widget Blueprint fixture를 생성하거나 확인한다.
+	// SyncWidgetBlueprintVariableGuids는 commandlet에서 직접 만든 widget source object의 변수 GUID 맵을 보정한다.
+	void SyncWidgetBlueprintVariableGuids(UWidgetBlueprint& InWidgetBlueprint)
+	{
+		if (!InWidgetBlueprint.WidgetTree)
+		{
+			return;
+		}
+
+		// CurrentWidgetNameSet은 현재 WidgetTree에 실제 존재하는 widget 이름 집합이다.
+		TSet<FName> CurrentWidgetNameSet;
+		InWidgetBlueprint.WidgetTree->ForEachWidget([&InWidgetBlueprint, &CurrentWidgetNameSet](UWidget* WidgetItem)
+		{
+			if (!WidgetItem)
+			{
+				return;
+			}
+
+			// WidgetName은 GUID 맵의 key로 사용할 위젯 object 이름이다.
+			const FName WidgetName = WidgetItem->GetFName();
+			CurrentWidgetNameSet.Add(WidgetName);
+			if (!InWidgetBlueprint.WidgetVariableNameToGuidMap.Contains(WidgetName))
+			{
+				InWidgetBlueprint.WidgetVariableNameToGuidMap.Emplace(WidgetName, FGuid::NewDeterministicGuid(WidgetItem->GetPathName()));
+			}
+		});
+
+		for (auto GuidMapIterator = InWidgetBlueprint.WidgetVariableNameToGuidMap.CreateIterator(); GuidMapIterator; ++GuidMapIterator)
+		{
+			if (!CurrentWidgetNameSet.Contains(GuidMapIterator.Key()))
+			{
+				GuidMapIterator.RemoveCurrent();
+			}
+		}
+	}
+
+	// EnsureWidgetBlueprintFixture는 공용 Widget Blueprint fixture를 생성하거나 확인한다.
 	void EnsureWidgetBlueprintFixture(FValidationFixtureBuildResult& OutResult)
 	{
 		InitializeValidationFixtureResult(
@@ -1131,8 +1204,8 @@ namespace
 			AssetDumpWidgetFixtureName,
 			TEXT("WidgetBlueprint"));
 
-		// ExistingObject는 이미 저장된 Widget Blueprint fixture 로드 결과다.
-		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+		// ExistingObject는 Widget Blueprint fixture를 매번 재생성하기 위해 의도적으로 로드하지 않는다.
+		UObject* ExistingObject = nullptr;
 
 		// WidgetBlueprintAsset은 생성 또는 로드된 Widget Blueprint 자산이다.
 		UWidgetBlueprint* WidgetBlueprintAsset = Cast<UWidgetBlueprint>(ExistingObject);
@@ -1146,8 +1219,13 @@ namespace
 		bool bNeedsSave = false;
 		if (!WidgetBlueprintAsset)
 		{
+			if (!DeleteValidationFixturePackageFile(OutResult.PackagePath, OutResult.FailureMessage))
+			{
+				return;
+			}
+
 			// FixturePackage는 새 Widget Blueprint fixture를 담을 package다.
-			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath, false);
 			if (!FixturePackage)
 			{
 				OutResult.FailureMessage = TEXT("Widget Blueprint fixture package를 만들지 못했습니다.");
@@ -1171,7 +1249,8 @@ namespace
 			}
 
 			FAssetRegistryModule::AssetCreated(WidgetBlueprintAsset);
-			OutResult.bCreated = true;
+			OutResult.bCreated = !IFileManager::Get().FileExists(*FPackageName::LongPackageNameToFilename(OutResult.PackagePath, FPackageName::GetAssetPackageExtension()));
+			OutResult.bUpdated = !OutResult.bCreated;
 			bNeedsSave = true;
 		}
 
@@ -1182,26 +1261,82 @@ namespace
 			bNeedsSave = true;
 		}
 
-		if (WidgetBlueprintAsset->WidgetTree && !WidgetBlueprintAsset->WidgetTree->RootWidget)
+		if (WidgetBlueprintAsset->WidgetTree)
 		{
-			// RootTextBlock은 Widget Blueprint fixture의 최소 루트 위젯이다.
-			UTextBlock* RootTextBlock = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UTextBlock>(
-				UTextBlock::StaticClass(),
-				TEXT("Txt_ADumpFixture"));
-			if (!RootTextBlock)
+			// CanvasPanelRoot는 Widget Blueprint fixture의 Designer 루트 패널이다.
+			UCanvasPanel* CanvasPanelRoot = Cast<UCanvasPanel>(WidgetBlueprintAsset->WidgetTree->RootWidget);
+			if (!CanvasPanelRoot || CanvasPanelRoot->GetChildrenCount() < 2)
 			{
-				OutResult.FailureMessage = TEXT("Widget Blueprint fixture 루트 TextBlock 생성에 실패했습니다.");
-				return;
-			}
+				WidgetBlueprintAsset->WidgetTree->RootWidget = nullptr;
 
-			RootTextBlock->SetText(FText::FromString(TEXT("AssetDump Fixture")));
-			WidgetBlueprintAsset->WidgetTree->RootWidget = RootTextBlock;
-			OutResult.bUpdated = !OutResult.bCreated;
-			bNeedsSave = true;
+				CanvasPanelRoot = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UCanvasPanel>(
+					UCanvasPanel::StaticClass(),
+					TEXT("CanvasPanel_ADumpRoot"));
+				if (!CanvasPanelRoot)
+				{
+					OutResult.FailureMessage = TEXT("Widget Blueprint fixture 루트 CanvasPanel 생성에 실패했습니다.");
+					return;
+				}
+
+				// BorderRoot는 Designer hierarchy 깊이 검증을 위한 루트 콘텐츠 컨테이너다.
+				UBorder* BorderRoot = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UBorder>(
+					UBorder::StaticClass(),
+					TEXT("Border_ADumpRoot"));
+
+				// VerticalBoxMain은 텍스트/스크롤/버튼을 세로로 담는 메인 컨테이너다.
+				UVerticalBox* VerticalBoxMain = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UVerticalBox>(
+					UVerticalBox::StaticClass(),
+					TEXT("VerticalBox_ADumpMain"));
+
+				// TitleTextBlock은 Designer dump에서 텍스트 속성 요약을 검증할 제목 위젯이다.
+				UTextBlock* TitleTextBlock = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UTextBlock>(
+					UTextBlock::StaticClass(),
+					TEXT("Text_ADumpTitle"));
+
+				// ScrollBoxSections는 중첩 컨테이너 traversal을 검증할 스크롤 영역이다.
+				UScrollBox* ScrollBoxSections = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UScrollBox>(
+					UScrollBox::StaticClass(),
+					TEXT("ScrollBox_ADumpSections"));
+
+				// VerticalBoxSections는 ScrollBox 안쪽 child traversal을 검증할 컨테이너다.
+				UVerticalBox* VerticalBoxSections = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UVerticalBox>(
+					UVerticalBox::StaticClass(),
+					TEXT("VerticalBox_ADumpSections"));
+
+				// CloseButton은 UContentWidget 단일 child traversal을 검증할 버튼이다.
+				UButton* CloseButton = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UButton>(
+					UButton::StaticClass(),
+					TEXT("Button_ADumpClose"));
+
+				// CloseTextBlock은 Button 내부 TextBlock child traversal을 검증할 텍스트 위젯이다.
+				UTextBlock* CloseTextBlock = WidgetBlueprintAsset->WidgetTree->ConstructWidget<UTextBlock>(
+					UTextBlock::StaticClass(),
+					TEXT("Text_ADumpClose"));
+
+				if (!BorderRoot || !VerticalBoxMain || !TitleTextBlock || !ScrollBoxSections || !VerticalBoxSections || !CloseButton || !CloseTextBlock)
+				{
+					OutResult.FailureMessage = TEXT("Widget Blueprint fixture Designer child 생성에 실패했습니다.");
+					return;
+				}
+
+				TitleTextBlock->SetText(FText::FromString(TEXT("AssetDump Fixture")));
+				CloseTextBlock->SetText(FText::FromString(TEXT("Close")));
+				CloseButton->SetContent(CloseTextBlock);
+				ScrollBoxSections->AddChild(VerticalBoxSections);
+				VerticalBoxMain->AddChild(TitleTextBlock);
+				VerticalBoxMain->AddChild(ScrollBoxSections);
+				BorderRoot->SetContent(VerticalBoxMain);
+				CanvasPanelRoot->AddChild(BorderRoot);
+				CanvasPanelRoot->AddChild(CloseButton);
+				WidgetBlueprintAsset->WidgetTree->RootWidget = CanvasPanelRoot;
+				OutResult.bUpdated = !OutResult.bCreated;
+				bNeedsSave = true;
+			}
 		}
 
 		if (bNeedsSave)
 		{
+			SyncWidgetBlueprintVariableGuids(*WidgetBlueprintAsset);
 			FKismetEditorUtilities::CompileBlueprint(WidgetBlueprintAsset, EBlueprintCompileOptions::SkipSave);
 			OutResult.bSaved = SaveValidationFixtureAsset(WidgetBlueprintAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
 			if (!OutResult.bSaved)
@@ -3230,6 +3365,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 			WidgetCase.DiscoveryClassName = TEXT("WidgetBlueprint");
 			WidgetCase.bIsOptionalSample = true;
 			WidgetCase.MinGraphCount = 1;
+			WidgetCase.MinWidgetDesignerNodeCount = 3;
+			WidgetCase.MinWidgetDesignerMaxDepth = 1;
 			ValidationCaseArray.Add(WidgetCase);
 
 			// AnimCase는 AnimBlueprint 검증 케이스다.
@@ -3316,6 +3453,8 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 			WidgetCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpWidgetFixtureName));
 			WidgetCase.bIsOptionalSample = false;
 			WidgetCase.MinGraphCount = 1;
+			WidgetCase.MinWidgetDesignerNodeCount = 7;
+			WidgetCase.MinWidgetDesignerMaxDepth = 3;
 			ValidationCaseArray.Add(WidgetCase);
 
 			// InputActionCase는 공용 InputAction fixture 검증 케이스다.
@@ -3603,6 +3742,39 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 				DumpResult.Summary.WorldActorCount >= ValidationCase.MinWorldActorCount,
 				FString::Printf(TEXT(">=%d"), ValidationCase.MinWorldActorCount),
 				FString::FromInt(DumpResult.Summary.WorldActorCount),
+				true);
+		}
+
+		if (ValidationCase.MinWidgetDesignerNodeCount > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("widget_designer_node_count_min"),
+				DumpResult.Summary.WidgetDesigner.NodeCount >= ValidationCase.MinWidgetDesignerNodeCount,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinWidgetDesignerNodeCount),
+				FString::FromInt(DumpResult.Summary.WidgetDesigner.NodeCount),
+				true);
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("widget_designer_flat_nodes_match"),
+				DumpResult.Summary.WidgetDesigner.FlatNodes.Num() == DumpResult.Summary.WidgetDesigner.NodeCount,
+				FString::FromInt(DumpResult.Summary.WidgetDesigner.NodeCount),
+				FString::FromInt(DumpResult.Summary.WidgetDesigner.FlatNodes.Num()),
+				true);
+		}
+
+		if (ValidationCase.MinWidgetDesignerMaxDepth > 0)
+		{
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("widget_designer_max_depth_min"),
+				DumpResult.Summary.WidgetDesigner.MaxDepth >= ValidationCase.MinWidgetDesignerMaxDepth,
+				FString::Printf(TEXT(">=%d"), ValidationCase.MinWidgetDesignerMaxDepth),
+				FString::FromInt(DumpResult.Summary.WidgetDesigner.MaxDepth),
 				true);
 		}
 

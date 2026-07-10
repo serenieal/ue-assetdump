@@ -1,6 +1,7 @@
 // File: ADumpSummaryExt.cpp
-// Version: v0.7.1
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: WidgetBlueprint Designer hierarchy summary builder 호출 추가.
 // - v0.7.1: 로드된 StaticMeshActor의 native StaticMeshComponent도 world socket summary 대상에 포함.
 // - v0.7.0: World/Map 배치 StaticMeshComponent socket Transform count/preview summary 추가.
 // - v0.6.0: Blueprint StaticMeshComponent 참조 StaticMesh socket count/preview summary 추가.
@@ -20,6 +21,8 @@
 // - v0.1.0: Blueprint summary 기본 추출기 구현 추가.
 
 #include "ADumpSummaryExt.h"
+
+#include "ADumpWidgetTree.h"
 
 #include "Animation/AnimBlueprint.h"
 #include "Animation/WidgetAnimation.h"
@@ -734,6 +737,8 @@ namespace ADumpSummaryExt
 					OutSummary.WidgetRootClass = WidgetBlueprintAsset->WidgetTree->RootWidget->GetClass()->GetName();
 				}
 			}
+
+			ADumpWidgetTree::BuildDesignerSummary(*WidgetBlueprintAsset, OutSummary);
 
 			for (const FDelegateEditorBinding& BindingItem : WidgetBlueprintAsset->Bindings)
 			{

@@ -1,6 +1,7 @@
 // File: ADumpJson.cpp
-// Version: v1.1.0
+// Version: v1.2.0
 // Changelog:
+// - v1.2.0: WidgetBlueprint Designer hierarchy summary/digest/top-level JSON 직렬화 추가.
 // - v1.1.0: World/Map 배치 StaticMeshComponent socket world-space Transform JSON 직렬화 추가.
 // - v1.0.0: StaticMeshComponent socket component-space 및 parent-relative Transform JSON 직렬화 추가.
 // - v0.9.0: Blueprint StaticMeshComponent 참조 socket details/summary/digest JSON 직렬화 추가.
@@ -266,6 +267,64 @@ namespace
 		return BindingJsonArray;
 	}
 
+	// MakeWidgetSlotSummaryObject는 Designer Slot/Layout 요약을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeWidgetSlotSummaryObject(const FADumpWidgetSlotSummary& InSlotSummary)
+	{
+		// SlotSummaryObject는 Designer slot summary 직렬화 결과다.
+		TSharedRef<FJsonObject> SlotSummaryObject = MakeShared<FJsonObject>();
+		SlotSummaryObject->SetStringField(TEXT("slot_class"), InSlotSummary.SlotClass);
+		SlotSummaryObject->SetStringField(TEXT("slot_preview"), InSlotSummary.SlotPreview);
+		return SlotSummaryObject;
+	}
+
+	// MakeWidgetDesignerNodeObject는 Designer hierarchy node를 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeWidgetDesignerNodeObject(const FADumpWidgetDesignerNode& InNode, bool bIncludeChildren)
+	{
+		// NodeObject는 Designer node 직렬화 결과다.
+		TSharedRef<FJsonObject> NodeObject = MakeShared<FJsonObject>();
+		NodeObject->SetStringField(TEXT("node_id"), InNode.NodeId);
+		NodeObject->SetStringField(TEXT("parent_node_id"), InNode.ParentNodeId);
+		NodeObject->SetStringField(TEXT("widget_name"), InNode.WidgetName);
+		NodeObject->SetStringField(TEXT("widget_class"), InNode.WidgetClass);
+		NodeObject->SetNumberField(TEXT("depth"), InNode.Depth);
+		NodeObject->SetObjectField(TEXT("slot"), MakeWidgetSlotSummaryObject(InNode.SlotSummary));
+		NodeObject->SetArrayField(TEXT("property_preview"), MakeStringArray(InNode.PropertyPreview));
+
+		if (bIncludeChildren)
+		{
+			// ChildArray는 현재 node의 자식 node 직렬화 결과 배열이다.
+			TArray<TSharedPtr<FJsonValue>> ChildArray;
+			for (const FADumpWidgetDesignerNode& ChildNode : InNode.Children)
+			{
+				ChildArray.Add(MakeShared<FJsonValueObject>(MakeWidgetDesignerNodeObject(ChildNode, true)));
+			}
+			NodeObject->SetArrayField(TEXT("children"), ChildArray);
+		}
+
+		return NodeObject;
+	}
+
+	// MakeWidgetDesignerObject는 top-level widget_designer JSON object를 만든다.
+	TSharedRef<FJsonObject> MakeWidgetDesignerObject(const FADumpWidgetDesignerData& InDesignerData)
+	{
+		// DesignerObject는 widget_designer 최상위 직렬화 결과다.
+		TSharedRef<FJsonObject> DesignerObject = MakeShared<FJsonObject>();
+		DesignerObject->SetStringField(TEXT("schema_version"), InDesignerData.SchemaVersion);
+		DesignerObject->SetNumberField(TEXT("node_count"), InDesignerData.NodeCount);
+		DesignerObject->SetNumberField(TEXT("max_depth"), InDesignerData.MaxDepth);
+		DesignerObject->SetArrayField(TEXT("preview"), MakeStringArray(InDesignerData.PreviewLines));
+		DesignerObject->SetObjectField(TEXT("root"), MakeWidgetDesignerNodeObject(InDesignerData.Root, true));
+
+		// FlatNodeArray는 pre-order flat node 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> FlatNodeArray;
+		for (const FADumpWidgetDesignerNode& FlatNode : InDesignerData.FlatNodes)
+		{
+			FlatNodeArray.Add(MakeShared<FJsonValueObject>(MakeWidgetDesignerNodeObject(FlatNode, false)));
+		}
+		DesignerObject->SetArrayField(TEXT("flat_nodes"), FlatNodeArray);
+		return DesignerObject;
+	}
+
 	// ShouldWriteSummarySidecar는 summary sidecar 저장 여부를 결정한다.
 	bool ShouldWriteSummarySidecar(const FADumpResult& InDumpResult)
 	{
@@ -365,6 +424,10 @@ namespace
 		SummaryObject->SetArrayField(TEXT("widget_binding_preview"), MakeStringArray(InSummary.WidgetBindingPreview));
 		SummaryObject->SetArrayField(TEXT("widget_bindings"), MakeWidgetBindingArray(InSummary.WidgetBindings));
 		SummaryObject->SetArrayField(TEXT("widget_animation_preview"), MakeStringArray(InSummary.WidgetAnimationPreview));
+		SummaryObject->SetStringField(TEXT("widget_designer_schema_version"), InSummary.WidgetDesigner.SchemaVersion);
+		SummaryObject->SetNumberField(TEXT("widget_designer_node_count"), InSummary.WidgetDesigner.NodeCount);
+		SummaryObject->SetNumberField(TEXT("widget_designer_max_depth"), InSummary.WidgetDesigner.MaxDepth);
+		SummaryObject->SetArrayField(TEXT("widget_designer_preview"), MakeStringArray(InSummary.WidgetDesigner.PreviewLines));
 		SummaryObject->SetNumberField(TEXT("anim_group_count"), InSummary.AnimGroupCount);
 		SummaryObject->SetNumberField(TEXT("anim_state_machine_count"), InSummary.AnimStateMachineCount);
 		SummaryObject->SetNumberField(TEXT("anim_state_count"), InSummary.AnimStateCount);
@@ -975,6 +1038,7 @@ namespace
 		KeyCountsObject->SetNumberField(TEXT("widget_bindings"), InDumpResult.Summary.WidgetBindingCount);
 		KeyCountsObject->SetNumberField(TEXT("widget_animations"), InDumpResult.Summary.WidgetAnimationCount);
 		KeyCountsObject->SetNumberField(TEXT("widget_tree_widgets"), InDumpResult.Summary.WidgetTreeWidgetCount);
+		KeyCountsObject->SetNumberField(TEXT("widget_designer_nodes"), InDumpResult.Summary.WidgetDesigner.NodeCount);
 		KeyCountsObject->SetNumberField(TEXT("anim_groups"), InDumpResult.Summary.AnimGroupCount);
 		KeyCountsObject->SetNumberField(TEXT("anim_state_machines"), InDumpResult.Summary.AnimStateMachineCount);
 		KeyCountsObject->SetNumberField(TEXT("anim_states"), InDumpResult.Summary.AnimStateCount);
@@ -997,6 +1061,9 @@ namespace
 		WidgetOverviewObject->SetStringField(TEXT("root_class"), InDumpResult.Summary.WidgetRootClass);
 		WidgetOverviewObject->SetNumberField(TEXT("widget_count"), InDumpResult.Summary.WidgetTreeWidgetCount);
 		WidgetOverviewObject->SetNumberField(TEXT("named_slot_bindings"), InDumpResult.Summary.WidgetNamedSlotBindingCount);
+		WidgetOverviewObject->SetNumberField(TEXT("designer_node_count"), InDumpResult.Summary.WidgetDesigner.NodeCount);
+		WidgetOverviewObject->SetNumberField(TEXT("designer_max_depth"), InDumpResult.Summary.WidgetDesigner.MaxDepth);
+		WidgetOverviewObject->SetArrayField(TEXT("designer_preview"), MakeStringArray(InDumpResult.Summary.WidgetDesigner.PreviewLines));
 		WidgetOverviewObject->SetArrayField(TEXT("binding_preview"), MakeStringArray(InDumpResult.Summary.WidgetBindingPreview));
 		WidgetOverviewObject->SetArrayField(TEXT("animation_preview"), MakeStringArray(InDumpResult.Summary.WidgetAnimationPreview));
 		DigestObject->SetObjectField(TEXT("widget_overview"), WidgetOverviewObject);
@@ -1279,6 +1346,7 @@ namespace ADumpJson
 		RootObject->SetObjectField(TEXT("asset"), MakeAssetObject(InDumpResult.Asset));
 		RootObject->SetObjectField(TEXT("request"), MakeRequestObject(InDumpResult.Request));
 		RootObject->SetObjectField(TEXT("summary"), MakeSummaryObject(InDumpResult.Summary));
+		RootObject->SetObjectField(TEXT("widget_designer"), MakeWidgetDesignerObject(InDumpResult.Summary.WidgetDesigner));
 		RootObject->SetObjectField(TEXT("details"), MakeDetailsObject(InDumpResult));
 		RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
 		RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));

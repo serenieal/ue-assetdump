@@ -1,6 +1,7 @@
 // File: ADumpTypes.h
-// Version: v0.7.0
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: WidgetBlueprint Designer hierarchy dump용 구조체와 summary 필드를 추가.
 // - v0.7.0: World/Map에 배치된 StaticMeshComponent socket의 world-space Transform 구조를 추가.
 // - v0.6.0: StaticMeshComponent socket의 component-space 및 parent-relative Transform 구조를 추가.
 // - v0.5.0: Blueprint StaticMeshComponent가 참조하는 StaticMesh socket 요약 구조와 summary 필드를 추가.
@@ -253,6 +254,66 @@ struct FADumpWidgetBindingItem
 	FString PreviewText;
 };
 
+// FADumpWidgetSlotSummary는 Designer 위젯의 Slot/Layout 요약 정보를 담는다.
+struct FADumpWidgetSlotSummary
+{
+	// SlotClass는 위젯을 담고 있는 UPanelSlot 클래스 이름이다.
+	FString SlotClass;
+
+	// SlotPreview는 AI가 빠르게 읽을 수 있는 Slot/Layout 한 줄 요약이다.
+	FString SlotPreview;
+};
+
+// FADumpWidgetDesignerNode는 WidgetBlueprint Designer tree의 위젯 노드 한 개를 표현한다.
+struct FADumpWidgetDesignerNode
+{
+	// NodeId는 한 번의 traversal 안에서 안정적으로 부여하는 노드 식별자다.
+	FString NodeId;
+
+	// ParentNodeId는 부모 노드 식별자이며 root는 빈 문자열이다.
+	FString ParentNodeId;
+
+	// WidgetName은 Designer에 배치된 위젯 인스턴스 이름이다.
+	FString WidgetName;
+
+	// WidgetClass는 위젯 클래스 이름이다.
+	FString WidgetClass;
+
+	// Depth는 root를 0으로 보는 Designer tree 깊이다.
+	int32 Depth = 0;
+
+	// SlotSummary는 부모 패널 안에서의 Slot/Layout 요약이다.
+	FADumpWidgetSlotSummary SlotSummary;
+
+	// PropertyPreview는 TextBlock 텍스트처럼 분석에 유용한 주요 속성 요약 배열이다.
+	TArray<FString> PropertyPreview;
+
+	// Children은 Designer tree의 직접 자식 노드 목록이다.
+	TArray<FADumpWidgetDesignerNode> Children;
+};
+
+// FADumpWidgetDesignerData는 WidgetBlueprint Designer hierarchy dump 결과 전체를 담는다.
+struct FADumpWidgetDesignerData
+{
+	// SchemaVersion은 widget_designer object 전용 스키마 버전이다.
+	FString SchemaVersion;
+
+	// NodeCount는 traversal로 수집한 전체 위젯 노드 개수다.
+	int32 NodeCount = 0;
+
+	// MaxDepth는 root를 0으로 보는 최대 Designer tree 깊이다.
+	int32 MaxDepth = 0;
+
+	// Root는 WidgetTree->RootWidget에서 시작한 Designer tree 루트 노드다.
+	FADumpWidgetDesignerNode Root;
+
+	// FlatNodes는 검증과 검색을 쉽게 하기 위한 pre-order 평면 노드 목록이다.
+	TArray<FADumpWidgetDesignerNode> FlatNodes;
+
+	// PreviewLines는 Designer tree를 사람이 빠르게 읽을 수 있게 축약한 줄 목록이다.
+	TArray<FString> PreviewLines;
+};
+
 // FADumpSummary는 BP의 개수/존재 여부 중심 요약 정보를 담는다.
 struct FADumpSummary
 {
@@ -321,6 +382,9 @@ struct FADumpSummary
 
 	// WidgetAnimationPreview는 주요 widget animation 이름 배열이다.
 	TArray<FString> WidgetAnimationPreview;
+
+	// WidgetDesigner는 WidgetBlueprint Designer hierarchy dump 결과다.
+	FADumpWidgetDesignerData WidgetDesigner;
 
 	// AnimGroupCount는 AnimBlueprint sync group 개수다.
 	int32 AnimGroupCount = 0;
