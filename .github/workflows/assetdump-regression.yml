@@ -1,6 +1,7 @@
 # File: assetdump-regression.yml
-# Version: v1.0
+# Version: v1.1
 # Changelog:
+# - v1.1: 폐기된 D:\\UE_5.7 기본값을 제거하고, workflow 입력 또는 repository variable을 사용할 때만 EngineRoot를 명시 전달.
 # - v1.0: AssetDump 공용 fixture/project 회귀 검증을 self-hosted Windows runner에서 정기 실행하고 JSON/log artifact를 보존.
 
 name: AssetDump Regression
@@ -13,7 +14,7 @@ on:
         required: false
         default: ""
       engine_root:
-        description: "Unreal Engine 설치 루트. 비우면 ASSETDUMP_ENGINE_ROOT repository variable 또는 D:\\UE_5.7을 사용한다."
+        description: "Unreal Engine 설치 루트. 비우면 ASSETDUMP_ENGINE_ROOT repository variable 또는 스크립트의 문서화된 EngineRoot 해석을 사용한다."
         required: false
         default: ""
       build_target:
@@ -54,7 +55,6 @@ jobs:
     timeout-minutes: 90
 
     env:
-      DEFAULT_ENGINE_ROOT: D:\UE_5.7
       DEFAULT_BATCH_ROOT: /Game/CarFight
       DEFAULT_BATCH_CLASS_FILTER: Blueprint;WidgetBlueprint;InputAction;InputMappingContext;CFVehicleCameraData;CFVehicleData
       DEFAULT_VERSION_PROBE_ASSET: /Game/CarFight/Vehicles/BP_CFVehiclePawn.BP_CFVehiclePawn
@@ -89,13 +89,13 @@ jobs:
           # EngineRootVariable은 repository variable에서 받은 Unreal Engine 루트 경로다.
           $EngineRootVariable = "${{ vars.ASSETDUMP_ENGINE_ROOT }}"
 
-          # EngineRootPath는 최종 Unreal Engine 설치 루트 경로다.
+          # EngineRootPath는 workflow가 명시 전달할 Unreal Engine 설치 루트 경로다.
           $EngineRootPath = if (-not [string]::IsNullOrWhiteSpace($EngineRootInput)) {
             $EngineRootInput
           } elseif (-not [string]::IsNullOrWhiteSpace($EngineRootVariable)) {
             $EngineRootVariable
           } else {
-            $env:DEFAULT_ENGINE_ROOT
+            ""
           }
 
           # BuildTargetInput은 수동 실행에서 받은 UBT 빌드 타깃 이름이다.
@@ -123,13 +123,16 @@ jobs:
           # RegressionArguments는 회귀 검증 스크립트에 넘길 인자 목록이다.
           $RegressionArguments = @(
             "-ProjectFile", $ProjectFilePath,
-            "-EngineRoot", $EngineRootPath,
             "-BatchRoot", $env:DEFAULT_BATCH_ROOT,
             "-BatchClassFilter", $env:DEFAULT_BATCH_CLASS_FILTER,
             "-VersionProbeAsset", $env:DEFAULT_VERSION_PROBE_ASSET,
             "-ValidationProfile", $ValidationProfileValue,
             "-CompactLog"
           )
+
+          if (-not [string]::IsNullOrWhiteSpace($EngineRootPath)) {
+            $RegressionArguments += @("-EngineRoot", $EngineRootPath)
+          }
 
           if (-not [string]::IsNullOrWhiteSpace($BuildTargetInput)) {
             $RegressionArguments += @("-BuildTarget", $BuildTargetInput)
