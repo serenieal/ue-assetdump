@@ -1,6 +1,8 @@
 // File: ADumpJson.cpp
-// Version: v1.2.0
+// Version: v1.4.0
 // Changelog:
+// - v1.4.0: v0.6.1 명시적 모드 request에 실제 실행 예정 builder_sections 메타를 기록.
+// - v1.3.0: v0.6.0 Sections 선택에 따라 메인 JSON과 sidecar 주요 섹션 출력을 필터링.
 // - v1.2.0: WidgetBlueprint Designer hierarchy summary/digest/top-level JSON 직렬화 추가.
 // - v1.1.0: World/Map 배치 StaticMeshComponent socket world-space Transform JSON 직렬화 추가.
 // - v1.0.0: StaticMeshComponent socket component-space 및 parent-relative Transform JSON 직렬화 추가.
@@ -328,25 +330,35 @@ namespace
 	// ShouldWriteSummarySidecar는 summary sidecar 저장 여부를 결정한다.
 	bool ShouldWriteSummarySidecar(const FADumpResult& InDumpResult)
 	{
-		return InDumpResult.Request.bIncludeSummary;
+		return InDumpResult.Request.bIncludeSummary
+			&& InDumpResult.Request.SectionSelection.IsEnabled(EADumpSection::Summary);
+	}
+
+	// ShouldWriteDigestSidecar는 digest sidecar 저장 여부를 결정한다.
+	bool ShouldWriteDigestSidecar(const FADumpResult& InDumpResult)
+	{
+		return InDumpResult.Request.SectionSelection.IsEnabled(EADumpSection::Digest);
 	}
 
 	// ShouldWriteDetailsSidecar는 details sidecar 저장 여부를 결정한다.
 	bool ShouldWriteDetailsSidecar(const FADumpResult& InDumpResult)
 	{
-		return InDumpResult.Request.bIncludeDetails;
+		return InDumpResult.Request.bIncludeDetails
+			&& InDumpResult.Request.SectionSelection.IsEnabled(EADumpSection::Details);
 	}
 
 	// ShouldWriteGraphsSidecar는 graphs sidecar 저장 여부를 결정한다.
 	bool ShouldWriteGraphsSidecar(const FADumpResult& InDumpResult)
 	{
-		return InDumpResult.Request.bIncludeGraphs;
+		return InDumpResult.Request.bIncludeGraphs
+			&& InDumpResult.Request.SectionSelection.IsEnabled(EADumpSection::Graphs);
 	}
 
 	// ShouldWriteReferencesSidecar는 references sidecar 저장 여부를 결정한다.
 	bool ShouldWriteReferencesSidecar(const FADumpResult& InDumpResult)
 	{
-		return InDumpResult.Request.bIncludeReferences;
+		return InDumpResult.Request.bIncludeReferences
+			&& InDumpResult.Request.SectionSelection.IsEnabled(EADumpSection::References);
 	}
 
 	// MakeIssueObject는 warning/error 항목 한 건을 문서 스키마로 변환한다.
@@ -395,6 +407,12 @@ namespace
 		RequestObject->SetStringField(TEXT("link_kind"), ToString(InRequestInfo.LinkKind));
 		RequestObject->SetStringField(TEXT("links_meta"), ToString(InRequestInfo.LinksMeta));
 		RequestObject->SetStringField(TEXT("output_file_path"), InRequestInfo.OutputFilePath);
+		if (InRequestInfo.SectionSelection.bIsExplicit)
+		{
+			RequestObject->SetStringField(TEXT("section_mode"), TEXT("explicit"));
+			RequestObject->SetArrayField(TEXT("sections"), MakeStringArray(InRequestInfo.SectionSelection.GetEnabledNames()));
+			RequestObject->SetArrayField(TEXT("builder_sections"), MakeStringArray(InRequestInfo.BuilderSections));
+		}
 		return RequestObject;
 	}
 
@@ -975,7 +993,10 @@ namespace
 		TArray<TSharedPtr<FJsonValue>> GeneratedFileArray;
 		GeneratedFileArray.Add(MakeShared<FJsonValueString>(FPaths::GetCleanFilename(FinalOutputFilePath)));
 		GeneratedFileArray.Add(MakeShared<FJsonValueString>(GetManifestFileName()));
-		GeneratedFileArray.Add(MakeShared<FJsonValueString>(GetDigestFileName()));
+		if (ShouldWriteDigestSidecar(InDumpResult))
+		{
+			GeneratedFileArray.Add(MakeShared<FJsonValueString>(GetDigestFileName()));
+		}
 		if (ShouldWriteSummarySidecar(InDumpResult))
 		{
 			GeneratedFileArray.Add(MakeShared<FJsonValueString>(GetSummaryFileName()));
@@ -1248,7 +1269,8 @@ namespace
 			return false;
 		}
 
-		if (!SaveJsonObjectToFile(DigestFilePath, MakeDigestObject(InDumpResult), OutErrorMessage))
+		if (ShouldWriteDigestSidecar(InDumpResult)
+			&& !SaveJsonObjectToFile(DigestFilePath, MakeDigestObject(InDumpResult), OutErrorMessage))
 		{
 			OutErrorMessage = FString::Printf(TEXT("Failed to save %s: %s"), GetDigestFileName(), *OutErrorMessage);
 			return false;
@@ -1337,6 +1359,13 @@ namespace ADumpJson
 
 	TSharedRef<FJsonObject> MakeResultObject(const FADumpResult& InDumpResult)
 	{
+		// SectionSelection은 전체 호환 모드 또는 명시적 주요 섹션 선택값이다.
+		const FADumpSectionSelection& SectionSelection = InDumpResult.Request.SectionSelection;
+
+		// bIsFullMode는 -Sections=가 생략되어 기존 최상위 필드를 모두 유지할지 나타낸다.
+		const bool bIsFullMode = SectionSelection.IsFullMode();
+
+		// RootObject는 최소 식별 envelope와 활성 주요 섹션을 담는 최상위 object다.
 		TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
 		RootObject->SetStringField(TEXT("schema_version"), InDumpResult.SchemaVersion);
 		RootObject->SetStringField(TEXT("extractor_version"), InDumpResult.ExtractorVersion);
@@ -1345,11 +1374,41 @@ namespace ADumpJson
 		RootObject->SetStringField(TEXT("dump_status"), ToString(InDumpResult.DumpStatus));
 		RootObject->SetObjectField(TEXT("asset"), MakeAssetObject(InDumpResult.Asset));
 		RootObject->SetObjectField(TEXT("request"), MakeRequestObject(InDumpResult.Request));
-		RootObject->SetObjectField(TEXT("summary"), MakeSummaryObject(InDumpResult.Summary));
-		RootObject->SetObjectField(TEXT("widget_designer"), MakeWidgetDesignerObject(InDumpResult.Summary.WidgetDesigner));
-		RootObject->SetObjectField(TEXT("details"), MakeDetailsObject(InDumpResult));
-		RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
-		RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
+		if (bIsFullMode)
+		{
+			RootObject->SetObjectField(TEXT("summary"), MakeSummaryObject(InDumpResult.Summary));
+			RootObject->SetObjectField(TEXT("widget_designer"), MakeWidgetDesignerObject(InDumpResult.Summary.WidgetDesigner));
+			RootObject->SetObjectField(TEXT("details"), MakeDetailsObject(InDumpResult));
+			RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
+			RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
+		}
+		else
+		{
+			if (SectionSelection.IsEnabled(EADumpSection::Summary))
+			{
+				RootObject->SetObjectField(TEXT("summary"), MakeSummaryObject(InDumpResult.Summary));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::Digest))
+			{
+				RootObject->SetObjectField(TEXT("digest"), MakeDigestObject(InDumpResult));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::Details))
+			{
+				RootObject->SetObjectField(TEXT("details"), MakeDetailsObject(InDumpResult));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::Graphs))
+			{
+				RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::References))
+			{
+				RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::WidgetDesigner))
+			{
+				RootObject->SetObjectField(TEXT("widget_designer"), MakeWidgetDesignerObject(InDumpResult.Summary.WidgetDesigner));
+			}
+		}
 		RootObject->SetArrayField(TEXT("warnings"), MakeIssuesArray(InDumpResult.Issues, false));
 		RootObject->SetArrayField(TEXT("errors"), MakeIssuesArray(InDumpResult.Issues, true));
 		RootObject->SetObjectField(TEXT("perf"), MakePerfObject(InDumpResult.Perf));

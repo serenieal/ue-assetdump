@@ -1,6 +1,8 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.5.0
+// Version: v0.6.1
 // Changelog:
+// - v0.6.1: 명시적 섹션 선택이 실제 builder 계획을 제어하는지 validation smoke 검사를 추가.
+// - v0.6.0: -Sections= 파싱, 유효성 오류, 직렬화 스모크 검증을 추가하고 기존 생략 동작을 유지.
 // - v0.5.0: WidgetBlueprint Designer hierarchy fixture와 validation gate를 추가.
 // - v0.4.10: World fixture root StaticMeshComponent relative Transform을 비-identity 기준값으로 강제하고 validate 검사 추가.
 // - v0.4.9: World fixture actor/component 수정 시 Modify 호출을 추가해 map 저장 안정성을 보강.
@@ -211,16 +213,141 @@ namespace
 		return TEXT("graph");
 	}
 
-	// ConfigureDumpRunOptsFromCommandLine는 commandlet 공통 인자를 FADumpRunOpts로 채운다.
+	// GetValidSectionNamesText는 -Sections=에서 허용하는 정식 섹션 이름 목록을 반환한다.
+	FString GetValidSectionNamesText()
+	{
+		return TEXT("summary,digest,details,graphs,references,widget_designer");
+	}
+
+	// TryResolveDumpSection은 정규화한 이름을 주요 JSON 섹션 값으로 변환한다.
+	bool TryResolveDumpSection(const FString& InSectionName, EADumpSection& OutSection)
+	{
+		if (InSectionName == TEXT("summary"))
+		{
+			OutSection = EADumpSection::Summary;
+			return true;
+		}
+		if (InSectionName == TEXT("digest"))
+		{
+			OutSection = EADumpSection::Digest;
+			return true;
+		}
+		if (InSectionName == TEXT("details"))
+		{
+			OutSection = EADumpSection::Details;
+			return true;
+		}
+		if (InSectionName == TEXT("graphs"))
+		{
+			OutSection = EADumpSection::Graphs;
+			return true;
+		}
+		if (InSectionName == TEXT("references"))
+		{
+			OutSection = EADumpSection::References;
+			return true;
+		}
+		if (InSectionName == TEXT("widget_designer"))
+		{
+			OutSection = EADumpSection::WidgetDesigner;
+			return true;
+		}
+		return false;
+	}
+
+	// TryGetSectionListText는 쉼표를 보존한 채 -Sections= 옵션 토큰 전체를 읽는다.
+	bool TryGetSectionListText(const FString& InCommandLine, FString& OutSectionListText)
+	{
+		OutSectionListText.Reset();
+
+		// CommandLineCursor는 FParse::Token으로 순회할 현재 commandlet 문자열 위치다.
+		const TCHAR* CommandLineCursor = *InCommandLine;
+
+		// CommandToken은 현재 순회에서 읽은 공백 구분 commandlet 토큰이다.
+		FString CommandToken;
+		while (FParse::Token(CommandLineCursor, CommandToken, true))
+		{
+			// NormalizedToken은 선택적인 선행 하이픈을 제거한 옵션 토큰이다.
+			FString NormalizedToken = CommandToken;
+			NormalizedToken.RemoveFromStart(TEXT("-"));
+			if (NormalizedToken.StartsWith(TEXT("Sections="), ESearchCase::IgnoreCase))
+			{
+				OutSectionListText = NormalizedToken.Mid(9);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// TryParseSectionSelection은 -Sections= 목록을 검증하고 선택 구조로 변환한다.
+	bool TryParseSectionSelection(
+		const FString& InCommandLine,
+		FADumpSectionSelection& OutSectionSelection,
+		FString& OutErrorMessage)
+	{
+		OutSectionSelection.ResetToFullMode();
+		OutErrorMessage.Reset();
+
+		// SectionListText는 -Sections=에서 읽은 쉼표 구분 원문이다.
+		FString SectionListText;
+		if (!TryGetSectionListText(InCommandLine, SectionListText))
+		{
+			return true;
+		}
+
+		OutSectionSelection.ResetToExplicitMode();
+
+		// SectionNameArray는 사용자가 전달한 섹션 이름 토큰 목록이다.
+		TArray<FString> SectionNameArray;
+		SectionListText.ParseIntoArray(SectionNameArray, TEXT(","), false);
+		// SectionName은 공백 제거와 소문자 정규화를 적용할 현재 입력 토큰이다.
+		for (FString& SectionName : SectionNameArray)
+		{
+			SectionName.TrimStartAndEndInline();
+			SectionName.ToLowerInline();
+			if (SectionName.IsEmpty())
+			{
+				OutErrorMessage = FString::Printf(
+					TEXT("Invalid empty section name in -Sections=. Valid sections: %s"),
+					*GetValidSectionNamesText());
+				return false;
+			}
+
+			// ResolvedSection은 현재 이름에 대응하는 정식 주요 JSON 섹션이다.
+			EADumpSection ResolvedSection = EADumpSection::Summary;
+			if (!TryResolveDumpSection(SectionName, ResolvedSection))
+			{
+				OutErrorMessage = FString::Printf(
+					TEXT("Unknown section '%s' in -Sections=. Valid sections: %s"),
+					*SectionName,
+					*GetValidSectionNamesText());
+				return false;
+			}
+			OutSectionSelection.Enable(ResolvedSection);
+		}
+
+		if (OutSectionSelection.EnabledSections.IsEmpty())
+		{
+			OutErrorMessage = FString::Printf(
+				TEXT("-Sections= requires at least one section. Valid sections: %s"),
+				*GetValidSectionNamesText());
+			return false;
+		}
+		return true;
+	}
+
+	// ConfigureDumpRunOptsFromCommandLine는 commandlet 공통 인자와 섹션 선택을 FADumpRunOpts로 채운다.
 	void ConfigureDumpRunOptsFromCommandLine(
 		const FString& InCommandLine,
 		const FString& InAssetPath,
 		const FString& InOutputPath,
+		const FADumpSectionSelection& InSectionSelection,
 		FADumpRunOpts& OutDumpRunOpts)
 	{
 		OutDumpRunOpts.AssetObjectPath = InAssetPath;
 		OutDumpRunOpts.SourceKind = EADumpSourceKind::Commandlet;
 		OutDumpRunOpts.OutputFilePath = InOutputPath;
+		OutDumpRunOpts.SectionSelection = InSectionSelection;
 		OutDumpRunOpts.bIncludeSummary = true;
 		OutDumpRunOpts.bIncludeDetails = false;
 		OutDumpRunOpts.bIncludeGraphs = false;
@@ -2386,6 +2513,220 @@ namespace
 		RootObject->SetArrayField(TEXT("graphs"), GraphArray);
 		return SerializeJsonObjectText(RootObject, OutJsonText);
 	}
+
+	// AddSectionSmokeCheck는 섹션 직렬화 스모크 검사 한 건을 report에 추가한다.
+	void AddSectionSmokeCheck(
+		TArray<TSharedPtr<FJsonValue>>& InOutCheckArray,
+		int32& InOutFailureCount,
+		const FString& InCheckName,
+		bool bInPassed,
+		const FString& InDetailText)
+	{
+		// CheckObject는 섹션 스모크 검사 결과 한 건을 담는다.
+		TSharedRef<FJsonObject> CheckObject = MakeShared<FJsonObject>();
+		CheckObject->SetStringField(TEXT("name"), InCheckName);
+		CheckObject->SetBoolField(TEXT("passed"), bInPassed);
+		CheckObject->SetStringField(TEXT("detail"), InDetailText);
+		InOutCheckArray.Add(MakeShared<FJsonValueObject>(CheckObject));
+		if (!bInPassed)
+		{
+			++InOutFailureCount;
+		}
+	}
+
+	// BuildSectionSmokeValidationObject는 전체/선택/Widget/잘못된 이름 동작을 자산 없이 검증한다.
+	TSharedRef<FJsonObject> BuildSectionSmokeValidationObject(int32& OutFailureCount)
+	{
+		OutFailureCount = 0;
+
+		// CheckArray는 섹션 선택 스모크 검사 결과 목록이다.
+		TArray<TSharedPtr<FJsonValue>> CheckArray;
+
+		// FullDumpResult는 -Sections= 생략 시 기존 최상위 구조를 검증할 최소 결과다.
+		FADumpResult FullDumpResult = FADumpResult::CreateDefault();
+
+		// FullRootObject는 전체 모드 직렬화 결과다.
+		TSharedRef<FJsonObject> FullRootObject = ADumpJson::MakeResultObject(FullDumpResult);
+
+		// bFullModePassed는 기존 주요 섹션과 순수 sidecar digest 정책이 유지되는지 나타낸다.
+		const bool bFullModePassed = FullRootObject->HasField(TEXT("summary"))
+			&& FullRootObject->HasField(TEXT("details"))
+			&& FullRootObject->HasField(TEXT("graphs"))
+			&& FullRootObject->HasField(TEXT("references"))
+			&& FullRootObject->HasField(TEXT("widget_designer"))
+			&& !FullRootObject->HasField(TEXT("digest"));
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("full_mode_backward_compatible"),
+			bFullModePassed,
+			TEXT("기본 모드는 기존 주요 섹션을 유지하고 digest는 기존처럼 sidecar 전용이어야 합니다."));
+
+		// CompactSelection은 summary,digest 선택 파싱 결과다.
+		FADumpSectionSelection CompactSelection;
+
+		// CompactParseError는 compact 선택 파싱 실패 메시지다.
+		FString CompactParseError;
+
+		// bCompactParsed는 summary,digest 선택값 파싱 성공 여부다.
+		const bool bCompactParsed = TryParseSectionSelection(
+			TEXT("-Mode=bpdump -Sections=summary,digest"),
+			CompactSelection,
+			CompactParseError);
+
+		// CompactDumpResult는 compact 선택 직렬화 검증용 최소 결과다.
+		FADumpResult CompactDumpResult = FADumpResult::CreateDefault();
+		CompactDumpResult.Request.SectionSelection = CompactSelection;
+
+		// CompactRootObject는 summary,digest 선택 직렬화 결과다.
+		TSharedRef<FJsonObject> CompactRootObject = ADumpJson::MakeResultObject(CompactDumpResult);
+
+		// bCompactModePassed는 요청 섹션만 주요 필드로 남았는지 나타낸다.
+		const bool bCompactModePassed = bCompactParsed
+			&& CompactRootObject->HasField(TEXT("summary"))
+			&& CompactRootObject->HasField(TEXT("digest"))
+			&& !CompactRootObject->HasField(TEXT("details"))
+			&& !CompactRootObject->HasField(TEXT("graphs"))
+			&& !CompactRootObject->HasField(TEXT("references"))
+			&& !CompactRootObject->HasField(TEXT("widget_designer"));
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("summary_digest_only"),
+			bCompactModePassed,
+			bCompactParsed ? TEXT("summary,digest만 존재해야 합니다.") : CompactParseError);
+
+		// CompactRunOpts는 기존 Include 플래그가 모두 켜져 있어도 섹션 선택이 비싼 builder를 차단하는지 검증한다.
+		FADumpRunOpts CompactRunOpts;
+		CompactRunOpts.SectionSelection = CompactSelection;
+		CompactRunOpts.bIncludeSummary = true;
+		CompactRunOpts.bIncludeDetails = true;
+		CompactRunOpts.bIncludeGraphs = true;
+		CompactRunOpts.bIncludeReferences = true;
+
+		// CompactBuilderNames는 compact 선택에서 실제 실행 예정인 builder 이름 목록이다.
+		const TArray<FString> CompactBuilderNames = CompactRunOpts.GetBuilderSectionNames();
+
+		// bCompactBuilderControlPassed는 summary만 실행하고 비싼 미요청 builder를 모두 생략하는지 나타낸다.
+		const bool bCompactBuilderControlPassed = CompactRunOpts.ShouldBuildSummary()
+			&& !CompactRunOpts.ShouldBuildDetails()
+			&& !CompactRunOpts.ShouldBuildGraphs()
+			&& !CompactRunOpts.ShouldBuildReferences()
+			&& !CompactRunOpts.ShouldBuildWidgetDesigner()
+			&& CompactBuilderNames.Num() == 1
+			&& CompactBuilderNames[0] == TEXT("summary");
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("compact_builder_control"),
+			bCompactBuilderControlPassed,
+			FString::Printf(TEXT("실행 예정 builder: %s"), *FString::Join(CompactBuilderNames, TEXT(","))));
+
+		// WidgetSelection은 summary,digest,widget_designer 선택 파싱 결과다.
+		FADumpSectionSelection WidgetSelection;
+
+		// WidgetParseError는 Widget Designer 선택 파싱 실패 메시지다.
+		FString WidgetParseError;
+
+		// bWidgetParsed는 Widget Designer 선택값 파싱 성공 여부다.
+		const bool bWidgetParsed = TryParseSectionSelection(
+			TEXT("-Mode=bpdump -Sections=summary,digest,widget_designer"),
+			WidgetSelection,
+			WidgetParseError);
+
+		// WidgetDumpResult는 Widget Designer 선택 직렬화 검증용 최소 결과다.
+		FADumpResult WidgetDumpResult = FADumpResult::CreateDefault();
+		WidgetDumpResult.Request.SectionSelection = WidgetSelection;
+		WidgetDumpResult.Summary.WidgetDesigner.SchemaVersion = TEXT("widget_designer_v1");
+		WidgetDumpResult.Summary.WidgetDesigner.NodeCount = 1;
+
+		// WidgetRootObject는 Widget Designer 선택 직렬화 결과다.
+		TSharedRef<FJsonObject> WidgetRootObject = ADumpJson::MakeResultObject(WidgetDumpResult);
+
+		// WidgetDesignerObject는 직렬화된 widget_designer object다.
+		const TSharedPtr<FJsonObject>* WidgetDesignerObject = nullptr;
+
+		// WidgetSchemaVersion은 직렬화된 Widget Designer 스키마 버전이다.
+		FString WidgetSchemaVersion;
+
+		// WidgetNodeCount는 직렬화된 Widget Designer 노드 개수다.
+		double WidgetNodeCount = 0.0;
+
+		// bWidgetObjectFound는 widget_designer object와 필수 필드를 읽었는지 나타낸다.
+		const bool bWidgetObjectFound = WidgetRootObject->TryGetObjectField(TEXT("widget_designer"), WidgetDesignerObject)
+			&& WidgetDesignerObject != nullptr
+			&& (*WidgetDesignerObject)->TryGetStringField(TEXT("schema_version"), WidgetSchemaVersion)
+			&& (*WidgetDesignerObject)->TryGetNumberField(TEXT("node_count"), WidgetNodeCount);
+
+		// bWidgetModePassed는 Widget Designer 스키마와 양수 노드 개수가 유지되는지 나타낸다.
+		const bool bWidgetModePassed = bWidgetParsed
+			&& bWidgetObjectFound
+			&& WidgetSchemaVersion == TEXT("widget_designer_v1")
+			&& WidgetNodeCount > 0.0;
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("widget_designer_selected"),
+			bWidgetModePassed,
+			bWidgetParsed ? TEXT("widget_designer_v1과 양수 node_count가 필요합니다.") : WidgetParseError);
+
+		// WidgetRunOpts는 Widget Designer 선택에서 필요한 summary와 specialized builder만 실행하는지 검증한다.
+		FADumpRunOpts WidgetRunOpts;
+		WidgetRunOpts.SectionSelection = WidgetSelection;
+		WidgetRunOpts.bIncludeSummary = true;
+		WidgetRunOpts.bIncludeDetails = true;
+		WidgetRunOpts.bIncludeGraphs = true;
+		WidgetRunOpts.bIncludeReferences = true;
+
+		// WidgetBuilderNames는 Widget Designer 선택에서 실제 실행 예정인 builder 이름 목록이다.
+		const TArray<FString> WidgetBuilderNames = WidgetRunOpts.GetBuilderSectionNames();
+
+		// bWidgetBuilderControlPassed는 summary와 Widget Designer만 실행 예정인지 나타낸다.
+		const bool bWidgetBuilderControlPassed = WidgetRunOpts.ShouldBuildSummary()
+			&& !WidgetRunOpts.ShouldBuildDetails()
+			&& !WidgetRunOpts.ShouldBuildGraphs()
+			&& !WidgetRunOpts.ShouldBuildReferences()
+			&& WidgetRunOpts.ShouldBuildWidgetDesigner()
+			&& WidgetBuilderNames.Num() == 2
+			&& WidgetBuilderNames[0] == TEXT("summary")
+			&& WidgetBuilderNames[1] == TEXT("widget_designer");
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("widget_builder_control"),
+			bWidgetBuilderControlPassed,
+			FString::Printf(TEXT("실행 예정 builder: %s"), *FString::Join(WidgetBuilderNames, TEXT(","))));
+
+		// InvalidSelection은 잘못된 섹션 이름 파싱 시 변경될 선택 구조다.
+		FADumpSectionSelection InvalidSelection;
+
+		// InvalidParseError는 잘못된 섹션 이름에 대한 사용자 표시 오류다.
+		FString InvalidParseError;
+
+		// bInvalidParsed는 invalid_section이 잘못 통과했는지 나타낸다.
+		const bool bInvalidParsed = TryParseSectionSelection(
+			TEXT("-Mode=bpdump -Sections=summary,invalid_section"),
+			InvalidSelection,
+			InvalidParseError);
+
+		// bInvalidModePassed는 실패 메시지에 잘못된 이름과 전체 허용 목록이 포함되는지 나타낸다.
+		const bool bInvalidModePassed = !bInvalidParsed
+			&& InvalidParseError.Contains(TEXT("invalid_section"))
+			&& InvalidParseError.Contains(GetValidSectionNamesText());
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("invalid_section_rejected"),
+			bInvalidModePassed,
+			InvalidParseError);
+
+		// ValidationObject는 validate report에 포함할 섹션 스모크 검사 묶음이다.
+		TSharedRef<FJsonObject> ValidationObject = MakeShared<FJsonObject>();
+		ValidationObject->SetNumberField(TEXT("check_count"), CheckArray.Num());
+		ValidationObject->SetNumberField(TEXT("failure_count"), OutFailureCount);
+		ValidationObject->SetArrayField(TEXT("checks"), CheckArray);
+		return ValidationObject;
+	}
 }
 
 int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
@@ -2404,6 +2745,22 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	if (!GetCmdValue(CommandLine, TEXT("Mode="), ModeValue))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|validate|makefixtures"));
+		return 1;
+	}
+
+	// SectionSelection은 -Sections=가 생략되면 전체 모드, 지정되면 검증된 명시 선택값이다.
+	FADumpSectionSelection SectionSelection;
+
+	// SectionSelectionError는 알 수 없거나 비어 있는 섹션 이름의 명확한 실패 메시지다.
+	FString SectionSelectionError;
+
+	// bUsesSectionSerialization은 주요 dump.json 직렬화를 사용하는 commandlet 모드인지 나타낸다.
+	const bool bUsesSectionSerialization = ModeValue.Equals(TEXT("bpdump"), ESearchCase::IgnoreCase)
+		|| ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase);
+	if (bUsesSectionSerialization
+		&& !TryParseSectionSelection(CommandLine, SectionSelection, SectionSelectionError))
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s"), *SectionSelectionError);
 		return 1;
 	}
 
@@ -2567,7 +2924,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 		// DumpRunOpts는 공통 서비스에 전달할 통합 실행 옵션이다.
 		FADumpRunOpts DumpRunOpts;
-		ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetPath, OutputFilePath, DumpRunOpts);
+		ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetPath, OutputFilePath, SectionSelection, DumpRunOpts);
 
 		FADumpService DumpService;
 		FADumpResult DumpResult;
@@ -2691,7 +3048,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 			// DumpRunOpts는 현재 자산에 적용할 통합 실행 옵션이다.
 			FADumpRunOpts DumpRunOpts;
-			ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetObjectPathText, BatchAssetOutputPath, DumpRunOpts);
+			ConfigureDumpRunOptsFromCommandLine(CommandLine, AssetObjectPathText, BatchAssetOutputPath, SectionSelection, DumpRunOpts);
 			DumpRunOpts.bSkipIfUpToDate = bChangedOnly;
 
 			// ResolvedOutputFilePath는 현재 자산 dump.json 최종 저장 경로다.
@@ -3590,7 +3947,15 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 
 		// DumpRunOpts는 현재 validate 케이스 덤프 실행 옵션이다.
 		FADumpRunOpts DumpRunOpts;
-		ConfigureDumpRunOptsFromCommandLine(CommandLine, ResolvedObjectPathText, CaseOutputDirectoryPath, DumpRunOpts);
+
+		// FullSectionSelection은 기존 Plugin validation이 전체 dump.json 구조를 계속 검증하도록 유지한다.
+		FADumpSectionSelection FullSectionSelection;
+		ConfigureDumpRunOptsFromCommandLine(
+			CommandLine,
+			ResolvedObjectPathText,
+			CaseOutputDirectoryPath,
+			FullSectionSelection,
+			DumpRunOpts);
 		DumpRunOpts.bIncludeSummary = true;
 		DumpRunOpts.bIncludeDetails = true;
 		DumpRunOpts.bIncludeGraphs = true;
@@ -3946,6 +4311,13 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	// bIndexBuilt는 validation dump 루트 인덱스 재생성 성공 여부다.
 	const bool bIndexBuilt = BuildDumpIndexFiles(ValidationRootPath, IndexFilePath, DependencyIndexFilePath);
 
+	// SectionSmokeFailureCount는 자산 비의존 섹션 선택 스모크 검사 실패 개수다.
+	int32 SectionSmokeFailureCount = 0;
+
+	// SectionSmokeValidationObject는 전체/선택/Widget/잘못된 이름 검사 결과다.
+	TSharedRef<FJsonObject> SectionSmokeValidationObject = BuildSectionSmokeValidationObject(SectionSmokeFailureCount);
+	OutFailureCount += SectionSmokeFailureCount;
+
 	// ValidationRootObject는 validate report 최상위 JSON object다.
 	TSharedRef<FJsonObject> ValidationRootObject = MakeShared<FJsonObject>();
 	ValidationRootObject->SetStringField(TEXT("generated_time"), FDateTime::UtcNow().ToIso8601());
@@ -3958,6 +4330,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	ValidationRootObject->SetBoolField(TEXT("index_built"), bIndexBuilt);
 	ValidationRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
 	ValidationRootObject->SetStringField(TEXT("dependency_index_file_path"), DependencyIndexFilePath);
+	ValidationRootObject->SetObjectField(TEXT("section_selection"), SectionSmokeValidationObject);
 	ValidationRootObject->SetArrayField(TEXT("cases"), ValidationCaseResultArray);
 
 	return SerializeJsonObjectText(ValidationRootObject, OutJsonText);

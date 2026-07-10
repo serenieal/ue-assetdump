@@ -1,6 +1,7 @@
 // File: ADumpSummaryExt.cpp
-// Version: v0.8.0
+// Version: v0.9.0
 // Changelog:
+// - v0.9.0: v0.6.1 선택 모드에서 요청하지 않은 Widget Designer hierarchy builder를 생략.
 // - v0.8.0: WidgetBlueprint Designer hierarchy summary builder 호출 추가.
 // - v0.7.1: 로드된 StaticMeshActor의 native StaticMeshComponent도 world socket summary 대상에 포함.
 // - v0.7.0: World/Map 배치 StaticMeshComponent socket Transform count/preview summary 추가.
@@ -539,7 +540,8 @@ namespace ADumpSummaryExt
 		const FString& AssetObjectPath,
 		FADumpAssetInfo& OutAssetInfo,
 		FADumpSummary& OutSummary,
-		TArray<FADumpIssue>& OutIssues)
+		TArray<FADumpIssue>& OutIssues,
+		bool bIncludeWidgetDesigner)
 	{
 		// AssetObject는 summary 정보를 읽기 위한 대상 자산 객체다.
 		UObject* AssetObject = nullptr;
@@ -738,7 +740,10 @@ namespace ADumpSummaryExt
 				}
 			}
 
-			ADumpWidgetTree::BuildDesignerSummary(*WidgetBlueprintAsset, OutSummary);
+			if (bIncludeWidgetDesigner)
+			{
+				ADumpWidgetTree::BuildDesignerSummary(*WidgetBlueprintAsset, OutSummary);
+			}
 
 			for (const FDelegateEditorBinding& BindingItem : WidgetBlueprintAsset->Bindings)
 			{

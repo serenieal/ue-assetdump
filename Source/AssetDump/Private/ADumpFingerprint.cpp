@@ -1,6 +1,8 @@
 // File: ADumpFingerprint.cpp
-// Version: v0.2.0
+// Version: v0.3.1
 // Changelog:
+// - v0.3.1: v0.6.1 builder 제어는 섹션 선택에서 파생되므로 v0.6.0 fingerprint 입력을 그대로 유지.
+// - v0.3.0: -Sections= 선택 변경이 changed-only fingerprint에 반영되도록 보강.
 // - v0.2.0: fingerprint 계산에 부모 클래스 경로와 AssetRegistry 기반 dependency 상태를 포함해 부모/의존성 변경 시 skip이 해제되도록 보강.
 // - v0.1.1: 최신성 판정의 options hash 계산에서 bSkipIfUpToDate를 제외해 skip 실행 여부가 fingerprint를 바꾸지 않도록 수정.
 // - v0.1.0: 2차 개선 Phase 2 기준으로 options hash, asset fingerprint, manifest fingerprint 조회 helper를 추가.
@@ -75,9 +77,16 @@ namespace
 	// BuildOptionsSignatureText는 options hash 계산용 실행 옵션 문자열을 만든다.
 	FString BuildOptionsSignatureText(const FADumpRequestInfo& InRequestInfo)
 	{
+		// SectionModeText는 전체 모드와 명시적 섹션 모드를 구분하는 fingerprint 입력값이다.
+		const FString SectionModeText = InRequestInfo.SectionSelection.IsFullMode() ? TEXT("full") : TEXT("explicit");
+
+		// SectionNamesText는 활성 섹션을 레지스트리 순서로 연결한 fingerprint 입력값이다.
+		const FString SectionNamesText = FString::Join(InRequestInfo.SectionSelection.GetEnabledNames(), TEXT(","));
 		return FString::Printf(
-			TEXT("source=%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
+			TEXT("source=%s|section_mode=%s|sections=%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
 			ToString(InRequestInfo.SourceKind),
+			*SectionModeText,
+			*SectionNamesText,
 			InRequestInfo.bIncludeSummary ? 1 : 0,
 			InRequestInfo.bIncludeDetails ? 1 : 0,
 			InRequestInfo.bIncludeGraphs ? 1 : 0,

@@ -1,6 +1,7 @@
 // File: ADumpSummaryExt.h
-// Version: v0.3.0
+// Version: v0.4.0
 // Changelog:
+// - v0.4.0: v0.6.1 선택 모드에서 Widget Designer 재귀 순회를 생략할 수 있는 호환 인자를 추가.
 // - v0.3.0: Blueprint 외에 DataAsset / PrimaryDataAsset도 공통 자산 로더와 메타 분류로 다룰 수 있게 확장.
 // - v0.2.0: Blueprint 공통 asset family 분류와 Widget/Anim 메타 채우기 helper를 추가.
 // - v0.1.0: Blueprint summary 추출기 골격과 기본 추출 함수 추가.
@@ -33,5 +34,6 @@ namespace ADumpSummaryExt
 		const FString& AssetObjectPath,
 		FADumpAssetInfo& OutAssetInfo,
 		FADumpSummary& OutSummary,
-		TArray<FADumpIssue>& OutIssues);
+		TArray<FADumpIssue>& OutIssues,
+		bool bIncludeWidgetDesigner = true);
 }

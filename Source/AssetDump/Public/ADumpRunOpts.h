@@ -1,6 +1,8 @@
 // File: ADumpRunOpts.h
-// Version: v0.1.0
+// Version: v0.3.0
 // Changelog:
+// - v0.3.0: v0.6.1 명시적 섹션 선택을 실제 builder 실행 여부로 변환하는 helper를 추가.
+// - v0.2.0: v0.6.0 Sections 직렬화 선택 옵션을 공통 실행 요청에 추가.
 // - v0.1.0: BPDump 공통 실행 옵션 구조와 helper 추가.
 
 #pragma once
@@ -14,6 +16,9 @@ struct FADumpRunOpts
 {
 	// AssetObjectPath는 대상 Blueprint 오브젝트 경로다.
 	FString AssetObjectPath;
+
+	// SectionSelection은 전체 모드 또는 -Sections=의 명시적 출력 섹션을 보관한다.
+	FADumpSectionSelection SectionSelection;
 
 	// bIncludeSummary는 summary 섹션 포함 여부다.
 	bool bIncludeSummary = true;
@@ -56,6 +61,24 @@ struct FADumpRunOpts
 
 	// HasAnySectionEnabled는 적어도 하나의 덤프 섹션이 켜져 있는지 검사한다.
 	bool HasAnySectionEnabled() const;
+
+	// ShouldBuildSummary는 summary 또는 digest에 필요한 요약 builder 실행 여부를 반환한다.
+	bool ShouldBuildSummary() const;
+
+	// ShouldBuildDetails는 details builder 실행 여부를 반환한다.
+	bool ShouldBuildDetails() const;
+
+	// ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
+	bool ShouldBuildGraphs() const;
+
+	// ShouldBuildReferences는 references builder 실행 여부를 반환한다.
+	bool ShouldBuildReferences() const;
+
+	// ShouldBuildWidgetDesigner는 Widget Designer 재귀 순회 실행 여부를 반환한다.
+	bool ShouldBuildWidgetDesigner() const;
+
+	// GetBuilderSectionNames는 명시적 모드에서 실제 실행 예정인 builder 이름을 고정 순서로 반환한다.
+	TArray<FString> GetBuilderSectionNames() const;
 
 	// ResolveOutputFilePath는 명시 경로가 없으면 기본 dump.json 경로를 계산한다.
 	FString ResolveOutputFilePath() const;

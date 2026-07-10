@@ -1,6 +1,8 @@
 // File: ADumpTypes.h
-// Version: v0.8.0
+// Version: v0.10.0
 // Changelog:
+// - v0.10.0: v0.6.1 builder 제어 근거를 남기기 위한 summary 의존 helper와 builder 섹션 메타를 추가.
+// - v0.9.0: v0.6.0 Sections 옵션용 주요 JSON 섹션 선택 구조를 추가.
 // - v0.8.0: WidgetBlueprint Designer hierarchy dump용 구조체와 summary 필드를 추가.
 // - v0.7.0: World/Map에 배치된 StaticMeshComponent socket의 world-space Transform 구조를 추가.
 // - v0.6.0: StaticMeshComponent socket의 component-space 및 parent-relative Transform 구조를 추가.
@@ -77,6 +79,17 @@ enum class EADumpLinksMeta : uint8
 	Min
 };
 
+// EADumpSection은 선택적으로 직렬화할 주요 JSON 섹션을 구분한다.
+enum class EADumpSection : uint8
+{
+	Summary,
+	Digest,
+	Details,
+	Graphs,
+	References,
+	WidgetDesigner
+};
+
 // EADumpStatus는 덤프 최종 결과 상태를 나타낸다.
 enum class EADumpStatus : uint8
 {
@@ -146,6 +159,9 @@ const TCHAR* ToString(EADumpLinkKind InValue);
 // ToString은 links meta를 JSON 친화 문자열로 변환한다.
 const TCHAR* ToString(EADumpLinksMeta InValue);
 
+// ToString은 주요 JSON 섹션을 commandlet 친화 이름으로 변환한다.
+const TCHAR* ToString(EADumpSection InValue);
+
 // ToString은 dump status를 JSON 친화 문자열로 변환한다.
 const TCHAR* ToString(EADumpStatus InValue);
 
@@ -189,11 +205,48 @@ struct FADumpAssetInfo
 	bool bIsDataOnly = false;
 };
 
+// FADumpSectionSelection은 전체 모드 또는 명시적으로 선택된 주요 JSON 섹션을 보관한다.
+struct FADumpSectionSelection
+{
+	// bIsExplicit는 -Sections=가 명시되어 선택 모드가 활성화되었는지 나타낸다.
+	bool bIsExplicit = false;
+
+	// EnabledSections는 명시적 선택 모드에서 출력할 주요 JSON 섹션 집합이다.
+	TSet<EADumpSection> EnabledSections;
+
+	// IsFullMode는 기존 전체 출력 호환 모드인지 반환한다.
+	bool IsFullMode() const;
+
+	// IsEnabled는 지정한 주요 JSON 섹션을 직렬화해야 하는지 반환한다.
+	bool IsEnabled(EADumpSection InSection) const;
+
+	// RequiresSummaryData는 summary 중간 데이터가 필요한 선택인지 반환한다.
+	bool RequiresSummaryData() const;
+
+	// ResetToFullMode는 선택값을 지우고 기존 전체 출력 호환 모드로 되돌린다.
+	void ResetToFullMode();
+
+	// ResetToExplicitMode는 선택값을 지우고 명시적 섹션 선택 모드를 시작한다.
+	void ResetToExplicitMode();
+
+	// Enable은 명시적 선택 모드에서 지정 섹션을 활성화한다.
+	void Enable(EADumpSection InSection);
+
+	// GetEnabledNames는 활성 섹션 이름을 레지스트리 순서로 반환한다.
+	TArray<FString> GetEnabledNames() const;
+};
+
 // FADumpRequestInfo는 최종 dump.json에 남길 요청 스냅샷이다.
 struct FADumpRequestInfo
 {
 	// SourceKind는 요청 출처를 기록한다.
 	EADumpSourceKind SourceKind = EADumpSourceKind::Unknown;
+
+	// SectionSelection은 전체 모드 또는 -Sections=의 명시적 출력 섹션을 기록한다.
+	FADumpSectionSelection SectionSelection;
+
+	// BuilderSections는 명시적 선택 모드에서 실제 실행 예정인 주요 데이터 builder 이름 목록이다.
+	TArray<FString> BuilderSections;
 
 	// bIncludeSummary는 summary 섹션 활성화 여부다.
 	bool bIncludeSummary = true;

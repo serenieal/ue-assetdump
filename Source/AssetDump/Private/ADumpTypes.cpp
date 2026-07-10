@@ -1,6 +1,8 @@
 // File: ADumpTypes.cpp
-// Version: v0.3.6
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: v0.6.1 builder 제어용 summary 데이터 의존성 helper를 추가.
+// - v0.4.0: v0.6.0 Sections 옵션용 섹션 이름과 선택 helper 구현을 추가.
 // - v0.3.6: World/Map 배치 StaticMeshComponent socket world-space Transform 추출 반영을 위해 extractor version을 2.4.0으로 갱신.
 // - v0.3.5: StaticMeshComponent socket Transform 추출 반영을 위해 extractor version을 2.3.0으로 갱신.
 // - v0.3.4: Blueprint StaticMeshComponent 참조 socket 추출 반영을 위해 extractor version을 2.2.0으로 갱신.
@@ -94,6 +96,96 @@ const TCHAR* ToString(EADumpLinksMeta InValue)
 	default:
 		return TEXT("none");
 	}
+}
+
+// ToString은 주요 JSON 섹션을 commandlet 친화 이름으로 변환한다.
+const TCHAR* ToString(EADumpSection InValue)
+{
+	switch (InValue)
+	{
+	case EADumpSection::Summary:
+		return TEXT("summary");
+	case EADumpSection::Digest:
+		return TEXT("digest");
+	case EADumpSection::Details:
+		return TEXT("details");
+	case EADumpSection::Graphs:
+		return TEXT("graphs");
+	case EADumpSection::References:
+		return TEXT("references");
+	case EADumpSection::WidgetDesigner:
+		return TEXT("widget_designer");
+	default:
+		return TEXT("unknown");
+	}
+}
+
+// IsFullMode는 기존 전체 출력 호환 모드인지 반환한다.
+bool FADumpSectionSelection::IsFullMode() const
+{
+	return !bIsExplicit;
+}
+
+// IsEnabled는 지정한 주요 JSON 섹션을 직렬화해야 하는지 반환한다.
+bool FADumpSectionSelection::IsEnabled(EADumpSection InSection) const
+{
+	return IsFullMode() || EnabledSections.Contains(InSection);
+}
+
+// RequiresSummaryData는 summary 중간 데이터가 필요한 선택인지 반환한다.
+bool FADumpSectionSelection::RequiresSummaryData() const
+{
+	return IsFullMode()
+		|| EnabledSections.Contains(EADumpSection::Summary)
+		|| EnabledSections.Contains(EADumpSection::Digest)
+		|| EnabledSections.Contains(EADumpSection::WidgetDesigner);
+}
+
+// ResetToFullMode는 선택값을 지우고 기존 전체 출력 호환 모드로 되돌린다.
+void FADumpSectionSelection::ResetToFullMode()
+{
+	bIsExplicit = false;
+	EnabledSections.Reset();
+}
+
+// ResetToExplicitMode는 선택값을 지우고 명시적 섹션 선택 모드를 시작한다.
+void FADumpSectionSelection::ResetToExplicitMode()
+{
+	bIsExplicit = true;
+	EnabledSections.Reset();
+}
+
+// Enable은 명시적 선택 모드에서 지정 섹션을 활성화한다.
+void FADumpSectionSelection::Enable(EADumpSection InSection)
+{
+	bIsExplicit = true;
+	EnabledSections.Add(InSection);
+}
+
+// GetEnabledNames는 활성 섹션 이름을 레지스트리 순서로 반환한다.
+TArray<FString> FADumpSectionSelection::GetEnabledNames() const
+{
+	// SectionOrder는 JSON 및 fingerprint에서 사용할 고정 섹션 순서다.
+	const EADumpSection SectionOrder[] = {
+		EADumpSection::Summary,
+		EADumpSection::Digest,
+		EADumpSection::Details,
+		EADumpSection::Graphs,
+		EADumpSection::References,
+		EADumpSection::WidgetDesigner
+	};
+
+	// EnabledNameArray는 고정 순서로 수집한 활성 섹션 이름 목록이다.
+	TArray<FString> EnabledNameArray;
+	// Section은 현재 순서에서 활성 여부를 확인할 주요 JSON 섹션이다.
+	for (const EADumpSection Section : SectionOrder)
+	{
+		if (EnabledSections.Contains(Section))
+		{
+			EnabledNameArray.Add(ToString(Section));
+		}
+	}
+	return EnabledNameArray;
 }
 
 const TCHAR* ToString(EADumpStatus InValue)

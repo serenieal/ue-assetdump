@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.6.0
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: v0.6.1 명시적 섹션 선택에 따라 details/graphs/references/Widget Designer builder를 생략.
 // - v0.6.0: DataAsset 등 비Blueprint 자산도 load/service 경로에서 막히지 않도록 공통 자산 로드로 전환.
 // - v0.5.6: references-only 경로에서도 summary 보조 추출을 수행해 widget binding 기반 참조 입력을 비우지 않도록 보강.
 // - v0.5.5: load 단계에서 Blueprint 공통 asset family helper를 사용해 모든 실행 모드의 자산 메타를 일관화.
@@ -251,49 +252,49 @@ EADumpPhase FADumpService::ResolveNextPhase(EADumpPhase InCurrentPhase) const
 	case EADumpPhase::ValidateAsset:
 		return EADumpPhase::LoadAsset;
 	case EADumpPhase::LoadAsset:
-		if (ActiveRunOpts.bIncludeSummary)
+		if (ActiveRunOpts.ShouldBuildSummary())
 		{
 			return EADumpPhase::Summary;
 		}
-		if (ActiveRunOpts.bIncludeDetails)
+		if (ActiveRunOpts.ShouldBuildDetails())
 		{
 			return EADumpPhase::Details;
 		}
-		if (ActiveRunOpts.bIncludeGraphs)
+		if (ActiveRunOpts.ShouldBuildGraphs())
 		{
 			return EADumpPhase::Graphs;
 		}
-		if (ActiveRunOpts.bIncludeReferences)
+		if (ActiveRunOpts.ShouldBuildReferences())
 		{
 			return EADumpPhase::References;
 		}
 		return EADumpPhase::Save;
 	case EADumpPhase::Summary:
-		if (ActiveRunOpts.bIncludeDetails)
+		if (ActiveRunOpts.ShouldBuildDetails())
 		{
 			return EADumpPhase::Details;
 		}
-		if (ActiveRunOpts.bIncludeGraphs)
+		if (ActiveRunOpts.ShouldBuildGraphs())
 		{
 			return EADumpPhase::Graphs;
 		}
-		if (ActiveRunOpts.bIncludeReferences)
+		if (ActiveRunOpts.ShouldBuildReferences())
 		{
 			return EADumpPhase::References;
 		}
 		return EADumpPhase::Save;
 	case EADumpPhase::Details:
-		if (ActiveRunOpts.bIncludeGraphs)
+		if (ActiveRunOpts.ShouldBuildGraphs())
 		{
 			return EADumpPhase::Graphs;
 		}
-		if (ActiveRunOpts.bIncludeReferences)
+		if (ActiveRunOpts.ShouldBuildReferences())
 		{
 			return EADumpPhase::References;
 		}
 		return EADumpPhase::Save;
 	case EADumpPhase::Graphs:
-		if (ActiveRunOpts.bIncludeReferences)
+		if (ActiveRunOpts.ShouldBuildReferences())
 		{
 			return EADumpPhase::References;
 		}
@@ -568,7 +569,8 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 				ActiveRunOpts.AssetObjectPath,
 				ActiveResult.Asset,
 				ActiveResult.Summary,
-				ActiveResult.Issues))
+				ActiveResult.Issues,
+				ActiveRunOpts.ShouldBuildWidgetDesigner()))
 		{
 			bAllRequestedSectionsSucceeded = false;
 		}
@@ -640,6 +642,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 
 		const FADumpSummary* SummaryForReferences = &ActiveResult.Summary;
 
+		// references는 summary/details/graphs에서 발견한 관계를 합치므로 미요청 입력도 임시 builder로 보수적으로 생성한다.
 		// TemporaryReferenceSummary는 summary 미포함 실행에서 references 보조 추출에 사용할 임시 요약 결과다.
 		FADumpSummary TemporaryReferenceSummary;
 
@@ -650,20 +653,21 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		FADumpDetails TemporaryReferenceDetails;
 		const TArray<FADumpGraph>* GraphsForReferences = &ActiveResult.Graphs;
 		TArray<FADumpGraph> TemporaryReferenceGraphs;
-		if (!ActiveRunOpts.bIncludeSummary)
+		if (!ActiveRunOpts.ShouldBuildSummary())
 		{
 			if (!ADumpSummaryExt::ExtractSummary(
 					ActiveRunOpts.AssetObjectPath,
 					TemporarySummaryAssetInfo,
 					TemporaryReferenceSummary,
-					ActiveResult.Issues))
+					ActiveResult.Issues,
+					false))
 			{
 				bAllRequestedSectionsSucceeded = false;
 			}
 			SummaryForReferences = &TemporaryReferenceSummary;
 		}
 
-		if (!ActiveRunOpts.bIncludeDetails)
+		if (!ActiveRunOpts.ShouldBuildDetails())
 		{
 			if (!ADumpDetailExt::ExtractDetails(
 					ActiveRunOpts.AssetObjectPath,
@@ -677,7 +681,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 			DetailsForReferences = &TemporaryReferenceDetails;
 		}
 
-		if (!ActiveRunOpts.bIncludeGraphs)
+		if (!ActiveRunOpts.ShouldBuildGraphs())
 		{
 			// TemporaryGraphAssetInfo는 graph-only 보조 추출에 사용할 임시 asset 메타다.
 			FADumpAssetInfo TemporaryGraphAssetInfo = ActiveResult.Asset;
