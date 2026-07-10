@@ -1,0 +1,112 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpSummaryExt.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+chain:
+  - inspect
+op:
+  - add_tests
+u:
+  - None
+ld:
+  novelty_directives:
+    - Use the section selection option added in AssetDump v0.6.0 to avoid running expensive data builders for output sections that were not requested
+    - "AssetDump v0.6.0 filters output at serialization time. AssetDump v0.6.1 should preserve that behavior while adding safe builder-level control so reduced section dumps avoid unnecessary graph, details, reference, and specialized section construction where possible"
+    - Inspect the v0.6.0 section selection structures and helpers
+    - Reuse the existing section selection model instead of creating a competing option system
+    - "Identify builder or collection paths for major sections:"
+    - details
+    - graphs
+    - references
+    - widget_designer
+    - Skip expensive builder work when the corresponding section is not requested and full mode is not active
+    - Preserve full mode behavior when -Sections= is omitted
+    - Preserve explicit section mode behavior introduced by v0.6.0
+    - Keep summary and digest safe and available when requested
+    - Ensure skipped sections do not leave misleading populated data in reduced outputs
+    - Keep changed-only fingerprint behavior from v0.6.0 intact
+    - Add or update smoke tests if the existing validation framework can verify builder control without fragile timing assumptions
+    - Add comments or implementation notes that distinguish output filtering from builder control
+  acceptance_criteria:
+    - "Run build:"
+    - text CarFight_ReEditor Win64 Development
+    - "Run plugin validation:"
+    - text RunBPDumpRegression.ps1 -ValidationProfile Plugin -SkipBuild -CompactLog
+    - "Run compact section smoke test:"
+    - "text Dump a known WidgetBlueprint with -Sections=summary,digest. Confirm summary and digest exist. Confirm details, graphs, references, and widget_designer are absent among major sections"
+    - "Run Widget Designer section smoke test:"
+    - "text Dump a known WidgetBlueprint with -Sections=summary,digest,widget_designer. Confirm widget_designer.schema_version is widget_designer_v1. Confirm widget_designer.node_count is greater than 0 when RootWidget exists"
+    - "Run invalid section smoke test:"
+    - "text Run with -Sections=summary,invalid_section. Confirm the command fails clearly and lists valid section names"
+    - "Run changed-only check:"
+    - text Run changed-only batch after a successful full batch. Confirm unchanged assets are skipped normally
+    - "Optional implementation evidence:"
+    - "text Add logs, counters, or validation-only assertions only if existing validation style supports them without noisy output. Do not add permanent noisy runtime logs just to prove a builder was skipped"
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_1_BuilderControl_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_1_BuilderControl_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Inspect the v0.6.0 section selection structures and helpers
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+      reason: Inspect the v0.6.0 section selection structures and helpers
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+      reason: Inspect the v0.6.0 section selection structures and helpers
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+      reason: Inspect the v0.6.0 section selection structures and helpers
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpSummaryExt.cpp
+      reason: Inspect the v0.6.0 section selection structures and helpers
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Inspect the v0.6.0 section selection structures and helpers
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Inspect the v0.6.0 section selection structures and helpers
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+      reason: Inspect the v0.6.0 section selection structures and helpers
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

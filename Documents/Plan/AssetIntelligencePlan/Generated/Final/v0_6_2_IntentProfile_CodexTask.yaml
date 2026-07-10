@@ -1,0 +1,118 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+chk:
+  - compile_both_pass
+u:
+  - None
+ld:
+  novelty_directives:
+    - Add an -Intent= option that maps common AI analysis goals to the existing AssetDump section selection and builder control system
+    - "The implementation must reuse the canonical section selection introduced in v0.6.0 and the builder execution planning introduced in v0.6.1. Intent handling must resolve to canonical sections before serialization, builder planning, validation, and changed-only fingerprinting"
+    - Add commandlet argument parsing for a single -Intent= value
+    - Define canonical intent names and intent-to-section mappings
+    - "Support these initial intents only:"
+    - quick_overview
+    - widget_layout
+    - blueprint_logic
+    - dependency_trace
+    - "Resolve each intent to existing v0.6.x sections:"
+    - "quick_overview -> summary,digest"
+    - "widget_layout -> summary,digest,widget_designer"
+    - "blueprint_logic -> summary,digest,graphs,references"
+    - "dependency_trace -> summary,digest,references"
+    - "Reuse the existing section normalization, output filtering, and builder planning paths"
+    - Define precedence when both -Intent= and -Sections= are provided
+    - Use explicit -Sections= as the effective section source when both options are provided
+    - Record intent resolution in the request envelope
+    - Preserve request.builder_sections from v0.6.1 as the actual builder execution plan
+    - Add intent information to changed-only fingerprint inputs when it affects dump output or request metadata
+    - Fail clearly for unknown intent names before output generation
+    - Add automatic validation or smoke checks for intent resolution and precedence
+  acceptance_criteria:
+    - "Run build:"
+    - text CarFight_ReEditor Win64 Development
+    - "Run Plugin validation:"
+    - text RunBPDumpRegression.ps1 -ValidationProfile Plugin -SkipBuild -CompactLog
+    - "Run intent smoke tests:"
+    - "text -Intent=quick_overview confirm sections: summary,digest confirm builder_sections: summary"
+    - "-Intent=widget_layout confirm sections: summary,digest,widget_designer confirm builder_sections: summary,widget_designer confirm widget_designer.schema_version: widget_designer_v1 confirm node_count > 0"
+    - "-Intent=blueprint_logic confirm sections: summary,digest,graphs,references confirm references succeeds"
+    - "-Intent=dependency_trace confirm sections: summary,digest,references confirm references succeeds"
+    - "Run precedence smoke test:"
+    - "text -Intent=widget_layout -Sections=summary,digest confirm section_source: sections confirm output sections: summary,digest confirm builder_sections: summary confirm widget_designer is not emitted"
+    - "Run invalid intent test:"
+    - text -Intent=invalid_intent confirm exit code is non-zero confirm invalid_intent is shown confirm all valid intent names are listed
+    - "Run project and changed-only checks:"
+    - text Run project batch. Run changed-only batch again. Confirm unchanged assets are skipped normally
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_2_IntentProfile_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_2_IntentProfile_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Add commandlet argument parsing for a single -Intent= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+      reason: Add commandlet argument parsing for a single -Intent= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+      reason: Add commandlet argument parsing for a single -Intent= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+      reason: Add commandlet argument parsing for a single -Intent= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+      reason: Add commandlet argument parsing for a single -Intent= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Add commandlet argument parsing for a single -Intent= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+      reason: Add commandlet argument parsing for a single -Intent= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Add commandlet argument parsing for a single -Intent= value
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

@@ -1,0 +1,155 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataAsset.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataAsset.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+u:
+  - None
+ld:
+  novelty_directives:
+    - Add an AI-friendly data_asset_values specialized section for UDataAsset and UPrimaryDataAsset assets
+    - "The section must expose the important reflected field values and asset references needed for planning and analysis without requiring AI callers to read the full details section. It must integrate with the existing Sections, builder-control, Intent/Profile precedence, serialization, changed-only, and regression systems"
+    - Add the canonical section name data_asset_values
+    - Support -Sections=data_asset_values and combinations with existing sections
+    - Build the section only for UDataAsset and UPrimaryDataAsset instances
+    - Safely omit the section for non-DataAsset assets without failing the dump
+    - Add schema version data_asset_values_v1
+    - Add a dedicated lightweight DataAsset value builder
+    - Record reflected fields in deterministic declaration order or another documented deterministic order
+    - "Include scalar and text-like values:"
+    - bool
+    - signed and unsigned integer values supported by reflection
+    - float and double
+    - string
+    - name
+    - text
+    - enum
+    - "Include reference values:"
+    - hard object references
+    - hard class references
+    - soft object references
+    - soft class references
+    - "Include compact previews for:"
+    - arrays
+    - sets
+    - maps
+    - structs
+    - "Include field metadata useful to AI:"
+    - property name
+    - display name
+    - category
+    - C++ type
+    - value kind
+    - value JSON or safe fallback text
+    - asset-reference flag
+    - "Add section-level summary fields:"
+    - schema version
+    - field count
+    - reference field count
+    - truncated field count
+    - unsupported field count
+    - preview lines
+    - Reuse existing safe value conversion logic where practical rather than creating incompatible representations
+    - Apply explicit depth and element budgets to nested values
+    - Add builder control so the DataAsset traversal is skipped when the section is not requested and full mode does not require it
+    - Serialize data_asset_values as a top-level major section
+    - Add automatic validation and smoke tests using a plugin-owned DataAsset or PrimaryDataAsset fixture
+    - Preserve all existing 19 section/intent/profile checks and regression behavior
+    - Add the new section to the valid section-name list and invalid-section error output
+    - Update relevant Intent mapping only if the required section now exists and the change remains backward compatible
+  acceptance_criteria:
+    - powershell .\Scripts\RunBPDumpRegression.ps1 -RunSelfTests
+    - "powershell $env:ASSETDUMP_ENGINE_ROOT = 'D:\\UnrealEngine_Source' .\\Scripts\\RunBPDumpRegression.ps1 -ValidationProfile Plugin -CompactLog"
+    - "Required existing evidence:"
+    - "text fixture failed_count: 0 validation required_failed_count: 0 previous section/intent/profile failure_count: 0"
+    - "Required new evidence:"
+    - "text data_asset_values schema check: passed data_asset_values field count check: passed data_asset_values reference classification check: passed data_asset_values bounded collection/struct check: passed data_asset_values non-DataAsset omission check: passed data_asset_values builder-plan check: passed"
+    - "Dump the plugin DataAsset fixture with:"
+    - "text -Sections=summary,digest,data_asset_values"
+    - "Confirm:"
+    - "text schema_version: data_asset_values_v1 field_count > 0 reference_field_count > 0 builder_sections contains data_asset_values"
+    - "Dump a known WidgetBlueprint or Actor Blueprint with:"
+    - "text -Sections=summary,data_asset_values"
+    - Confirm the command succeeds and data_asset_values is omitted
+    - Dump one existing project PrimaryDataAsset without modifying it
+    - Confirm the specialized section is emitted and values are bounded
+    - Run project batch and immediate ChangedOnly rerun
+    - "Required:"
+    - "text failed_count: 0 ChangedOnly skipped_count == asset_count"
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataAsset.h
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataAsset.cpp
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+      reason: Add the canonical section name data_asset_values
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Add the canonical section name data_asset_values
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

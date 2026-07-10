@@ -1,0 +1,94 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Scripts/RunBPDumpRegression.ps1
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+chain:
+  - inspect
+op:
+  - add_tests
+chk:
+  - compile_both_pass
+u:
+  - None
+ld:
+  novelty_directives:
+    - Harden the AssetDump regression harness so local and CI validation resolve the Unreal Engine path reliably and distinguish AssetDump report failures from explicitly recognized external Unreal Engine plugin startup errors without hiding genuine failures
+    - The implementation must preserve strict failure behavior by default. A non-zero UnrealEditor-Cmd exit code may be reclassified only when a fresh expected AssetDump report proves the requested operation succeeded and the log contains only an explicitly allowlisted external UE error
+    - "Remove the hard-coded local default D:\\UE_5.7 from the regression script"
+    - Add deterministic Unreal Engine root resolution for local execution
+    - Keep an explicit -EngineRoot argument as the highest-priority source
+    - Support environment-based engine root resolution using documented variable names
+    - "Where practical, derive the engine root from a configured UnrealEditor-Cmd path"
+    - Validate Build.bat and UnrealEditor-Cmd.exe before starting regression work
+    - Report every attempted engine path when resolution fails
+    - Extend external command execution so expected report-producing AssetDump steps can inspect report evidence after a non-zero exit
+    - Keep non-zero exit codes as failures unless the strict report-based reclassification contract is satisfied
+    - "Recognize the current known external error only:"
+    - "LogHttpListener: Error: HttpListener unable to bind to 127.0.0.1:8100"
+    - Require the expected report to be created or updated by the current command
+    - Validate report-specific success fields before reclassifying the process result
+    - "Reject stale, missing, malformed, or failing reports"
+    - "Reject logs containing crashes, fatal errors, assertions, access violations, or AssetDump-owned failures"
+    - "Record process exit, report verdict, external-error classification, and final step status separately"
+    - Include the section/intent/profile smoke summary in the final regression summary when available
+    - "Preserve existing Plugin, Project, Both, project batch, and ChangedOnly behavior"
+    - Keep the GitHub Actions workflow compatible with explicit and repository-variable EngineRoot configuration
+    - Add script-level or fixture-based tests for path resolution and exit/report classification where practical
+  acceptance_criteria:
+    - "Run with an explicit root:"
+    - "powershell .\\Scripts\\RunBPDumpRegression.ps1 -EngineRoot \"D:\\UnrealEngine_Source\" -ValidationProfile Plugin -CompactLog"
+    - Confirm the explicit root is selected
+    - Run without explicit root while a supported environment source is set. Confirm the same root resolves
+    - Run with all sources removed or invalid in a controlled test. Confirm the error lists every attempted source and path
+    - text CarFight_ReEditor Win64 Development
+    - "Required:"
+    - "text Result: Succeeded"
+    - powershell .\Scripts\RunBPDumpRegression.ps1 -ValidationProfile Plugin -SkipBuild -CompactLog
+    - "Required report evidence:"
+    - "text fixture_count: 8 fixture_passed_count: 8 fixture_failed_count: 0 validation_case_count: 8 validation_validated_count: 8 validation_required_failed_count: 0 section_selection_check_count: 19 section_selection_failure_count: 0"
+    - "If port 8100 remains occupied, required classification is:"
+    - "text process_exit_code: 1 external_ue_error_classification: http_listener_port_conflict final_step_status: succeeded_with_external_ue_error"
+    - "Verify each remains failed:"
+    - "text non-zero exit + missing report non-zero exit + stale report non-zero exit + malformed report non-zero exit + required_failed_count > 0 non-zero exit + unknown error non-zero exit + fatal/crash/assert/access-violation signature"
+    - Run project batch and immediate ChangedOnly rerun
+    - "text failed_count: 0 ChangedOnly skipped_count == asset_count"
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_4_RegressionHarness_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_4_RegressionHarness_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Scripts/RunBPDumpRegression.ps1
+      reason: "Remove the hard-coded local default D:\\UE_5.7 from the regression script"
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

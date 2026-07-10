@@ -1,0 +1,119 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+u:
+  - None
+ld:
+  novelty_directives:
+    - "Add a -Profile= option that provides stable named presets for common AssetDump output modes while reusing the existing section selection, intent resolution, builder control, serialization, and changed-only fingerprint systems"
+    - AssetDump v0.6.3 must not create a competing extraction path. A profile is a selection preset or full-mode preset that resolves before builder planning
+    - Add commandlet argument parsing for a single -Profile= value
+    - "Support these canonical profile names:"
+    - full
+    - summary_only
+    - digest_only
+    - ai_context
+    - "Resolve profiles as follows:"
+    - "full -> existing full dump behavior"
+    - "summary_only -> summary"
+    - "digest_only -> summary,digest"
+    - "ai_context without Intent -> summary,digest"
+    - Allow ai_context to compose with an explicit v0.6.2 Intent
+    - "Apply one deterministic selection precedence policy across Sections, Intent, Profile, and implicit full mode"
+    - Reuse v0.6.0 canonical section normalization and output filtering
+    - Reuse v0.6.1 builder planning and request.builder_sections
+    - Reuse v0.6.2 intent mapping and request metadata
+    - Add request.profile to the request envelope
+    - Extend request.section_source to report profile when a profile directly determines the effective output
+    - Include profile metadata and effective selection source in changed-only fingerprint inputs when required for deterministic output
+    - Fail clearly for unknown profile names before output generation
+    - "Add automatic smoke checks for profile mappings, precedence, invalid profiles, and full-mode compatibility"
+  acceptance_criteria:
+    - Compile the editor target or another supported path that compiles and links the AssetDump module
+    - "Required evidence:"
+    - "text AssetDump module compile: succeeded AssetDump DLL link: succeeded"
+    - "Attempt:"
+    - text CarFight_ReEditor Win64 Development
+    - "If the only failure remains the two existing CFVehiclePawn.cpp errors:"
+    - "text classification: unrelated_existing_issue AssetDump feature acceptance may continue Do not edit CFVehiclePawn.cpp"
+    - text RunBPDumpRegression.ps1 -ValidationProfile Plugin -SkipBuild -CompactLog
+    - Confirm existing Plugin fixtures and all prior v0.6.x checks pass
+    - "text -Profile=full confirm full output compatibility confirm profile: full confirm section_source: profile"
+    - "-Profile=summary_only confirm sections: summary confirm builder_sections: summary confirm section_source: profile"
+    - "-Profile=digest_only confirm sections: summary,digest confirm builder_sections: summary confirm section_source: profile"
+    - "-Profile=ai_context confirm sections: summary,digest confirm builder_sections: summary confirm section_source: profile"
+    - "text -Profile=summary_only -Intent=widget_layout confirm section_source: intent confirm sections: summary,digest,widget_designer confirm builder_sections: summary,widget_designer"
+    - "-Profile=ai_context -Intent=widget_layout -Sections=summary,digest confirm section_source: sections confirm sections: summary,digest confirm builder_sections: summary confirm widget_designer is not emitted"
+    - "text -Profile=invalid_profile confirm exit code is non-zero confirm invalid_profile is shown confirm full, summary_only, digest_only, and ai_context are listed"
+    - text Run project batch. Run changed-only batch again. Confirm unchanged assets are skipped normally
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_3_AIContextProfile_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_3_AIContextProfile_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Add commandlet argument parsing for a single -Profile= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+      reason: Add commandlet argument parsing for a single -Profile= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+      reason: Add commandlet argument parsing for a single -Profile= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+      reason: Add commandlet argument parsing for a single -Profile= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+      reason: Add commandlet argument parsing for a single -Profile= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Add commandlet argument parsing for a single -Profile= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+      reason: Add commandlet argument parsing for a single -Profile= value
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Add commandlet argument parsing for a single -Profile= value
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored
