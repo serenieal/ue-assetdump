@@ -1,0 +1,166 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpInput.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+u:
+  - None
+ld:
+  novelty_directives:
+    - Add a deterministic input_summary specialized section for Unreal Engine Enhanced Input assets
+    - "The section must provide AI-readable semantic output for UInputAction and UInputMappingContext, including action value types, action settings, key mappings, modifier/trigger chains, and stable referenced action paths. It must recover information that is currently truncated or flattened in generic data_asset_values_v1 output"
+    - Add canonical section name input_summary
+    - Add schema version input_summary_v1
+    - "Support these asset classes:"
+    - UInputAction
+    - UInputMappingContext
+    - Add a dedicated Enhanced Input builder
+    - Emit the specialized section in full mode for supported assets
+    - Emit the specialized section when explicitly selected
+    - Omit the section without error for unsupported assets in normal full mode
+    - Fail clearly when input_summary is explicitly requested for an unsupported asset
+    - "For InputAction assets, extract:"
+    - canonical asset kind input_action
+    - value type
+    - accumulation behavior
+    - localized action description as display text
+    - consume-input flag
+    - consume-legacy-action/axis flag
+    - reserve-all-mappings flag
+    - trigger-when-paused flag
+    - trigger-events-that-consume-legacy-keys numeric mask/value
+    - player-mappable settings reference path when present
+    - action-level modifiers
+    - action-level triggers
+    - "For InputMappingContext assets, extract:"
+    - canonical asset kind input_mapping_context
+    - context description
+    - registration tracking mode when safely available
+    - input-mode filter option when safely available
+    - total mapping count
+    - emitted mapping count
+    - truncation state
+    - mapping entries
+    - "For each mapping entry, extract:"
+    - original source index
+    - action object path
+    - action name
+    - linked action value type when the direct action object is available
+    - key name
+    - key display text
+    - setting behavior
+    - mapping-level modifiers
+    - mapping-level triggers
+    - "For each modifier/trigger object, emit a bounded descriptor:"
+    - source index
+    - class name
+    - class path
+    - object name
+    - shallow settings object
+    - truncated setting count/state
+    - Shallow settings extraction may include deterministic scalar/enum/name/string/text/vector-like configuration values
+    - Do not recursively traverse arbitrary UObject references from modifier/trigger settings
+    - Preserve modifier and trigger source order because chain order can affect semantics
+    - Sort mapping entries deterministically while retaining source_index
+    - Add compact preview lines
+    - "Add counts for mappings, action references, null actions, modifiers, triggers, and truncated entries"
+    - Add builder selection and request metadata integration
+    - Add input_summary_v1 to changed-only fingerprint inputs when the builder is active
+    - Add Plugin validation checks for InputAction and InputMappingContext output
+    - "Preserve existing 9 fixtures, 9 validation cases, 28 selection checks, DataAsset Values, and DataAsset Diff checks"
+    - Keep the reserved input_bindings Intent disabled in v0.7.2 unless a separate explicit task enables and validates it
+  acceptance_criteria:
+    - "Run explicit output for:"
+    - text /AssetDump/Validation/IA_ADumpFixture.IA_ADumpFixture -Sections=input_summary
+    - "Verify:"
+    - "text schema_version: input_summary_v1 asset_kind: input_action value_type: boolean accumulation_behavior: TakeHighestAbsoluteValue or canonical equivalent consume_input: true modifier_count == modifiers.length trigger_count == triggers.length"
+    - text /AssetDump/Validation/IMC_ADumpFixture.IMC_ADumpFixture -Sections=input_summary
+    - "Verify at least one mapping:"
+    - "text action_path: /AssetDump/Validation/IA_ADumpFixture.IA_ADumpFixture key_name: SpaceBar source_index: 0"
+    - "Verify no specialized mapping field contains:"
+    - "text <struct:depth_limit> <array:depth_limit>"
+    - "text -Sections=input_summary -Sections=summary,input_summary full mode on InputAction full mode on InputMappingContext full mode on non-input asset explicit input_summary on non-input asset"
+    - Dump the same IMC twice and compare the input_summary object byte-for-byte after excluding unrelated timestamps
+    - "Use project-owned assets without saving them:"
+    - text /Game/CarFight/Input/IA_VehicleMove.IA_VehicleMove /Game/CarFight/Input/IMC_Vehicle_Default.IMC_Vehicle_Default
+    - "Confirm action value type, mapping keys, action paths, and modifier/trigger class chains are readable"
+    - "powershell $env:ASSETDUMP_ENGINE_ROOT = 'D:\\UnrealEngine_Source' .\\Scripts\\RunBPDumpRegression.ps1 -ValidationProfile Plugin -CompactLog"
+    - "Required:"
+    - "text fixture failed_count: 0 validation required_failed_count: 0 existing selection failure_count: 0 new input_summary failure_count: 0 project batch failed_count: 0 ChangedOnly skipped_count == asset_count"
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpInput.h
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+      reason: Add canonical section name input_summary
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Add canonical section name input_summary
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

@@ -1,6 +1,7 @@
 // File: ADumpJson.cpp
-// Version: v1.7.0
+// Version: v1.8.0
 // Changelog:
+// - v1.8.0: data_asset_diff_v1 request 메타와 최상위 JSON 직렬화를 추가.
 // - v1.7.0: data_asset_values_v1 필드와 섹션 요약을 최상위 JSON에 직렬화.
 // - v1.6.0: v0.6.3 Profile 요청 이름을 request envelope에 기록.
 // - v1.5.0: v0.6.2 Intent 요청 이름과 섹션 선택 출처를 request envelope에 기록.
@@ -413,6 +414,11 @@ namespace
 		RequestObject->SetStringField(TEXT("link_kind"), ToString(InRequestInfo.LinkKind));
 		RequestObject->SetStringField(TEXT("links_meta"), ToString(InRequestInfo.LinksMeta));
 		RequestObject->SetStringField(TEXT("output_file_path"), InRequestInfo.OutputFilePath);
+		if (!InRequestInfo.DataAssetDiffBasePath.IsEmpty())
+		{
+			RequestObject->SetStringField(TEXT("data_asset_diff_base_path"), InRequestInfo.DataAssetDiffBasePath);
+			RequestObject->SetStringField(TEXT("data_asset_diff_base_sha256"), InRequestInfo.DataAssetDiffBaseSha256);
+		}
 		if (InRequestInfo.SectionSelection.bIsExplicit)
 		{
 			RequestObject->SetStringField(TEXT("section_mode"), TEXT("explicit"));
@@ -732,6 +738,82 @@ namespace
 		}
 		DataAssetValuesObject->SetArrayField(TEXT("fields"), FieldArray);
 		return DataAssetValuesObject;
+	}
+
+	// DiffChangeKindToString은 DataAsset Diff 변경 분류를 JSON 문자열로 변환한다.
+	const TCHAR* DiffChangeKindToString(EADumpDataAssetDiffChangeKind InChangeKind)
+	{
+		switch (InChangeKind)
+		{
+		case EADumpDataAssetDiffChangeKind::Added:
+			return TEXT("added");
+		case EADumpDataAssetDiffChangeKind::Removed:
+			return TEXT("removed");
+		case EADumpDataAssetDiffChangeKind::TypeChanged:
+			return TEXT("type_changed");
+		case EADumpDataAssetDiffChangeKind::Changed:
+		default:
+			return TEXT("changed");
+		}
+	}
+
+	// MakeDataAssetDiffValueObject는 before/after 값을 JSON object 또는 null로 변환한다.
+	TSharedPtr<FJsonValue> MakeDataAssetDiffValueObject(const FADumpDataAssetDiffValue& InValue)
+	{
+		if (!InValue.bIsSet)
+		{
+			return MakeShared<FJsonValueNull>();
+		}
+
+		// ValueObject는 DataAsset Diff before/after 한쪽 값을 담는 object다.
+		TSharedRef<FJsonObject> ValueObject = MakeShared<FJsonObject>();
+		ValueObject->SetStringField(TEXT("display_name"), InValue.DisplayName);
+		ValueObject->SetStringField(TEXT("category"), InValue.Category);
+		ValueObject->SetStringField(TEXT("cpp_type"), InValue.CppType);
+		ValueObject->SetStringField(TEXT("value_kind"), InValue.ValueKind);
+		ValueObject->SetField(TEXT("value_json"), InValue.ValueJson.IsValid() ? InValue.ValueJson : MakeShared<FJsonValueNull>());
+		ValueObject->SetStringField(TEXT("value_text"), InValue.ValueText);
+		ValueObject->SetBoolField(TEXT("is_asset_reference"), InValue.bIsAssetReference);
+		ValueObject->SetBoolField(TEXT("is_truncated"), InValue.bTruncated);
+		return MakeShared<FJsonValueObject>(ValueObject);
+	}
+
+	// MakeDataAssetDiffObject는 DataAsset Diff 결과를 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeDataAssetDiffObject(const FADumpDataAssetDiff& InDataAssetDiff)
+	{
+		// DiffObject는 data_asset_diff_v1 섹션 직렬화 결과다.
+		TSharedRef<FJsonObject> DiffObject = MakeShared<FJsonObject>();
+		DiffObject->SetStringField(TEXT("schema_version"), InDataAssetDiff.SchemaVersion);
+		DiffObject->SetStringField(TEXT("baseline_file_path"), InDataAssetDiff.BaselineFilePath);
+		DiffObject->SetStringField(TEXT("baseline_sha256"), InDataAssetDiff.BaselineSha256);
+		DiffObject->SetStringField(TEXT("baseline_asset_path"), InDataAssetDiff.BaselineAssetPath);
+		DiffObject->SetStringField(TEXT("current_asset_path"), InDataAssetDiff.CurrentAssetPath);
+		DiffObject->SetStringField(TEXT("baseline_values_schema"), InDataAssetDiff.BaselineValuesSchema);
+		DiffObject->SetStringField(TEXT("current_values_schema"), InDataAssetDiff.CurrentValuesSchema);
+		DiffObject->SetBoolField(TEXT("compatible"), InDataAssetDiff.bCompatible);
+		DiffObject->SetNumberField(TEXT("added_count"), InDataAssetDiff.AddedCount);
+		DiffObject->SetNumberField(TEXT("removed_count"), InDataAssetDiff.RemovedCount);
+		DiffObject->SetNumberField(TEXT("changed_count"), InDataAssetDiff.ChangedCount);
+		DiffObject->SetNumberField(TEXT("type_changed_count"), InDataAssetDiff.TypeChangedCount);
+		DiffObject->SetNumberField(TEXT("partial_count"), InDataAssetDiff.PartialCount);
+		DiffObject->SetNumberField(TEXT("unchanged_count"), InDataAssetDiff.UnchangedCount);
+		DiffObject->SetArrayField(TEXT("preview"), MakeStringArray(InDataAssetDiff.PreviewLines));
+
+		// ChangeArray는 변경 항목 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> ChangeArray;
+		for (const FADumpDataAssetDiffChange& ChangeItem : InDataAssetDiff.Changes)
+		{
+			// ChangeObject는 field 변경 한 건의 JSON object다.
+			TSharedRef<FJsonObject> ChangeObject = MakeShared<FJsonObject>();
+			ChangeObject->SetStringField(TEXT("property_name"), ChangeItem.PropertyName);
+			ChangeObject->SetStringField(TEXT("change_kind"), DiffChangeKindToString(ChangeItem.ChangeKind));
+			ChangeObject->SetStringField(TEXT("comparison_quality"), ChangeItem.ComparisonQuality);
+			ChangeObject->SetField(TEXT("before"), MakeDataAssetDiffValueObject(ChangeItem.BeforeValue));
+			ChangeObject->SetField(TEXT("after"), MakeDataAssetDiffValueObject(ChangeItem.AfterValue));
+			ChangeArray.Add(MakeShared<FJsonValueObject>(ChangeObject));
+		}
+		DiffObject->SetArrayField(TEXT("changes"), ChangeArray);
+		return DiffObject;
 	}
 
 	// MakePinObject는 그래프 핀 항목을 JSON object로 변환한다.
@@ -1446,6 +1528,11 @@ namespace ADumpJson
 				&& !InDumpResult.DataAssetValues.SchemaVersion.IsEmpty())
 			{
 				RootObject->SetObjectField(TEXT("data_asset_values"), MakeDataAssetValuesObject(InDumpResult.DataAssetValues));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::DataAssetDiff)
+				&& !InDumpResult.DataAssetDiff.SchemaVersion.IsEmpty())
+			{
+				RootObject->SetObjectField(TEXT("data_asset_diff"), MakeDataAssetDiffObject(InDumpResult.DataAssetDiff));
 			}
 			if (SectionSelection.IsEnabled(EADumpSection::Graphs))
 			{

@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.6
+- document_version: v1.7
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - owner_project: CarFight
@@ -140,9 +140,9 @@ Goal: Add AI-friendly sections for high-value asset families.
 Planned scope:
 
 ```text
-v0.7.0 DataAsset values - implementation/core verification completed 2026-07-10; integration gate pending
-v0.7.1 DataAsset diff - next prepared Codex task
-v0.7.2 Enhanced Input summary
+v0.7.0 DataAsset values - release gate completed 2026-07-10
+v0.7.1 DataAsset diff - implementation/regression completed 2026-07-10; remaining contract cases pending
+v0.7.2 Enhanced Input summary - next prepared Codex task
 v0.7.3 Actor/Blueprint component tree
 ```
 
@@ -336,46 +336,65 @@ Known port 8100 conflict: safely reclassified with fresh successful reports
 ```text
 implementation_status: completed
 core_verification_status: passed
-integration_verification_status: pending
+integration_verification_status: passed
+release_gate_status: passed
 completed_at: 2026-07-10 15:59 KST
+integration_closed_at: 2026-07-10 16:36:09 KST
 result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
 generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
 ```
 
-Core verification summary:
+Verification summary:
 
 ```text
 CarFight_ReEditor Win64 Development: succeeded
 Plugin fixture: 9/9 succeeded
 Plugin validation: 9/9 succeeded
-Required failures: 0
 Section/Intent/Profile/DataAsset checks: 25/25 succeeded
-Fixture fields: 17
-Reference fields: 4
-Truncated fields: 2
-Unsupported fields: 0
+Project-owned DataAsset: IA_VehicleMove data_asset_values_v1, 11 fields
+Project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+Harness self-test: passed
 ```
 
-Pending integration evidence:
+### AssetDump v0.7.1 DataAsset Diff
 
 ```text
-fresh regression harness self-test
-project-owned DataAsset smoke
-fresh project batch
-fresh immediate ChangedOnly rerun
+implementation_status: completed
+core_verification_status: passed
+regression_verification_status: passed
+contract_acceptance_status: pending_remaining_cases
+completed_at: 2026-07-10 16:36:09 KST
+result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
 ```
+
+Verified summary:
+
+```text
+BuildEditor.bat: passed
+Plugin fixture: 9/9 succeeded
+Plugin validation: 9/9 succeeded
+Selection checks: 28/28 succeeded
+Project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+Manual same/scalar/type/wrong-schema checks: passed
+```
+
+Remaining full-contract cases include added/removed/reference changes and additional baseline negative-path checks. Implementation and regression are accepted; the remaining list stays tracked in the v0.7.1 TaskSource.
 
 ## Recommended Next Execution Path
 
 The next execution sequence should be:
 
 ```text
-1. Close the remaining v0.7.0 integration gates: fresh harness self-test, project DataAsset smoke, project batch, and ChangedOnly rerun.
-2. Use v0_7_1_DataAssetDiff_TaskSource.md as the next implementation source.
-3. Review Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml and its 10 must-change targets.
-4. Implement `data_asset_diff_v1` and `-DataAssetDiffBase=` without mutating assets.
-5. Validate exact/partial diffs, stable errors, baseline-hash fingerprinting, build, Plugin regression, and project integration.
+1. Keep the remaining v0.7.1 full-contract cases tracked or close them before the v0.7.x release gate.
+2. Use v0_7_2_InputSummary_TaskSource.md as the next implementation source.
+3. Review Generated/Final/v0_7_2_InputSummary_CodexTask.yaml and its 10 must-change targets.
+4. Implement `input_summary_v1` for InputAction and InputMappingContext without modifying project-owned assets.
+5. Validate keys, action paths, modifier/trigger chains, determinism, build, Plugin regression, project batch, and ChangedOnly.
 ```
 
 ## Validation Policy Summary
@@ -411,6 +430,12 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.7
+
+- Marked v0.7.0 DataAsset Values release-gate complete.
+- Recorded v0.7.1 DataAsset Diff implementation/regression completion and remaining full-contract cases.
+- Prepared v0.7.2 Enhanced Input Summary TaskSource and generated Codex contract as the next implementation task.
 
 ### v1.6
 

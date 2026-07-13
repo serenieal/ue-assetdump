@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.7
+- document_version: v1.8
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - document_role: plan_compile_log
@@ -13,6 +13,45 @@
 Record plan tool checks and generated Codex task outputs for Asset Intelligence planning documents.
 
 ## Entries
+
+## 2026-07-10 - v0.7.2 InputSummary TaskSource
+
+### Source Plan
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+```
+
+### Inspect Result
+
+```text
+ok: true
+blocking_unresolved: []
+non_blocking_unresolved: explicit "None."
+target_file_candidates: 10
+```
+
+### Compile Result
+
+```text
+ok: true
+generated_targets: codex
+compile_status: compiled
+codex_yaml_created: true
+must_change_targets: 10
+```
+
+### Generated Output
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
+```
+
+### Notes
+
+The contract defines `input_summary_v1` for `UInputAction` and `UInputMappingContext`, including direct key, action-path, modifier-chain, trigger-chain, shallow-setting, deterministic ordering, builder, fingerprint, and regression rules.
+
+The initial inspection promoted `ADumpSummaryExt.cpp`, `SSOTDumpCmdlet.cpp`, and `AssetDump.Build.cs` to target candidates because they appeared in the target section. The TaskSource was corrected so these files remain review references. The final contract contains only the intended 10 mandatory targets, including new `ADumpInput.h/.cpp`.
 
 ## 2026-07-10 - v0.7.1 DataAssetDiff TaskSource
 
@@ -265,6 +304,13 @@ UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_
 The first compile attempt used a file path inside `output_targets` and failed with `ERR_PLAN_OUTPUT_TARGETS`. The retry used `output_targets: ["codex"]` and `output_file_path` for the YAML path, which succeeded.
 
 ## Changelog
+
+### v1.8
+
+- Recorded successful inspect and compile results for v0.7.2 InputSummary TaskSource.
+- Confirmed the final 10 mandatory change targets, including new `ADumpInput.h/.cpp`.
+- Excluded `ADumpSummaryExt.cpp`, `SSOTDumpCmdlet.cpp`, and `AssetDump.Build.cs` from mandatory targets.
+- Added the generated `v0_7_2_InputSummary_CodexTask.yaml` contract.
 
 ### v1.7
 

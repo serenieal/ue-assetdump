@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.8.0
+// Version: v0.9.0
 // Changelog:
+// - v0.9.0: data_asset_diff baseline preflight와 DataAsset 값 비교 builder를 서비스 단계에 연결.
 // - v0.8.0: data_asset_values 전용 builder를 조건부 서비스 단계에 연결.
 // - v0.7.2: v0.6.3 Profile 메타가 포함된 요청 스냅샷을 changed-only 판정에 그대로 사용.
 // - v0.7.1: v0.6.2 Intent 메타를 포함한 시작 요청 스냅샷을 changed-only 판단에도 재사용.
@@ -22,6 +23,7 @@
 #include "ADumpService.h"
 
 #include "ADumpDataAsset.h"
+#include "ADumpDataDiff.h"
 #include "ADumpDetailExt.h"
 #include "ADumpFingerprint.h"
 #include "ADumpGraphExt.h"
@@ -154,6 +156,7 @@ namespace
 			|| InResult.Details.ClassDefaults.Num() > 0
 						|| InResult.Details.Components.Num() > 0
 			|| InResult.DataAssetValues.FieldCount > 0
+			|| !InResult.DataAssetDiff.SchemaVersion.IsEmpty()
 			|| InResult.References.Hard.Num() > 0
 			|| InResult.References.Soft.Num() > 0
 			|| !InResult.Summary.ParentClassPath.IsEmpty()
@@ -466,6 +469,32 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 			return false;
 		}
 
+		if (ActiveRunOpts.ShouldBuildDataAssetDiff())
+		{
+			// NormalizedBaselinePath는 diff preflight를 통과한 baseline JSON 경로다.
+			FString NormalizedBaselinePath;
+
+			// BaselineSha256Text는 fingerprint에 반영할 baseline JSON 원문 해시다.
+			FString BaselineSha256Text;
+			if (!ADumpDataDiff::PrepareBaselineFile(
+				ActiveRunOpts.DataAssetDiffBasePath,
+				NormalizedBaselinePath,
+				BaselineSha256Text,
+				ActiveResult.Issues,
+				ActiveRunOpts.AssetObjectPath))
+			{
+				bAllRequestedSectionsSucceeded = false;
+				RecountIssueStats();
+				FinalizeStatus(ActiveResult, false);
+				bSessionActive = false;
+				OutMessage = StatusMessage;
+				return false;
+			}
+			ActiveRunOpts.DataAssetDiffBasePath = NormalizedBaselinePath;
+			ActiveRunOpts.DataAssetDiffBaseSha256 = BaselineSha256Text;
+			ActiveResult.Request = ActiveRunOpts.BuildRequestInfo();
+		}
+
 		ActivePhase = ResolveNextPhase(EADumpPhase::Prepare);
 		StatusMessage = TEXT("덤프 준비가 끝났습니다.");
 		OutMessage = StatusMessage;
@@ -607,6 +636,8 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 			bAllRequestedSectionsSucceeded = false;
 		}
 
+		// bDataAssetValuesSucceeded는 diff prerequisite인 current values 추출 성공 여부다.
+		bool bDataAssetValuesSucceeded = true;
 		if (ActiveRunOpts.ShouldBuildDataAssetValues()
 			&& !ADumpDataAsset::ExtractDataAssetValues(
 				ActiveRunOpts.AssetObjectPath,
@@ -614,7 +645,28 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 				ActiveResult.Issues,
 				ActiveResult.Perf))
 		{
+			bDataAssetValuesSucceeded = false;
 			bAllRequestedSectionsSucceeded = false;
+		}
+
+		if (ActiveRunOpts.ShouldBuildDataAssetDiff())
+		{
+			if (!bDataAssetValuesSucceeded
+				|| !ADumpDataDiff::BuildDataAssetDiff(
+					ActiveRunOpts.DataAssetDiffBasePath,
+					ActiveRunOpts.DataAssetDiffBaseSha256,
+					ActiveResult.Asset.AssetObjectPath,
+					ActiveResult.DataAssetValues,
+					ActiveResult.DataAssetDiff,
+					ActiveResult.Issues))
+			{
+				bAllRequestedSectionsSucceeded = false;
+				RecountIssueStats();
+				FinalizeStatus(ActiveResult, false);
+				bSessionActive = false;
+				OutMessage = StatusMessage;
+				return false;
+			}
 		}
 
 		RecountIssueStats();

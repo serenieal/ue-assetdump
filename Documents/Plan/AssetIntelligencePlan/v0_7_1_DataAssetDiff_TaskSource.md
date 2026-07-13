@@ -2,9 +2,14 @@
 
 ## Metadata
 
-- document_version: v1.0
+- document_version: v1.1
 - created_at: 2026-07-10
+- updated_at: 2026-07-10
 - target_assetdump_version: v0.7.1
+- implementation_status: implemented
+- core_verification_status: passed
+- regression_verification_status: passed
+- contract_acceptance_status: pending_remaining_cases
 - owner_project: CarFight
 - target_plugin: AssetDump
 - artifact_role: codex_task_source
@@ -566,6 +571,119 @@ Do not alter the asset. Confirm the diff is deterministic and bounded.
 
 Then run fresh project batch and immediate ChangedOnly rerun.
 
+## Implementation Result
+
+Status:
+
+```text
+implementation: completed
+core verification: passed
+regression verification: passed
+contract acceptance: pending remaining cases
+completed_at: 2026-07-10 16:36:09 KST
+```
+
+Implemented behavior:
+
+```text
+- Registered canonical section data_asset_diff.
+- Added data_asset_diff_v1.
+- Added -DataAssetDiffBase=<baseline JSON>.
+- Added baseline extension, size, read, JSON, schema, and asset-identity validation.
+- Added added/removed/changed/type_changed/partial/unchanged comparison over data_asset_values_v1.
+- Added baseline SHA-256 to request metadata and active diff fingerprints.
+- Added data_asset_values as an internal builder prerequisite.
+- Kept prerequisite data_asset_values hidden from explicit output unless explicitly selected.
+- Made incompatible baseline failures fatal before final output persistence.
+```
+
+Changed files:
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataDiff.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataDiff.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+```
+
+Verified regression result:
+
+```text
+Tools/BuildEditor.bat: passed
+RunBPDumpRegression.ps1 -RunSelfTests: passed (implementation report)
+Plugin fixture: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section selection checks: 28/28 passed
+project batch: 43 succeeded, 0 failed
+ChangedOnly: 43/43 skipped
+git diff --check: passed
+```
+
+Stored Plugin checks:
+
+```text
+data_asset_diff_builder_plan: passed (data_asset_values,data_asset_diff)
+data_asset_diff_serialization: passed (data_asset_diff only)
+data_asset_diff_missing_baseline: passed (ADUMP_DIFF_BASE_MISSING)
+```
+
+Stored manual comparison evidence:
+
+```text
+same baseline: exact fields unchanged; two truncated fields emitted as partial
+scalar baseline change: changed_count=3, type_changed_count=0, partial_count=2
+type baseline change: changed_count=2, type_changed_count=1, partial_count=2
+wrong schema directory: no final output file persisted
+```
+
+The user-reported wrong-schema command returned exit code 2.
+
+v0.7.0 inherited integration gate is closed by this regression run:
+
+```text
+harness self-test: passed
+project-owned DataAsset smoke: IA_VehicleMove emitted data_asset_values_v1 with 11 fields
+project batch: 43/43 succeeded
+immediate ChangedOnly: 43/43 skipped
+```
+
+Evidence files:
+
+```text
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/validation_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpRegressionLogs/Project_Batch_Dump.log
+UE/Plugins/ue-assetdump/Dumped/BPDumpRegressionLogs/Project_Batch_ChangedOnly.log
+UE/Plugins/ue-assetdump/Dumped/BPDumpProjectBatch/_Game_CarFight_Input_IA_VehicleMove_IA_VehicleMove/IA_VehicleMove.dump.json
+UE/Plugins/ue-assetdump/Dumped/DataAssetDiffManual/same_skip/DA_ADumpValues.diff.dump.json
+UE/Plugins/ue-assetdump/Dumped/DataAssetDiffManual/scalar_changed/DA_ADumpValues.diff.dump.json
+UE/Plugins/ue-assetdump/Dumped/DataAssetDiffManual/type_changed/DA_ADumpValues.diff.dump.json
+```
+
+Remaining TaskSource acceptance cases not evidenced by the current stored reports:
+
+```text
+added field comparison
+removed field comparison
+reference-path change comparison
+missing file
+oversized baseline
+malformed JSON
+asset identity mismatch
+non-DataAsset explicit diff failure
+fixture asset timestamp/hash immutability check
+baseline-content-only regenerate sequence at one unchanged path
+project-owned DataAsset diff against a previous snapshot
+```
+
+These remaining checks do not invalidate the implemented feature or passed regression, but they must be completed or explicitly waived before `contract_acceptance_status` is changed to complete.
+
 ## Migration
 
 Existing commands require no change.
@@ -593,6 +711,13 @@ None.
 - output_target: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml`
 
 ## Changelog
+
+### v1.1
+
+- Recorded completed v0.7.1 implementation and passed build/regression results.
+- Closed the inherited v0.7.0 integration gate with project-owned InputAction DataAsset output, project batch, and ChangedOnly evidence.
+- Recorded stored manual scalar, type-change, partial, and wrong-schema evidence.
+- Kept full contract acceptance pending for the remaining negative and change-classification cases not present in stored reports.
 
 ### v1.0
 

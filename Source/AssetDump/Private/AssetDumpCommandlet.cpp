@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.7.0
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: data_asset_diff 섹션 등록과 -DataAssetDiffBase= 옵션 전달을 추가.
 // - v0.7.0: data_asset_values 섹션 등록, DataAsset fixture, 전용 builder/직렬화 회귀 검사를 추가.
 // - v0.6.3: -Profile= 프리셋, Sections > Intent > Profile 우선순위, 요청 메타 및 스모크 검사를 추가.
 // - v0.6.2: -Intent= 정규화, 섹션 매핑, -Sections= 우선순위, Intent 스모크 검사를 추가.
@@ -43,6 +44,7 @@
 #include "AssetDumpCommandlet.h"
 
 #include "ADumpDataAsset.h"
+#include "ADumpDataDiff.h"
 #include "ADumpValidRow.h"
 #include "ADumpFingerprint.h"
 #include "ADumpJson.h"
@@ -223,7 +225,7 @@ namespace
 	// GetValidSectionNamesText는 -Sections=에서 허용하는 정식 섹션 이름 목록을 반환한다.
 				FString GetValidSectionNamesText()
 	{
-		return TEXT("summary,digest,details,data_asset_values,graphs,references,widget_designer");
+		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,graphs,references,widget_designer");
 	}
 
 	// GetValidIntentNamesText는 -Intent=에서 허용하는 정식 분석 목적 이름 목록을 반환한다.
@@ -259,6 +261,11 @@ namespace
 		if (InSectionName == TEXT("data_asset_values"))
 		{
 			OutSection = EADumpSection::DataAssetValues;
+			return true;
+		}
+		if (InSectionName == TEXT("data_asset_diff"))
+		{
+			OutSection = EADumpSection::DataAssetDiff;
 			return true;
 		}
 		if (InSectionName == TEXT("graphs"))
@@ -667,6 +674,7 @@ namespace
 		FParse::Bool(*InCommandLine, TEXT("SkipIfUpToDate="), OutDumpRunOpts.bSkipIfUpToDate);
 		FParse::Bool(*InCommandLine, TEXT("LinksOnly="), OutDumpRunOpts.bLinksOnly);
 		FParse::Value(*InCommandLine, TEXT("GraphName="), OutDumpRunOpts.GraphNameFilter);
+		FParse::Value(*InCommandLine, TEXT("DataAssetDiffBase="), OutDumpRunOpts.DataAssetDiffBasePath);
 
 		// LinkKindText는 링크 필터 문자열 입력값이다.
 		FString LinkKindText;
@@ -3442,6 +3450,82 @@ namespace
 				&& !NonDataAssetRootObject->HasField(TEXT("data_asset_values"));
 			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_values_non_data_asset_omission"), bNonDataAssetOmissionPassed, FString::FromInt(NonDataAssetIssues.Num()));
 			LogDataAssetValuesCheck(TEXT("data_asset_values non-DataAsset omission check"), bNonDataAssetOmissionPassed);
+		}
+
+		{
+			// DiffSelection은 data_asset_diff만 명시적으로 요청한 선택값이다.
+			FADumpSectionSelection DiffSelection;
+			DiffSelection.ResetToExplicitMode();
+			DiffSelection.Enable(EADumpSection::DataAssetDiff);
+
+			// DiffRunOpts는 data_asset_diff가 data_asset_values prerequisite를 자동 계획하는지 검증한다.
+			FADumpRunOpts DiffRunOpts;
+			DiffRunOpts.AssetObjectPath = TEXT("/AssetDump/Validation/DA_ADumpValues.DA_ADumpValues");
+			DiffRunOpts.SectionSelection = DiffSelection;
+			DiffRunOpts.DataAssetDiffBasePath = TEXT("C:/Temp/DA_ADumpValues.baseline.dump.json");
+			DiffRunOpts.DataAssetDiffBaseSha256 = TEXT("abc123");
+			DiffRunOpts.bIncludeSummary = true;
+			DiffRunOpts.bIncludeDetails = true;
+			DiffRunOpts.bIncludeGraphs = true;
+			DiffRunOpts.bIncludeReferences = true;
+
+			// DiffBuilderNames는 diff 실행에 필요한 builder 계획이다.
+			const TArray<FString> DiffBuilderNames = DiffRunOpts.GetBuilderSectionNames();
+
+			// bDiffBuilderPlanPassed는 data_asset_values prerequisite와 diff builder만 실행되는지 나타낸다.
+			const bool bDiffBuilderPlanPassed = !DiffRunOpts.ShouldBuildSummary()
+				&& !DiffRunOpts.ShouldBuildDetails()
+				&& DiffRunOpts.ShouldBuildDataAssetValues()
+				&& DiffRunOpts.ShouldBuildDataAssetDiff()
+				&& !DiffRunOpts.ShouldBuildGraphs()
+				&& !DiffRunOpts.ShouldBuildReferences()
+				&& !DiffRunOpts.ShouldBuildWidgetDesigner()
+				&& DiffBuilderNames.Num() == 2
+				&& DiffBuilderNames[0] == TEXT("data_asset_values")
+				&& DiffBuilderNames[1] == TEXT("data_asset_diff");
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_diff_builder_plan"), bDiffBuilderPlanPassed, FString::Join(DiffBuilderNames, TEXT(",")));
+
+			// DiffResult는 data_asset_diff 단독 직렬화 검증용 최소 결과다.
+			FADumpResult DiffResult = FADumpResult::CreateDefault();
+			DiffResult.Request = DiffRunOpts.BuildRequestInfo();
+			DiffResult.DataAssetValues.SchemaVersion = TEXT("data_asset_values_v1");
+			DiffResult.DataAssetDiff.SchemaVersion = ADumpDataDiff::GetSchemaVersionText();
+			DiffResult.DataAssetDiff.BaselineFilePath = DiffRunOpts.DataAssetDiffBasePath;
+			DiffResult.DataAssetDiff.BaselineSha256 = DiffRunOpts.DataAssetDiffBaseSha256;
+			DiffResult.DataAssetDiff.BaselineAssetPath = DiffRunOpts.AssetObjectPath;
+			DiffResult.DataAssetDiff.CurrentAssetPath = DiffRunOpts.AssetObjectPath;
+			DiffResult.DataAssetDiff.BaselineValuesSchema = TEXT("data_asset_values_v1");
+			DiffResult.DataAssetDiff.CurrentValuesSchema = TEXT("data_asset_values_v1");
+			DiffResult.DataAssetDiff.bCompatible = true;
+			DiffResult.DataAssetDiff.UnchangedCount = 1;
+
+			// DiffRootObject는 data_asset_diff만 요청한 최상위 JSON 결과다.
+			TSharedRef<FJsonObject> DiffRootObject = ADumpJson::MakeResultObject(DiffResult);
+
+			// bDiffSerializationPassed는 prerequisite 값 섹션을 숨기고 diff만 출력하는지 나타낸다.
+			const bool bDiffSerializationPassed = DiffRootObject->HasField(TEXT("data_asset_diff"))
+				&& !DiffRootObject->HasField(TEXT("data_asset_values"));
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_diff_serialization"), bDiffSerializationPassed, TEXT("data_asset_diff only"));
+
+			// MissingDiffIssues는 baseline 누락 preflight가 남기는 issue 목록이다.
+			TArray<FADumpIssue> MissingDiffIssues;
+
+			// MissingNormalizedPath는 실패 시 비어 있어야 하는 정규화 경로다.
+			FString MissingNormalizedPath;
+
+			// MissingSha256Text는 실패 시 비어 있어야 하는 baseline 해시다.
+			FString MissingSha256Text;
+
+			// bMissingBaselinePassed는 누락 baseline이 stable code로 실패하는지 나타낸다.
+			const bool bMissingBaselinePassed = !ADumpDataDiff::PrepareBaselineFile(
+				FString(),
+				MissingNormalizedPath,
+				MissingSha256Text,
+				MissingDiffIssues,
+				DiffRunOpts.AssetObjectPath)
+				&& MissingDiffIssues.Num() == 1
+				&& MissingDiffIssues[0].Code == TEXT("ADUMP_DIFF_BASE_MISSING");
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_diff_missing_baseline"), bMissingBaselinePassed, MissingDiffIssues.Num() > 0 ? MissingDiffIssues[0].Code : TEXT("no_issue"));
 		}
 
 		// ValidationObject는 validate report에 포함할 섹션 스모크 검사 묶음이다.

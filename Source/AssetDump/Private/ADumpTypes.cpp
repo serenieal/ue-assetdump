@@ -1,6 +1,7 @@
 // File: ADumpTypes.cpp
-// Version: v0.8.0
+// Version: v0.9.0
 // Changelog:
+// - v0.9.0: data_asset_diff 섹션 이름/순서와 extractor 2.6.0을 추가.
 // - v0.8.0: data_asset_values 섹션 이름/순서와 extractor 2.5.0을 추가.
 // - v0.7.0: v0.6.3 Profile 요청 메타 추가에 맞춰 extractor 버전을 2.4.1로 갱신.
 // - v0.6.0: v0.6.2 Intent 요청 메타를 결과 요청 스냅샷에 보관할 타입 기반을 추가.
@@ -31,7 +32,7 @@ namespace ADumpSchema
 
 		const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("2.5.0");
+		return TEXT("2.6.0");
 	}
 }
 
@@ -114,6 +115,8 @@ const TCHAR* ToString(EADumpSection InValue)
 		return TEXT("details");
 	case EADumpSection::DataAssetValues:
 		return TEXT("data_asset_values");
+	case EADumpSection::DataAssetDiff:
+		return TEXT("data_asset_diff");
 	case EADumpSection::Graphs:
 		return TEXT("graphs");
 	case EADumpSection::References:
@@ -176,6 +179,7 @@ TArray<FString> FADumpSectionSelection::GetEnabledNames() const
 		EADumpSection::Digest,
 		EADumpSection::Details,
 		EADumpSection::DataAssetValues,
+		EADumpSection::DataAssetDiff,
 		EADumpSection::Graphs,
 		EADumpSection::References,
 		EADumpSection::WidgetDesigner

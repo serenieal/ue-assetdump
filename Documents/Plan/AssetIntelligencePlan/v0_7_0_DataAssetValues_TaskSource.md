@@ -2,12 +2,13 @@
 
 ## Metadata
 
-- document_version: v1.1
+- document_version: v1.2
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - target_assetdump_version: v0.7.0
-- implementation_status: implemented_core_verified
-- verification_status: plugin_passed_integration_pending
+- implementation_status: completed
+- verification_status: release_gate_passed
+- integration_closed_at: 2026-07-10 16:36:09 KST
 - owner_project: CarFight
 - target_plugin: AssetDump
 - artifact_role: codex_task_source
@@ -487,8 +488,9 @@ Status:
 ```text
 implementation: completed
 core verification: passed
-final integration verification: pending
+final integration verification: passed
 completed_at: 2026-07-10 15:59 KST
+integration_closed_at: 2026-07-10 16:36:09 KST
 ```
 
 Implemented files:
@@ -561,14 +563,14 @@ UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/validation_report.json
 UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/data_asset_values/DA_ADumpValues.dump.json
 ```
 
-Remaining final integration gates:
+Final integration closure:
 
 ```text
-- RunBPDumpRegression.ps1 -RunSelfTests evidence for this revision was not found.
-- A project-owned DataAsset smoke dump after this implementation was not provided.
-- The stored project batch and ChangedOnly logs predate the v0.7.0 Plugin validation and cannot close this revision's integration gate.
-- Run a fresh project batch with failed_count=0.
-- Run an immediate ChangedOnly pass with skipped_count == asset_count.
+RunBPDumpRegression.ps1 -RunSelfTests: passed
+project-owned DataAsset smoke: IA_VehicleMove emitted data_asset_values_v1 with 11 fields
+fresh project batch: 43/43 succeeded
+fresh immediate ChangedOnly rerun: 43/43 skipped
+integration_closed_at: 2026-07-10 16:36:09 KST
 ```
 
 The existing UE API deprecation warning in Commandlet code remains non-blocking and is not attributed to this feature.
@@ -601,6 +603,12 @@ None.
 - output_target: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml`
 
 ## Changelog
+
+### v1.2
+
+- Closed the v0.7.0 integration gate using the v0.7.1 regression run.
+- Recorded harness self-test, project-owned IA DataAsset output, 43/43 project batch, and 43/43 ChangedOnly evidence.
+- Marked the implementation release-gate complete.
 
 ### v1.1
 

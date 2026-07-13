@@ -1,6 +1,7 @@
 // File: ADumpTypes.h
-// Version: v0.13.0
+// Version: v0.14.0
 // Changelog:
+// - v0.14.0: data_asset_diff_v1 결과 구조와 canonical section 값을 추가.
 // - v0.13.0: data_asset_values_v1 섹션 선택값, 필드 구조, 최상위 결과 저장소를 추가.
 // - v0.12.0: v0.6.3 Profile 요청 이름을 결과 요청 메타에 추가.
 // - v0.11.0: v0.6.2 Intent 요청 이름과 최종 섹션 선택 출처 메타를 추가.
@@ -89,6 +90,7 @@ enum class EADumpSection : uint8
 	Digest,
 	Details,
 	DataAssetValues,
+	DataAssetDiff,
 	Graphs,
 	References,
 	WidgetDesigner
@@ -260,6 +262,12 @@ struct FADumpRequestInfo
 
 	// BuilderSections는 명시적 선택 모드에서 실제 실행 예정인 주요 데이터 builder 이름 목록이다.
 	TArray<FString> BuilderSections;
+
+	// DataAssetDiffBasePath는 data_asset_diff 비교에 사용한 정규화 baseline JSON 경로다.
+	FString DataAssetDiffBasePath;
+
+	// DataAssetDiffBaseSha256는 baseline JSON 원문 바이트의 SHA-256 해시다.
+	FString DataAssetDiffBaseSha256;
 
 	// bIncludeSummary는 summary 섹션 활성화 여부다.
 	bool bIncludeSummary = true;
@@ -751,6 +759,117 @@ struct FADumpDataAssetValues
 	TArray<FADumpDataAssetField> Fields;
 };
 
+// EADumpDataAssetDiffChangeKind는 DataAsset 필드 변경 분류를 나타낸다.
+enum class EADumpDataAssetDiffChangeKind : uint8
+{
+	Added,
+	Removed,
+	Changed,
+	TypeChanged
+};
+
+// FADumpDataAssetDiffValue는 diff 변경 항목의 before/after 값을 담는다.
+struct FADumpDataAssetDiffValue
+{
+	// DisplayName은 사용자 친화 표시 이름이다.
+	FString DisplayName;
+
+	// Category는 BP/Reflection 카테고리 문자열이다.
+	FString Category;
+
+	// CppType는 C++ 기준 타입 문자열이다.
+	FString CppType;
+
+	// ValueKind는 data_asset_values_v1의 value_kind 문자열이다.
+	FString ValueKind;
+
+	// ValueJson은 구조화된 canonical 비교 값이다.
+	TSharedPtr<FJsonValue> ValueJson;
+
+	// ValueText는 구조화가 어렵거나 잘린 값의 텍스트 백업이다.
+	FString ValueText;
+
+	// bIsAssetReference는 object/class/soft reference 계열 필드인지 나타낸다.
+	bool bIsAssetReference = false;
+
+	// bTruncated는 깊이/요소/문자열 예산 때문에 값이 잘렸는지 나타낸다.
+	bool bTruncated = false;
+
+	// bIsSet는 before 또는 after 값이 실제 존재하는지 나타낸다.
+	bool bIsSet = false;
+};
+
+// FADumpDataAssetDiffChange는 DataAsset reflected field 하나의 변경 결과다.
+struct FADumpDataAssetDiffChange
+{
+	// PropertyName은 비교 기준이 되는 canonical property_name이다.
+	FString PropertyName;
+
+	// ChangeKind는 added/removed/changed/type_changed 분류다.
+	EADumpDataAssetDiffChangeKind ChangeKind = EADumpDataAssetDiffChangeKind::Changed;
+
+	// ComparisonQuality는 exact 또는 partial 비교 품질이다.
+	FString ComparisonQuality;
+
+	// BeforeValue는 baseline 쪽 필드 값이며 added에서는 비어 있을 수 있다.
+	FADumpDataAssetDiffValue BeforeValue;
+
+	// AfterValue는 current 쪽 필드 값이며 removed에서는 비어 있을 수 있다.
+	FADumpDataAssetDiffValue AfterValue;
+};
+
+// FADumpDataAssetDiff는 baseline DataAsset 값과 current DataAsset 값의 비교 결과다.
+struct FADumpDataAssetDiff
+{
+	// SchemaVersion은 DataAsset Diff 전용 스키마 버전이다.
+	FString SchemaVersion;
+
+	// BaselineFilePath는 정규화된 baseline JSON 파일 경로다.
+	FString BaselineFilePath;
+
+	// BaselineSha256는 baseline JSON 원문 바이트의 SHA-256 해시다.
+	FString BaselineSha256;
+
+	// BaselineAssetPath는 baseline dump의 asset.object_path 값이다.
+	FString BaselineAssetPath;
+
+	// CurrentAssetPath는 현재 덤프 대상 asset.object_path 값이다.
+	FString CurrentAssetPath;
+
+	// BaselineValuesSchema는 baseline data_asset_values schema_version 값이다.
+	FString BaselineValuesSchema;
+
+	// CurrentValuesSchema는 current data_asset_values schema_version 값이다.
+	FString CurrentValuesSchema;
+
+	// bCompatible은 baseline/current identity와 스키마가 비교 가능한지 나타낸다.
+	bool bCompatible = false;
+
+	// AddedCount는 current에만 있는 필드 수다.
+	int32 AddedCount = 0;
+
+	// RemovedCount는 baseline에만 있는 필드 수다.
+	int32 RemovedCount = 0;
+
+	// ChangedCount는 값이 변경된 필드 수다.
+	int32 ChangedCount = 0;
+
+	// TypeChangedCount는 cpp_type 또는 value_kind가 바뀐 필드 수다.
+	int32 TypeChangedCount = 0;
+
+	// PartialCount는 truncation 등으로 exact라고 말할 수 없는 변경 항목 수다.
+	int32 PartialCount = 0;
+
+	// UnchangedCount는 완전한 값이 같아서 변경 배열에 넣지 않은 필드 수다.
+	int32 UnchangedCount = 0;
+
+	// PreviewLines는 첫 변경 몇 건의 축약 미리보기다.
+	TArray<FString> PreviewLines;
+
+	// Changes는 property_name/change_kind 순서로 정렬된 변경 항목이다.
+	TArray<FADumpDataAssetDiffChange> Changes;
+};
+
 // FADumpComponentItem은 하나의 컴포넌트와 그 하위 프로퍼티를 표현한다.
 struct FADumpComponentItem
 {
@@ -1067,6 +1186,9 @@ struct FADumpResult
 
 	// DataAssetValues는 UDataAsset/UPrimaryDataAsset 전용 중요 값 섹션이다.
 	FADumpDataAssetValues DataAssetValues;
+
+	// DataAssetDiff는 baseline JSON과 현재 DataAsset 값의 비교 결과다.
+	FADumpDataAssetDiff DataAssetDiff;
 
 	// Graphs는 그래프 덤프 결과다.
 	TArray<FADumpGraph> Graphs;

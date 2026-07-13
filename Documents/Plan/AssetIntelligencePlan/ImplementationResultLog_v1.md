@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.6
+- document_version: v1.7
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - document_role: implementation_result_log
@@ -13,6 +13,133 @@
 Record implementation and verification results for Asset Intelligence planning tasks after Codex or manual implementation work is completed.
 
 ## Results
+
+## 2026-07-10 - AssetDump v0.7.1 DataAsset Diff
+
+### Source Task
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+```
+
+### Generated Codex Task
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+```
+
+### Status
+
+```text
+implementation: completed
+core verification: passed
+regression verification: passed
+contract acceptance: pending remaining cases
+completed_at: 2026-07-10 16:36:09 KST
+```
+
+### Implementation Summary
+
+```text
+section: data_asset_diff
+schema: data_asset_diff_v1
+baseline option: -DataAssetDiffBase=<baseline JSON>
+comparison input: data_asset_values_v1
+change kinds: added, removed, changed, type_changed
+comparison quality: exact, partial
+normal full mode: diff disabled unless explicitly requested
+```
+
+Implemented behavior includes bounded baseline validation, asset identity checks, fatal compatibility preflight, deterministic field comparison, baseline SHA-256 request/fingerprint metadata, automatic `data_asset_values` builder prerequisite, and serialization hiding for unselected prerequisites.
+
+### Changed Files
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataDiff.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataDiff.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+```
+
+### Verification Result
+
+```text
+Tools/BuildEditor.bat: passed
+RunBPDumpRegression.ps1 -RunSelfTests: passed (implementation report)
+Plugin fixture: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section selection checks: 28/28 passed
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+git diff --check: passed
+```
+
+Plugin smoke evidence:
+
+```text
+data_asset_diff_builder_plan: passed
+data_asset_diff_serialization: passed
+data_asset_diff_missing_baseline: passed
+```
+
+Manual evidence:
+
+```text
+same baseline: unchanged exact fields plus 2 expected partial truncated fields
+scalar change: changed_count=3, type_changed_count=0, partial_count=2
+type change: changed_count=2, type_changed_count=1, partial_count=2
+wrong schema: user-reported exit code 2; no final output file present
+```
+
+### v0.7.0 Integration Closure
+
+The same regression run closes the previously pending v0.7.0 integration gate.
+
+```text
+project-owned DataAsset smoke: IA_VehicleMove data_asset_values_v1, 11 fields
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+harness self-test: passed
+```
+
+### Remaining Contract Acceptance Cases
+
+```text
+added field
+removed field
+reference-path change
+missing file
+oversized baseline
+malformed JSON
+asset identity mismatch
+non-DataAsset explicit diff
+fixture asset immutability hash/timestamp
+baseline-content-only regeneration at the same path
+project-owned DataAsset diff snapshot
+```
+
+Implementation and regression are accepted. Full TaskSource contract acceptance remains pending until these cases are executed or explicitly waived.
+
+### Migration
+
+Existing commands remain compatible. DataAsset Diff is opt-in:
+
+```text
+-Sections=data_asset_diff -DataAssetDiffBase=D:/Path/Baseline.dump.json
+```
+
+### Changelog
+
+```text
+v0.7.1: Added data_asset_diff_v1, baseline validation and hashing, deterministic DataAsset field comparison, fatal compatibility preflight, builder prerequisite control, and Plugin smoke checks.
+```
 
 ## 2026-07-10 - AssetDump v0.7.0 DataAsset Values
 
@@ -33,8 +160,9 @@ UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_
 ```text
 implementation: completed
 core verification: passed
-final integration verification: pending
+final integration verification: passed
 completed_at: 2026-07-10 15:59 KST
+integration_closed_at: 2026-07-10 16:36:09 KST
 ```
 
 ### Implementation Summary
@@ -127,18 +255,18 @@ UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/validation_report.json
 UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/data_asset_values/DA_ADumpValues.dump.json
 ```
 
-### Remaining Integration Gates
+### Integration Closure
 
-The stored project batch and ChangedOnly logs were generated before the v0.7.0 Plugin validation. They are not evidence for the current revision.
+The v0.7.1 regression run supplied fresh evidence for the previously pending v0.7.0 integration gates.
 
 ```text
-RunBPDumpRegression.ps1 -RunSelfTests: fresh evidence pending
-project-owned DataAsset smoke: pending
-fresh project batch: pending
-fresh immediate ChangedOnly rerun: pending
+RunBPDumpRegression.ps1 -RunSelfTests: passed
+project-owned DataAsset smoke: IA_VehicleMove emitted data_asset_values_v1 with 11 fields
+fresh project batch: 43/43 succeeded
+fresh immediate ChangedOnly rerun: 43/43 skipped
 ```
 
-The implementation may proceed to planning for v0.7.1, but v0.7.0 should not be marked release-gate complete until these checks are recorded.
+v0.7.0 is release-gate complete as of 2026-07-10 16:36:09 KST.
 
 ### Known Issues
 
@@ -783,6 +911,12 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.7
+
+- Recorded AssetDump v0.7.1 DataAsset Diff implementation and passed build/regression results.
+- Closed the inherited v0.7.0 integration gate with fresh project DataAsset, batch, ChangedOnly, and self-test evidence.
+- Separated v0.7.1 implementation/regression acceptance from the remaining full TaskSource contract cases.
 
 ### v1.6
 

@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.7.0
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: data_asset_diff 전용 builder 계획과 data_asset_values prerequisite를 추가.
 // - v0.7.0: data_asset_values 전용 builder 계획과 실행 판단을 추가.
 // - v0.6.0: v0.6.3 Profile 요청을 결과 요청 스냅샷에 전달.
 // - v0.5.0: v0.6.2 Intent 요청과 최종 섹션 선택 출처를 결과 요청 스냅샷에 전달.
@@ -47,9 +48,21 @@ bool FADumpRunOpts::ShouldBuildDetails() const
 // ShouldBuildDataAssetValues는 DataAsset 전용 경량 값 builder 실행 여부를 반환한다.
 bool FADumpRunOpts::ShouldBuildDataAssetValues() const
 {
+	if (ShouldBuildDataAssetDiff())
+	{
+		return true;
+	}
+
 	return SectionSelection.IsFullMode()
 		? bIncludeDetails
 		: SectionSelection.IsEnabled(EADumpSection::DataAssetValues);
+}
+
+// ShouldBuildDataAssetDiff는 DataAsset baseline diff builder 실행 여부를 반환한다.
+bool FADumpRunOpts::ShouldBuildDataAssetDiff() const
+{
+	return !SectionSelection.IsFullMode()
+		&& SectionSelection.IsEnabled(EADumpSection::DataAssetDiff);
 }
 
 // ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
@@ -92,6 +105,10 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 	{
 		BuilderSectionNames.Add(TEXT("data_asset_values"));
 	}
+	if (ShouldBuildDataAssetDiff())
+	{
+		BuilderSectionNames.Add(TEXT("data_asset_diff"));
+	}
 	if (ShouldBuildGraphs())
 	{
 		BuilderSectionNames.Add(TEXT("graphs"));
@@ -126,6 +143,8 @@ FADumpRequestInfo FADumpRunOpts::BuildRequestInfo() const
 	RequestInfo.SectionSource = SectionSource;
 	RequestInfo.SectionSelection = SectionSelection;
 	RequestInfo.BuilderSections = GetBuilderSectionNames();
+	RequestInfo.DataAssetDiffBasePath = DataAssetDiffBasePath;
+	RequestInfo.DataAssetDiffBaseSha256 = DataAssetDiffBaseSha256;
 	RequestInfo.bIncludeSummary = bIncludeSummary;
 	RequestInfo.bIncludeDetails = bIncludeDetails;
 	RequestInfo.bIncludeGraphs = bIncludeGraphs;

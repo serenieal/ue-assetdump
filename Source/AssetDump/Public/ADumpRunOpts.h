@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.h
-// Version: v0.6.0
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: data_asset_diff baseline 옵션과 builder 실행 판단 helper를 추가.
 // - v0.6.0: data_asset_values 전용 builder 실행 판단 helper를 추가.
 // - v0.5.0: v0.6.3 Profile 요청을 공통 실행 옵션과 결과 요청 스냅샷에 추가.
 // - v0.4.0: v0.6.2 Intent 요청과 최종 섹션 선택 출처를 공통 실행 옵션에 추가.
@@ -31,6 +32,12 @@ struct FADumpRunOpts
 
 	// SectionSource는 최종 섹션 선택 출처(full, profile, intent, sections)를 보관한다.
 	FString SectionSource = TEXT("full");
+
+	// DataAssetDiffBasePath는 -DataAssetDiffBase=로 받은 baseline dump JSON 경로다.
+	FString DataAssetDiffBasePath;
+
+	// DataAssetDiffBaseSha256는 baseline JSON 원문 바이트의 SHA-256 해시다.
+	FString DataAssetDiffBaseSha256;
 
 	// bIncludeSummary는 summary 섹션 포함 여부다.
 	bool bIncludeSummary = true;
@@ -82,6 +89,9 @@ struct FADumpRunOpts
 
 	// ShouldBuildDataAssetValues는 DataAsset 전용 경량 값 builder 실행 여부를 반환한다.
 	bool ShouldBuildDataAssetValues() const;
+
+	// ShouldBuildDataAssetDiff는 DataAsset baseline diff builder 실행 여부를 반환한다.
+	bool ShouldBuildDataAssetDiff() const;
 
 	// ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
 	bool ShouldBuildGraphs() const;

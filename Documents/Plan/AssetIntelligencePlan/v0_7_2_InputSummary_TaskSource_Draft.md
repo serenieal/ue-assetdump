@@ -1,40 +1,64 @@
-# AssetDump v0.7.2 Input Summary Task Source Draft
+# AssetDump v0.7.2 Enhanced Input Summary Task Source Draft
 
 ## Metadata
 
-- document_version: v0.1-draft
+- document_version: v0.2-draft
 - created_at: 2026-07-10
+- updated_at: 2026-07-10
 - target_assetdump_version: v0.7.2
 - owner_project: CarFight
 - target_plugin: AssetDump
-- artifact_role: codex_task_source_draft
+- artifact_role: superseded_draft
 - codex_input: false
-- depends_on: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_0_Sections_TaskSource.md`
+- superseded_by: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md`
+- generated_codex_task: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml`
 
-## Goal
+## Status
 
-Add an AI-friendly `input_summary` specialized section for Enhanced Input assets.
+This draft is superseded by the finalized TaskSource and generated Codex contract.
 
-## Draft Scope
+Final source:
 
-1. Summarize InputAction assets.
-2. Summarize InputMappingContext action-to-key mappings.
-3. Include value type, key, modifiers, triggers, and scale when safely available.
-4. Provide schema version `input_summary_v1`.
-5. Integrate with section selection once available.
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+```
 
-## Draft Out of Scope
+Generated task:
 
-1. Do not implement gameplay input binding analysis in this task.
-2. Do not implement natural language query.
-3. Do not replace existing reference output.
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
+```
+
+## Finalized Scope
+
+```text
+section: input_summary
+schema: input_summary_v1
+supported assets: UInputAction, UInputMappingContext
+mapping data: action path, action value type, key, setting behavior, modifiers, triggers
+mapping limit: 128
+modifier/trigger limit: 16 each
+shallow setting limit: 16 fields
+preview limit: 12
+modifier/trigger source order: preserved
+mapping order: deterministic
+reserved input_bindings Intent: disabled
+```
+
+The finalized task uses direct Enhanced Input public types to recover IMC key, modifier, and trigger data that generic DataAsset reflection currently truncates.
 
 ## Unresolved
 
-This draft must be refined after Enhanced Input asset classes and current dump output are reviewed.
+Superseded by finalized TaskSource.
 
 ## Changelog
 
+### v0.2-draft
+
+- Marked this draft as superseded.
+- Added finalized TaskSource and generated Codex contract paths.
+- Recorded the finalized InputAction/IMC schema and bounds.
+
 ### v0.1-draft
 
-- Added placeholder for v0.7.2 Input Summary planning.
+- Added placeholder for v0.7.2 Enhanced Input Summary planning.

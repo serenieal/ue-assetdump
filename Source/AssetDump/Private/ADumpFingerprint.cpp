@@ -1,6 +1,7 @@
 // File: ADumpFingerprint.cpp
-// Version: v0.5.0
+// Version: v0.6.0
 // Changelog:
+// - v0.6.0: data_asset_diff_v1 baseline 경로와 SHA-256을 changed-only fingerprint 입력에 반영.
 // - v0.5.0: data_asset_values builder 계획과 data_asset_values_v1 스키마 토큰을 fingerprint 입력에 반영.
 // - v0.4.0: v0.6.3 Profile 요청 메타와 최종 선택 출처를 fingerprint 입력에 반영.
 // - v0.3.2: v0.6.2 Intent 및 section_source 요청 메타 변경을 fingerprint 입력에 반영.
@@ -88,8 +89,15 @@ namespace
 
 		// BuilderSectionNamesText는 실제 실행 builder 계획을 고정 순서로 연결한 fingerprint 입력값이다.
 		const FString BuilderSectionNamesText = FString::Join(InRequestInfo.BuilderSections, TEXT(","));
+		// DiffSignatureText는 data_asset_diff 요청에서 baseline 입력을 최신성 판단에 포함한다.
+		const FString DiffSignatureText = InRequestInfo.BuilderSections.Contains(TEXT("data_asset_diff"))
+			? FString::Printf(
+				TEXT("|data_asset_diff_schema=data_asset_diff_v1|data_asset_diff_base=%s|data_asset_diff_base_sha256=%s|current_values_schema=data_asset_values_v1"),
+				*InRequestInfo.DataAssetDiffBasePath,
+				*InRequestInfo.DataAssetDiffBaseSha256)
+			: FString();
 		return FString::Printf(
-			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
+			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
 			ToString(InRequestInfo.SourceKind),
 			*InRequestInfo.Intent,
 			*InRequestInfo.Profile,
@@ -97,6 +105,7 @@ namespace
 									*SectionModeText,
 			*SectionNamesText,
 			*BuilderSectionNamesText,
+			*DiffSignatureText,
 			InRequestInfo.bIncludeSummary ? 1 : 0,
 			InRequestInfo.bIncludeDetails ? 1 : 0,
 			InRequestInfo.bIncludeGraphs ? 1 : 0,
