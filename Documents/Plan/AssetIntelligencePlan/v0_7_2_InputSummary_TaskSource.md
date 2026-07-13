@@ -2,9 +2,25 @@
 
 ## Metadata
 
-- document_version: v1.0
+- document_version: v1.3
 - created_at: 2026-07-10
+- updated_at: 2026-07-13
 - target_assetdump_version: v0.7.2
+- implementation_status: completed
+- cxx_compile_status: passed
+- link_status: passed
+- plugin_validation_status: passed
+- project_batch_status: passed
+- changed_only_status: passed
+- project_input_smoke_status: passed
+- regression_validation_status: passed
+- contract_alignment_status: passed
+- determinism_status: passed
+- trigger_chain_validation_status: passed
+- release_ready_status: passed
+- release_status: pending_human_review
+- release_gate_status: passed
+- inherited_v0_7_1_contract_acceptance_status: pending_remaining_cases
 - owner_project: CarFight
 - target_plugin: AssetDump
 - artifact_role: codex_task_source
@@ -604,6 +620,141 @@ project batch failed_count: 0
 ChangedOnly skipped_count == asset_count
 ```
 
+## Implementation Result
+
+Status:
+
+```text
+implementation: completed
+implementation_reported_at: 2026-07-13 07:27:45 KST
+regression_completed_at: 2026-07-13 07:46:54 KST
+contract_alignment_completed_at: 2026-07-13 08:13:00 KST
+closure_reported_at: 2026-07-13 08:16:36 KST
+C++ compilation: passed
+editor build/link: passed
+Plugin fixtures: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section selection: 33/33 passed
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+project-owned IA/IMC smoke: passed
+contract alignment: passed
+determinism acceptance: passed
+trigger-chain acceptance: passed
+v0.7.2 release-ready gate: passed
+human release review: pending
+v0.7.1 inherited contract acceptance: pending_remaining_cases
+```
+
+Implemented files:
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpInput.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+```
+
+Confirmed implementation:
+
+```text
+- Registered canonical input_summary section and input_summary_v1.
+- Added direct UInputAction and UInputMappingContext extraction.
+- Added action flags, value type, accumulation, descriptions, and action-level chains.
+- Added IMC mapping action paths, action names/value types, keys, setting behavior, and mapping-level chains.
+- Added shallow scalar/enum/name/string/text/vector-like setting extraction.
+- Added explicit unsupported-asset failure and full-mode omission behavior.
+- Added builder planning, top-level JSON serialization, and changed-only fingerprint token.
+- Added transient InputAction/IMC smoke checks for builder, schema, SpaceBar mapping, omission, and explicit unsupported failure.
+- Aligned input_summary_v1 field names with the v1.0 contract, including supported, warning_count, warnings, mapping_count, emitted_mapping_count, mapping_truncated, key_valid, player_mappable_settings_path, modifier_count, and trigger_count.
+- Enforced contracted limits for mappings, modifier/trigger chains, shallow settings, and preview lines.
+- Replaced raw descriptor settings JSON with typed setting descriptors containing property_name, cpp_type, value_kind, value_json, value_text, unsupported, and truncated.
+- Added bounded warning code emission for null action, invalid key, unsupported setting, mapping truncation, and chain truncation.
+- Added a stable plugin InputAction trigger fixture using InputTriggerPressed without modifying project-owned assets.
+```
+
+Verification result:
+
+```text
+RunBPDumpRegression.ps1 -ValidationProfile Plugin -CompactLog
+completed_at: 2026-07-13 07:46:54 KST
+BuildEditor.bat: passed, including link
+Plugin MakeFixtures: 9/9 passed
+Plugin Validate: 9/9 passed
+required_failed_count: 0
+section_selection.check_count: 33
+section_selection.failure_count: 0
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+RunBPDumpRegression.ps1 -RunSelfTests: passed
+IA_ADumpFixture trigger check: trigger_count=1, class_name=InputTriggerPressed
+IMC repeated input_summary byte comparison: passed, 1195 bytes == 1195 bytes
+```
+
+Verified artifacts:
+
+```text
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/validation_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/fixture_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpProjectBatch/run_report_full.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpProjectBatch/run_report_changed_only.json
+UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IA_ADumpFixture_input_summary.json
+UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary_a.json
+UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary_b.json
+```
+
+Project-owned output evidence:
+
+```text
+IA_VehicleMove: input_summary_v1, asset_kind=input_action, value_type=axis2d
+IMC_Vehicle_Default: input_summary_v1, 42/42 mappings, 6 modifiers, 0 triggers, no mapping truncation
+```
+
+Android/Linux SDK setup warnings were non-fatal. The UE commandlet completed with `Success - 0 error(s)` and all regression summary stages succeeded.
+
+`git diff --check` remains reported as passed from the implementation report.
+
+### Contract Alignment Findings
+
+The previously reported contract-alignment differences were corrected on the v0.7.2 task without a schema revision:
+
+```text
+1. Max mapping, shallow setting, modifier chain, trigger chain, and preview limits now match the v1.0 contract.
+2. Modifier and trigger descriptor arrays are capped and emit ADUMP_INPUT_CHAIN_TRUNCATED when shortened.
+3. Mapping sorting now includes action_path, key_name, modifier chain signature, trigger chain signature, and source_index.
+4. Descriptor settings are sorted by property_name and emitted as typed setting descriptor entries.
+5. Unsupported reflected settings are retained as unsupported typed descriptors and emit ADUMP_INPUT_SETTING_UNSUPPORTED.
+6. Mapping JSON now emits action_value_type, key_display_name, key_valid, player_mappable_settings_path, modifier_count, and trigger_count.
+7. Summary JSON now emits supported, warning_count, warnings, consumes_action_and_axis_mappings, mapping_count, emitted_mapping_count, and mapping_truncated.
+8. Action-level chains now serialize as modifiers and triggers.
+9. Warning codes are implemented for ADUMP_INPUT_NULL_ACTION, ADUMP_INPUT_INVALID_KEY, ADUMP_INPUT_SETTING_UNSUPPORTED, ADUMP_INPUT_MAPPING_TRUNCATED, and ADUMP_INPUT_CHAIN_TRUNCATED.
+10. Stable trigger coverage is verified through plugin-owned IA_ADumpFixture with InputTriggerPressed.
+11. Repeated IMC input_summary byte-level determinism is verified after excluding unrelated envelope metadata.
+12. Build, self-test, Plugin compact regression, project batch, ChangedOnly, and project-owned IA/IMC output evidence are complete.
+```
+
+The current implementation remains on the v0.7.2 task and is ready for human release review. No v0.7.3 promotion is implied by this document.
+
+### Required Closure Sequence
+
+```text
+1. Align code with the existing v1.0 contract: done.
+2. Enforce mapping, modifier, trigger, and setting limits and emit all contracted counts, field names, typed setting descriptors, fallback metadata, and warning codes: done.
+3. Add a deterministic real trigger-chain fixture or another stable trigger-bearing validation case without modifying project-owned assets: done through IA_ADumpFixture/InputTriggerPressed.
+4. Compare two explicit IMC input_summary outputs byte-for-byte after excluding unrelated envelope timestamps: done.
+5. Run RunBPDumpRegression.ps1 -RunSelfTests: passed.
+6. Re-run BuildEditor.bat and Plugin compact regression after the alignment code changes: passed.
+7. Reconfirm project batch, ChangedOnly, project-owned IA/IMC output, and git diff --check: project batch, ChangedOnly, and IA/IMC output reconfirmed; git diff --check remains covered by the implementation report.
+8. Keep the inherited v0.7.1 full-contract acceptance list open until its 11 remaining cases are executed or explicitly waived; this does not reopen the completed v0.7.2 feature gate.
+```
+
 ## Migration
 
 Existing commands require no change.
@@ -621,7 +772,10 @@ The first ChangedOnly run after upgrading may regenerate supported Enhanced Inpu
 
 ## Unresolved
 
-None.
+```text
+- No v0.7.2 contract blocker remains in this TaskSource.
+- Human release review is still required before tagging or publishing.
+```
 
 ## Codex Contract Source
 
@@ -632,6 +786,28 @@ None.
 - output_target: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml`
 
 ## Changelog
+
+### v1.3
+
+- Recorded v0.7.2 contract alignment closure for field names, limits, typed setting descriptors, and warning codes.
+- Recorded stable InputTriggerPressed fixture coverage and repeated IMC input_summary byte-level determinism evidence.
+- Recorded successful post-alignment self-test, editor build, compact regression, project batch, ChangedOnly, and project-owned IA/IMC verification.
+- Marked the v0.7.2 feature release-ready gate passed and retained human release review as pending.
+- Kept the separate v0.7.1 full-contract acceptance list open instead of treating generic regression evidence as closure for its 11 remaining cases.
+
+### v1.2
+
+- Recorded successful editor build/link and the completed Plugin compact regression run.
+- Recorded 9/9 fixtures, 9/9 validation cases, 33/33 selection checks, 43/43 project batch success, and 43/43 ChangedOnly skips.
+- Added project-owned IA_VehicleMove and IMC_Vehicle_Default evidence, including 42 mappings and 6 real modifiers.
+- Reduced the remaining gate to contract alignment, trigger-chain coverage, repeated-output determinism, post-alignment reruns, and inherited v0.7.1 cases.
+
+### v1.1
+
+- Recorded the 2026-07-13 implementation candidate and external UnrealEditor DLL lock.
+- Marked C++ compilation passed while editor link and all runtime/regression validation remain pending.
+- Added a static contract-alignment review covering bounds, ordering, schema fields, warning policy, and missing verification.
+- Kept v0.7.2 as the active task and blocked promotion to v0.7.3.
 
 ### v1.0
 

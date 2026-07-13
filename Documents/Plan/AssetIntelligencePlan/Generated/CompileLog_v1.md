@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.8
+- document_version: v1.9
 - created_at: 2026-07-10
-- updated_at: 2026-07-10
+- updated_at: 2026-07-13
 - document_role: plan_compile_log
 - codex_input: false
 
@@ -13,6 +13,51 @@
 Record plan tool checks and generated Codex task outputs for Asset Intelligence planning documents.
 
 ## Entries
+
+## 2026-07-13 - v0.7.2 InputSummary Alignment TaskSource
+
+### Source Plan
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
+```
+
+### Inspect Result
+
+```text
+ok: true
+blocking_unresolved: []
+non_blocking_unresolved: explicit "None."
+```
+
+### Compile Result
+
+```text
+ok: true
+generated_targets: codex
+compile_status: compiled
+codex_yaml_created: true
+must_change_targets: 4
+```
+
+### Generated Output
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
+```
+
+### Mandatory Targets
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+```
+
+### Notes
+
+The first alignment compile promoted three conditional files to mandatory targets because they were listed inside the target section. The TaskSource was corrected so `ADumpTypes.cpp`, `ADumpInput.h`, and `ADumpFingerprint.cpp` remain conditional review files. The final contract has four mandatory targets and focuses only on schema alignment, bounds, warnings, typed settings, trigger-chain coverage, and repeated-output determinism.
 
 ## 2026-07-10 - v0.7.2 InputSummary TaskSource
 
@@ -304,6 +349,12 @@ UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_
 The first compile attempt used a file path inside `output_targets` and failed with `ERR_PLAN_OUTPUT_TARGETS`. The retry used `output_targets: ["codex"]` and `output_file_path` for the YAML path, which succeeded.
 
 ## Changelog
+
+### v1.9
+
+- Recorded successful inspect and compile results for the focused v0.7.2 InputSummary alignment TaskSource.
+- Corrected the initial seven-target compile so conditional files remain references.
+- Confirmed the final four mandatory targets and generated `v0_7_2_InputSummary_Alignment_CodexTask.yaml`.
 
 ### v1.8
 

@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.9.0
+// Version: v0.10.0
 // Changelog:
+// - v0.10.0: input_summary_v1 Enhanced Input builder를 서비스 단계와 저장 가치 판단에 연결.
 // - v0.9.0: data_asset_diff baseline preflight와 DataAsset 값 비교 builder를 서비스 단계에 연결.
 // - v0.8.0: data_asset_values 전용 builder를 조건부 서비스 단계에 연결.
 // - v0.7.2: v0.6.3 Profile 메타가 포함된 요청 스냅샷을 changed-only 판정에 그대로 사용.
@@ -27,6 +28,7 @@
 #include "ADumpDetailExt.h"
 #include "ADumpFingerprint.h"
 #include "ADumpGraphExt.h"
+#include "ADumpInput.h"
 #include "ADumpJson.h"
 #include "ADumpRefExt.h"
 #include "ADumpSummaryExt.h"
@@ -157,6 +159,7 @@ namespace
 						|| InResult.Details.Components.Num() > 0
 			|| InResult.DataAssetValues.FieldCount > 0
 			|| !InResult.DataAssetDiff.SchemaVersion.IsEmpty()
+			|| !InResult.InputSummary.SchemaVersion.IsEmpty()
 			|| InResult.References.Hard.Num() > 0
 			|| InResult.References.Soft.Num() > 0
 			|| !InResult.Summary.ParentClassPath.IsEmpty()
@@ -264,7 +267,7 @@ EADumpPhase FADumpService::ResolveNextPhase(EADumpPhase InCurrentPhase) const
 		{
 			return EADumpPhase::Summary;
 		}
-		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues())
+		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues() || ActiveRunOpts.ShouldBuildInputSummary())
 		{
 			return EADumpPhase::Details;
 		}
@@ -278,7 +281,7 @@ EADumpPhase FADumpService::ResolveNextPhase(EADumpPhase InCurrentPhase) const
 		}
 		return EADumpPhase::Save;
 	case EADumpPhase::Summary:
-		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues())
+		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues() || ActiveRunOpts.ShouldBuildInputSummary())
 		{
 			return EADumpPhase::Details;
 		}
@@ -622,7 +625,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		UpdateProgress(
 			EADumpPhase::Details,
 			TEXT("값 추출"),
-			TEXT("요청된 상세 정보와 DataAsset 중요 값을 추출하고 있습니다."),
+			TEXT("요청된 상세 정보, DataAsset 값, 입력 요약을 추출하고 있습니다."),
 			GetPhasePercent(EADumpPhase::Details));
 
 		if (ActiveRunOpts.ShouldBuildDetails()
@@ -661,6 +664,25 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 					ActiveResult.Issues))
 			{
 				bAllRequestedSectionsSucceeded = false;
+				RecountIssueStats();
+				FinalizeStatus(ActiveResult, false);
+				bSessionActive = false;
+				OutMessage = StatusMessage;
+				return false;
+			}
+		}
+
+		if (ActiveRunOpts.ShouldBuildInputSummary()
+			&& !ADumpInput::ExtractInputSummary(
+				ActiveRunOpts.AssetObjectPath,
+				ActiveResult.InputSummary,
+				ActiveResult.Issues,
+				ActiveResult.Perf,
+				!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::InputSummary)))
+		{
+			bAllRequestedSectionsSucceeded = false;
+			if (!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::InputSummary))
+			{
 				RecountIssueStats();
 				FinalizeStatus(ActiveResult, false);
 				bSessionActive = false;

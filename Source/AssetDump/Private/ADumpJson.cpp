@@ -1,7 +1,9 @@
 // File: ADumpJson.cpp
-// Version: v1.8.0
+// Version: v1.9.0
 // Changelog:
+// - v1.9.0: input_summary_v1 필드명, warning, typed setting descriptor 직렬화를 계약에 맞춰 정렬.
 // - v1.8.0: data_asset_diff_v1 request 메타와 최상위 JSON 직렬화를 추가.
+// - v1.8.0: input_summary_v1 Enhanced Input 의미 요약을 최상위 JSON에 직렬화.
 // - v1.7.0: data_asset_values_v1 필드와 섹션 요약을 최상위 JSON에 직렬화.
 // - v1.6.0: v0.6.3 Profile 요청 이름을 request envelope에 기록.
 // - v1.5.0: v0.6.2 Intent 요청 이름과 섹션 선택 출처를 request envelope에 기록.
@@ -738,6 +740,148 @@ namespace
 		}
 		DataAssetValuesObject->SetArrayField(TEXT("fields"), FieldArray);
 		return DataAssetValuesObject;
+	}
+
+	// MakeInputSettingObject는 input_summary typed setting descriptor를 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeInputSettingObject(const FADumpInputSettingDescriptor& InSetting)
+	{
+		// SettingObject는 modifier/trigger 설정 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> SettingObject = MakeShared<FJsonObject>();
+		SettingObject->SetStringField(TEXT("property_name"), InSetting.PropertyName);
+		SettingObject->SetStringField(TEXT("cpp_type"), InSetting.CppType);
+		SettingObject->SetStringField(TEXT("value_kind"), InSetting.ValueKind);
+		SettingObject->SetField(TEXT("value_json"), InSetting.ValueJson.IsValid() ? InSetting.ValueJson : MakeShared<FJsonValueNull>());
+		SettingObject->SetStringField(TEXT("value_text"), InSetting.ValueText);
+		SettingObject->SetBoolField(TEXT("unsupported"), InSetting.bUnsupported);
+		SettingObject->SetBoolField(TEXT("truncated"), InSetting.bTruncated);
+		return SettingObject;
+	}
+
+	// MakeInputSettingArray는 input_summary typed setting descriptor 배열을 JSON 배열로 변환한다.
+	TArray<TSharedPtr<FJsonValue>> MakeInputSettingArray(const TArray<FADumpInputSettingDescriptor>& InSettings)
+	{
+		// SettingArray는 typed setting descriptor 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> SettingArray;
+		for (const FADumpInputSettingDescriptor& Setting : InSettings)
+		{
+			SettingArray.Add(MakeShared<FJsonValueObject>(MakeInputSettingObject(Setting)));
+		}
+		return SettingArray;
+	}
+
+	// MakeInputDescriptorObject는 modifier/trigger descriptor를 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeInputDescriptorObject(const FADumpInputObjectDescriptor& InDescriptor)
+	{
+		// DescriptorObject는 modifier/trigger 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> DescriptorObject = MakeShared<FJsonObject>();
+		DescriptorObject->SetNumberField(TEXT("source_index"), InDescriptor.SourceIndex);
+		DescriptorObject->SetStringField(TEXT("class_name"), InDescriptor.ClassName);
+		DescriptorObject->SetStringField(TEXT("class_path"), InDescriptor.ClassPath);
+		DescriptorObject->SetStringField(TEXT("object_name"), InDescriptor.ObjectName);
+		DescriptorObject->SetNumberField(TEXT("setting_count"), InDescriptor.SettingCount);
+		DescriptorObject->SetBoolField(TEXT("truncated"), InDescriptor.bTruncated);
+		DescriptorObject->SetArrayField(TEXT("settings"), MakeInputSettingArray(InDescriptor.Settings));
+		return DescriptorObject;
+	}
+
+	// MakeInputDescriptorArray는 modifier/trigger descriptor 배열을 JSON 배열로 변환한다.
+	TArray<TSharedPtr<FJsonValue>> MakeInputDescriptorArray(const TArray<FADumpInputObjectDescriptor>& InDescriptors)
+	{
+		// DescriptorArray는 modifier/trigger descriptor 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> DescriptorArray;
+		for (const FADumpInputObjectDescriptor& Descriptor : InDescriptors)
+		{
+			DescriptorArray.Add(MakeShared<FJsonValueObject>(MakeInputDescriptorObject(Descriptor)));
+		}
+		return DescriptorArray;
+	}
+
+	// MakeInputMappingObject는 input_summary mapping 항목을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeInputMappingObject(const FADumpInputMappingItem& InMappingItem)
+	{
+		// MappingObject는 InputMappingContext mapping 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> MappingObject = MakeShared<FJsonObject>();
+		MappingObject->SetNumberField(TEXT("source_index"), InMappingItem.SourceIndex);
+		MappingObject->SetStringField(TEXT("action_path"), InMappingItem.ActionPath);
+		MappingObject->SetStringField(TEXT("action_name"), InMappingItem.ActionName);
+		MappingObject->SetStringField(TEXT("action_value_type"), InMappingItem.LinkedActionValueType);
+		MappingObject->SetStringField(TEXT("key_name"), InMappingItem.KeyName);
+		MappingObject->SetStringField(TEXT("key_display_name"), InMappingItem.KeyDisplayText);
+		MappingObject->SetBoolField(TEXT("key_valid"), InMappingItem.bKeyValid);
+		MappingObject->SetStringField(TEXT("setting_behavior"), InMappingItem.SettingBehavior);
+		MappingObject->SetStringField(TEXT("player_mappable_settings_path"), InMappingItem.PlayerMappableSettingsPath);
+		MappingObject->SetNumberField(TEXT("modifier_count"), InMappingItem.ModifierCount);
+		MappingObject->SetNumberField(TEXT("trigger_count"), InMappingItem.TriggerCount);
+		MappingObject->SetArrayField(TEXT("modifiers"), MakeInputDescriptorArray(InMappingItem.Modifiers));
+		MappingObject->SetArrayField(TEXT("triggers"), MakeInputDescriptorArray(InMappingItem.Triggers));
+		return MappingObject;
+	}
+
+	// MakeInputWarningObject는 input_summary warning 항목을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeInputWarningObject(const FADumpInputWarning& InWarning)
+	{
+		// WarningObject는 input_summary warning 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> WarningObject = MakeShared<FJsonObject>();
+		WarningObject->SetStringField(TEXT("code"), InWarning.Code);
+		WarningObject->SetStringField(TEXT("message"), InWarning.Message);
+		WarningObject->SetStringField(TEXT("target_path"), InWarning.TargetPath);
+		return WarningObject;
+	}
+
+	// MakeInputWarningArray는 input_summary warning 배열을 JSON 배열로 변환한다.
+	TArray<TSharedPtr<FJsonValue>> MakeInputWarningArray(const TArray<FADumpInputWarning>& InWarnings)
+	{
+		// WarningArray는 input_summary warning 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> WarningArray;
+		for (const FADumpInputWarning& Warning : InWarnings)
+		{
+			WarningArray.Add(MakeShared<FJsonValueObject>(MakeInputWarningObject(Warning)));
+		}
+		return WarningArray;
+	}
+
+	// MakeInputSummaryObject는 Enhanced Input 전용 의미 요약 섹션을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeInputSummaryObject(const FADumpInputSummary& InInputSummary)
+	{
+		// InputSummaryObject는 input_summary_v1 섹션 직렬화 결과다.
+		TSharedRef<FJsonObject> InputSummaryObject = MakeShared<FJsonObject>();
+		InputSummaryObject->SetStringField(TEXT("schema_version"), InInputSummary.SchemaVersion);
+		InputSummaryObject->SetStringField(TEXT("asset_kind"), InInputSummary.AssetKind);
+		InputSummaryObject->SetBoolField(TEXT("supported"), InInputSummary.bSupported);
+		InputSummaryObject->SetStringField(TEXT("value_type"), InInputSummary.ValueType);
+		InputSummaryObject->SetStringField(TEXT("accumulation_behavior"), InInputSummary.AccumulationBehavior);
+		InputSummaryObject->SetStringField(TEXT("action_description"), InInputSummary.ActionDescription);
+		InputSummaryObject->SetBoolField(TEXT("consume_input"), InInputSummary.bConsumeInput);
+		InputSummaryObject->SetBoolField(TEXT("consumes_action_and_axis_mappings"), InInputSummary.bConsumeLegacyActionAndAxis);
+		InputSummaryObject->SetBoolField(TEXT("reserve_all_mappings"), InInputSummary.bReserveAllMappings);
+		InputSummaryObject->SetBoolField(TEXT("trigger_when_paused"), InInputSummary.bTriggerWhenPaused);
+		InputSummaryObject->SetNumberField(TEXT("trigger_events_that_consume_legacy_keys"), InInputSummary.TriggerEventsThatConsumeLegacyKeys);
+		InputSummaryObject->SetStringField(TEXT("player_mappable_settings_path"), InInputSummary.PlayerMappableSettingsPath);
+		InputSummaryObject->SetStringField(TEXT("context_description"), InInputSummary.ContextDescription);
+		InputSummaryObject->SetStringField(TEXT("registration_tracking_mode"), InInputSummary.RegistrationTrackingMode);
+		InputSummaryObject->SetStringField(TEXT("input_mode_filter_option"), InInputSummary.InputModeFilterOption);
+		InputSummaryObject->SetNumberField(TEXT("mapping_count"), InInputSummary.TotalMappingCount);
+		InputSummaryObject->SetNumberField(TEXT("emitted_mapping_count"), InInputSummary.EmittedMappingCount);
+		InputSummaryObject->SetBoolField(TEXT("mapping_truncated"), InInputSummary.bMappingsTruncated);
+		InputSummaryObject->SetNumberField(TEXT("action_reference_count"), InInputSummary.ActionReferenceCount);
+		InputSummaryObject->SetNumberField(TEXT("null_action_count"), InInputSummary.NullActionCount);
+		InputSummaryObject->SetNumberField(TEXT("modifier_count"), InInputSummary.ModifierCount);
+		InputSummaryObject->SetNumberField(TEXT("trigger_count"), InInputSummary.TriggerCount);
+		InputSummaryObject->SetNumberField(TEXT("truncated_entry_count"), InInputSummary.TruncatedEntryCount);
+		InputSummaryObject->SetNumberField(TEXT("warning_count"), InInputSummary.WarningCount);
+		InputSummaryObject->SetArrayField(TEXT("warnings"), MakeInputWarningArray(InInputSummary.Warnings));
+		InputSummaryObject->SetArrayField(TEXT("modifiers"), MakeInputDescriptorArray(InInputSummary.ActionModifiers));
+		InputSummaryObject->SetArrayField(TEXT("triggers"), MakeInputDescriptorArray(InInputSummary.ActionTriggers));
+
+		// MappingArray는 안정 정렬된 mapping 항목 직렬화 배열이다.
+		TArray<TSharedPtr<FJsonValue>> MappingArray;
+		for (const FADumpInputMappingItem& MappingItem : InInputSummary.Mappings)
+		{
+			MappingArray.Add(MakeShared<FJsonValueObject>(MakeInputMappingObject(MappingItem)));
+		}
+		InputSummaryObject->SetArrayField(TEXT("mappings"), MappingArray);
+		InputSummaryObject->SetArrayField(TEXT("preview"), MakeStringArray(InInputSummary.PreviewLines));
+		return InputSummaryObject;
 	}
 
 	// DiffChangeKindToString은 DataAsset Diff 변경 분류를 JSON 문자열로 변환한다.
@@ -1507,6 +1651,10 @@ namespace ADumpJson
 			{
 				RootObject->SetObjectField(TEXT("data_asset_values"), MakeDataAssetValuesObject(InDumpResult.DataAssetValues));
 			}
+			if (!InDumpResult.InputSummary.SchemaVersion.IsEmpty())
+			{
+				RootObject->SetObjectField(TEXT("input_summary"), MakeInputSummaryObject(InDumpResult.InputSummary));
+			}
 			RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
 			RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
 		}
@@ -1533,6 +1681,11 @@ namespace ADumpJson
 				&& !InDumpResult.DataAssetDiff.SchemaVersion.IsEmpty())
 			{
 				RootObject->SetObjectField(TEXT("data_asset_diff"), MakeDataAssetDiffObject(InDumpResult.DataAssetDiff));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::InputSummary)
+				&& !InDumpResult.InputSummary.SchemaVersion.IsEmpty())
+			{
+				RootObject->SetObjectField(TEXT("input_summary"), MakeInputSummaryObject(InDumpResult.InputSummary));
 			}
 			if (SectionSelection.IsEnabled(EADumpSection::Graphs))
 			{

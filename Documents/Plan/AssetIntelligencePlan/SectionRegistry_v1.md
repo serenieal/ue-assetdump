@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.5
+- document_version: v1.8
 - created_at: 2026-07-10
-- updated_at: 2026-07-10
+- updated_at: 2026-07-13
 - owner_project: CarFight
 - target_plugin: AssetDump
 - document_role: shared_registry
@@ -43,7 +43,7 @@ TaskSource documents should reference this registry rather than redefining secti
 | `widget_designer` | WidgetBlueprint Designer hierarchy | Existing | `widget_designer_v1` |
 | `data_asset_values` | DataAsset field/value summary | Implemented v0.7.0; release gate complete | `data_asset_values_v1` |
 | `data_asset_diff` | DataAsset before/after field diff | Implemented v0.7.1; regression passed, contract cases pending | `data_asset_diff_v1` |
-| `input_summary` | Enhanced Input Action/Mapping summary | Prepared v0.7.2 | `input_summary_v1` |
+| `input_summary` | Enhanced Input Action/Mapping summary | Implemented v0.7.2; release-ready gate passed, human release review pending | `input_summary_v1` |
 | `component_tree` | Actor/Blueprint component hierarchy | Planned v0.7.3 | `component_tree_v1` |
 | `material_param_summary` | Material and MaterialInstance parameter summary | Draft v0.7.4 | `material_param_summary_v1` |
 | `blueprint_graph_digest` | AI-oriented Blueprint logic summary | Planned v0.8.0 | `bp_graph_digest_v1` |
@@ -78,15 +78,34 @@ source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1
 generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
 ```
 
-Current prepared Codex task:
+Completed v0.7.2 specialized section:
 
 ```text
 section: input_summary
 schema_version: input_summary_v1
-implementation_status: prepared / not implemented
+implementation_status: completed
+cxx_compile_status: passed
+link_status: passed
+plugin_validation_status: passed
+project_batch_status: passed
+changed_only_status: passed
+project_input_smoke_status: passed
+regression_validation_status: passed
+contract_alignment_status: passed
+determinism_status: passed
+trigger_chain_validation_status: passed
+release_ready_status: passed
+release_status: pending_human_review
+release_gate_status: passed
+closure_reported_at: 2026-07-13 08:16:36 KST
+v0_7_1_contract_acceptance_status: pending_remaining_cases
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
 generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
+alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
+alignment_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
+
+The accepted `input_summary_v1` contract includes bounded typed settings, stable warning codes, chain-aware deterministic mapping order, InputTriggerPressed fixture coverage, and repeated-output determinism. No v0.7.2 implementation task remains active. Human tag/publish review is pending, while the separate v0.7.1 full-contract acceptance list remains open.
 
 The reserved `data_asset_values` and `input_bindings` Intents remain unavailable. Neither implementation task enabled them.
 
@@ -278,6 +297,25 @@ No runtime migration is required for this registry. Implementation TaskSource do
 None.
 
 ## Changelog
+
+### v1.8
+
+- Marked `input_summary_v1` accepted with the v0.7.2 release-ready gate passed.
+- Recorded typed setting descriptors, stable warning codes, InputTriggerPressed fixture coverage, and repeated-output determinism.
+- Changed the v0.7.2 original and alignment contracts to completed historical artifacts and retained human release review as pending.
+- Kept `input_bindings` reserved and retained the separate v0.7.1 full-contract acceptance list as pending.
+
+### v1.7
+
+- Recorded successful `input_summary_v1` build, Plugin regression, project batch, ChangedOnly, and project-owned IA/IMC smoke evidence.
+- Added the focused contract-alignment TaskSource and generated Codex contract.
+- Kept `input_bindings` reserved while contract alignment, trigger-chain validation, and byte-level determinism remain pending.
+
+### v1.6
+
+- Recorded `input_summary_v1` as an implementation candidate rather than a completed schema.
+- Added pending editor link, contract-alignment, regression, and release-gate states.
+- Kept `input_bindings` reserved until the section contract and validation gates are complete.
 
 ### v1.5
 

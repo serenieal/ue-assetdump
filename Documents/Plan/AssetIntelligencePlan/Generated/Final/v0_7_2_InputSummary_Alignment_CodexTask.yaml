@@ -1,0 +1,104 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+u:
+  - None
+ld:
+  novelty_directives:
+    - Align the existing input_summary_v1 implementation with the already approved v0.7.2 schema and bounded deterministic behavior without starting v0.7.3 or changing the reserved input_bindings Intent
+    - "The current implementation already builds and passes Plugin regression, project batch, and ChangedOnly. This task must preserve those results while correcting the remaining contract differences"
+    - Change maximum emitted mappings from 256 to 128
+    - Change maximum shallow setting fields from 24 to 16
+    - Enforce maximum 16 modifiers and 16 triggers for each action or mapping owner
+    - Preserve modifier and trigger source order in emitted arrays
+    - "Sort mapping entries by:"
+    - action path
+    - key name
+    - ordered modifier class-path signature
+    - ordered trigger class-path signature
+    - source index
+    - Sort reflected setting descriptors by canonical property name before truncation and serialization
+    - "Replace the raw settings JSON object with bounded typed setting descriptors containing:"
+    - property_name
+    - cpp_type
+    - value_kind
+    - value_json
+    - value_text
+    - unsupported
+    - truncated
+    - Represent unsupported setting types with bounded fallback metadata instead of silently skipping them
+    - "Emit and count these non-fatal warning codes when applicable:"
+    - ADUMP_INPUT_NULL_ACTION
+    - ADUMP_INPUT_INVALID_KEY
+    - ADUMP_INPUT_SETTING_UNSUPPORTED
+    - ADUMP_INPUT_MAPPING_TRUNCATED
+    - ADUMP_INPUT_CHAIN_TRUNCATED
+    - Align top-level and mapping field names with the v0.7.2 contract
+    - "Add missing mapping fields:"
+    - key_valid
+    - player_mappable_settings_path
+    - modifier_count
+    - trigger_count
+    - Add a deterministic trigger-bearing validation case using transient validation objects or Plugin-owned fixtures
+    - Add byte-level determinism validation for two input_summary outputs after excluding unrelated envelope timestamps
+    - "Preserve all existing section selection, unsupported-asset, builder, project batch, and ChangedOnly behavior"
+  acceptance_criteria:
+    - "powershell $env:ASSETDUMP_ENGINE_ROOT = 'D:\\UnrealEngine_Source' .\\Scripts\\RunBPDumpRegression.ps1 -RunSelfTests .\\Scripts\\RunBPDumpRegression.ps1 -ValidationProfile Plugin -CompactLog"
+    - Also verify explicit -Sections=input_summary output for Plugin InputAction and IMC fixtures and compare two repeated IMC input_summary objects
+    - "Expected minimum regression baseline:"
+    - "text Plugin fixtures: 9/9 or higher, zero failures Plugin validation: 9/9 or higher, required_failed_count=0 section selection: 33/33 or higher, failure_count=0 project batch: 43/43 succeeded ChangedOnly: 43/43 skipped"
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Change maximum emitted mappings from 256 to 128
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
+      reason: Change maximum emitted mappings from 256 to 128
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Change maximum emitted mappings from 256 to 128
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Change maximum emitted mappings from 256 to 128
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

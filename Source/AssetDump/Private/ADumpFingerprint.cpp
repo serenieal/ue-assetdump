@@ -1,6 +1,7 @@
 // File: ADumpFingerprint.cpp
-// Version: v0.6.0
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: input_summary builder 계획과 input_summary_v1 스키마 토큰을 fingerprint 입력에 반영.
 // - v0.6.0: data_asset_diff_v1 baseline 경로와 SHA-256을 changed-only fingerprint 입력에 반영.
 // - v0.5.0: data_asset_values builder 계획과 data_asset_values_v1 스키마 토큰을 fingerprint 입력에 반영.
 // - v0.4.0: v0.6.3 Profile 요청 메타와 최종 선택 출처를 fingerprint 입력에 반영.
@@ -97,7 +98,7 @@ namespace
 				*InRequestInfo.DataAssetDiffBaseSha256)
 			: FString();
 		return FString::Printf(
-			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
+			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1|input_summary_schema=input_summary_v1%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
 			ToString(InRequestInfo.SourceKind),
 			*InRequestInfo.Intent,
 			*InRequestInfo.Profile,

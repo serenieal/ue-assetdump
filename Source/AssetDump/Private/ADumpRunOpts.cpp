@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.8.0
+// Version: v0.9.0
 // Changelog:
+// - v0.9.0: input_summary 전용 builder 계획과 실행 판단을 추가.
 // - v0.8.0: data_asset_diff 전용 builder 계획과 data_asset_values prerequisite를 추가.
 // - v0.7.0: data_asset_values 전용 builder 계획과 실행 판단을 추가.
 // - v0.6.0: v0.6.3 Profile 요청을 결과 요청 스냅샷에 전달.
@@ -65,6 +66,14 @@ bool FADumpRunOpts::ShouldBuildDataAssetDiff() const
 		&& SectionSelection.IsEnabled(EADumpSection::DataAssetDiff);
 }
 
+// ShouldBuildInputSummary는 Enhanced Input 전용 의미 요약 builder 실행 여부를 반환한다.
+bool FADumpRunOpts::ShouldBuildInputSummary() const
+{
+	return SectionSelection.IsFullMode()
+		? true
+		: SectionSelection.IsEnabled(EADumpSection::InputSummary);
+}
+
 // ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
 bool FADumpRunOpts::ShouldBuildGraphs() const
 {
@@ -108,6 +117,10 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 	if (ShouldBuildDataAssetDiff())
 	{
 		BuilderSectionNames.Add(TEXT("data_asset_diff"));
+	}
+	if (ShouldBuildInputSummary())
+	{
+		BuilderSectionNames.Add(TEXT("input_summary"));
 	}
 	if (ShouldBuildGraphs())
 	{

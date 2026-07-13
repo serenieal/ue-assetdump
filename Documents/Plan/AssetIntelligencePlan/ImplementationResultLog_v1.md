@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.7
+- document_version: v1.10
 - created_at: 2026-07-10
-- updated_at: 2026-07-10
+- updated_at: 2026-07-13
 - document_role: implementation_result_log
 - codex_input: false
 
@@ -13,6 +13,170 @@
 Record implementation and verification results for Asset Intelligence planning tasks after Codex or manual implementation work is completed.
 
 ## Results
+
+## 2026-07-13 - AssetDump v0.7.2 Enhanced Input Summary
+
+### Source Task
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+```
+
+### Generated Codex Task
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
+```
+
+### Status
+
+```text
+implementation: completed
+implementation_reported_at: 2026-07-13 07:27:45 KST
+regression_completed_at: 2026-07-13 07:46:54 KST
+closure_reported_at: 2026-07-13 08:16:36 KST
+C++ compilation: passed
+editor build/link: passed
+Plugin fixtures: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section selection: 33/33 passed
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+project input smoke: passed
+contract alignment: passed
+determinism acceptance: passed
+trigger-chain acceptance: passed
+v0.7.2 release-ready gate: passed
+human release review: pending
+v0.7.1 contract acceptance: pending_remaining_cases
+```
+
+### Confirmed Implementation
+
+```text
+section: input_summary
+schema: input_summary_v1
+supported assets: UInputAction, UInputMappingContext
+new builder files: ADumpInput.h, ADumpInput.cpp
+full mode unsupported asset: silent omission
+explicit unsupported asset: ADUMP_INPUT_UNSUPPORTED_ASSET
+reserved input_bindings Intent: unchanged / disabled
+```
+
+The implementation includes direct InputAction and InputMappingContext extraction, action settings, action and mapping modifier/trigger chains, key/action metadata, shallow scalar-like setting extraction, section registration, builder planning, JSON serialization, fingerprint integration, and transient validation smoke code.
+
+### Changed Files
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpInput.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+```
+
+### Verification Result
+
+```text
+RunBPDumpRegression.ps1 -ValidationProfile Plugin -CompactLog
+completed_at: 2026-07-13 07:46:54 KST
+BuildEditor.bat: passed, including link
+Plugin MakeFixtures: 9/9 passed
+Plugin Validate: 9/9 passed
+required_failed_count: 0
+section selection: 33/33 passed
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+```
+
+Verified artifacts:
+
+```text
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/validation_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/fixture_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpProjectBatch/run_report_full.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpProjectBatch/run_report_changed_only.json
+```
+
+Project-owned output evidence:
+
+```text
+IA_VehicleMove: input_summary_v1, value_type=axis2d
+IMC_Vehicle_Default: input_summary_v1, 42 mappings, 6 modifiers, 0 triggers, mapping_truncated=false
+```
+
+Android/Linux SDK setup warnings were non-fatal. The commandlet finished with `Success - 0 error(s)` and the regression summary succeeded.
+
+`git diff --check` was reported as passed before this regression run.
+
+### Contract Alignment Closure
+
+The previously reported v0.7.2 contract differences were corrected without changing `input_summary_v1`.
+
+```text
+mapping limit: 128
+modifier limit per owner: 16
+trigger limit per owner: 16
+shallow setting limit: 16
+preview limit: 12
+field-name alignment: passed
+typed setting descriptors: passed
+unsupported-setting fallback: passed
+warning code coverage: passed
+chain-aware mapping ordering: passed
+modifier/trigger source order: preserved
+```
+
+Trigger and determinism evidence:
+
+```text
+IA_ADumpFixture trigger_count: 1
+trigger class: InputTriggerPressed
+repeated IMC input_summary comparison: 1195 bytes == 1195 bytes
+```
+
+Post-alignment verification:
+
+```text
+BuildEditor.bat: passed
+RunBPDumpRegression.ps1 -RunSelfTests: passed
+Plugin fixtures: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section selection: 33/33 passed
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+git diff --check: passed with line-ending warnings only
+```
+
+Additional evidence:
+
+```text
+UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IA_ADumpFixture_input_summary.json
+UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary_a.json
+UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary_b.json
+```
+
+No v0.7.2 feature blocker remains. The feature release-ready gate has passed; tagging or publishing still requires human review.
+
+The separate v0.7.1 TaskSource continues to list 11 full-contract acceptance cases. That open list prevents claiming the entire v0.7.x line release-complete, but it does not reopen the completed v0.7.2 feature gate.
+
+### Migration
+
+Existing commands remain compatible. The new section is requested with:
+
+```text
+-Sections=input_summary
+-Sections=summary,input_summary
+```
+
+The first successful ChangedOnly run after the schema/fingerprint change may regenerate supported Enhanced Input outputs.
 
 ## 2026-07-10 - AssetDump v0.7.1 DataAsset Diff
 
@@ -911,6 +1075,28 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.10
+
+- Recorded completed v0.7.2 contract alignment, typed settings, warning codes, trigger fixture, and deterministic repeated output.
+- Marked the v0.7.2 feature release-ready gate passed while retaining human tag/publish review as pending.
+- Added InputTriggerPressed and 1195-byte repeated IMC evidence plus the post-alignment self-test and regression results.
+- Kept the separate v0.7.1 list of 11 full-contract acceptance cases open for the v0.7.x line gate.
+
+### v1.9
+
+- Recorded the successful v0.7.2 editor link and complete Plugin compact regression result.
+- Added 9/9 fixture, 9/9 validation, 33/33 selection, 43/43 project batch, and 43/43 ChangedOnly evidence.
+- Added project-owned IA/IMC evidence, including 42 mappings and 6 real modifiers.
+- Generated the focused Input Summary contract-alignment TaskSource and Codex YAML.
+- Kept release acceptance blocked only by contract alignment, real trigger coverage, byte-level determinism, post-alignment reruns, and inherited v0.7.1 cases.
+
+### v1.8
+
+- Recorded the v0.7.2 Input Summary implementation candidate and external UnrealEditor DLL link lock.
+- Separated successful C++ compilation from the unsuccessful editor link and pending runtime validation.
+- Added the static contract-alignment blockers and required closure sequence.
+- Kept v0.7.2 active and blocked promotion to v0.7.3.
 
 ### v1.7
 

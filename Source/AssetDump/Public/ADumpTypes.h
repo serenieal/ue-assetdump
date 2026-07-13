@@ -1,6 +1,8 @@
 // File: ADumpTypes.h
-// Version: v0.14.0
+// Version: v0.16.0
 // Changelog:
+// - v0.16.0: input_summary_v1 계약 정렬용 typed setting descriptor, warning, mapping 필드를 추가.
+// - v0.15.0: input_summary_v1 전용 Enhanced Input Action/Mapping Context 구조와 섹션 값을 추가.
 // - v0.14.0: data_asset_diff_v1 결과 구조와 canonical section 값을 추가.
 // - v0.13.0: data_asset_values_v1 섹션 선택값, 필드 구조, 최상위 결과 저장소를 추가.
 // - v0.12.0: v0.6.3 Profile 요청 이름을 결과 요청 메타에 추가.
@@ -91,6 +93,7 @@ enum class EADumpSection : uint8
 	Details,
 	DataAssetValues,
 	DataAssetDiff,
+	InputSummary,
 	Graphs,
 	References,
 	WidgetDesigner
@@ -759,6 +762,203 @@ struct FADumpDataAssetValues
 	TArray<FADumpDataAssetField> Fields;
 };
 
+// FADumpInputSettingDescriptor는 modifier/trigger 설정 프로퍼티 한 개의 typed 요약이다.
+struct FADumpInputSettingDescriptor
+{
+	// PropertyName은 reflection 기준 canonical 프로퍼티 이름이다.
+	FString PropertyName;
+
+	// CppType는 C++ 기준 프로퍼티 타입 문자열이다.
+	FString CppType;
+
+	// ValueKind는 bool/number/enum/name/string/text/vector/object_ref/unsupported 같은 값 종류다.
+	FString ValueKind;
+
+	// ValueJson은 구조화 가능한 설정 값이다.
+	TSharedPtr<FJsonValue> ValueJson;
+
+	// ValueText는 구조화가 어렵거나 unsupported인 값의 짧은 텍스트 표현이다.
+	FString ValueText;
+
+	// bUnsupported는 전용 shallow extractor가 지원하지 않는 타입인지 나타낸다.
+	bool bUnsupported = false;
+
+	// bTruncated는 값 또는 표현이 한도 때문에 잘렸는지 나타낸다.
+	bool bTruncated = false;
+};
+
+// FADumpInputWarning은 input_summary 내부에 남기는 bounded warning 항목이다.
+struct FADumpInputWarning
+{
+	// Code는 기계가 판별하기 쉬운 stable warning code다.
+	FString Code;
+
+	// Message는 사람이 읽을 수 있는 짧은 설명이다.
+	FString Message;
+
+	// TargetPath는 warning이 가리키는 mapping/chain/settings 위치다.
+	FString TargetPath;
+};
+
+// FADumpInputObjectDescriptor는 Input Modifier/Trigger UObject 한 개의 제한된 설정 요약이다.
+struct FADumpInputObjectDescriptor
+{
+	// SourceIndex는 원본 modifier/trigger 배열 안의 순서다.
+	int32 SourceIndex = 0;
+
+	// ClassName은 descriptor 대상 UObject의 클래스 이름이다.
+	FString ClassName;
+
+	// ClassPath는 descriptor 대상 UObject 클래스의 object path다.
+	FString ClassPath;
+
+	// ObjectName은 descriptor 대상 UObject 인스턴스 이름이다.
+	FString ObjectName;
+
+	// Settings는 프로퍼티 이름으로 정렬된 typed shallow setting descriptor 목록이다.
+	TArray<FADumpInputSettingDescriptor> Settings;
+
+	// SettingCount는 출력한 얕은 설정 개수다.
+	int32 SettingCount = 0;
+
+	// bTruncated는 설정 개수 예산 때문에 일부 설정이 생략됐는지 나타낸다.
+	bool bTruncated = false;
+};
+
+// FADumpInputMappingItem은 InputMappingContext 매핑 한 건의 AI 판독용 요약이다.
+struct FADumpInputMappingItem
+{
+	// SourceIndex는 원본 Mapping 배열 안의 index다.
+	int32 SourceIndex = 0;
+
+	// ActionPath는 연결된 InputAction object path다.
+	FString ActionPath;
+
+	// ActionName은 연결된 InputAction 이름이다.
+	FString ActionName;
+
+	// LinkedActionValueType은 직접 로드된 Action에서 읽은 value type이다.
+	FString LinkedActionValueType;
+
+	// PlayerMappableSettingsPath는 mapping 기준 Player Mappable Key Settings object path다.
+	FString PlayerMappableSettingsPath;
+
+	// KeyName은 FKey의 내부 이름이다.
+	FString KeyName;
+
+	// KeyDisplayText는 사용자 표시용 키 이름이다.
+	FString KeyDisplayText;
+
+	// bKeyValid는 FKey가 유효한지 나타낸다.
+	bool bKeyValid = false;
+
+	// SettingBehavior는 Player Mappable 설정 동작 enum을 문자열로 기록한다.
+	FString SettingBehavior;
+
+	// ModifierCount는 이 mapping에서 출력한 modifier descriptor 개수다.
+	int32 ModifierCount = 0;
+
+	// TriggerCount는 이 mapping에서 출력한 trigger descriptor 개수다.
+	int32 TriggerCount = 0;
+
+	// Modifiers는 매핑 레벨 modifier chain이며 원본 순서를 보존한다.
+	TArray<FADumpInputObjectDescriptor> Modifiers;
+
+	// Triggers는 매핑 레벨 trigger chain이며 원본 순서를 보존한다.
+	TArray<FADumpInputObjectDescriptor> Triggers;
+};
+
+// FADumpInputSummary는 Enhanced Input 전용 의미 요약 섹션 전체를 담는다.
+struct FADumpInputSummary
+{
+	// SchemaVersion은 input_summary 전용 스키마 버전이다.
+	FString SchemaVersion;
+
+	// AssetKind는 input_action 또는 input_mapping_context canonical 종류다.
+	FString AssetKind;
+
+	// bSupported는 현재 자산이 input_summary 지원 타입인지 나타낸다.
+	bool bSupported = false;
+
+	// ValueType은 InputAction 또는 연결된 대표 Action value type이다.
+	FString ValueType;
+
+	// AccumulationBehavior는 InputAction 누적 정책이다.
+	FString AccumulationBehavior;
+
+	// ActionDescription은 InputAction localized description을 표시 문자열로 저장한다.
+	FString ActionDescription;
+
+	// bConsumeInput은 낮은 우선순위 Enhanced Input 매핑 소비 여부다.
+	bool bConsumeInput = false;
+
+	// bConsumeLegacyActionAndAxis는 Legacy Action/Axis mapping 소비 여부다.
+	bool bConsumeLegacyActionAndAxis = false;
+
+	// bReserveAllMappings은 높은 우선순위 context 자동 override 차단 의도다.
+	bool bReserveAllMappings = false;
+
+	// bTriggerWhenPaused는 일시정지 중 trigger 허용 여부다.
+	bool bTriggerWhenPaused = false;
+
+	// TriggerEventsThatConsumeLegacyKeys는 legacy key 소비 trigger event bitmask 값이다.
+	int32 TriggerEventsThatConsumeLegacyKeys = 0;
+
+	// PlayerMappableSettingsPath는 Action 레벨 Player Mappable Key Settings object path다.
+	FString PlayerMappableSettingsPath;
+
+	// ContextDescription은 InputMappingContext localized description 표시 문자열이다.
+	FString ContextDescription;
+
+	// RegistrationTrackingMode는 IMC 등록 추적 모드다.
+	FString RegistrationTrackingMode;
+
+	// InputModeFilterOption은 IMC 입력 모드 필터 옵션이다.
+	FString InputModeFilterOption;
+
+	// TotalMappingCount는 원본 Mapping 총 개수다.
+	int32 TotalMappingCount = 0;
+
+	// EmittedMappingCount는 출력한 Mapping 개수다.
+	int32 EmittedMappingCount = 0;
+
+	// bMappingsTruncated는 Mapping 개수 예산 때문에 일부 Mapping이 생략됐는지 나타낸다.
+	bool bMappingsTruncated = false;
+
+	// WarningCount는 input_summary 내부 warning 개수다.
+	int32 WarningCount = 0;
+
+	// Warnings는 input_summary 전용 bounded warning 목록이다.
+	TArray<FADumpInputWarning> Warnings;
+
+	// ActionReferenceCount는 null이 아닌 Action 참조 개수다.
+	int32 ActionReferenceCount = 0;
+
+	// NullActionCount는 Action이 비어 있는 Mapping 개수다.
+	int32 NullActionCount = 0;
+
+	// ModifierCount는 action/mapping 전체 modifier descriptor 개수다.
+	int32 ModifierCount = 0;
+
+	// TriggerCount는 action/mapping 전체 trigger descriptor 개수다.
+	int32 TriggerCount = 0;
+
+	// TruncatedEntryCount는 설정 또는 mapping 예산으로 잘린 항목 수다.
+	int32 TruncatedEntryCount = 0;
+
+	// ActionModifiers는 InputAction 레벨 modifier chain이며 원본 순서를 보존한다.
+	TArray<FADumpInputObjectDescriptor> ActionModifiers;
+
+	// ActionTriggers는 InputAction 레벨 trigger chain이며 원본 순서를 보존한다.
+	TArray<FADumpInputObjectDescriptor> ActionTriggers;
+
+	// Mappings는 안정 정렬된 InputMappingContext mapping 항목이다.
+	TArray<FADumpInputMappingItem> Mappings;
+
+	// PreviewLines는 입력 요약을 빠르게 읽기 위한 제한된 한 줄 미리보기다.
+	TArray<FString> PreviewLines;
+};
+
 // EADumpDataAssetDiffChangeKind는 DataAsset 필드 변경 분류를 나타낸다.
 enum class EADumpDataAssetDiffChangeKind : uint8
 {
@@ -1189,6 +1389,9 @@ struct FADumpResult
 
 	// DataAssetDiff는 baseline JSON과 현재 DataAsset 값의 비교 결과다.
 	FADumpDataAssetDiff DataAssetDiff;
+
+	// InputSummary는 Enhanced Input Action/Mapping Context 전용 의미 요약 섹션이다.
+	FADumpInputSummary InputSummary;
 
 	// Graphs는 그래프 덤프 결과다.
 	TArray<FADumpGraph> Graphs;

@@ -1,6 +1,8 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.8.0
+// Version: v0.10.0
 // Changelog:
+// - v0.10.0: input_summary 계약 정렬 검증과 실제 Trigger fixture 구성을 추가.
+// - v0.9.0: input_summary 섹션 등록과 Plugin validation smoke checks를 추가.
 // - v0.8.0: data_asset_diff 섹션 등록과 -DataAssetDiffBase= 옵션 전달을 추가.
 // - v0.7.0: data_asset_values 섹션 등록, DataAsset fixture, 전용 builder/직렬화 회귀 검사를 추가.
 // - v0.6.3: -Profile= 프리셋, Sections > Intent > Profile 우선순위, 요청 메타 및 스모크 검사를 추가.
@@ -45,6 +47,7 @@
 
 #include "ADumpDataAsset.h"
 #include "ADumpDataDiff.h"
+#include "ADumpInput.h"
 #include "ADumpValidRow.h"
 #include "ADumpFingerprint.h"
 #include "ADumpJson.h"
@@ -81,6 +84,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputCoreTypes.h"
+#include "InputTriggers.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -225,7 +229,7 @@ namespace
 	// GetValidSectionNamesText는 -Sections=에서 허용하는 정식 섹션 이름 목록을 반환한다.
 				FString GetValidSectionNamesText()
 	{
-		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,graphs,references,widget_designer");
+		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,input_summary,graphs,references,widget_designer");
 	}
 
 	// GetValidIntentNamesText는 -Intent=에서 허용하는 정식 분석 목적 이름 목록을 반환한다.
@@ -266,6 +270,11 @@ namespace
 		if (InSectionName == TEXT("data_asset_diff"))
 		{
 			OutSection = EADumpSection::DataAssetDiff;
+			return true;
+		}
+		if (InSectionName == TEXT("input_summary"))
+		{
+			OutSection = EADumpSection::InputSummary;
 			return true;
 		}
 		if (InSectionName == TEXT("graphs"))
@@ -1850,6 +1859,29 @@ namespace
 			bNeedsSave = true;
 		}
 
+		// bHasPressedTrigger는 fixture가 실제 trigger chain 검증용 Pressed trigger를 보유하는지 나타낸다.
+		bool bHasPressedTrigger = false;
+		for (const TObjectPtr<UInputTrigger>& TriggerItem : InputActionAsset->Triggers)
+		{
+			if (Cast<UInputTriggerPressed>(TriggerItem.Get()))
+			{
+				bHasPressedTrigger = true;
+				break;
+			}
+		}
+
+		if (!bHasPressedTrigger)
+		{
+			// PressedTrigger는 input_summary trigger descriptor 검증용 기본 trigger다.
+			UInputTriggerPressed* PressedTrigger = NewObject<UInputTriggerPressed>(InputActionAsset, NAME_None, RF_Transactional);
+			if (PressedTrigger)
+			{
+				InputActionAsset->Triggers.Add(PressedTrigger);
+				OutResult.bUpdated = !OutResult.bCreated;
+				bNeedsSave = true;
+			}
+		}
+
 		if (bNeedsSave)
 		{
 			OutResult.bSaved = SaveValidationFixtureAsset(InputActionAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
@@ -2998,6 +3030,19 @@ namespace
 		}
 	}
 
+	// LogInputSummaryCheck는 필수 input_summary 회귀 검사 결과를 고정 로그 문구로 출력한다.
+	void LogInputSummaryCheck(const TCHAR* InCheckLabel, bool bInPassed)
+	{
+		if (bInPassed)
+		{
+			UE_LOG(LogTemp, Display, TEXT("%s: passed"), InCheckLabel);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s: failed"), InCheckLabel);
+		}
+	}
+
 	// BuildSectionSmokeValidationObject는 전체/선택/Widget/잘못된 이름 동작을 자산 없이 검증한다.
 	TSharedRef<FJsonObject> BuildSectionSmokeValidationObject(int32& OutFailureCount)
 	{
@@ -3045,7 +3090,7 @@ namespace
 		FString FullProfileDetail;
 		// bFullProfilePassed는 full Profile의 전체 모드 및 builder 호환 여부다.
 		const bool bFullProfilePassed = VerifyIntentResolution(
-			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,data_asset_values,graphs,references,widget_designer"), FullProfileDetail);
+			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,data_asset_values,input_summary,graphs,references,widget_designer"), FullProfileDetail);
 		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_full"), bFullProfilePassed, FullProfileDetail);
 
 		// SummaryProfileDetail은 summary_only Profile 매핑 검증 결과다.
@@ -3526,6 +3571,171 @@ namespace
 				&& MissingDiffIssues.Num() == 1
 				&& MissingDiffIssues[0].Code == TEXT("ADUMP_DIFF_BASE_MISSING");
 			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_diff_missing_baseline"), bMissingBaselinePassed, MissingDiffIssues.Num() > 0 ? MissingDiffIssues[0].Code : TEXT("no_issue"));
+		}
+
+		{
+			// InputSelection은 input_summary만 명시적으로 요청한 선택값이다.
+			FADumpSectionSelection InputSelection;
+			InputSelection.ResetToExplicitMode();
+			InputSelection.Enable(EADumpSection::InputSummary);
+
+			// InputRunOpts는 전용 builder 계획을 검증할 실행 옵션이다.
+			FADumpRunOpts InputRunOpts;
+			InputRunOpts.AssetObjectPath = TEXT("/AssetDump/Validation/IA_ADumpFixture.IA_ADumpFixture");
+			InputRunOpts.SectionSelection = InputSelection;
+			InputRunOpts.bIncludeSummary = true;
+			InputRunOpts.bIncludeDetails = true;
+			InputRunOpts.bIncludeGraphs = true;
+			InputRunOpts.bIncludeReferences = true;
+
+			// InputBuilderNames는 실제 실행 예정인 builder 목록이다.
+			const TArray<FString> InputBuilderNames = InputRunOpts.GetBuilderSectionNames();
+
+			// bInputBuilderPlanPassed는 input_summary 전용 builder만 실행되는지 나타낸다.
+			const bool bInputBuilderPlanPassed = !InputRunOpts.ShouldBuildSummary()
+				&& !InputRunOpts.ShouldBuildDetails()
+				&& !InputRunOpts.ShouldBuildDataAssetValues()
+				&& !InputRunOpts.ShouldBuildDataAssetDiff()
+				&& InputRunOpts.ShouldBuildInputSummary()
+				&& !InputRunOpts.ShouldBuildGraphs()
+				&& !InputRunOpts.ShouldBuildReferences()
+				&& !InputRunOpts.ShouldBuildWidgetDesigner()
+				&& InputBuilderNames.Num() == 1
+				&& InputBuilderNames[0] == TEXT("input_summary");
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("input_summary_builder_plan"), bInputBuilderPlanPassed, FString::Join(InputBuilderNames, TEXT(",")));
+			LogInputSummaryCheck(TEXT("input_summary builder-plan check"), bInputBuilderPlanPassed);
+
+			// InputActionFixture는 파일 없이 InputAction 추출을 검증할 transient fixture다.
+			UInputAction* InputActionFixture = NewObject<UInputAction>(GetTransientPackage());
+			if (InputActionFixture)
+			{
+				InputActionFixture->ValueType = EInputActionValueType::Boolean;
+				InputActionFixture->ActionDescription = FText::FromString(TEXT("AssetDump validation input action fixture."));
+				InputActionFixture->bConsumeInput = true;
+				if (UInputTriggerPressed* PressedTrigger = NewObject<UInputTriggerPressed>(InputActionFixture, NAME_None, RF_Transactional))
+				{
+					InputActionFixture->Triggers.Add(PressedTrigger);
+				}
+			}
+
+			// InputActionSummary는 transient InputAction에서 추출한 전용 섹션 결과다.
+			FADumpInputSummary InputActionSummary;
+
+			// InputActionIssues는 InputAction 추출 중 보고된 issue 목록이다.
+			TArray<FADumpIssue> InputActionIssues;
+
+			// InputActionPerf는 InputAction 추출 비용 누적 구조다.
+			FADumpPerf InputActionPerf;
+
+			// bInputActionExtractPassed는 transient InputAction 추출 성공 여부다.
+			const bool bInputActionExtractPassed = InputActionFixture
+				&& ADumpInput::ExtractInputSummaryFromObject(InputActionFixture, InputActionSummary, InputActionIssues, InputActionPerf, true);
+
+			// InputActionResult는 input_summary 직렬화 검증용 최소 결과다.
+			FADumpResult InputActionResult = FADumpResult::CreateDefault();
+			InputActionResult.Request.SectionSelection = InputSelection;
+			InputActionResult.InputSummary = InputActionSummary;
+
+			// InputActionRootObject는 input_summary만 요청한 InputAction JSON 결과다.
+			TSharedRef<FJsonObject> InputActionRootObject = ADumpJson::MakeResultObject(InputActionResult);
+
+			// bInputActionSchemaPassed는 InputAction schema와 주요 semantic field가 유지되는지 나타낸다.
+			const bool bInputActionSchemaPassed = bInputActionExtractPassed
+				&& InputActionSummary.SchemaVersion == TEXT("input_summary_v1")
+				&& InputActionSummary.AssetKind == TEXT("input_action")
+				&& InputActionSummary.ValueType == TEXT("boolean")
+				&& InputActionSummary.bConsumeInput
+				&& InputActionSummary.ModifierCount == InputActionSummary.ActionModifiers.Num()
+				&& InputActionSummary.TriggerCount == InputActionSummary.ActionTriggers.Num()
+				&& InputActionSummary.TriggerCount > 0
+				&& InputActionRootObject->HasField(TEXT("input_summary"));
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("input_summary_action_schema"), bInputActionSchemaPassed, InputActionSummary.SchemaVersion);
+			LogInputSummaryCheck(TEXT("input_summary action schema check"), bInputActionSchemaPassed);
+
+			// InputMappingFixture는 파일 없이 InputMappingContext 추출을 검증할 transient fixture다.
+			UInputMappingContext* InputMappingFixture = NewObject<UInputMappingContext>(GetTransientPackage());
+			if (InputMappingFixture && InputActionFixture)
+			{
+				InputMappingFixture->ContextDescription = FText::FromString(TEXT("AssetDump validation input mapping fixture."));
+				InputMappingFixture->MapKey(InputActionFixture, EKeys::SpaceBar);
+			}
+
+			// InputMappingSummary는 transient InputMappingContext에서 추출한 전용 섹션 결과다.
+			FADumpInputSummary InputMappingSummary;
+
+			// InputMappingIssues는 InputMappingContext 추출 중 보고된 issue 목록이다.
+			TArray<FADumpIssue> InputMappingIssues;
+
+			// InputMappingPerf는 InputMappingContext 추출 비용 누적 구조다.
+			FADumpPerf InputMappingPerf;
+
+			// bInputMappingExtractPassed는 transient InputMappingContext 추출 성공 여부다.
+			const bool bInputMappingExtractPassed = InputMappingFixture
+				&& ADumpInput::ExtractInputSummaryFromObject(InputMappingFixture, InputMappingSummary, InputMappingIssues, InputMappingPerf, true);
+
+			// bInputMappingHasSpaceBar는 최소 fixture mapping이 action path/key/source_index를 보존하는지 나타낸다.
+			bool bInputMappingHasSpaceBar = false;
+			for (const FADumpInputMappingItem& MappingItem : InputMappingSummary.Mappings)
+			{
+				if (MappingItem.SourceIndex == 0
+					&& MappingItem.ActionPath == (InputActionFixture ? InputActionFixture->GetPathName() : FString())
+					&& MappingItem.KeyName == TEXT("SpaceBar"))
+				{
+					bInputMappingHasSpaceBar = true;
+					break;
+				}
+			}
+
+			// bInputMappingSchemaPassed는 InputMappingContext schema와 mapping count가 유지되는지 나타낸다.
+			const bool bInputMappingSchemaPassed = bInputMappingExtractPassed
+				&& InputMappingSummary.SchemaVersion == TEXT("input_summary_v1")
+				&& InputMappingSummary.AssetKind == TEXT("input_mapping_context")
+				&& InputMappingSummary.TotalMappingCount == 1
+				&& InputMappingSummary.EmittedMappingCount == 1
+				&& InputMappingSummary.Mappings.Num() == 1
+				&& InputMappingSummary.Mappings[0].bKeyValid
+				&& InputMappingSummary.Mappings[0].TriggerCount == InputMappingSummary.Mappings[0].Triggers.Num()
+				&& InputMappingSummary.Mappings[0].ModifierCount == InputMappingSummary.Mappings[0].Modifiers.Num()
+				&& bInputMappingHasSpaceBar;
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("input_summary_mapping_schema"), bInputMappingSchemaPassed, FString::FromInt(InputMappingSummary.EmittedMappingCount));
+			LogInputSummaryCheck(TEXT("input_summary mapping schema check"), bInputMappingSchemaPassed);
+
+			// NonInputObject는 full mode에서 조용히 생략되어야 하는 비입력 자산이다.
+			UCurveFloat* NonInputObject = NewObject<UCurveFloat>(GetTransientPackage());
+
+			// NonInputSummary는 비입력 자산에서 비어 있어야 하는 전용 결과다.
+			FADumpInputSummary NonInputSummary;
+
+			// NonInputIssues는 full mode 비입력 처리 중 비어 있어야 하는 issue 목록이다.
+			TArray<FADumpIssue> NonInputIssues;
+
+			// NonInputPerf는 비입력 처리 비용 누적 구조다.
+			FADumpPerf NonInputPerf;
+
+			// bNonInputOmitPassed는 full mode 비입력 자산에서 실패 없이 섹션을 생략하는지 나타낸다.
+			const bool bNonInputOmitPassed = NonInputObject
+				&& ADumpInput::ExtractInputSummaryFromObject(NonInputObject, NonInputSummary, NonInputIssues, NonInputPerf, false)
+				&& NonInputSummary.SchemaVersion.IsEmpty()
+				&& NonInputIssues.IsEmpty();
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("input_summary_non_input_omission"), bNonInputOmitPassed, FString::FromInt(NonInputIssues.Num()));
+			LogInputSummaryCheck(TEXT("input_summary non-input omission check"), bNonInputOmitPassed);
+
+			// ExplicitUnsupportedSummary는 명시 요청 비입력 자산에서 실패해야 하는 전용 결과다.
+			FADumpInputSummary ExplicitUnsupportedSummary;
+
+			// ExplicitUnsupportedIssues는 명시 요청 실패 issue 목록이다.
+			TArray<FADumpIssue> ExplicitUnsupportedIssues;
+
+			// ExplicitUnsupportedPerf는 명시 요청 실패 경로 비용 누적 구조다.
+			FADumpPerf ExplicitUnsupportedPerf;
+
+			// bExplicitUnsupportedPassed는 input_summary 명시 요청이 비입력 자산에서 명확한 오류를 내는지 나타낸다.
+			const bool bExplicitUnsupportedPassed = NonInputObject
+				&& !ADumpInput::ExtractInputSummaryFromObject(NonInputObject, ExplicitUnsupportedSummary, ExplicitUnsupportedIssues, ExplicitUnsupportedPerf, true)
+				&& ExplicitUnsupportedIssues.Num() == 1
+				&& ExplicitUnsupportedIssues[0].Code == TEXT("ADUMP_INPUT_UNSUPPORTED_ASSET");
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("input_summary_explicit_unsupported"), bExplicitUnsupportedPassed, ExplicitUnsupportedIssues.Num() > 0 ? ExplicitUnsupportedIssues[0].Code : TEXT("no_issue"));
+			LogInputSummaryCheck(TEXT("input_summary explicit unsupported check"), bExplicitUnsupportedPassed);
 		}
 
 		// ValidationObject는 validate report에 포함할 섹션 스모크 검사 묶음이다.

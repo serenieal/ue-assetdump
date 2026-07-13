@@ -13,83 +13,100 @@ v0_6_4_RegressionHarness_CodexTask.yaml
 v0_7_0_DataAssetValues_CodexTask.yaml
 v0_7_1_DataAssetDiff_CodexTask.yaml
 v0_7_2_InputSummary_CodexTask.yaml
+v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
 
-## Current Prepared Task
+## Active Contract
+
+```text
+None.
+```
+
+The v0.7.2 original and alignment contracts are completed historical execution artifacts:
 
 ```text
 v0_7_2_InputSummary_CodexTask.yaml
+v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
 
-Source of truth:
+Their TaskSources are:
 
 ```text
 UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
 ```
 
-Prerequisite state:
+## v0.7.2 Final State
 
 ```text
-v0.7.0 DataAsset Values: release gate passed
-v0.7.1 DataAsset Diff: implementation/regression passed; remaining full-contract cases tracked
+implementation: completed
+C++ compile: passed
+editor build/link: passed
+Plugin fixtures: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section selection: 33/33 passed
+project batch: 43/43 succeeded
+ChangedOnly: 43/43 skipped
+contract alignment: passed
+trigger-chain validation: passed
+byte-level determinism: passed
+release-ready gate: passed
+human release review: pending
 ```
 
-## v0.7.2 Contract Summary
+Closure evidence:
 
 ```text
-section: input_summary
-schema: input_summary_v1
-supported assets: UInputAction, UInputMappingContext
-InputAction output: value type, accumulation, action settings, modifiers, triggers
-IMC output: action path/name/value type, key, mapping settings, modifiers, triggers
-mapping order: deterministic
-modifier/trigger source order: preserved
-reserved input_bindings Intent: disabled
+InputTriggerPressed fixture: trigger_count=1
+repeated IMC input_summary: 1195 bytes == 1195 bytes
+IA_VehicleMove: input_summary_v1, axis2d
+IMC_Vehicle_Default: input_summary_v1, 42 mappings, 6 modifiers, 0 triggers
+git diff --check: passed with line-ending warnings only
 ```
 
-Bounds:
+Accepted bounds:
 
 ```text
 max mappings: 128
 max modifiers per owner: 16
 max triggers per owner: 16
-max shallow setting fields: 16
+max shallow settings: 16
 max preview lines: 12
-max nested setting struct depth: 1
 ```
 
-## Mandatory Change Targets
+Accepted behavior:
 
 ```text
-UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpInput.h
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpInput.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+typed setting descriptors
+bounded unsupported-setting fallback
+stable input warning codes
+chain-aware deterministic mapping order
+modifier/trigger source-order preservation
+reserved input_bindings Intent remains disabled
 ```
 
-Review references rather than mandatory targets:
+## Separate v0.7.x Line Gate
+
+`v0_7_1_DataAssetDiff_TaskSource.md` still tracks 11 unexecuted or unwaived full-contract acceptance cases. The v0.7.2 feature is release-ready, but the entire v0.7.x line must not be described as release-complete until those cases are resolved.
+
+## Next Contract
+
+The next planned feature is v0.7.3 Component Tree. No generated v0.7.3 contract exists yet.
+
+A future v0.7.3 contract must be produced from a finalized TaskSource through:
 
 ```text
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpSummaryExt.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/Private/SSOTDumpCmdlet.cpp
-UE/Plugins/ue-assetdump/Source/AssetDump/AssetDump.Build.cs
+plan.inspect_unresolved
+plan.compile_outputs
 ```
 
-## Validation Focus
+Do not treat a draft or manually written YAML as an active Codex contract.
 
-```text
-InputAction fixture: input_summary_v1, boolean value type, action flags, count consistency
-IMC fixture: stable action path, SpaceBar key, no generic depth-limit placeholders
-selection: explicit, summary+input, full supported, full unsupported, explicit unsupported
-project smoke: IA_VehicleMove and IMC_Vehicle_Default
-regression: self-tests, editor build, Plugin validation, project batch, ChangedOnly
-determinism: repeat IMC dump comparison
-```
+## Changelog
 
-The v0.7.1 remaining acceptance cases must remain tracked or be explicitly waived before the v0.7.x release gate is declared complete.
+### v1.10
+
+- Marked both v0.7.2 contracts completed and removed the alignment YAML from the active-task position.
+- Recorded the passed v0.7.2 release-ready gate, trigger fixture, determinism, and complete regression evidence.
+- Retained human release review and the separate v0.7.1 line-level acceptance cases as pending.
