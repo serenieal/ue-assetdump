@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.5
+- document_version: v1.6
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - document_role: implementation_result_log
@@ -13,6 +13,153 @@
 Record implementation and verification results for Asset Intelligence planning tasks after Codex or manual implementation work is completed.
 
 ## Results
+
+## 2026-07-10 - AssetDump v0.7.0 DataAsset Values
+
+### Source Task
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
+```
+
+### Generated Codex Task
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
+```
+
+### Status
+
+```text
+implementation: completed
+core verification: passed
+final integration verification: pending
+completed_at: 2026-07-10 15:59 KST
+```
+
+### Implementation Summary
+
+AssetDump v0.7.0 added the first DataAsset-specific AI section.
+
+```text
+section: data_asset_values
+schema: data_asset_values_v1
+supported assets: UDataAsset, UPrimaryDataAsset
+full-mode builder: enabled
+reserved data_asset_values Intent: not enabled
+```
+
+Supported values:
+
+```text
+Bool
+signed/unsigned integers
+float/double
+String, Name, Text, Enum
+hard object/class references
+soft object/class references
+Array, Set, Map, Struct
+```
+
+Actual limits:
+
+```text
+max_depth: 3
+max_collection_items: 8
+max_top_level_fields: 128
+max_preview_lines: 12
+max_fallback_text_length: 256
+```
+
+### Changed Files
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataAsset.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataAsset.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+UE/Plugins/ue-assetdump/Content/Validation/DA_ADumpValues.uasset
+```
+
+### Core Verification Result
+
+```text
+CarFight_ReEditor Win64 Development: succeeded
+Plugin fixture: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section/intent/profile/data-asset checks: 25/25 passed
+commandlet feature errors: 0
+```
+
+Fixture result:
+
+```text
+schema_version: data_asset_values_v1
+field_count: 17
+reference_field_count: 4
+truncated_field_count: 2
+unsupported_field_count: 0
+```
+
+Feature checks:
+
+```text
+data_asset_values_builder_plan: passed
+data_asset_values_schema: passed
+data_asset_values_field_count: passed
+data_asset_values_reference_classification: passed
+data_asset_values_bounded_collection_struct: passed
+data_asset_values_non_data_asset_omission: passed
+```
+
+### Evidence
+
+```text
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/fixture_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/validation_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/data_asset_values/DA_ADumpValues.dump.json
+```
+
+### Remaining Integration Gates
+
+The stored project batch and ChangedOnly logs were generated before the v0.7.0 Plugin validation. They are not evidence for the current revision.
+
+```text
+RunBPDumpRegression.ps1 -RunSelfTests: fresh evidence pending
+project-owned DataAsset smoke: pending
+fresh project batch: pending
+fresh immediate ChangedOnly rerun: pending
+```
+
+The implementation may proceed to planning for v0.7.1, but v0.7.0 should not be marked release-gate complete until these checks are recorded.
+
+### Known Issues
+
+One existing UE API deprecation warning remains in Commandlet code. No compile error attributable to v0.7.0 was found.
+
+### Migration
+
+Existing commands remain compatible. The specialized section can be requested with:
+
+```text
+-Sections=data_asset_values
+-Sections=summary,digest,data_asset_values
+```
+
+Because full mode now includes the new builder and schema version participates in fingerprints, the first ChangedOnly pass after upgrading may regenerate affected DataAsset outputs.
+
+### Changelog
+
+```text
+v0.7.0: Added bounded deterministic DataAsset reflection output, references, collections/structs, builder control, fingerprint integration, and a plugin validation fixture.
+```
 
 ## 2026-07-10 - AssetDump v0.6.4 Regression Harness Hardening
 
@@ -636,6 +783,12 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.6
+
+- Recorded AssetDump v0.7.0 DataAsset Values implementation and core verification.
+- Added actual extraction limits, fixture counts, 25/25 validation evidence, and generated asset paths.
+- Separated completed Plugin/core validation from pending fresh self-test, project DataAsset, batch, and ChangedOnly gates.
 
 ### v1.5
 

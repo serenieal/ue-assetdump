@@ -1,6 +1,7 @@
 // File: ADumpTypes.h
-// Version: v0.12.0
+// Version: v0.13.0
 // Changelog:
+// - v0.13.0: data_asset_values_v1 섹션 선택값, 필드 구조, 최상위 결과 저장소를 추가.
 // - v0.12.0: v0.6.3 Profile 요청 이름을 결과 요청 메타에 추가.
 // - v0.11.0: v0.6.2 Intent 요청 이름과 최종 섹션 선택 출처 메타를 추가.
 // - v0.10.0: v0.6.1 builder 제어 근거를 남기기 위한 summary 의존 helper와 builder 섹션 메타를 추가.
@@ -87,6 +88,7 @@ enum class EADumpSection : uint8
 	Summary,
 	Digest,
 	Details,
+	DataAssetValues,
 	Graphs,
 	References,
 	WidgetDesigner
@@ -686,8 +688,67 @@ struct FADumpPropertyItem
 	// bIsEditable는 에디터에서 수정 가능한 항목인지 나타낸다.
 	bool bIsEditable = false;
 
-	// bIsOverride는 부모/기본값 대비 override 여부다.
+		// bIsOverride는 부모/기본값 대비 override 여부다.
 	bool bIsOverride = false;
+};
+
+// FADumpDataAssetField는 data_asset_values 필드 한 건의 메타와 값을 표현한다.
+struct FADumpDataAssetField
+{
+	// PropertyName은 reflection 기준 원본 프로퍼티 이름이다.
+	FString PropertyName;
+
+	// DisplayName은 사용자 친화 표시 이름이다.
+	FString DisplayName;
+
+	// Category는 BP/Reflection 카테고리 문자열이다.
+	FString Category;
+
+	// CppType는 C++ 기준 타입 문자열이다.
+	FString CppType;
+
+	// ValueKind는 값 분류다.
+	EADumpValueKind ValueKind = EADumpValueKind::None;
+
+	// ValueJson은 제한 예산 안에서 만든 구조화 값이다.
+	TSharedPtr<FJsonValue> ValueJson;
+
+	// ValueText는 구조화가 어렵거나 잘린 값의 안전한 텍스트 백업이다.
+	FString ValueText;
+
+	// bIsAssetReference는 object/class/soft reference 계열 필드인지 나타낸다.
+	bool bIsAssetReference = false;
+
+	// bTruncated는 깊이/요소/문자열 예산 때문에 값이 잘렸는지 나타낸다.
+	bool bTruncated = false;
+
+	// bUnsupported는 현재 스키마가 구조화하지 못한 타입인지 나타낸다.
+	bool bUnsupported = false;
+};
+
+// FADumpDataAssetValues는 DataAsset 전용 중요 값 섹션 전체를 감싼다.
+struct FADumpDataAssetValues
+{
+	// SchemaVersion은 전용 섹션 스키마 버전이다.
+	FString SchemaVersion;
+
+	// FieldCount는 출력된 최상위 필드 개수다.
+	int32 FieldCount = 0;
+
+	// ReferenceFieldCount는 자산/클래스 참조 계열 필드 개수다.
+	int32 ReferenceFieldCount = 0;
+
+	// TruncatedFieldCount는 출력 예산 때문에 일부 값이 잘린 필드 개수다.
+	int32 TruncatedFieldCount = 0;
+
+	// UnsupportedFieldCount는 구조화되지 못한 필드 개수다.
+	int32 UnsupportedFieldCount = 0;
+
+	// PreviewLines는 주요 필드의 제한된 한 줄 미리보기다.
+	TArray<FString> PreviewLines;
+
+	// Fields는 property_name 오름차순으로 정렬된 필드 목록이다.
+	TArray<FADumpDataAssetField> Fields;
 };
 
 // FADumpComponentItem은 하나의 컴포넌트와 그 하위 프로퍼티를 표현한다.
@@ -1001,8 +1062,11 @@ struct FADumpResult
 	// Summary는 BP 요약 정보다.
 	FADumpSummary Summary;
 
-	// Details는 프로퍼티/컴포넌트 상세 정보다.
+		// Details는 프로퍼티/컴포넌트 상세 정보다.
 	FADumpDetails Details;
+
+	// DataAssetValues는 UDataAsset/UPrimaryDataAsset 전용 중요 값 섹션이다.
+	FADumpDataAssetValues DataAssetValues;
 
 	// Graphs는 그래프 덤프 결과다.
 	TArray<FADumpGraph> Graphs;

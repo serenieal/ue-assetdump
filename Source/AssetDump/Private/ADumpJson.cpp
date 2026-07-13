@@ -1,6 +1,7 @@
 // File: ADumpJson.cpp
-// Version: v1.6.0
+// Version: v1.7.0
 // Changelog:
+// - v1.7.0: data_asset_values_v1 필드와 섹션 요약을 최상위 JSON에 직렬화.
 // - v1.6.0: v0.6.3 Profile 요청 이름을 request envelope에 기록.
 // - v1.5.0: v0.6.2 Intent 요청 이름과 섹션 선택 출처를 request envelope에 기록.
 // - v1.4.0: v0.6.1 명시적 모드 request에 실제 실행 예정 builder_sections 메타를 기록.
@@ -693,8 +694,44 @@ namespace
 		DetailsMetaObject->SetNumberField(TEXT("component_static_mesh_socket_count"), CountComponentStaticMeshSockets(InDumpResult.Details.ComponentStaticMeshSockets));
 		DetailsMetaObject->SetNumberField(TEXT("component_static_mesh_socket_transform_count"), CountComponentSocketTransforms(InDumpResult.Details.ComponentStaticMeshSockets));
 		DetailsMetaObject->SetNumberField(TEXT("world_static_mesh_socket_transform_count"), InDumpResult.Details.WorldStaticMeshSocketTransforms.Num());
-		DetailsObject->SetObjectField(TEXT("meta"), DetailsMetaObject);
+						DetailsObject->SetObjectField(TEXT("meta"), DetailsMetaObject);
 		return DetailsObject;
+	}
+
+	// MakeDataAssetValuesObject는 DataAsset 중요 값 전용 섹션을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeDataAssetValuesObject(const FADumpDataAssetValues& InDataAssetValues)
+	{
+		// DataAssetValuesObject는 data_asset_values_v1 섹션 직렬화 결과다.
+		TSharedRef<FJsonObject> DataAssetValuesObject = MakeShared<FJsonObject>();
+		DataAssetValuesObject->SetStringField(TEXT("schema_version"), InDataAssetValues.SchemaVersion);
+		DataAssetValuesObject->SetNumberField(TEXT("field_count"), InDataAssetValues.FieldCount);
+		DataAssetValuesObject->SetNumberField(TEXT("reference_field_count"), InDataAssetValues.ReferenceFieldCount);
+		DataAssetValuesObject->SetNumberField(TEXT("truncated_field_count"), InDataAssetValues.TruncatedFieldCount);
+		DataAssetValuesObject->SetNumberField(TEXT("unsupported_field_count"), InDataAssetValues.UnsupportedFieldCount);
+		DataAssetValuesObject->SetArrayField(TEXT("preview"), MakeStringArray(InDataAssetValues.PreviewLines));
+
+		// FieldArray는 property_name 오름차순으로 이미 정렬된 필드 직렬화 배열이다.
+		TArray<TSharedPtr<FJsonValue>> FieldArray;
+		for (const FADumpDataAssetField& FieldItem : InDataAssetValues.Fields)
+		{
+			// FieldObject는 DataAsset reflected field 한 건의 직렬화 결과다.
+			TSharedRef<FJsonObject> FieldObject = MakeShared<FJsonObject>();
+			FieldObject->SetStringField(TEXT("property_name"), FieldItem.PropertyName);
+			FieldObject->SetStringField(TEXT("display_name"), FieldItem.DisplayName);
+			FieldObject->SetStringField(TEXT("category"), FieldItem.Category);
+			FieldObject->SetStringField(TEXT("cpp_type"), FieldItem.CppType);
+			FieldObject->SetStringField(TEXT("value_kind"), ToString(FieldItem.ValueKind));
+			FieldObject->SetStringField(TEXT("value_text"), FieldItem.ValueText);
+			FieldObject->SetBoolField(TEXT("is_asset_reference"), FieldItem.bIsAssetReference);
+			FieldObject->SetBoolField(TEXT("truncated"), FieldItem.bTruncated);
+			FieldObject->SetBoolField(TEXT("unsupported"), FieldItem.bUnsupported);
+			FieldObject->SetField(
+				TEXT("value_json"),
+				FieldItem.ValueJson.IsValid() ? FieldItem.ValueJson : MakeShared<FJsonValueNull>());
+			FieldArray.Add(MakeShared<FJsonValueObject>(FieldObject));
+		}
+		DataAssetValuesObject->SetArrayField(TEXT("fields"), FieldArray);
+		return DataAssetValuesObject;
 	}
 
 	// MakePinObject는 그래프 핀 항목을 JSON object로 변환한다.
@@ -1384,6 +1421,10 @@ namespace ADumpJson
 			RootObject->SetObjectField(TEXT("summary"), MakeSummaryObject(InDumpResult.Summary));
 			RootObject->SetObjectField(TEXT("widget_designer"), MakeWidgetDesignerObject(InDumpResult.Summary.WidgetDesigner));
 			RootObject->SetObjectField(TEXT("details"), MakeDetailsObject(InDumpResult));
+			if (!InDumpResult.DataAssetValues.SchemaVersion.IsEmpty())
+			{
+				RootObject->SetObjectField(TEXT("data_asset_values"), MakeDataAssetValuesObject(InDumpResult.DataAssetValues));
+			}
 			RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
 			RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
 		}
@@ -1397,9 +1438,14 @@ namespace ADumpJson
 			{
 				RootObject->SetObjectField(TEXT("digest"), MakeDigestObject(InDumpResult));
 			}
-			if (SectionSelection.IsEnabled(EADumpSection::Details))
+									if (SectionSelection.IsEnabled(EADumpSection::Details))
 			{
 				RootObject->SetObjectField(TEXT("details"), MakeDetailsObject(InDumpResult));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::DataAssetValues)
+				&& !InDumpResult.DataAssetValues.SchemaVersion.IsEmpty())
+			{
+				RootObject->SetObjectField(TEXT("data_asset_values"), MakeDataAssetValuesObject(InDumpResult.DataAssetValues));
 			}
 			if (SectionSelection.IsEnabled(EADumpSection::Graphs))
 			{

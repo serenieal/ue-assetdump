@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.6
+- document_version: v1.7
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - document_role: plan_compile_log
@@ -13,6 +13,43 @@
 Record plan tool checks and generated Codex task outputs for Asset Intelligence planning documents.
 
 ## Entries
+
+## 2026-07-10 - v0.7.1 DataAssetDiff TaskSource
+
+### Source Plan
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+```
+
+### Inspect Result
+
+```text
+ok: true
+blocking_unresolved: []
+non_blocking_unresolved: explicit "None."
+target_file_candidates: 10
+```
+
+### Compile Result
+
+```text
+ok: true
+generated_targets: codex
+compile_status: compiled
+codex_yaml_created: true
+must_change_targets: 10
+```
+
+### Generated Output
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+```
+
+### Notes
+
+The contract defines `data_asset_diff_v1`, `-DataAssetDiffBase=`, exact/partial comparison rules, stable error codes, and baseline SHA-256 fingerprinting. `ADumpDataAsset.h/.cpp` were removed from mandatory targets and remain review references.
 
 ## 2026-07-10 - v0.7.0 DataAssetValues TaskSource
 
@@ -228,6 +265,12 @@ UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_
 The first compile attempt used a file path inside `output_targets` and failed with `ERR_PLAN_OUTPUT_TARGETS`. The retry used `output_targets: ["codex"]` and `output_file_path` for the YAML path, which succeeded.
 
 ## Changelog
+
+### v1.7
+
+- Recorded successful inspect and compile results for v0.7.1 DataAssetDiff TaskSource.
+- Confirmed 10 mandatory change targets and excluded `ADumpDataAsset.*` from mandatory changes.
+- Added the generated `v0_7_1_DataAssetDiff_CodexTask.yaml` contract.
 
 ### v1.6
 

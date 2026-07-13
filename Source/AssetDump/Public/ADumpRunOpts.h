@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.h
-// Version: v0.5.0
+// Version: v0.6.0
 // Changelog:
+// - v0.6.0: data_asset_values 전용 builder 실행 판단 helper를 추가.
 // - v0.5.0: v0.6.3 Profile 요청을 공통 실행 옵션과 결과 요청 스냅샷에 추가.
 // - v0.4.0: v0.6.2 Intent 요청과 최종 섹션 선택 출처를 공통 실행 옵션에 추가.
 // - v0.3.0: v0.6.1 명시적 섹션 선택을 실제 builder 실행 여부로 변환하는 helper를 추가.
@@ -16,7 +17,7 @@
 // FADumpRunOpts는 Commandlet / Editor가 공통 서비스에 전달할 실행 요청이다.
 struct FADumpRunOpts
 {
-	// AssetObjectPath는 대상 Blueprint 오브젝트 경로다.
+	// AssetObjectPath는 대상 자산 오브젝트 경로다.
 	FString AssetObjectPath;
 
 	// SectionSelection은 전체 모드 또는 -Sections=의 명시적 출력 섹션을 보관한다.
@@ -79,6 +80,9 @@ struct FADumpRunOpts
 	// ShouldBuildDetails는 details builder 실행 여부를 반환한다.
 	bool ShouldBuildDetails() const;
 
+	// ShouldBuildDataAssetValues는 DataAsset 전용 경량 값 builder 실행 여부를 반환한다.
+	bool ShouldBuildDataAssetValues() const;
+
 	// ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
 	bool ShouldBuildGraphs() const;
 
@@ -88,7 +92,7 @@ struct FADumpRunOpts
 	// ShouldBuildWidgetDesigner는 Widget Designer 재귀 순회 실행 여부를 반환한다.
 	bool ShouldBuildWidgetDesigner() const;
 
-	// GetBuilderSectionNames는 명시적 모드에서 실제 실행 예정인 builder 이름을 고정 순서로 반환한다.
+	// GetBuilderSectionNames는 실제 실행 예정인 builder 이름을 고정 순서로 반환한다.
 	TArray<FString> GetBuilderSectionNames() const;
 
 	// ResolveOutputFilePath는 명시 경로가 없으면 기본 dump.json 경로를 계산한다.

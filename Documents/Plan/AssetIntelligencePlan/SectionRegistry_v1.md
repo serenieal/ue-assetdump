@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.3
+- document_version: v1.4
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - owner_project: CarFight
@@ -41,8 +41,8 @@ TaskSource documents should reference this registry rather than redefining secti
 | Section | Purpose | Existing or Planned | Schema Version |
 |---|---|---:|---|
 | `widget_designer` | WidgetBlueprint Designer hierarchy | Existing | `widget_designer_v1` |
-| `data_asset_values` | DataAsset field/value summary | Planned v0.7.0 | `data_asset_values_v1` |
-| `data_asset_diff` | DataAsset before/after field diff | Planned v0.7.1 | `data_asset_diff_v1` |
+| `data_asset_values` | DataAsset field/value summary | Implemented v0.7.0; core verified, integration pending | `data_asset_values_v1` |
+| `data_asset_diff` | DataAsset before/after field diff | Prepared v0.7.1 | `data_asset_diff_v1` |
 | `input_summary` | Enhanced Input Action/Mapping summary | Planned v0.7.2 | `input_summary_v1` |
 | `component_tree` | Actor/Blueprint component hierarchy | Planned v0.7.3 | `component_tree_v1` |
 | `material_param_summary` | Material and MaterialInstance parameter summary | Draft v0.7.4 | `material_param_summary_v1` |
@@ -53,19 +53,31 @@ TaskSource documents should reference this registry rather than redefining secti
 | `query_result` | Structured query output | Planned v1.0.1 | `query_result_v1` |
 | `ai_context_bundle` | Compact context package for AI | Planned v1.0.2 | `ai_context_bundle_v1` |
 
-## Current Specialized Section Task
+## Current Specialized Section State
 
-The current Codex task is v0.7.0 DataAsset Values.
+v0.7.0 DataAsset Values:
 
 ```text
 section: data_asset_values
 schema_version: data_asset_values_v1
-implementation_status: planned / not yet implemented
+implementation_status: completed
+core_verification_status: passed
+integration_verification_status: pending
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
 generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
 ```
 
-The reserved `data_asset_values` Intent must remain unavailable until the section implementation and validation have completed.
+Current prepared Codex task:
+
+```text
+section: data_asset_diff
+schema_version: data_asset_diff_v1
+implementation_status: prepared / not implemented
+source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+```
+
+The reserved `data_asset_values` Intent remains unavailable because v0.7.0 did not enable it and its final integration gate is still pending.
 
 ## Initial Section Set for v0.6.0
 
@@ -255,6 +267,12 @@ No runtime migration is required for this registry. Implementation TaskSource do
 None.
 
 ## Changelog
+
+### v1.4
+
+- Marked `data_asset_values_v1` as implemented and core verified with final integration pending.
+- Added `data_asset_diff_v1` as the current prepared specialized-section task.
+- Recorded that the reserved `data_asset_values` Intent remains disabled.
 
 ### v1.3
 

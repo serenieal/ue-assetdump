@@ -1,6 +1,7 @@
 // File: ADumpFingerprint.cpp
-// Version: v0.4.0
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: data_asset_values builder 계획과 data_asset_values_v1 스키마 토큰을 fingerprint 입력에 반영.
 // - v0.4.0: v0.6.3 Profile 요청 메타와 최종 선택 출처를 fingerprint 입력에 반영.
 // - v0.3.2: v0.6.2 Intent 및 section_source 요청 메타 변경을 fingerprint 입력에 반영.
 // - v0.3.1: v0.6.1 builder 제어는 섹션 선택에서 파생되므로 v0.6.0 fingerprint 입력을 그대로 유지.
@@ -82,16 +83,20 @@ namespace
 		// SectionModeText는 전체 모드와 명시적 섹션 모드를 구분하는 fingerprint 입력값이다.
 		const FString SectionModeText = InRequestInfo.SectionSelection.IsFullMode() ? TEXT("full") : TEXT("explicit");
 
-		// SectionNamesText는 활성 섹션을 레지스트리 순서로 연결한 fingerprint 입력값이다.
+						// SectionNamesText는 활성 섹션을 레지스트리 순서로 연결한 fingerprint 입력값이다.
 		const FString SectionNamesText = FString::Join(InRequestInfo.SectionSelection.GetEnabledNames(), TEXT(","));
+
+		// BuilderSectionNamesText는 실제 실행 builder 계획을 고정 순서로 연결한 fingerprint 입력값이다.
+		const FString BuilderSectionNamesText = FString::Join(InRequestInfo.BuilderSections, TEXT(","));
 		return FString::Printf(
-			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
+			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
 			ToString(InRequestInfo.SourceKind),
 			*InRequestInfo.Intent,
 			*InRequestInfo.Profile,
 			*InRequestInfo.SectionSource,
-			*SectionModeText,
+									*SectionModeText,
 			*SectionNamesText,
+			*BuilderSectionNamesText,
 			InRequestInfo.bIncludeSummary ? 1 : 0,
 			InRequestInfo.bIncludeDetails ? 1 : 0,
 			InRequestInfo.bIncludeGraphs ? 1 : 0,

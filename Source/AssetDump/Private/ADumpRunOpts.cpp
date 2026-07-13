@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.6.0
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: data_asset_values 전용 builder 계획과 실행 판단을 추가.
 // - v0.6.0: v0.6.3 Profile 요청을 결과 요청 스냅샷에 전달.
 // - v0.5.0: v0.6.2 Intent 요청과 최종 섹션 선택 출처를 결과 요청 스냅샷에 전달.
 // - v0.4.0: v0.6.1 섹션 선택 기반 builder 실행 판단과 builder_sections 요청 메타를 추가.
@@ -23,6 +24,7 @@ bool FADumpRunOpts::HasAnySectionEnabled() const
 	{
 		return !SectionSelection.EnabledSections.IsEmpty();
 	}
+
 	return bIncludeSummary || bIncludeDetails || bIncludeGraphs || bIncludeReferences;
 }
 
@@ -40,6 +42,14 @@ bool FADumpRunOpts::ShouldBuildDetails() const
 	return SectionSelection.IsFullMode()
 		? bIncludeDetails
 		: SectionSelection.IsEnabled(EADumpSection::Details);
+}
+
+// ShouldBuildDataAssetValues는 DataAsset 전용 경량 값 builder 실행 여부를 반환한다.
+bool FADumpRunOpts::ShouldBuildDataAssetValues() const
+{
+	return SectionSelection.IsFullMode()
+		? bIncludeDetails
+		: SectionSelection.IsEnabled(EADumpSection::DataAssetValues);
 }
 
 // ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
@@ -65,7 +75,7 @@ bool FADumpRunOpts::ShouldBuildWidgetDesigner() const
 		&& (SectionSelection.IsFullMode() || SectionSelection.IsEnabled(EADumpSection::WidgetDesigner));
 }
 
-// GetBuilderSectionNames는 명시적 모드에서 실제 실행 예정인 builder 이름을 고정 순서로 반환한다.
+// GetBuilderSectionNames는 실제 실행 예정인 builder 이름을 고정 순서로 반환한다.
 TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 {
 	// BuilderSectionNames는 실행 예정 builder를 의존성 순서로 기록하는 배열이다.
@@ -77,6 +87,10 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 	if (ShouldBuildDetails())
 	{
 		BuilderSectionNames.Add(TEXT("details"));
+	}
+	if (ShouldBuildDataAssetValues())
+	{
+		BuilderSectionNames.Add(TEXT("data_asset_values"));
 	}
 	if (ShouldBuildGraphs())
 	{
@@ -99,12 +113,12 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 
 FString FADumpRunOpts::ResolveOutputFilePath() const
 {
-	// ResolveOutputFilePath는 사용자 입력이 비어 있거나, 폴더이거나, 파일인 경우를 모두 공통 규칙으로 해석한다.
 	return ADumpJson::ResolveOutputFilePath(OutputFilePath, AssetObjectPath);
 }
 
 FADumpRequestInfo FADumpRunOpts::BuildRequestInfo() const
 {
+	// RequestInfo는 결과 JSON에 기록할 실행 요청 스냅샷이다.
 	FADumpRequestInfo RequestInfo;
 	RequestInfo.SourceKind = SourceKind;
 	RequestInfo.Intent = Intent;

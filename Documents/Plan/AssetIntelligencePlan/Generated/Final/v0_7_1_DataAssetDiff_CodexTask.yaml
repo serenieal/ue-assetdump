@@ -1,0 +1,149 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataDiff.h
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataDiff.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+chk:
+  - compile_both_pass
+u:
+  - None
+ld:
+  novelty_directives:
+    - Add a deterministic data_asset_diff specialized section that compares the current data_asset_values_v1 representation of a DataAsset against a baseline AssetDump JSON file
+    - "The result must tell AI and developers which reflected fields were added, removed, changed, or changed type without performing binary asset comparison, loading referenced assets, or mutating either asset"
+    - Add canonical section name data_asset_diff
+    - Add schema version data_asset_diff_v1
+    - "Add command option:"
+    - "text -DataAssetDiffBase=<baseline dump JSON file path>"
+    - Require -DataAssetDiffBase= when data_asset_diff is selected
+    - Accept an absolute path or a path resolvable from the project/plugin working context using existing safe path conventions
+    - Load only JSON baseline files
+    - Require the baseline to contain a valid top-level data_asset_values object with schema data_asset_values_v1
+    - Build the current asset representation through the existing v0.7.0 DataAsset Values builder
+    - Compare baseline and current fields by canonical property_name
+    - "Classify changes as:"
+    - added
+    - removed
+    - changed
+    - type_changed
+    - Count unchanged fields without emitting them in the default changes array
+    - "Compare scalar, enum, reference, collection, and struct values using canonical JSON representation"
+    - "Preserve before/after metadata for changed entries:"
+    - property name
+    - display name
+    - category
+    - C++ type
+    - value kind
+    - structured value
+    - fallback text
+    - asset-reference flag
+    - truncation flag
+    - "Mark comparison quality:"
+    - exact when both sides are complete
+    - partial when either side is truncated or otherwise incomplete
+    - Never claim exact equality for truncated values
+    - Add deterministic ordering by property name and change kind
+    - Add compact preview lines for the first changed fields
+    - Add baseline file metadata and SHA-256 content hash to the result
+    - Include baseline content hash and diff schema version in changed-only fingerprint inputs when diff mode is requested
+    - Add builder planning so data_asset_diff automatically requires data_asset_values
+    - Keep data_asset_diff opt-in; do not run it in normal full mode without an explicit baseline request
+    - Serialize data_asset_diff as a top-level major section
+    - Add automatic Plugin smoke tests using generated temporary baseline JSON derived from DA_ADumpValues
+    - "Preserve all existing fixture, validation, section, intent, profile, and DataAsset Values checks"
+    - "Add clear preflight failures for missing, unreadable, malformed, incompatible, or mismatched baseline input"
+  acceptance_criteria:
+    - "Record fresh evidence for:"
+    - text RunBPDumpRegression.ps1 -RunSelfTests project-owned DataAsset smoke project batch ChangedOnly rerun
+    - "Create a temporary baseline JSON from the known fixture output and test:"
+    - text no changes one scalar changed one reference changed one field added one field removed one field type changed one truncated/partial comparison asset identity mismatch wrong schema malformed JSON missing baseline
+    - "Required result:"
+    - text all expected positive cases pass all expected negative cases fail with stable codes fixture asset timestamp/hash remains unchanged
+    - text
+    - "Run diff with baseline A -> output generated"
+    - "Run unchanged with baseline A -> skipped"
+    - "Change baseline JSON content only -> output regenerated"
+    - "Run again unchanged -> skipped"
+    - "powershell $env:ASSETDUMP_ENGINE_ROOT = 'D:\\UnrealEngine_Source' .\\Scripts\\RunBPDumpRegression.ps1 -ValidationProfile Plugin -CompactLog"
+    - "Required:"
+    - "text fixture failed_count: 0 validation required_failed_count: 0 existing selection/DataAsset failure_count: 0 new DataAsset Diff failure_count: 0"
+    - Compare one project-owned DataAsset current dump against a previous dump snapshot
+    - Do not alter the asset. Confirm the diff is deterministic and bounded
+    - Then run fresh project batch and immediate ChangedOnly rerun
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataDiff.h
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataDiff.cpp
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+      reason: Add canonical section name data_asset_diff
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Add canonical section name data_asset_diff
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

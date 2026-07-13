@@ -2,9 +2,12 @@
 
 ## Metadata
 
-- document_version: v1.0
+- document_version: v1.1
 - created_at: 2026-07-10
+- updated_at: 2026-07-10
 - target_assetdump_version: v0.7.0
+- implementation_status: implemented_core_verified
+- verification_status: plugin_passed_integration_pending
 - owner_project: CarFight
 - target_plugin: AssetDump
 - artifact_role: codex_task_source
@@ -477,6 +480,99 @@ failed_count: 0
 ChangedOnly skipped_count == asset_count
 ```
 
+## Implementation Result
+
+Status:
+
+```text
+implementation: completed
+core verification: passed
+final integration verification: pending
+completed_at: 2026-07-10 15:59 KST
+```
+
+Implemented files:
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpTypes.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpTypes.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpRunOpts.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpRunOpts.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Public/ADumpDataAsset.h
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpDataAsset.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpService.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpJson.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/ADumpFingerprint.cpp
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+UE/Plugins/ue-assetdump/Content/Validation/DA_ADumpValues.uasset
+```
+
+Actual bounded extraction policy:
+
+```text
+max_depth: 3
+max_collection_items: 8
+max_top_level_fields: 128
+max_preview_lines: 12
+max_fallback_text_length: 256
+```
+
+Verified behavior:
+
+```text
+- data_asset_values registered as a canonical section.
+- data_asset_values_v1 emitted for UDataAsset/UPrimaryDataAsset.
+- Bool, integer, float/double, String, Name, Text, Enum supported.
+- Hard/soft object and class references supported.
+- Array, Set, Map, and Struct supported with explicit truncation.
+- Field, Set, and Map ordering is deterministic.
+- Non-DataAsset assets omit the section without failure.
+- The dedicated builder and schema version participate in planning/fingerprinting.
+- Full mode includes the data_asset_values builder.
+- The reserved data_asset_values Intent was not enabled; the valid Intent list remains unchanged.
+```
+
+Core verification evidence:
+
+```text
+CarFight_ReEditor Win64 Development: succeeded
+Plugin fixture: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+section/intent/profile/data-asset checks: 25/25 passed
+commandlet feature errors: 0
+```
+
+Fixture output:
+
+```text
+schema_version: data_asset_values_v1
+field_count: 17
+reference_field_count: 4
+truncated_field_count: 2
+unsupported_field_count: 0
+```
+
+Evidence files:
+
+```text
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/fixture_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/validation_report.json
+UE/Plugins/ue-assetdump/Dumped/BPDumpValidationPlugin/data_asset_values/DA_ADumpValues.dump.json
+```
+
+Remaining final integration gates:
+
+```text
+- RunBPDumpRegression.ps1 -RunSelfTests evidence for this revision was not found.
+- A project-owned DataAsset smoke dump after this implementation was not provided.
+- The stored project batch and ChangedOnly logs predate the v0.7.0 Plugin validation and cannot close this revision's integration gate.
+- Run a fresh project batch with failed_count=0.
+- Run an immediate ChangedOnly pass with skipped_count == asset_count.
+```
+
+The existing UE API deprecation warning in Commandlet code remains non-blocking and is not attributed to this feature.
+
 ## Migration
 
 Existing commands require no change.
@@ -505,6 +601,14 @@ None.
 - output_target: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml`
 
 ## Changelog
+
+### v1.1
+
+- Recorded completed v0.7.0 implementation and core Plugin verification.
+- Added actual limits: depth 3, collection 8, top-level fields 128, preview 12, fallback text 256.
+- Recorded fixture 9/9, validation 9/9, and 25/25 selection/data-asset checks.
+- Recorded the actual full-mode policy and the decision not to enable the reserved Intent yet.
+- Kept final integration status pending because fresh self-test, project DataAsset, batch, and ChangedOnly evidence was not found.
 
 ### v1.0
 

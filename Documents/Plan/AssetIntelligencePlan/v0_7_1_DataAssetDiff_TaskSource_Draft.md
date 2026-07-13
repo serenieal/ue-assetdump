@@ -2,37 +2,56 @@
 
 ## Metadata
 
-- document_version: v0.1-draft
+- document_version: v0.2-draft
 - created_at: 2026-07-10
+- updated_at: 2026-07-10
 - target_assetdump_version: v0.7.1
 - owner_project: CarFight
 - target_plugin: AssetDump
-- artifact_role: codex_task_source_draft
+- artifact_role: superseded_draft
 - codex_input: false
-- depends_on: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource_Draft.md`
+- superseded_by: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md`
+- generated_codex_task: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml`
 
-## Goal
+## Status
 
-Add DataAsset diff support so AI can identify changed tuning fields and reference fields between previous and current dumps.
+This draft is superseded by the finalized TaskSource and generated Codex contract.
 
-## Draft Scope
+Final source:
 
-1. Compare selected DataAsset value fields between two dump snapshots.
-2. Report changed fields with before and after values.
-3. Include primitive and reference field diffs where available.
-4. Provide schema version `data_asset_diff_v1`.
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+```
 
-## Draft Out of Scope
+Generated task:
 
-1. Do not implement full binary asset diff.
-2. Do not implement query mode.
-3. Do not replace source control diff.
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+```
+
+## Finalized Scope
+
+```text
+section: data_asset_diff
+schema: data_asset_diff_v1
+baseline option: -DataAssetDiffBase=<JSON path>
+comparison input: data_asset_values_v1
+change kinds: added, removed, changed, type_changed
+comparison quality: exact, partial
+baseline fingerprint: normalized path + SHA-256
+normal full mode: diff disabled unless explicitly requested
+```
 
 ## Unresolved
 
-This draft must be refined after v0.7.0 DataAsset Values exists.
+Superseded by finalized TaskSource.
 
 ## Changelog
+
+### v0.2-draft
+
+- Marked this draft as superseded.
+- Added finalized TaskSource and generated Codex task paths.
 
 ### v0.1-draft
 

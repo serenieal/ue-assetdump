@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.5
+- document_version: v1.6
 - created_at: 2026-07-10
 - updated_at: 2026-07-10
 - owner_project: CarFight
@@ -140,8 +140,8 @@ Goal: Add AI-friendly sections for high-value asset families.
 Planned scope:
 
 ```text
-v0.7.0 DataAsset values - next Codex task
-v0.7.1 DataAsset diff
+v0.7.0 DataAsset values - implementation/core verification completed 2026-07-10; integration gate pending
+v0.7.1 DataAsset diff - next prepared Codex task
 v0.7.2 Enhanced Input summary
 v0.7.3 Actor/Blueprint component tree
 ```
@@ -331,16 +331,51 @@ ChangedOnly: 43/43 skipped
 Known port 8100 conflict: safely reclassified with fresh successful reports
 ```
 
+### AssetDump v0.7.0 DataAsset Values
+
+```text
+implementation_status: completed
+core_verification_status: passed
+integration_verification_status: pending
+completed_at: 2026-07-10 15:59 KST
+result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
+generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
+```
+
+Core verification summary:
+
+```text
+CarFight_ReEditor Win64 Development: succeeded
+Plugin fixture: 9/9 succeeded
+Plugin validation: 9/9 succeeded
+Required failures: 0
+Section/Intent/Profile/DataAsset checks: 25/25 succeeded
+Fixture fields: 17
+Reference fields: 4
+Truncated fields: 2
+Unsupported fields: 0
+```
+
+Pending integration evidence:
+
+```text
+fresh regression harness self-test
+project-owned DataAsset smoke
+fresh project batch
+fresh immediate ChangedOnly rerun
+```
+
 ## Recommended Next Execution Path
 
 The next execution sequence should be:
 
 ```text
-1. Use v0_7_0_DataAssetValues_TaskSource.md as the next source task.
-2. Run plan.inspect_unresolved on v0_7_0_DataAssetValues_TaskSource.md.
-3. Run plan.compile_outputs to generate v0_7_0_DataAssetValues_CodexTask.yaml.
-4. Implement the `data_asset_values_v1` specialized DataAsset section.
-5. Validate harness self-tests, editor build, Plugin regression, bounded DataAsset values, project batch, and ChangedOnly behavior.
+1. Close the remaining v0.7.0 integration gates: fresh harness self-test, project DataAsset smoke, project batch, and ChangedOnly rerun.
+2. Use v0_7_1_DataAssetDiff_TaskSource.md as the next implementation source.
+3. Review Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml and its 10 must-change targets.
+4. Implement `data_asset_diff_v1` and `-DataAssetDiffBase=` without mutating assets.
+5. Validate exact/partial diffs, stable errors, baseline-hash fingerprinting, build, Plugin regression, and project integration.
 ```
 
 ## Validation Policy Summary
@@ -376,6 +411,12 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.6
+
+- Recorded v0.7.0 DataAsset Values implementation and 9/9 Plugin, 25/25 feature validation results.
+- Kept v0.7.0 final integration status pending because fresh self-test, project DataAsset, project batch, and ChangedOnly evidence is not yet recorded.
+- Prepared v0.7.1 DataAsset Diff TaskSource and generated Codex contract as the next implementation task.
 
 ### v1.5
 

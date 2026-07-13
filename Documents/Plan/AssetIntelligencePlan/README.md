@@ -2,120 +2,78 @@
 
 This folder contains the planning documents for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
 
-## Documents
+## Current State
 
 ```text
-AssetIntelligenceRoadmap_v1.md
-  Master roadmap and long-term direction.
+v0.6.x foundation: completed
+v0.7.0 DataAsset Values implementation: completed
+v0.7.0 core verification: passed
+v0.7.0 final integration gate: pending
+v0.7.1 DataAsset Diff: Codex task prepared
+```
 
-SectionRegistry_v1.md
-  Canonical section, intent, profile, and schema policy.
+Verified v0.7.0 evidence:
 
-ValidationPolicy_v1.md
-  Validation, build, and process/report classification policy.
+```text
+CarFight_ReEditor Win64 Development: succeeded
+Plugin fixture: 9/9 passed
+Plugin validation: 9/9 passed
+Required failures: 0
+Section/Intent/Profile/DataAsset checks: 25/25 passed
+data_asset_values_v1 fields: 17
+reference fields: 4
+truncated fields: 2
+unsupported fields: 0
+```
 
-TaskSourceTemplate_v1.md
-  Reusable template for Codex-compilable TaskSource documents.
+Remaining v0.7.0 integration evidence:
 
-ImplementationResultLog_v1.md
-  Implementation and verification result log.
-
-v0_6_0_Sections_TaskSource.md
-  Completed implementation plan for -Sections=.
-
-v0_6_1_BuilderControl_TaskSource.md
-  Completed implementation plan for builder-level section control.
-
-v0_6_2_IntentProfile_TaskSource.md
-  Completed implementation plan for -Intent=.
-
-v0_6_3_AIContextProfile_TaskSource.md
-  Completed implementation plan for -Profile= and selection precedence.
-
-v0_6_4_RegressionHarness_TaskSource.md
-  Completed implementation plan for regression harness hardening.
-
-v0_7_0_DataAssetValues_TaskSource.md
-  Current implementation plan for the data_asset_values_v1 specialized section.
-
-v*_TaskSource_Draft.md
-  Draft placeholders or superseded documents that are not Codex inputs.
+```text
+fresh RunBPDumpRegression.ps1 -RunSelfTests
+project-owned DataAsset smoke
+fresh project batch
+fresh immediate ChangedOnly rerun
 ```
 
 ## Current Execution Entry Point
 
-Next code task:
+Next implementation source:
 
 ```text
-v0_7_0_DataAssetValues_TaskSource.md
+v0_7_1_DataAssetDiff_TaskSource.md
 ```
 
 Generated Codex task:
 
 ```text
-Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
+Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
 ```
 
-Primary implementation scope:
+Primary contract:
 
 ```text
-- Add data_asset_values to the section registry and parser.
-- Add bounded DataAsset value extraction.
-- Add dedicated builder control and top-level JSON serialization.
-- Add plugin-owned DataAsset validation coverage.
-- Preserve existing Sections, Intent, Profile, regression, and ChangedOnly behavior.
+section: data_asset_diff
+schema: data_asset_diff_v1
+baseline option: -DataAssetDiffBase=<baseline dump JSON>
+comparison source: data_asset_values_v1
+change kinds: added, removed, changed, type_changed
+comparison quality: exact, partial
+normal full mode: diff disabled unless explicitly requested
 ```
 
-## Completed v0.6.x Foundation
+## Main Documents
 
 ```text
-v0_6_0_Sections_TaskSource.md
-Generated/Final/v0_6_0_Sections_CodexTask.yaml
-
-v0_6_1_BuilderControl_TaskSource.md
-Generated/Final/v0_6_1_BuilderControl_CodexTask.yaml
-
-v0_6_2_IntentProfile_TaskSource.md
-Generated/Final/v0_6_2_IntentProfile_CodexTask.yaml
-
-v0_6_3_AIContextProfile_TaskSource.md
-Generated/Final/v0_6_3_AIContextProfile_CodexTask.yaml
-
-v0_6_4_RegressionHarness_TaskSource.md
-Generated/Final/v0_6_4_RegressionHarness_CodexTask.yaml
+AssetIntelligenceRoadmap_v1.md
+SectionRegistry_v1.md
+ValidationPolicy_v1.md
+ImplementationResultLog_v1.md
+TaskSourceTemplate_v1.md
+v0_7_0_DataAssetValues_TaskSource.md
+v0_7_1_DataAssetDiff_TaskSource.md
 ```
 
-## Current Verified Baseline
-
-```text
-CarFight_ReEditor Win64 Development: succeeded
-Regression harness self-tests: passed
-Plugin fixture: 8/8 passed
-Plugin validation: 8/8 passed
-Section/Intent/Profile checks: 19/19 passed
-Project batch: 43 succeeded, 0 failed
-ChangedOnly rerun: 43/43 skipped
-Known port 8100 conflict: safely classified using fresh successful reports
-```
-
-Engine path resolution now uses:
-
-```text
--EngineRoot
-> ASSETDUMP_ENGINE_ROOT
-> UE_ENGINE_ROOT
-> HMD_UE_CMD
-```
-
-## Generated Outputs
-
-Generated Codex contracts are placed under:
-
-```text
-Generated/Final/
-```
-
-Current generated contracts:
+## Generated Contracts
 
 ```text
 Generated/Final/v0_6_0_Sections_CodexTask.yaml
@@ -124,51 +82,35 @@ Generated/Final/v0_6_2_IntentProfile_CodexTask.yaml
 Generated/Final/v0_6_3_AIContextProfile_CodexTask.yaml
 Generated/Final/v0_6_4_RegressionHarness_CodexTask.yaml
 Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
+Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
 ```
 
 ## Workflow
 
 ```text
-1. Write or update TaskSource.
-2. Run plan.inspect_unresolved.
-3. Resolve blocking unresolved items.
+1. Close or record inherited integration gates.
+2. Review the current TaskSource.
+3. Run plan.inspect_unresolved.
 4. Run plan.compile_outputs.
-5. Review generated Codex YAML and must_change_targets.
-6. Hand the YAML to Codex for implementation.
-7. Verify harness self-tests, build, Plugin regression, feature checks, project batch, and ChangedOnly.
-8. Record results back into the planning folder.
+5. Review generated YAML and must_change_targets.
+6. Implement without modifying unrelated gameplay files or assets.
+7. Verify build, Plugin regression, feature checks, project batch, and ChangedOnly.
+8. Record results in ImplementationResultLog_v1.md.
 ```
 
 ## Changelog
 
+### v1.6
+
+- Recorded v0.7.0 implementation and core verification.
+- Separated completed Plugin validation from pending fresh integration evidence.
+- Added v0.7.1 DataAsset Diff as the current prepared Codex task.
+
 ### v1.5
 
-- Marked v0.6.4 RegressionHarness as completed.
-- Closed the v0.6.x selection and validation foundation.
-- Added v0.7.0 DataAssetValues as the current execution entry point.
-- Added the generated v0.7.0 Codex contract and verified baseline.
-
-### v1.4
-
-- Marked v0.6.3 AIContextProfile as completed and recorded independent verification.
-- Added v0.6.4 RegressionHarness as the current execution entry point.
-- Replaced the obsolete section-smoke task with strict regression-harness hardening.
-
-### v1.3
-
-- Marked v0.6.2 IntentProfile as completed.
-- Added v0.6.3 AIContextProfile as the current execution entry point.
-
-### v1.2
-
-- Marked v0.6.1 BuilderControl as completed.
-- Added v0.6.2 IntentProfile as the current execution entry point.
-
-### v1.1
-
-- Marked v0.6.0 Sections as completed.
-- Added v0.6.1 BuilderControl as the current execution entry point.
+- Marked v0.6.4 Regression Harness as completed.
+- Added v0.7.0 DataAsset Values as the execution entry point.
 
 ### v1.0
 
-- Created AssetIntelligencePlan folder index.
+- Created the AssetIntelligencePlan folder index.

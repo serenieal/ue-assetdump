@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.6.3
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: data_asset_values 섹션 등록, DataAsset fixture, 전용 builder/직렬화 회귀 검사를 추가.
 // - v0.6.3: -Profile= 프리셋, Sections > Intent > Profile 우선순위, 요청 메타 및 스모크 검사를 추가.
 // - v0.6.2: -Intent= 정규화, 섹션 매핑, -Sections= 우선순위, Intent 스모크 검사를 추가.
 // - v0.6.1: 명시적 섹션 선택이 실제 builder 계획을 제어하는지 validation smoke 검사를 추가.
@@ -41,6 +42,7 @@
 
 #include "AssetDumpCommandlet.h"
 
+#include "ADumpDataAsset.h"
 #include "ADumpValidRow.h"
 #include "ADumpFingerprint.h"
 #include "ADumpJson.h"
@@ -111,8 +113,11 @@ namespace
 	// AssetDumpCurveFloatFixtureName은 CurveFloat fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpCurveFloatFixtureName = TEXT("CF_ADumpFixture");
 
-	// AssetDumpDataTableFixtureName은 DataTable fixture 자산명이다.
+				// AssetDumpDataTableFixtureName은 DataTable fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpDataTableFixtureName = TEXT("DT_ADumpValid");
+
+	// AssetDumpDataAssetFixtureName은 data_asset_values 전용 PrimaryDataAsset fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpDataAssetFixtureName = TEXT("DA_ADumpValues");
 
 	// AssetDumpStaticMeshFixtureName은 StaticMesh Socket 검증 fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpStaticMeshFixtureName = TEXT("SM_ADumpSocket");
@@ -216,9 +221,9 @@ namespace
 	}
 
 	// GetValidSectionNamesText는 -Sections=에서 허용하는 정식 섹션 이름 목록을 반환한다.
-	FString GetValidSectionNamesText()
+				FString GetValidSectionNamesText()
 	{
-		return TEXT("summary,digest,details,graphs,references,widget_designer");
+		return TEXT("summary,digest,details,data_asset_values,graphs,references,widget_designer");
 	}
 
 	// GetValidIntentNamesText는 -Intent=에서 허용하는 정식 분석 목적 이름 목록을 반환한다.
@@ -246,9 +251,14 @@ namespace
 			OutSection = EADumpSection::Digest;
 			return true;
 		}
-		if (InSectionName == TEXT("details"))
+								if (InSectionName == TEXT("details"))
 		{
 			OutSection = EADumpSection::Details;
+			return true;
+		}
+		if (InSectionName == TEXT("data_asset_values"))
+		{
+			OutSection = EADumpSection::DataAssetValues;
 			return true;
 		}
 		if (InSectionName == TEXT("graphs"))
@@ -2087,6 +2097,142 @@ namespace
 		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
 	}
 
+	// EnsureDataAssetValuesFixture는 data_asset_values_v1 검증용 PrimaryDataAsset fixture를 생성하거나 확인한다.
+	void EnsureDataAssetValuesFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("data_asset_values"),
+			AssetDumpDataAssetFixtureName,
+			TEXT("ADumpDataAssetFixture"));
+
+		// ExistingObject는 이미 저장된 DataAsset fixture 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// DataAssetFixture는 생성 또는 로드된 data_asset_values 검증 자산이다.
+		UADumpDataAssetFixture* DataAssetFixture = Cast<UADumpDataAssetFixture>(ExistingObject);
+		if (ExistingObject && !DataAssetFixture)
+		{
+			OutResult.FailureMessage = FString::Printf(
+				TEXT("기존 fixture 클래스가 ADumpDataAssetFixture가 아닙니다: %s"),
+				*ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 새로 만들거나 기준값을 보정해 저장이 필요한지 여부다.
+		bool bNeedsSave = false;
+		if (!DataAssetFixture)
+		{
+			// FixturePackage는 새 DataAsset fixture를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("DataAsset fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			DataAssetFixture = NewObject<UADumpDataAssetFixture>(
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				RF_Public | RF_Standalone | RF_Transactional);
+			if (!DataAssetFixture)
+			{
+				OutResult.FailureMessage = TEXT("DataAsset fixture 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(DataAssetFixture);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		// HardReferenceObject는 hard object reference 분류를 검증할 엔진 기본 Cube 자산이다.
+		UObject* HardReferenceObject = FSoftObjectPath(AssetDumpStaticMeshSourcePath).TryLoad();
+		if (!HardReferenceObject)
+		{
+			OutResult.FailureMessage = FString::Printf(
+				TEXT("DataAsset fixture hard reference 원본을 로드하지 못했습니다: %s"),
+				AssetDumpStaticMeshSourcePath);
+			return;
+		}
+
+		if (DataAssetFixture->HardObject.Get() != HardReferenceObject)
+		{
+			DataAssetFixture->Modify();
+			DataAssetFixture->HardObject = HardReferenceObject;
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (DataAssetFixture->HardClass.Get() != UObject::StaticClass())
+		{
+			DataAssetFixture->Modify();
+			DataAssetFixture->HardClass = UObject::StaticClass();
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (DataAssetFixture->NumberArray.Num() != 12)
+		{
+			DataAssetFixture->Modify();
+			DataAssetFixture->NumberArray.Reset();
+			for (int32 NumberIndex = 0; NumberIndex < 12; ++NumberIndex)
+			{
+				DataAssetFixture->NumberArray.Add(NumberIndex * 10);
+			}
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (DataAssetFixture->NestedValue.Samples.Num() != 12)
+		{
+			DataAssetFixture->Modify();
+			DataAssetFixture->NestedValue.Samples.Reset();
+			for (int32 SampleIndex = 0; SampleIndex < 12; ++SampleIndex)
+			{
+				DataAssetFixture->NestedValue.Samples.Add(SampleIndex);
+			}
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (DataAssetFixture->NameSet.Num() != 3)
+		{
+			DataAssetFixture->Modify();
+			DataAssetFixture->NameSet.Reset();
+			DataAssetFixture->NameSet.Add(TEXT("Gamma"));
+			DataAssetFixture->NameSet.Add(TEXT("Alpha"));
+			DataAssetFixture->NameSet.Add(TEXT("Beta"));
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (DataAssetFixture->ScoreMap.Num() != 3)
+		{
+			DataAssetFixture->Modify();
+			DataAssetFixture->ScoreMap.Reset();
+			DataAssetFixture->ScoreMap.Add(TEXT("Gamma"), 30);
+			DataAssetFixture->ScoreMap.Add(TEXT("Alpha"), 10);
+			DataAssetFixture->ScoreMap.Add(TEXT("Beta"), 20);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		if (bNeedsSave)
+		{
+			OutResult.bSaved = SaveValidationFixtureAsset(
+				DataAssetFixture,
+				OutResult.SavedFilePath,
+				OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
 	// IsValidationStaticMeshUsable은 fixture StaticMesh가 최소 렌더 소스 모델을 가지고 있는지 확인한다.
 	bool IsValidationStaticMeshUsable(const UStaticMesh* InStaticMeshAsset)
 	{
@@ -2570,6 +2716,7 @@ namespace
 			|| InDumpResult.Details.Components.Num() > 0
 			|| InDumpResult.Details.StaticMeshSockets.Num() > 0
 			|| InDumpResult.Details.WorldStaticMeshSocketTransforms.Num() > 0
+			|| InDumpResult.DataAssetValues.FieldCount > 0
 			|| InDumpResult.References.Hard.Num() > 0
 			|| InDumpResult.References.Soft.Num() > 0
 			|| !InDumpResult.Summary.ParentClassPath.IsEmpty()
@@ -2830,6 +2977,19 @@ namespace
 		}
 	}
 
+		// LogDataAssetValuesCheck는 필수 data_asset_values 회귀 검사 결과를 고정 로그 문구로 출력한다.
+	void LogDataAssetValuesCheck(const TCHAR* InCheckLabel, bool bInPassed)
+	{
+		if (bInPassed)
+		{
+			UE_LOG(LogTemp, Display, TEXT("%s: passed"), InCheckLabel);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s: failed"), InCheckLabel);
+		}
+	}
+
 	// BuildSectionSmokeValidationObject는 전체/선택/Widget/잘못된 이름 동작을 자산 없이 검증한다.
 	TSharedRef<FJsonObject> BuildSectionSmokeValidationObject(int32& OutFailureCount)
 	{
@@ -2877,7 +3037,7 @@ namespace
 		FString FullProfileDetail;
 		// bFullProfilePassed는 full Profile의 전체 모드 및 builder 호환 여부다.
 		const bool bFullProfilePassed = VerifyIntentResolution(
-			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,graphs,references,widget_designer"), FullProfileDetail);
+			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,data_asset_values,graphs,references,widget_designer"), FullProfileDetail);
 		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_full"), bFullProfilePassed, FullProfileDetail);
 
 		// SummaryProfileDetail은 summary_only Profile 매핑 검증 결과다.
@@ -2990,6 +3150,7 @@ namespace
 			&& CompactRootObject->HasField(TEXT("summary"))
 			&& CompactRootObject->HasField(TEXT("digest"))
 			&& !CompactRootObject->HasField(TEXT("details"))
+			&& !CompactRootObject->HasField(TEXT("data_asset_values"))
 			&& !CompactRootObject->HasField(TEXT("graphs"))
 			&& !CompactRootObject->HasField(TEXT("references"))
 			&& !CompactRootObject->HasField(TEXT("widget_designer"));
@@ -3014,6 +3175,7 @@ namespace
 		// bCompactBuilderControlPassed는 summary만 실행하고 비싼 미요청 builder를 모두 생략하는지 나타낸다.
 		const bool bCompactBuilderControlPassed = CompactRunOpts.ShouldBuildSummary()
 			&& !CompactRunOpts.ShouldBuildDetails()
+			&& !CompactRunOpts.ShouldBuildDataAssetValues()
 			&& !CompactRunOpts.ShouldBuildGraphs()
 			&& !CompactRunOpts.ShouldBuildReferences()
 			&& !CompactRunOpts.ShouldBuildWidgetDesigner()
@@ -3088,6 +3250,7 @@ namespace
 		// bWidgetBuilderControlPassed는 summary와 Widget Designer만 실행 예정인지 나타낸다.
 		const bool bWidgetBuilderControlPassed = WidgetRunOpts.ShouldBuildSummary()
 			&& !WidgetRunOpts.ShouldBuildDetails()
+			&& !WidgetRunOpts.ShouldBuildDataAssetValues()
 			&& !WidgetRunOpts.ShouldBuildGraphs()
 			&& !WidgetRunOpts.ShouldBuildReferences()
 			&& WidgetRunOpts.ShouldBuildWidgetDesigner()
@@ -3123,6 +3286,163 @@ namespace
 			TEXT("invalid_section_rejected"),
 			bInvalidModePassed,
 			InvalidParseError);
+
+				{
+			// DataAssetSelection은 data_asset_values만 명시적으로 요청한 선택값이다.
+			FADumpSectionSelection DataAssetSelection;
+			DataAssetSelection.ResetToExplicitMode();
+			DataAssetSelection.Enable(EADumpSection::DataAssetValues);
+
+			// DataAssetRunOpts는 전용 builder 계획을 검증할 실행 옵션이다.
+			FADumpRunOpts DataAssetRunOpts;
+			DataAssetRunOpts.AssetObjectPath = TEXT("/AssetDump/Validation/DA_ADumpValues.DA_ADumpValues");
+			DataAssetRunOpts.SectionSelection = DataAssetSelection;
+			DataAssetRunOpts.bIncludeSummary = true;
+			DataAssetRunOpts.bIncludeDetails = true;
+			DataAssetRunOpts.bIncludeGraphs = true;
+			DataAssetRunOpts.bIncludeReferences = true;
+
+			// DataAssetBuilderNames는 실제 실행 예정인 builder 목록이다.
+			const TArray<FString> DataAssetBuilderNames = DataAssetRunOpts.GetBuilderSectionNames();
+
+			// bDataAssetBuilderPlanPassed는 전용 builder만 실행되는지 나타낸다.
+			const bool bDataAssetBuilderPlanPassed = !DataAssetRunOpts.ShouldBuildSummary()
+				&& !DataAssetRunOpts.ShouldBuildDetails()
+				&& DataAssetRunOpts.ShouldBuildDataAssetValues()
+				&& !DataAssetRunOpts.ShouldBuildGraphs()
+				&& !DataAssetRunOpts.ShouldBuildReferences()
+				&& !DataAssetRunOpts.ShouldBuildWidgetDesigner()
+				&& DataAssetBuilderNames.Num() == 1
+				&& DataAssetBuilderNames[0] == TEXT("data_asset_values");
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_values_builder_plan"), bDataAssetBuilderPlanPassed, FString::Join(DataAssetBuilderNames, TEXT(",")));
+			LogDataAssetValuesCheck(TEXT("data_asset_values builder-plan check"), bDataAssetBuilderPlanPassed);
+
+			// DataAssetFixture는 파일 없이 reflection 추출을 검증할 transient fixture다.
+			UADumpDataAssetFixture* DataAssetFixture = NewObject<UADumpDataAssetFixture>(GetTransientPackage());
+
+			// DataAssetValues는 transient fixture에서 추출한 전용 섹션 결과다.
+			FADumpDataAssetValues DataAssetValues;
+
+			// DataAssetIssues는 전용 builder가 보고한 issue 목록이다.
+			TArray<FADumpIssue> DataAssetIssues;
+
+			// DataAssetPerf는 전용 builder 추출 비용 누적 구조다.
+			FADumpPerf DataAssetPerf;
+
+			// bDataAssetExtractPassed는 transient DataAsset 추출 성공 여부다.
+			const bool bDataAssetExtractPassed = DataAssetFixture
+				&& ADumpDataAsset::ExtractDataAssetValuesFromObject(DataAssetFixture, DataAssetValues, DataAssetIssues, DataAssetPerf);
+
+			// DataAssetResult는 전용 섹션 JSON 직렬화를 검증할 최소 결과다.
+			FADumpResult DataAssetResult = FADumpResult::CreateDefault();
+			DataAssetResult.Request.SectionSelection = DataAssetSelection;
+			DataAssetResult.DataAssetValues = DataAssetValues;
+
+			// DataAssetRootObject는 data_asset_values만 요청한 최상위 JSON 결과다.
+			TSharedRef<FJsonObject> DataAssetRootObject = ADumpJson::MakeResultObject(DataAssetResult);
+
+			// bDataAssetSchemaPassed는 메모리 및 최상위 JSON이 v1 스키마를 사용하는지 나타낸다.
+			const bool bDataAssetSchemaPassed = bDataAssetExtractPassed
+				&& DataAssetValues.SchemaVersion == TEXT("data_asset_values_v1")
+				&& DataAssetRootObject->HasField(TEXT("data_asset_values"));
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_values_schema"), bDataAssetSchemaPassed, DataAssetValues.SchemaVersion);
+			LogDataAssetValuesCheck(TEXT("data_asset_values schema check"), bDataAssetSchemaPassed);
+
+			// bDataAssetFieldsSorted는 fields가 property_name 오름차순인지 나타낸다.
+			bool bDataAssetFieldsSorted = true;
+			for (int32 FieldIndex = 1; FieldIndex < DataAssetValues.Fields.Num(); ++FieldIndex)
+			{
+				if (DataAssetValues.Fields[FieldIndex - 1].PropertyName > DataAssetValues.Fields[FieldIndex].PropertyName)
+				{
+					bDataAssetFieldsSorted = false;
+					break;
+				}
+			}
+
+			// bDataAssetFieldCountPassed는 대표 필드 수와 정렬이 기대값을 만족하는지 나타낸다.
+			const bool bDataAssetFieldCountPassed = bDataAssetExtractPassed
+				&& DataAssetValues.FieldCount == DataAssetValues.Fields.Num()
+				&& DataAssetValues.FieldCount >= 17
+				&& bDataAssetFieldsSorted;
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_values_field_count"), bDataAssetFieldCountPassed, FString::FromInt(DataAssetValues.FieldCount));
+			LogDataAssetValuesCheck(TEXT("data_asset_values field count check"), bDataAssetFieldCountPassed);
+
+			// FindDataAssetField는 property_name으로 전용 필드를 찾는 지역 helper다.
+			auto FindDataAssetField = [&DataAssetValues](const TCHAR* InPropertyName) -> const FADumpDataAssetField*
+			{
+				return DataAssetValues.Fields.FindByPredicate([InPropertyName](const FADumpDataAssetField& InField)
+				{
+					return InField.PropertyName == InPropertyName;
+				});
+			};
+
+			// HardObjectField는 하드 오브젝트 참조 분류 결과다.
+			const FADumpDataAssetField* HardObjectField = FindDataAssetField(TEXT("HardObject"));
+
+			// HardClassField는 하드 클래스 참조 분류 결과다.
+			const FADumpDataAssetField* HardClassField = FindDataAssetField(TEXT("HardClass"));
+
+			// SoftObjectField는 소프트 오브젝트 참조 분류 결과다.
+			const FADumpDataAssetField* SoftObjectField = FindDataAssetField(TEXT("SoftObject"));
+
+			// SoftClassField는 소프트 클래스 참조 분류 결과다.
+			const FADumpDataAssetField* SoftClassField = FindDataAssetField(TEXT("SoftClass"));
+
+			// bDataAssetReferencePassed는 hard/soft object/class 참조가 모두 분류되는지 나타낸다.
+			const bool bDataAssetReferencePassed = DataAssetValues.ReferenceFieldCount >= 4
+				&& HardObjectField && HardObjectField->ValueKind == EADumpValueKind::ObjectRef && HardObjectField->bIsAssetReference
+				&& HardClassField && HardClassField->ValueKind == EADumpValueKind::ClassRef && HardClassField->bIsAssetReference
+				&& SoftObjectField && SoftObjectField->ValueKind == EADumpValueKind::SoftObjectRef && SoftObjectField->bIsAssetReference
+				&& SoftClassField && SoftClassField->ValueKind == EADumpValueKind::SoftClassRef && SoftClassField->bIsAssetReference;
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_values_reference_classification"), bDataAssetReferencePassed, FString::FromInt(DataAssetValues.ReferenceFieldCount));
+			LogDataAssetValuesCheck(TEXT("data_asset_values reference classification check"), bDataAssetReferencePassed);
+
+			// NumberArrayField는 배열 요소 제한을 검증할 필드다.
+			const FADumpDataAssetField* NumberArrayField = FindDataAssetField(TEXT("NumberArray"));
+
+			// NestedValueField는 구조체 내부 컬렉션 제한을 검증할 필드다.
+			const FADumpDataAssetField* NestedValueField = FindDataAssetField(TEXT("NestedValue"));
+
+			// bDataAssetBoundedPassed는 컬렉션 및 구조체 재귀 예산이 적용되는지 나타낸다.
+			const bool bDataAssetBoundedPassed = DataAssetValues.TruncatedFieldCount >= 2
+				&& NumberArrayField && NumberArrayField->bTruncated
+				&& NestedValueField && NestedValueField->bTruncated;
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_values_bounded_collection_struct"), bDataAssetBoundedPassed, FString::FromInt(DataAssetValues.TruncatedFieldCount));
+			LogDataAssetValuesCheck(TEXT("data_asset_values bounded collection/struct check"), bDataAssetBoundedPassed);
+
+			// NonDataAssetObject는 전용 섹션이 조용히 생략되어야 하는 일반 자산이다.
+			UCurveFloat* NonDataAssetObject = NewObject<UCurveFloat>(GetTransientPackage());
+
+			// NonDataAssetValues는 비대상 자산에서 비어 있어야 하는 전용 결과다.
+			FADumpDataAssetValues NonDataAssetValues;
+
+			// NonDataAssetIssues는 비대상 자산 처리 중 비어 있어야 하는 issue 목록이다.
+			TArray<FADumpIssue> NonDataAssetIssues;
+
+			// NonDataAssetPerf는 비대상 자산 처리 비용 누적 구조다.
+			FADumpPerf NonDataAssetPerf;
+
+			// bNonDataAssetExtractPassed는 비대상 자산이 실패 없이 처리되는지 나타낸다.
+			const bool bNonDataAssetExtractPassed = NonDataAssetObject
+				&& ADumpDataAsset::ExtractDataAssetValuesFromObject(NonDataAssetObject, NonDataAssetValues, NonDataAssetIssues, NonDataAssetPerf);
+
+			// NonDataAssetResult는 비대상 자산 JSON 생략을 검증할 최소 결과다.
+			FADumpResult NonDataAssetResult = FADumpResult::CreateDefault();
+			NonDataAssetResult.Request.SectionSelection = DataAssetSelection;
+			NonDataAssetResult.DataAssetValues = NonDataAssetValues;
+
+			// NonDataAssetRootObject는 비대상 자산 직렬화 결과다.
+			TSharedRef<FJsonObject> NonDataAssetRootObject = ADumpJson::MakeResultObject(NonDataAssetResult);
+
+			// bNonDataAssetOmissionPassed는 비대상 자산에서 섹션과 issue가 생기지 않는지 나타낸다.
+			const bool bNonDataAssetOmissionPassed = bNonDataAssetExtractPassed
+				&& NonDataAssetValues.SchemaVersion.IsEmpty()
+				&& NonDataAssetValues.Fields.IsEmpty()
+				&& NonDataAssetIssues.IsEmpty()
+				&& !NonDataAssetRootObject->HasField(TEXT("data_asset_values"));
+			AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("data_asset_values_non_data_asset_omission"), bNonDataAssetOmissionPassed, FString::FromInt(NonDataAssetIssues.Num()));
+			LogDataAssetValuesCheck(TEXT("data_asset_values non-DataAsset omission check"), bNonDataAssetOmissionPassed);
+		}
 
 		// ValidationObject는 validate report에 포함할 섹션 스모크 검사 묶음이다.
 		TSharedRef<FJsonObject> ValidationObject = MakeShared<FJsonObject>();
@@ -4268,8 +4588,17 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 			CurveCase.ExpectedAssetClass = TEXT("CurveFloat");
 			CurveCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpCurveFloatFixtureName));
 			CurveCase.bIsOptionalSample = false;
-			CurveCase.MinCurveKeyCount = 2;
+						CurveCase.MinCurveKeyCount = 2;
 			ValidationCaseArray.Add(CurveCase);
+
+			// DataAssetValuesCase는 data_asset_values_v1 전용 PrimaryDataAsset fixture 검증 케이스다.
+			FValidationCaseDefinition DataAssetValuesCase;
+			DataAssetValuesCase.CaseName = TEXT("data_asset_values");
+			DataAssetValuesCase.ExpectedAssetFamily = TEXT("primary_data_asset");
+			DataAssetValuesCase.ExpectedAssetClass = TEXT("ADumpDataAssetFixture");
+			DataAssetValuesCase.CandidateObjectPathArray.Add(BuildValidationFixtureObjectPath(AssetDumpDataAssetFixtureName));
+			DataAssetValuesCase.bIsOptionalSample = false;
+			ValidationCaseArray.Add(DataAssetValuesCase);
 
 			// StaticMeshCase는 공용 StaticMesh Socket fixture 검증 케이스다.
 			FValidationCaseDefinition StaticMeshCase;
@@ -4772,7 +5101,7 @@ bool UAssetDumpCommandlet::BuildValidationFixtureJson(const FString& CommandLine
 
 	// FixtureResultArray는 생성/확인한 fixture 결과 목록이다.
 	TArray<FValidationFixtureBuildResult> FixtureResultArray;
-	FixtureResultArray.Reserve(8);
+		FixtureResultArray.Reserve(9);
 
 	{
 		// StaticMeshResult는 StaticMesh Socket fixture 생성/확인 결과다.
@@ -4826,11 +5155,18 @@ bool UAssetDumpCommandlet::BuildValidationFixtureJson(const FString& CommandLine
 		FixtureResultArray.Add(CurveResult);
 	}
 
-	{
+		{
 		// DataTableResult는 DataTable fixture 생성/확인 결과다.
 		FValidationFixtureBuildResult DataTableResult;
 		EnsureDataTableFixture(DataTableResult);
 		FixtureResultArray.Add(DataTableResult);
+	}
+
+	{
+		// DataAssetValuesResult는 data_asset_values fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult DataAssetValuesResult;
+		EnsureDataAssetValuesFixture(DataAssetValuesResult);
+		FixtureResultArray.Add(DataAssetValuesResult);
 	}
 
 	// FixtureObjectArray는 report fixtures 배열에 들어갈 JSON 값 목록이다.

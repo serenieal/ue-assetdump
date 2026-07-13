@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.7.2
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: data_asset_values 전용 builder를 조건부 서비스 단계에 연결.
 // - v0.7.2: v0.6.3 Profile 메타가 포함된 요청 스냅샷을 changed-only 판정에 그대로 사용.
 // - v0.7.1: v0.6.2 Intent 메타를 포함한 시작 요청 스냅샷을 changed-only 판단에도 재사용.
 // - v0.7.0: v0.6.1 명시적 섹션 선택에 따라 details/graphs/references/Widget Designer builder를 생략.
@@ -20,6 +21,7 @@
 
 #include "ADumpService.h"
 
+#include "ADumpDataAsset.h"
 #include "ADumpDetailExt.h"
 #include "ADumpFingerprint.h"
 #include "ADumpGraphExt.h"
@@ -150,7 +152,8 @@ namespace
 		return !InResult.Asset.AssetObjectPath.IsEmpty()
 			|| !InResult.Graphs.IsEmpty()
 			|| InResult.Details.ClassDefaults.Num() > 0
-			|| InResult.Details.Components.Num() > 0
+						|| InResult.Details.Components.Num() > 0
+			|| InResult.DataAssetValues.FieldCount > 0
 			|| InResult.References.Hard.Num() > 0
 			|| InResult.References.Soft.Num() > 0
 			|| !InResult.Summary.ParentClassPath.IsEmpty()
@@ -258,7 +261,7 @@ EADumpPhase FADumpService::ResolveNextPhase(EADumpPhase InCurrentPhase) const
 		{
 			return EADumpPhase::Summary;
 		}
-		if (ActiveRunOpts.ShouldBuildDetails())
+		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues())
 		{
 			return EADumpPhase::Details;
 		}
@@ -272,7 +275,7 @@ EADumpPhase FADumpService::ResolveNextPhase(EADumpPhase InCurrentPhase) const
 		}
 		return EADumpPhase::Save;
 	case EADumpPhase::Summary:
-		if (ActiveRunOpts.ShouldBuildDetails())
+		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues())
 		{
 			return EADumpPhase::Details;
 		}
@@ -585,14 +588,16 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		return true;
 	}
 
-	if (ActivePhase == EADumpPhase::Details)
+		if (ActivePhase == EADumpPhase::Details)
 	{
 		UpdateProgress(
 			EADumpPhase::Details,
-			TEXT("디테일"),
-			TEXT("클래스 기본값과 컴포넌트 정보를 추출하고 있습니다."),
+			TEXT("값 추출"),
+			TEXT("요청된 상세 정보와 DataAsset 중요 값을 추출하고 있습니다."),
 			GetPhasePercent(EADumpPhase::Details));
-		if (!ADumpDetailExt::ExtractDetails(
+
+		if (ActiveRunOpts.ShouldBuildDetails()
+			&& !ADumpDetailExt::ExtractDetails(
 				ActiveRunOpts.AssetObjectPath,
 				ActiveResult.Asset,
 				ActiveResult.Details,
@@ -601,9 +606,20 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		{
 			bAllRequestedSectionsSucceeded = false;
 		}
+
+		if (ActiveRunOpts.ShouldBuildDataAssetValues()
+			&& !ADumpDataAsset::ExtractDataAssetValues(
+				ActiveRunOpts.AssetObjectPath,
+				ActiveResult.DataAssetValues,
+				ActiveResult.Issues,
+				ActiveResult.Perf))
+		{
+			bAllRequestedSectionsSucceeded = false;
+		}
+
 		RecountIssueStats();
 		ActivePhase = ResolveNextPhase(EADumpPhase::Details);
-		StatusMessage = TEXT("디테일 정보 추출이 끝났습니다.");
+		StatusMessage = TEXT("요청된 값 정보 추출이 끝났습니다.");
 		OutMessage = StatusMessage;
 		return true;
 	}

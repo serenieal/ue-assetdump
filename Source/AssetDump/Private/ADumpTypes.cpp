@@ -1,6 +1,7 @@
 // File: ADumpTypes.cpp
-// Version: v0.7.0
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: data_asset_values 섹션 이름/순서와 extractor 2.5.0을 추가.
 // - v0.7.0: v0.6.3 Profile 요청 메타 추가에 맞춰 extractor 버전을 2.4.1로 갱신.
 // - v0.6.0: v0.6.2 Intent 요청 메타를 결과 요청 스냅샷에 보관할 타입 기반을 추가.
 // - v0.5.0: v0.6.1 builder 제어용 summary 데이터 의존성 helper를 추가.
@@ -28,9 +29,9 @@ namespace ADumpSchema
 		return TEXT("2.0");
 	}
 
-	const TCHAR* GetExtractorVersionText()
+		const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("2.4.1");
+		return TEXT("2.5.0");
 	}
 }
 
@@ -109,8 +110,10 @@ const TCHAR* ToString(EADumpSection InValue)
 		return TEXT("summary");
 	case EADumpSection::Digest:
 		return TEXT("digest");
-	case EADumpSection::Details:
+		case EADumpSection::Details:
 		return TEXT("details");
+	case EADumpSection::DataAssetValues:
+		return TEXT("data_asset_values");
 	case EADumpSection::Graphs:
 		return TEXT("graphs");
 	case EADumpSection::References:
@@ -169,9 +172,10 @@ TArray<FString> FADumpSectionSelection::GetEnabledNames() const
 {
 	// SectionOrder는 JSON 및 fingerprint에서 사용할 고정 섹션 순서다.
 	const EADumpSection SectionOrder[] = {
-		EADumpSection::Summary,
+				EADumpSection::Summary,
 		EADumpSection::Digest,
 		EADumpSection::Details,
+		EADumpSection::DataAssetValues,
 		EADumpSection::Graphs,
 		EADumpSection::References,
 		EADumpSection::WidgetDesigner
