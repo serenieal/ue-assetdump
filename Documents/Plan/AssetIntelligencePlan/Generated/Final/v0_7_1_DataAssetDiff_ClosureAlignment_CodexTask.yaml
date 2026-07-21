@@ -1,0 +1,76 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+  - UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+chain:
+  - inspect
+op:
+  - add_tests
+u:
+  - None
+ld:
+  novelty_directives:
+    - "Correct the two evidence-integrity defects found during independent review of the initial v0.7.1 closure harness candidate, then regenerate trustworthy 11/11 closure evidence"
+    - "The final harness must validate stable error codes emitted by the real AssetDump commandlet. It must not append or synthesize an expected error code after command execution. It must also leave every file under Content/Validation byte-for-byte and timestamp-identical after makefixtures, without requiring manual restoration"
+    - Update the commandlet failure path so structured FADumpIssue.Code values are emitted to the real process log before returning a nonzero result
+    - Update the closure script so negative cases inspect only captured commandlet output
+    - Delete all code that appends or synthesizes HarnessStableErrorCode or an equivalent expected-code line
+    - "Add a pre-makefixtures binary and metadata snapshot for all .uasset and .umap files under:"
+    - text UE/Plugins/ue-assetdump/Content/Validation
+    - Restore any changed validation files automatically in a finally path
+    - Restore original LastWriteTimeUtc after restoring file bytes
+    - "Verify every pre-existing validation file has the same:"
+    - relative path
+    - SHA-256
+    - byte length
+    - LastWriteTimeUtc.Ticks
+    - Detect unexpected newly created .uasset or .umap files and remove only files created by this closure run after recording them
+    - Record validation-content restoration evidence in the final report
+    - Run the final closure without -SkipBuild
+    - Run the existing Plugin regression after the alignment change
+  acceptance_criteria:
+    - powershell
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+      reason: Update the commandlet failure path so structured FADumpIssue.Code values are emitted to the real process log before returning a nonzero result
+    -
+      path: UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+      reason: Update the commandlet failure path so structured FADumpIssue.Code values are emitted to the real process log before returning a nonzero result
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

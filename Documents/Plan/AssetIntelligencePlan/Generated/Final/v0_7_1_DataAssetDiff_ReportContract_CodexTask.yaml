@@ -1,0 +1,67 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+u:
+  - None
+ld:
+  novelty_directives:
+    - Complete the final machine-readable report contract for the already functioning v0.7.1 DataAsset Diff closure alignment
+    - "The C++ logging path, real commandlet error-code evidence, validation-content restoration, editor build, 11/11 closure behavior, Plugin fixtures, Plugin validation, project batch, and ChangedOnly behavior have passed. This task changes only the PowerShell report shape and final predicates so the generated report exactly exposes the fields required by the existing Closure Alignment contract"
+    - Update only RunDataAssetDiffClosure.ps1
+    - Increment the script version from v1.4 to v1.5
+    - Preserve the existing nested validation_content_restoration object for compatibility
+    - Add the six required top-level report fields
+    - Generate a full post-restoration validation-content manifest without altering source files or overwriting the original backup
+    - "Record, for each negative case, the exact matched process-log line and evidence source"
+    - Compute negative_error_codes_from_process_log from observed process output for all five required negative cases
+    - Explicitly reject HarnessStableErrorCode or any equivalent harness-generated marker in captured process output
+    - Make all_passed directly require the two evidence booleans
+    - Regenerate the closure report with a full run
+  acceptance_criteria:
+    - "powershell $tokens = $null $errors = $null [System.Management.Automation.Language.Parser]::ParseFile( (Resolve-Path '.\\Scripts\\RunDataAssetDiffClosure.ps1'), [ref]$tokens, [ref]$errors ) | Out-Null if ($errors.Count -ne 0) { throw ($errors | Out-String) }"
+    - "$env:ASSETDUMP_ENGINE_ROOT = 'D:\\UnrealEngine_Source' .\\Scripts\\RunDataAssetDiffClosure.ps1 -CompactLog"
+    - "$report = Get-Content '.\\Dumped\\DataAssetDiffClosure\\data_asset_diff_closure_report.json' -Raw | ConvertFrom-Json $required = @( 'validation_content_before', 'validation_content_after', 'validation_content_restored_count', 'validation_content_removed_new_file_count', 'validation_content_unchanged', 'negative_error_codes_from_process_log' ) foreach ($name in $required) { if ($report.PSObject.Properties.Name -notcontains $name) { throw \"Missing report field: $name\" } } if ($report.case_count -ne 11 -or $report.failed_count -ne 0) { throw 'Closure case result failed.' } if (-not $report.validation_content_unchanged) { throw 'Validation content manifest mismatch.' } if (-not $report.negative_error_codes_from_process_log) { throw 'Negative codes are not proven by process logs.' } if (-not $report.all_passed) { throw 'Final closure report failed.' }"
+    - "if (Select-String -Path '.\\Scripts\\RunDataAssetDiffClosure.ps1' -SimpleMatch 'HarnessStableErrorCode') { throw 'Synthetic marker implementation remains.' }"
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+      reason: Update only RunDataAssetDiffClosure.ps1
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

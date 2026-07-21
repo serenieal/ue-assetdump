@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.8
+- document_version: v1.11
 - created_at: 2026-07-10
 - updated_at: 2026-07-13
 - owner_project: CarFight
@@ -42,7 +42,7 @@ TaskSource documents should reference this registry rather than redefining secti
 |---|---|---:|---|
 | `widget_designer` | WidgetBlueprint Designer hierarchy | Existing | `widget_designer_v1` |
 | `data_asset_values` | DataAsset field/value summary | Implemented v0.7.0; release gate complete | `data_asset_values_v1` |
-| `data_asset_diff` | DataAsset before/after field diff | Implemented v0.7.1; regression passed, contract cases pending | `data_asset_diff_v1` |
+| `data_asset_diff` | DataAsset before/after field diff | Implemented v0.7.1; functional closure passed, report contract pending | `data_asset_diff_v1` |
 | `input_summary` | Enhanced Input Action/Mapping summary | Implemented v0.7.2; release-ready gate passed, human release review pending | `input_summary_v1` |
 | `component_tree` | Actor/Blueprint component hierarchy | Planned v0.7.3 | `component_tree_v1` |
 | `material_param_summary` | Material and MaterialInstance parameter summary | Draft v0.7.4 | `material_param_summary_v1` |
@@ -73,9 +73,21 @@ section: data_asset_diff
 schema_version: data_asset_diff_v1
 implementation_status: completed
 regression_verification_status: passed
-contract_acceptance_status: pending_remaining_cases
+independent_build_status: passed
+functional_closure_status: passed
+contract_acceptance_status: pending_report_contract
+closure_candidate_status: rejected_evidence_integrity
+closure_task_status: candidate_rejected
+closure_alignment_status: functional_alignment_completed
+report_contract_status: prepared
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
 generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+closure_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
+closure_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+closure_alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+closure_alignment_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+report_contract_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+report_contract_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 ```
 
 Completed v0.7.2 specialized section:
@@ -98,7 +110,7 @@ release_ready_status: passed
 release_status: pending_human_review
 release_gate_status: passed
 closure_reported_at: 2026-07-13 08:16:36 KST
-v0_7_1_contract_acceptance_status: pending_remaining_cases
+v0_7_1_contract_acceptance_status: pending_report_contract
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
 generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
 alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
@@ -297,6 +309,26 @@ No runtime migration is required for this registry. Implementation TaskSource do
 None.
 
 ## Changelog
+
+### v1.11
+
+- Recorded successful functional v0.7.1 closure alignment with real process-log codes and automatic validation-content restoration.
+- Reduced the remaining `data_asset_diff_v1` gate to the top-level report contract and explicit final predicates.
+- Added the Report Contract TaskSource and generated Codex contract.
+- Updated the inherited v0.7.1 status for the completed v0.7.2 section.
+
+### v1.10
+
+- Recorded the nominal 11/11 v0.7.1 closure candidate and independently successful editor build.
+- Rejected the candidate evidence because stable negative codes were synthesized by the harness and validation assets required manual restoration.
+- Promoted the Closure Alignment TaskSource and generated Codex contract.
+- Kept `data_asset_diff_v1` at `pending_closure_alignment` until corrected evidence passes.
+
+### v1.9
+
+- Added the v0.7.1 DataAsset Diff 11-case closure TaskSource and generated Codex contract.
+- Changed `data_asset_diff_v1` acceptance state to `pending_closure_execution`.
+- Kept the section unaccepted until the closure report records 11/11 successful cases.
 
 ### v1.8
 

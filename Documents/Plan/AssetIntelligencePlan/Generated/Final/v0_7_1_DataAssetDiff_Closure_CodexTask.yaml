@@ -1,0 +1,84 @@
+k: generic_plan_compile
+tf:
+  - UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+blk:
+  - fail_on_blocking_unresolved
+  - block_on_goal_missing
+  - block_on_in_scope_missing
+  - block_on_constraints_missing
+  - block_on_verification_missing
+  - block_on_target_files_missing
+  - block_on_scope_conflict
+op:
+  - add_tests
+chk:
+  - compile_both_pass
+u:
+  - None
+ld:
+  novelty_directives:
+    - Close the 11 remaining v0.7.1 DataAsset Diff acceptance cases with a reproducible end-to-end PowerShell validation harness
+    - "The harness must generate controlled baseline JSON variants, invoke the real AssetDump commandlet, verify positive and expected-failure behavior, preserve evidence, and write one machine-readable closure report. It must not modify AssetDump C++ behavior or save project-owned assets"
+    - "Add a dedicated script:"
+    - text UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+    - "Resolve the project and Unreal Engine using the established v1.5 regression-harness precedence:"
+    - text -EngineRoot ASSETDUMP_ENGINE_ROOT UE_ENGINE_ROOT HMD_UE_CMD
+    - "Accept these parameters:"
+    - text -ProjectFile -EngineRoot -FixtureAsset -ProjectDataAsset -OutputRoot -CompactLog -SkipBuild
+    - "Recommended defaults:"
+    - "text FixtureAsset=/AssetDump/Validation/DA_ADumpValues.DA_ADumpValues ProjectDataAsset=/Game/CarFight/Input/IA_VehicleMove.IA_VehicleMove OutputRoot=<PluginRoot>/Dumped/DataAssetDiffClosure"
+    - "Run or ensure the following prerequisites:"
+    - editor build unless -SkipBuild
+    - Plugin makefixtures
+    - a fresh fixture data_asset_values baseline dump
+    - a fresh project-owned DataAsset data_asset_values snapshot
+    - Generate baseline variants only under the closure output root
+    - "Invoke the real commandlet using -Mode=bpdump, -Sections=data_asset_diff, and -DataAssetDiffBase="
+    - "Validate expected-success commands from fresh output JSON, not process exit code alone"
+    - Allow the known external HTTP listener port 8100 conflict only under the same strict report/output rules as the v1.5 regression harness
+    - "Validate expected-failure commands by:"
+    - nonzero command result
+    - expected stable error code in log
+    - no newly created final output
+    - "no crash, fatal error, access violation, assertion, or unrelated AssetDump error"
+    - "Create one final report:"
+    - "text <OutputRoot>/data_asset_diff_closure_report.json"
+    - Preserve per-case logs and selected output JSON for review
+    - Clean temporary oversized/malformed files only after their metadata and result are recorded; other evidence may remain under the closure root
+    - Exit 0 only when all required cases pass
+    - Exit nonzero when any required case fails
+  acceptance_criteria:
+    - powershell
+    - must_change_targets를 검토하지 않고 이미 구현됨으로 종료하면 실패다
+  failure_reproduction:
+    requested_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
+    effective_source_plan_path: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
+    folder_orchestration_applied: false
+  must_change_targets:
+    -
+      path: UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+      reason: "Add a dedicated script:"
+  non_success_conditions:
+    - acceptance_criteria를 충족하지 못하면 성공이 아니다
+    - must_change_targets 검토 없이 수정 파일 0개로 종료하면 재검토가 필요하다
+    - 대상 파일 변경 필요성을 확인하지 않고 이미 구현됨으로 종료하면 성공이 아니다
+    - failure_reproduction 입력이 남아 있으면 원인 확인 없이 성공 처리하면 안 된다
+metadata:
+  ssot_preflight:
+    checked: true
+    profile: codex_task
+    status: ok
+    blocked: false
+    warn_only: true
+    documents:
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_SSOT_Master.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Golden_Path.md
+      - GoPyMCP/Workspace/docs/mcp_ssot/MCP_Error_Guide.md
+    guidance_codes:
+      - codex_task_slots_required
+      - check_mcp_ssot_before_generation
+      - prefer_plan_build_from_folder_request
+      - use_plan_build_from_folder_request
+      - no_manual_longform_fallback
+    warning_codes:
+      - target_path_ignored

@@ -12,101 +12,104 @@ v0_6_3_AIContextProfile_CodexTask.yaml
 v0_6_4_RegressionHarness_CodexTask.yaml
 v0_7_0_DataAssetValues_CodexTask.yaml
 v0_7_1_DataAssetDiff_CodexTask.yaml
+v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 v0_7_2_InputSummary_CodexTask.yaml
 v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
 
-## Active Contract
+## Current Active Contract
 
 ```text
-None.
+v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 ```
 
-The v0.7.2 original and alignment contracts are completed historical execution artifacts:
+Source of truth:
 
 ```text
-v0_7_2_InputSummary_CodexTask.yaml
-v0_7_2_InputSummary_Alignment_CodexTask.yaml
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
 ```
 
-Their TaskSources are:
+## Mandatory Change Target
 
 ```text
-UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
-UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
+UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
 ```
 
-## v0.7.2 Final State
+The active contract has exactly one mandatory target.
+
+## Verified Functional Baseline
 
 ```text
-implementation: completed
-C++ compile: passed
-editor build/link: passed
+AssetDumpCommandlet.cpp v0.10.1: real issue-code logging passed
+RunDataAssetDiffClosure.ps1 v1.4: functional alignment passed
+CarFight_ReEditor build: passed
+closure cases: 11/11 passed
+negative process-log codes: 5/5 passed
+validation-content restoration: passed
 Plugin fixtures: 9/9 passed
 Plugin validation: 9/9 passed
-required_failed_count: 0
-section selection: 33/33 passed
-project batch: 43/43 succeeded
+project batch: 43/43 passed
 ChangedOnly: 43/43 skipped
-contract alignment: passed
-trigger-chain validation: passed
-byte-level determinism: passed
-release-ready gate: passed
-human release review: pending
 ```
 
-Closure evidence:
+## Remaining Contract Work
+
+Add these top-level report fields while retaining the nested restoration object:
 
 ```text
-InputTriggerPressed fixture: trigger_count=1
-repeated IMC input_summary: 1195 bytes == 1195 bytes
-IA_VehicleMove: input_summary_v1, axis2d
-IMC_Vehicle_Default: input_summary_v1, 42 mappings, 6 modifiers, 0 triggers
-git diff --check: passed with line-ending warnings only
+validation_content_before
+validation_content_after
+validation_content_restored_count
+validation_content_removed_new_file_count
+validation_content_unchanged
+negative_error_codes_from_process_log
 ```
 
-Accepted bounds:
+The final `all_passed` predicate must directly require:
 
 ```text
-max mappings: 128
-max modifiers per owner: 16
-max triggers per owner: 16
-max shallow settings: 16
-max preview lines: 12
+case_count == 11
+failed_count == 0
+validation_content_unchanged == true
+negative_error_codes_from_process_log == true
 ```
 
-Accepted behavior:
+Negative cases must also record their matched original process-log line and explicitly reject synthetic markers.
+
+## Contract Status
 
 ```text
-typed setting descriptors
-bounded unsupported-setting fallback
-stable input warning codes
-chain-aware deterministic mapping order
-modifier/trigger source-order preservation
-reserved input_bindings Intent remains disabled
+TaskSource inspection: passed
+blocking_unresolved: []
+Codex YAML compilation: passed
+must_change_targets: 1
+functional closure alignment: passed
+report contract implementation: pending
+v0.7.1 contract acceptance: pending_report_contract
+v0.7.x line release status: incomplete
 ```
 
-## Separate v0.7.x Line Gate
+## Historical Contracts
 
-`v0_7_1_DataAssetDiff_TaskSource.md` still tracks 11 unexecuted or unwaived full-contract acceptance cases. The v0.7.2 feature is release-ready, but the entire v0.7.x line must not be described as release-complete until those cases are resolved.
+```text
+v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+  original closure candidate contract
+
+v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+  completed functional alignment contract
+```
 
 ## Next Contract
 
-The next planned feature is v0.7.3 Component Tree. No generated v0.7.3 contract exists yet.
-
-A future v0.7.3 contract must be produced from a finalized TaskSource through:
-
-```text
-plan.inspect_unresolved
-plan.compile_outputs
-```
-
-Do not treat a draft or manually written YAML as an active Codex contract.
+v0.7.3 Component Tree remains deferred until the corrected v0.7.1 report contract passes.
 
 ## Changelog
 
-### v1.10
+### v1.13
 
-- Marked both v0.7.2 contracts completed and removed the alignment YAML from the active-task position.
-- Recorded the passed v0.7.2 release-ready gate, trigger fixture, determinism, and complete regression evidence.
-- Retained human release review and the separate v0.7.1 line-level acceptance cases as pending.
+- Added the Report Contract YAML as the active contract.
+- Recorded successful functional closure alignment and independent verification.
+- Confirmed exactly one mandatory PowerShell target.
+- Deferred v0.7.3 until the six top-level evidence fields and explicit final predicates pass.

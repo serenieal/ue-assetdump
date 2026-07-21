@@ -1,106 +1,165 @@
 # AssetIntelligencePlan
 
-This folder contains the planning and generated implementation contracts for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
+- Document version: v1.15
+- Last updated: 2026-07-15
+- Status: Current
+
+This folder contains the planning documents and generated implementation contracts for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
 
 ## Current State
 
 ```text
 v0.6.x selection/profile/regression foundation: completed
 v0.7.0 DataAsset Values: release gate passed
-v0.7.1 DataAsset Diff: implementation and regression passed; 11 full-contract acceptance cases remain
+v0.7.1 DataAsset Diff: mandatory no-SkipBuild closure passed; contract accepted
 v0.7.2 Enhanced Input Summary: release-ready gate passed; human release review pending
-v0.7.3 Component Tree: planned, no active Codex contract
+v0.7.3 Component Tree: unblocked; not started
 ```
 
-## v0.7.2 Closure
+## v0.7.1 Contract Acceptance
+
+Final verified implementation:
 
 ```text
-closure_reported_at: 2026-07-13 08:16:36 KST
-implementation: completed
-contract alignment: passed
-trigger-chain validation: passed
-determinism validation: passed
-release-ready gate: passed
-human tag/publish review: pending
+Source/AssetDump/Private/AssetDumpCommandlet.cpp v0.10.1
+Scripts/RunDataAssetDiffClosure.ps1 v1.5
 ```
 
-Final verification:
+Mandatory acceptance execution:
 
 ```text
-BuildEditor.bat: passed
-RunBPDumpRegression.ps1 -RunSelfTests: passed
-Plugin fixtures: 9/9 passed
-Plugin validation: 9/9 passed
-required_failed_count: 0
-section selection: 33/33 passed
-project batch: 43/43 succeeded
-ChangedOnly: 43/43 skipped
-InputTriggerPressed fixture: passed, trigger_count=1
-repeated IMC input_summary: 1195 bytes == 1195 bytes
-git diff --check: passed with line-ending warnings only
+PowerShell: C:\Users\chaeksong\AppData\Local\Microsoft\WindowsApps\pwsh.EXE
+PowerShell major line: 7
+Script: Scripts/RunDataAssetDiffClosure.ps1
+Arguments: -CompactLog
+-SkipBuild: not supplied
+Engine root: D:\UnrealEngine_Source
+Standard build wrapper: D:\Work\CarFight_git\Tools\BuildEditor.bat
+Build target: CarFight_ReEditor Win64 Development
+Build result: Succeeded
 ```
 
-Accepted `input_summary_v1` contract:
+The build evidence is stored at:
 
 ```text
-max mappings: 128
-max modifiers per owner: 16
-max triggers per owner: 16
-max shallow settings per descriptor: 16
-max preview lines: 12
-typed setting descriptors: enabled
-stable input warning codes: enabled
-chain-aware deterministic mapping ordering: enabled
+Dumped/DataAssetDiffClosure/logs/Build_Editor.log
 ```
 
-Verified artifacts:
+The final report is stored at:
 
 ```text
-Dumped/BPDumpValidationPlugin/validation_report.json
-Dumped/BPDumpValidationPlugin/fixture_report.json
-Dumped/BPDumpProjectBatch/run_report_full.json
-Dumped/BPDumpProjectBatch/run_report_changed_only.json
-Dumped/InputSummaryChecks/IA_ADumpFixture_input_summary.json
-Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary_a.json
-Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary_b.json
+Dumped/DataAssetDiffClosure/data_asset_diff_closure_report.json
 ```
 
-Android/Linux SDK setup warnings were non-fatal. The UE commandlet and regression summary completed successfully.
-
-## Current Execution State
-
-No Codex implementation contract is currently active.
-
-The following v0.7.2 contracts are completed historical execution artifacts:
+Final report evidence:
 
 ```text
-v0_7_2_InputSummary_TaskSource.md
-Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
-v0_7_2_InputSummary_Alignment_TaskSource.md
-Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
+schema_version: data_asset_diff_closure_report_v1
+generated_time: 2026-07-14T23:27:25.4566757Z
+case_count: 11
+passed_count: 11
+failed_count: 0
+validation_content_restored_count: 2
+validation_content_removed_new_file_count: 0
+validation_content_unchanged: true
+negative_error_codes_from_process_log: true
+all_passed: true
 ```
 
-The next development candidate is v0.7.3 Component Tree. A new Codex task must not be used until its TaskSource is finalized, inspected, and compiled through Plan.
-
-## Separate v0.7.x Line Gate
-
-The v0.7.2 feature gate is complete, but `v0_7_1_DataAssetDiff_TaskSource.md` still tracks these 11 acceptance cases:
+The six required top-level report fields are present:
 
 ```text
-added field
-removed field
-reference-path change
-missing file
-oversized baseline
-malformed JSON
-asset identity mismatch
-non-DataAsset explicit diff
-fixture asset immutability hash/timestamp
-baseline-content-only regeneration at the same path
-project-owned DataAsset diff snapshot
+validation_content_before
+validation_content_after
+validation_content_restored_count
+validation_content_removed_new_file_count
+validation_content_unchanged
+negative_error_codes_from_process_log
 ```
 
-These cases must be executed or explicitly waived before the entire v0.7.x line is described as release-complete. They do not reopen the completed v0.7.2 feature gate.
+The validation manifest contains the same 9 `.uasset/.umap` entries before and after the run. Relative path, SHA-256, byte length, and `LastWriteTimeUtc.Ticks` match exactly. `Content/Validation` has no Git change after the closure.
+
+All five negative cases retain a real commandlet process-log line, expose `observed_error_source=process_log`, reject synthetic markers, and contain the expected stable code:
+
+```text
+ADUMP_DIFF_BASE_NOT_FOUND
+ADUMP_DIFF_BASE_TOO_LARGE
+ADUMP_DIFF_BASE_JSON_INVALID
+ADUMP_DIFF_ASSET_MISMATCH
+ADUMP_DIFF_CURRENT_UNSUPPORTED
+```
+
+The no-SkipBuild execution and report contract were independently asserted by the one-time wrapper result:
+
+```text
+run_id: testrun_4658af0ac765
+started_at: 2026-07-14T23:24:44.154878Z
+finished_at: 2026-07-14T23:27:25.660411Z
+result: 1 passed
+```
+
+The previous CarFight `VehicleDurabilityConfig` compile mismatch is superseded as a resolved historical blocker. It is not part of the final accepted state.
+
+Consequently:
+
+```text
+v1.5 PowerShell parser contract: verified
+mandatory no-SkipBuild closure: passed
+v0.7.1 contract accepted: yes
+v0.7.3 Component Tree preparation: unblocked
+```
+
+## Prior Diagnostic Evidence
+
+Before final acceptance, a diagnostic execution using `-SkipBuild` generated:
+
+```text
+report generated_time: 2026-07-14T06:52:43.9739875Z
+case_count: 11
+passed_count: 11
+failed_count: 0
+validation_content_unchanged: true
+negative_error_codes_from_process_log: true
+all_passed: true
+```
+
+That report remains useful as implementation history, but the canonical acceptance report is now the newer no-SkipBuild report generated at `2026-07-14T23:27:25.4566757Z`.
+
+The restore loop remains hardened for an open Unreal Editor: files already identical to the snapshot are skipped, while actual mismatches use bounded retry. No editor process was terminated as part of the accepted closure.
+
+## Current Active Task
+
+There is no currently activated AssetDump implementation task.
+
+```text
+ADUMP-v0.7.1-RC: Completed / Contract Accepted
+v0.7.3 Component Tree: Unblocked / Not Started
+```
+
+The v0.7.1 report-contract TaskSource and Codex contract are retained as completed contract history:
+
+```text
+v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
+```
+
+No further C++, PowerShell, or section-schema change is required for v0.7.1 acceptance.
+
+## Contract History
+
+```text
+v0_7_1_DataAssetDiff_TaskSource.md
+Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+
+v0_7_1_DataAssetDiff_Closure_TaskSource.md
+Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+
+v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+
+v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
+```
 
 ## Main Documents
 
@@ -110,45 +169,56 @@ SectionRegistry_v1.md
 ValidationPolicy_v1.md
 ImplementationResultLog_v1.md
 TaskSourceTemplate_v1.md
-v0_7_0_DataAssetValues_TaskSource.md
-v0_7_1_DataAssetDiff_TaskSource.md
-v0_7_2_InputSummary_TaskSource.md
-v0_7_2_InputSummary_Alignment_TaskSource.md
-```
-
-## Generated Contracts
-
-```text
-Generated/Final/v0_6_0_Sections_CodexTask.yaml
-Generated/Final/v0_6_1_BuilderControl_CodexTask.yaml
-Generated/Final/v0_6_2_IntentProfile_CodexTask.yaml
-Generated/Final/v0_6_3_AIContextProfile_CodexTask.yaml
-Generated/Final/v0_6_4_RegressionHarness_CodexTask.yaml
-Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
-Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
-Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
-Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
 
 ## Next Sequence
 
 ```text
-1. Complete human review before tagging or publishing v0.7.2.
-2. Execute or waive the remaining v0.7.1 acceptance cases before closing the v0.7.x line.
-3. Finalize a v0.7.3 Component Tree TaskSource when development begins.
-4. Run plan.inspect_unresolved and plan.compile_outputs before handing v0.7.3 to Codex.
+1. Keep the accepted v0.7.1 commandlet, schema, stable codes, and closure contract protected.
+2. Start v0.7.3 only after an explicit AssetDump task request.
+3. Re-read assetdump_repo Git state, AGENTS.md, ActiveWork, and this representative Plan.
+4. Define the v0.7.3 Component Tree scope and protection boundary through Plan.
+5. Generate a TaskSource and Codex execution contract with plan.*.
+6. Require actual diff, build, parser, regression, and content-invariance review before completion claims.
 ```
+
+The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
 
-### v1.10
+### v1.15 - 2026-07-15
 
-- Marked the v0.7.2 release-ready gate passed and human release review pending.
-- Recorded contract alignment, InputTriggerPressed fixture coverage, repeated 1195-byte determinism, and post-alignment regression evidence.
-- Removed the completed alignment YAML from the active-task position.
-- Retained the separate v0.7.1 list of 11 acceptance cases for the v0.7.x line gate.
+- Recorded the mandatory `RunDataAssetDiffClosure.ps1 -CompactLog` execution without `-SkipBuild`.
+- Recorded standard `Tools\BuildEditor.bat` success using `D:\UnrealEngine_Source`.
+- Replaced the diagnostic report as canonical evidence with `generated_time=2026-07-14T23:27:25.4566757Z`.
+- Recorded 11/11 cases, both evidence booleans, `all_passed=true`, 9-file exact validation equality, and zero residual validation Git change.
+- Recorded all five real process-log stable codes and synthetic-marker rejection.
+- Promoted v0.7.1 DataAsset Diff to Contract Accepted.
+- Changed v0.7.3 Component Tree from blocked to unblocked/not started.
+- Superseded the former CarFight compile mismatch as a resolved historical blocker.
 
-### v1.9
+### v1.14 - 2026-07-14
 
-- Recorded successful v0.7.2 build, Plugin regression, project batch, ChangedOnly, and project-owned Enhanced Input output.
-- Added the focused Input Summary contract-alignment TaskSource and generated Codex YAML as the current entry point.
+- Recorded PowerShell 7 parser and static verification for `RunDataAssetDiffClosure.ps1` v1.5.
+- Recorded the fresh `-SkipBuild` diagnostic report with 11/11 cases, all six top-level fields, both evidence booleans, and `all_passed=true`.
+- Recorded 5/5 real process-log codes and exact validation-content before/after equality.
+- Hardened validation restoration to skip unchanged locked files and retry only actual mismatches.
+- Identified the mandatory no-SkipBuild blocker as an unrelated pre-existing CarFight `VehicleDurabilityConfig` compile mismatch.
+- Kept v0.7.1 final acceptance and v0.7.3 preparation blocked until the standard build passes.
+
+### v1.13 - 2026-07-13
+
+- Recorded successful functional closure alignment and independent verification.
+- Added 5/5 real process-log codes, 11/11 closure cases, automatic validation-content restoration, build, Plugin, batch, and ChangedOnly evidence.
+- Reduced the remaining v0.7.1 gate to a one-file top-level report-contract correction.
+- Promoted the Report Contract TaskSource and generated Codex YAML as the active task.
+
+## Migration
+
+### v1.15
+
+- Treat `2026-07-14T23:27:25.4566757Z` as the canonical v0.7.1 acceptance report.
+- Treat the earlier `-SkipBuild` report and compile blocker as diagnostic history only.
+- Do not reopen v0.7.1 unless its accepted public contract or regression evidence changes.
+- v0.7.3 may now be planned, but it must not start automatically or modify the accepted v0.7.1 contract without an explicit compatibility decision.
+- Existing TaskSource, generated contracts, script paths, report schema, and validation content paths remain unchanged.

@@ -2,14 +2,26 @@
 
 ## Metadata
 
-- document_version: v1.1
+- document_version: v1.4
 - created_at: 2026-07-10
-- updated_at: 2026-07-10
+- updated_at: 2026-07-13
 - target_assetdump_version: v0.7.1
 - implementation_status: implemented
 - core_verification_status: passed
 - regression_verification_status: passed
-- contract_acceptance_status: pending_remaining_cases
+- independent_build_status: passed
+- functional_closure_status: passed
+- contract_acceptance_status: pending_report_contract
+- closure_candidate_status: rejected_evidence_integrity
+- closure_task_status: candidate_rejected
+- closure_task_source: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md`
+- closure_codex_task: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml`
+- closure_alignment_status: functional_alignment_completed
+- closure_alignment_task_source: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md`
+- closure_alignment_codex_task: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml`
+- report_contract_status: prepared
+- report_contract_task_source: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md`
+- report_contract_codex_task: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml`
 - owner_project: CarFight
 - target_plugin: AssetDump
 - artifact_role: codex_task_source
@@ -711,6 +723,26 @@ None.
 - output_target: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml`
 
 ## Changelog
+
+### v1.4
+
+- Recorded successful functional closure alignment: real commandlet issue codes, no synthetic marker, 11/11 cases, and automatic validation-content restoration.
+- Recorded independent editor build and fresh 9/9 Plugin fixture/validation evidence.
+- Kept final acceptance pending only for the six required top-level report fields and explicit final predicates.
+- Added the one-file Report Contract TaskSource and generated Codex YAML.
+
+### v1.3
+
+- Recorded the implemented closure harness and nominal 11/11 candidate report.
+- Recorded an independently successful `CarFight_ReEditor Win64 Development` build.
+- Rejected the candidate report because five negative cases accepted harness-synthesized error codes and `makefixtures` cleanup required manual asset restoration.
+- Promoted the focused Closure Alignment TaskSource and generated Codex contract.
+
+### v1.2
+
+- Added the focused 11-case closure TaskSource and generated Codex contract.
+- Changed contract acceptance from an unstructured remaining list to `pending_closure_execution`.
+- Kept v0.7.1 incomplete until `data_asset_diff_closure_report.json` records 11/11 passing cases.
 
 ### v1.1
 

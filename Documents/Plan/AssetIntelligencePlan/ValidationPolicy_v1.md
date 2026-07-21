@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.2
+- document_version: v1.3
 - created_at: 2026-07-10
-- updated_at: 2026-07-10
+- updated_at: 2026-07-13
 - owner_project: CarFight
 - target_plugin: AssetDump
 - document_role: validation_policy
@@ -132,6 +132,58 @@ external_ue_error_classification
 final_regression_status
 ```
 
+## Evidence-Origin Integrity
+
+A validation harness must never create, append, or inject the evidence token that it later uses to prove that the product under test emitted that token.
+
+For an expected runtime error code, warning code, issue code, or diagnostic identifier to count as evidence, it must originate from one of these sources:
+
+```text
+- stdout or stderr captured directly from the tested process
+- a fresh report or output file written by the tested process
+- a structured result returned directly by the tested component
+```
+
+The following are invalid evidence and must fail acceptance:
+
+```text
+- an expected code appended to the log by the harness after process completion
+- a synthetic marker merged into captured output before matching
+- a report field populated from the test expectation rather than observed output
+- a manually edited output or log used as runtime evidence
+```
+
+Harness-generated annotations are allowed only when clearly separated from observed evidence and excluded from matching predicates.
+
+Recommended negative-case record:
+
+```text
+expected_error_code
+observed_error_code
+observed_error_source: process_log | fresh_report | structured_result
+matched_observed_line
+synthetic_marker_present: false
+```
+
+A nominal passing count must be rejected when any required assertion depends on harness-synthesized evidence.
+
+## Validation Content Preservation
+
+When a validation command may create, resave, or mutate repository-owned binary fixtures, the validation workflow must preserve repository state automatically.
+
+Required behavior:
+
+```text
+- snapshot relevant files before the mutating command
+- record path, SHA-256, byte length, and timestamp when timestamp preservation is required
+- restore changed or missing pre-existing files in a finally/cleanup path
+- remove only newly created files attributable to the current run
+- verify the final manifest equals the initial manifest
+- fail when manual source-control restoration is required
+```
+
+A report produced only after a human manually restores validation assets is useful diagnostic evidence but is not self-contained release evidence.
+
 ## Feature Acceptance Policy
 
 For a focused AssetDump feature, acceptance should require:
@@ -203,6 +255,13 @@ This policy does not change AssetDump behavior. TaskSource documents should refe
 None.
 
 ## Changelog
+
+### v1.3
+
+- Added evidence-origin integrity rules prohibiting harness-synthesized expected codes from satisfying runtime assertions.
+- Required observed diagnostic codes to originate from process output, fresh reports, or structured tested-component results.
+- Added automatic binary validation-content snapshot, restoration, and final-manifest requirements.
+- Classified manually restored candidate runs as diagnostic rather than self-contained release evidence.
 
 ### v1.2
 

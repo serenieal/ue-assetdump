@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.3
+- document_version: v1.5
 - created_at: 2026-07-10
 - updated_at: 2026-07-13
 - target_assetdump_version: v0.7.2
@@ -20,7 +20,7 @@
 - release_ready_status: passed
 - release_status: pending_human_review
 - release_gate_status: passed
-- inherited_v0_7_1_contract_acceptance_status: pending_remaining_cases
+- inherited_v0_7_1_contract_acceptance_status: pending_report_contract
 - owner_project: CarFight
 - target_plugin: AssetDump
 - artifact_role: codex_task_source
@@ -40,9 +40,9 @@ The section must provide AI-readable semantic output for `UInputAction` and `UIn
 
 ## Prerequisite Gate
 
-v0.7.1 implementation and regression verification have passed, but its full TaskSource contract still has unexecuted acceptance cases.
+v0.7.1 implementation, regression verification, and the 11-case functional closure have passed. Its final TaskSource acceptance remains pending only for additive closure-report contract fields and explicit final predicates.
 
-Development of v0.7.2 may proceed. Release-gate completion for the v0.7.x line must retain the outstanding v0.7.1 acceptance list until those cases are executed or explicitly waived.
+The completed v0.7.2 feature gate remains valid. Release-gate completion for the entire v0.7.x line must retain the v0.7.1 `pending_report_contract` status until the corrected machine-readable report passes.
 
 ## Current Evidence
 
@@ -644,7 +644,7 @@ determinism acceptance: passed
 trigger-chain acceptance: passed
 v0.7.2 release-ready gate: passed
 human release review: pending
-v0.7.1 inherited contract acceptance: pending_remaining_cases
+v0.7.1 inherited contract acceptance: pending_report_contract
 ```
 
 Implemented files:
@@ -752,7 +752,7 @@ The current implementation remains on the v0.7.2 task and is ready for human rel
 5. Run RunBPDumpRegression.ps1 -RunSelfTests: passed.
 6. Re-run BuildEditor.bat and Plugin compact regression after the alignment code changes: passed.
 7. Reconfirm project batch, ChangedOnly, project-owned IA/IMC output, and git diff --check: project batch, ChangedOnly, and IA/IMC output reconfirmed; git diff --check remains covered by the implementation report.
-8. Keep the inherited v0.7.1 full-contract acceptance list open until its 11 remaining cases are executed or explicitly waived; this does not reopen the completed v0.7.2 feature gate.
+8. Keep the inherited v0.7.1 line gate open only until the one-file Report Contract task adds the required top-level evidence fields and explicit final predicates; this does not reopen the completed v0.7.2 feature gate.
 ```
 
 ## Migration
@@ -786,6 +786,16 @@ The first ChangedOnly run after upgrading may regenerate supported Enhanced Inpu
 - output_target: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml`
 
 ## Changelog
+
+### v1.5
+
+- Updated the inherited v0.7.1 line gate to `pending_report_contract` after functional closure alignment passed.
+- Kept the completed v0.7.2 feature gate unchanged and separate from the one-file v0.7.1 report correction.
+
+### v1.4
+
+- Updated the inherited v0.7.1 line gate to `pending_closure_alignment` after independent review rejected the nominal closure candidate evidence.
+- Kept the completed v0.7.2 feature gate unchanged and separate from the v0.7.1 corrective task.
 
 ### v1.3
 

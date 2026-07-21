@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.10
+- document_version: v1.13
 - created_at: 2026-07-10
 - updated_at: 2026-07-13
 - document_role: implementation_result_log
@@ -49,7 +49,7 @@ determinism acceptance: passed
 trigger-chain acceptance: passed
 v0.7.2 release-ready gate: passed
 human release review: pending
-v0.7.1 contract acceptance: pending_remaining_cases
+v0.7.1 contract acceptance: pending_report_contract
 ```
 
 ### Confirmed Implementation
@@ -165,7 +165,7 @@ UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary
 
 No v0.7.2 feature blocker remains. The feature release-ready gate has passed; tagging or publishing still requires human review.
 
-The separate v0.7.1 TaskSource continues to list 11 full-contract acceptance cases. That open list prevents claiming the entire v0.7.x line release-complete, but it does not reopen the completed v0.7.2 feature gate.
+The v0.7.1 functional closure case set has now executed and passed 11/11 with real process-log evidence and automatic validation-content restoration. The entire v0.7.x line remains not release-complete only until the final closure report exposes the required top-level evidence fields and explicit final predicates; this does not reopen the completed v0.7.2 feature gate.
 
 ### Migration
 
@@ -198,8 +198,14 @@ UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_
 implementation: completed
 core verification: passed
 regression verification: passed
-contract acceptance: pending remaining cases
+contract acceptance: pending report contract
+functional closure: passed
+closure candidate: rejected_evidence_integrity
+closure alignment: functional alignment completed
+report contract: prepared
+independent editor build: passed
 completed_at: 2026-07-10 16:36:09 KST
+functional_alignment_reported_at: 2026-07-13 15:33:17 KST
 ```
 
 ### Implementation Summary
@@ -273,23 +279,110 @@ ChangedOnly: 43/43 skipped
 harness self-test: passed
 ```
 
-### Remaining Contract Acceptance Cases
+### Functional Closure Case Set
 
 ```text
-added field
-removed field
-reference-path change
-missing file
-oversized baseline
-malformed JSON
-asset identity mismatch
-non-DataAsset explicit diff
-fixture asset immutability hash/timestamp
-baseline-content-only regeneration at the same path
-project-owned DataAsset diff snapshot
+added field: passed
+removed field: passed
+reference-path change: passed
+missing file: passed
+oversized baseline: passed
+malformed JSON: passed
+asset identity mismatch: passed
+non-DataAsset explicit diff: passed
+fixture asset immutability hash/timestamp: passed through automatic restoration evidence
+baseline-content-only regeneration at the same path: passed
+project-owned DataAsset diff snapshot: passed
 ```
 
-Implementation and regression are accepted. Full TaskSource contract acceptance remains pending until these cases are executed or explicitly waived.
+All 11 functional closure cases have executed and passed. Final TaskSource contract acceptance remains pending only for the additive top-level report fields, explicit process-log evidence records, synthetic-marker rejection, and `all_passed` predicates defined by the Report Contract task.
+
+### Closure Candidate Review
+
+User-reported candidate:
+
+```text
+reported_at: 2026-07-13 10:06:08 KST
+script: UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+report: UE/Plugins/ue-assetdump/Dumped/DataAssetDiffClosure/data_asset_diff_closure_report.json
+generated_time: 2026-07-13T01:05:19.5365337Z
+case_count: 11
+passed_count: 11
+failed_count: 0
+all_passed: true
+execution: -SkipBuild -CompactLog
+```
+
+Independent verification:
+
+```text
+PowerShell implementation inspected: completed
+report freshness and structure: passed
+positive added/removed/reference outputs: supported
+same-path fingerprint sequence: supported
+project-owned snapshot diff: supported
+fixture post-makefixtures hash/timestamp evidence: supported
+CarFight_ReEditor Win64 Development: passed independently
+final candidate acceptance: rejected
+```
+
+Evidence-integrity blockers:
+
+```text
+1. Cases 4-8 append HarnessStableErrorCode after the command exits.
+2. HasExpectedCode evaluates process output plus that harness-generated line.
+3. The real commandlet logs contain only the generic BPDump failure line, not the claimed ADUMP_DIFF_* code.
+4. makefixtures changed two validation binary assets and cleanup required manual restoration.
+```
+
+Therefore the nominal `11/11` candidate report is diagnostic evidence, not release-grade closure evidence.
+
+### Closure Alignment Result
+
+Reported implementation:
+
+```text
+reported_at: 2026-07-13 15:33:17 KST
+AssetDumpCommandlet.cpp version: v0.10.1
+RunDataAssetDiffClosure.ps1 version: v1.4
+```
+
+Functional evidence:
+
+```text
+CarFight_ReEditor Win64 Development: passed
+closure report generated_time: 2026-07-13T06:31:04.9960053Z
+case_count: 11
+passed_count: 11
+failed_count: 0
+real negative error codes: 5/5
+HarnessStableErrorCode in final script/logs: absent
+validation files before run: 9
+validation mismatches before restoration: 2
+validation mismatches after restoration: 0
+validation unexpected files after restoration: 0
+Plugin fixtures: 9/9 passed
+Plugin validation: 9/9 passed
+required_failed_count: 0
+project batch: 43 succeeded, 0 failed
+ChangedOnly: 43/43 skipped
+```
+
+The known HTTP listener bind error on `127.0.0.1:8100` remains an allowlisted external environment issue. Fresh AssetDump reports passed.
+
+Functional closure alignment is accepted. Final machine-readable contract acceptance remains pending because the report does not yet expose the six required evidence fields at the top level and `all_passed` does not directly depend on the two required evidence booleans.
+
+### Report Contract Task
+
+```text
+TaskSource: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+Codex contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
+mandatory target:
+  UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+status: prepared / not yet implemented
+```
+
+The remaining task is additive report-shape alignment only: six top-level fields, explicit process-log evidence records, synthetic-marker rejection, and final predicates tied to restoration and process-log booleans.
 
 ### Migration
 
@@ -1075,6 +1168,26 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.13
+
+- Recorded successful functional v0.7.1 closure alignment and independent verification.
+- Added real 5/5 process-log codes, 11/11 closure cases, automatic validation-content restoration, build, Plugin, batch, and ChangedOnly evidence.
+- Reduced the remaining acceptance gate to one PowerShell report-contract alignment.
+- Added the Report Contract TaskSource and generated Codex YAML.
+
+### v1.12
+
+- Recorded the implemented closure harness and nominal 11/11 candidate report.
+- Added independently successful editor build evidence.
+- Rejected the candidate because five expected error codes were harness-synthesized and validation asset cleanup required manual restoration.
+- Added the two-file Closure Alignment TaskSource and generated Codex contract as the active corrective task.
+
+### v1.11
+
+- Added the focused v0.7.1 DataAsset Diff 11-case closure execution task and generated Codex contract.
+- Recorded the single mandatory PowerShell target and required machine-readable 11/11 report.
+- Changed v0.7.1 acceptance state to pending closure execution without claiming test completion.
 
 ### v1.10
 

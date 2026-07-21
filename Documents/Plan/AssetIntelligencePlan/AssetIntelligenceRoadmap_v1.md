@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.10
+- document_version: v1.13
 - created_at: 2026-07-10
 - updated_at: 2026-07-13
 - owner_project: CarFight
@@ -141,7 +141,7 @@ Planned scope:
 
 ```text
 v0.7.0 DataAsset values - release gate completed 2026-07-10
-v0.7.1 DataAsset diff - implementation/regression completed 2026-07-10; remaining contract cases pending
+v0.7.1 DataAsset diff - functional closure alignment passed; final report-contract alignment prepared 2026-07-13
 v0.7.2 Enhanced Input summary - release-ready gate passed 2026-07-13; human release review pending
 v0.7.3 Actor/Blueprint component tree
 ```
@@ -364,11 +364,25 @@ Harness self-test: passed
 implementation_status: completed
 core_verification_status: passed
 regression_verification_status: passed
-contract_acceptance_status: pending_remaining_cases
+independent_build_status: passed
+functional_closure_status: passed
+contract_acceptance_status: pending_report_contract
+closure_candidate_status: rejected_evidence_integrity
+closure_task_status: candidate_rejected
+closure_alignment_status: functional_alignment_completed
+report_contract_status: prepared
 completed_at: 2026-07-10 16:36:09 KST
+functional_alignment_reported_at: 2026-07-13 15:33:17 KST
+functional_report_generated_time: 2026-07-13T06:31:04.9960053Z
 result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
 generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+closure_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
+closure_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+closure_alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+closure_alignment_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+report_contract_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+report_contract_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 ```
 
 Verified summary:
@@ -381,9 +395,11 @@ Selection checks: 28/28 succeeded
 Project batch: 43/43 succeeded
 ChangedOnly: 43/43 skipped
 Manual same/scalar/type/wrong-schema checks: passed
+Closure candidate report: nominal 11/11, rejected after independent evidence review
+Independent CarFight_ReEditor build: passed
 ```
 
-Remaining full-contract cases include added/removed/reference changes and additional baseline negative-path checks. Implementation and regression are accepted; the remaining list stays tracked in the v0.7.1 TaskSource.
+The candidate positive outputs, fingerprint sequence, project-owned snapshot, and fixture hash evidence were valid. Final acceptance was rejected because five negative cases accepted `HarnessStableErrorCode` lines appended by the harness rather than codes emitted by the commandlet, and `makefixtures` cleanup required manual validation-asset restoration. The active alignment task adds real issue-code logging and automatic validation-content restoration.
 
 ### AssetDump v0.7.2 Enhanced Input Summary
 
@@ -405,7 +421,7 @@ release_gate_status: passed
 implementation_reported_at: 2026-07-13 07:27:45 KST
 regression_completed_at: 2026-07-13 07:46:54 KST
 closure_reported_at: 2026-07-13 08:16:36 KST
-v0_7_1_contract_acceptance_status: pending_remaining_cases
+v0_7_1_contract_acceptance_status: pending_report_contract
 result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
 generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
@@ -430,18 +446,19 @@ IMC_Vehicle_Default: 42 mappings, 6 modifiers, 0 triggers
 git diff --check: passed with line-ending warnings only
 ```
 
-The v0.7.2 feature release-ready gate is complete. Tagging or publishing remains a human release decision. The separate v0.7.1 TaskSource still has 11 full-contract cases pending, so the entire v0.7.x line must not yet be described as release-complete.
+The v0.7.2 feature release-ready gate is complete. Tagging or publishing remains a human release decision. The v0.7.1 functional closure cases now pass 11/11 with real process-log codes and automatic validation-content restoration. The entire v0.7.x line remains not release-complete only until the closure report exposes the required top-level evidence fields and explicit final predicates.
 
 ## Recommended Next Execution Path
 
 The next execution sequence should be:
 
 ```text
-1. Perform the human release review for the completed v0.7.2 feature before tagging or publishing.
-2. Execute or explicitly waive the 11 remaining v0.7.1 full-contract acceptance cases before describing the v0.7.x line as release-complete.
-3. Treat the original and alignment v0.7.2 Codex contracts as completed historical execution artifacts.
-4. Prepare v0.7.3 Component Tree as the next development task only after its TaskSource is finalized and compiled through Plan.
-5. No new Codex implementation contract is active at this point.
+1. Use `v0_7_1_DataAssetDiff_ReportContract_TaskSource.md` as the current execution source.
+2. Implement the one-file report alignment from `Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml`.
+3. Add the six required top-level restoration/process-log evidence fields while retaining the nested evidence object.
+4. Make `all_passed` explicitly require `validation_content_unchanged` and `negative_error_codes_from_process_log`.
+5. Run the closure without `-SkipBuild` and confirm no validation binary changes remain.
+6. After that report passes, mark v0.7.1 and the v0.7.x line release-ready, then prepare v0.7.3 Component Tree.
 ```
 
 ## Validation Policy Summary
@@ -477,6 +494,27 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.13
+
+- Recorded successful functional closure alignment with real 5/5 commandlet error codes, 11/11 cases, and automatic validation-content restoration.
+- Recorded independent editor build and fresh 9/9 Plugin fixture/validation evidence.
+- Reduced the remaining v0.7.1 gate to one PowerShell report-contract alignment.
+- Added the Report Contract TaskSource and generated Codex YAML as the active task.
+
+### v1.12
+
+- Recorded the implemented closure harness and nominal 11/11 candidate report.
+- Added an independently successful `CarFight_ReEditor Win64 Development` build result.
+- Rejected the candidate evidence because five negative codes were synthesized by the harness and validation-asset cleanup required manual restoration.
+- Promoted the two-file Closure Alignment TaskSource and generated Codex contract as the active task.
+
+### v1.11
+
+- Prepared the v0.7.1 DataAsset Diff 11-case closure harness as the current execution task.
+- Added the focused TaskSource and generated Codex YAML paths.
+- Kept v0.7.1 and the v0.7.x line incomplete until the machine-readable 11/11 closure report passes.
+- Deferred v0.7.3 Component Tree until closure evidence is recorded.
 
 ### v1.10
 

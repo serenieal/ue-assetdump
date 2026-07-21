@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.9
+- document_version: v1.12
 - created_at: 2026-07-10
 - updated_at: 2026-07-13
 - document_role: plan_compile_log
@@ -13,6 +13,136 @@
 Record plan tool checks and generated Codex task outputs for Asset Intelligence planning documents.
 
 ## Entries
+
+## 2026-07-13 - v0.7.1 DataAssetDiff Report Contract TaskSource
+
+### Source Plan
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+```
+
+### Inspect Result
+
+```text
+ok: true
+blocking_unresolved: []
+non_blocking_unresolved: explicit "None."
+target_file_candidates: 1
+```
+
+### Compile Result
+
+```text
+ok: true
+generated_targets: codex
+compile_status: compiled
+codex_yaml_created: true
+must_change_targets: 1
+```
+
+### Generated Output
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
+```
+
+### Mandatory Target
+
+```text
+UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+```
+
+### Notes
+
+The functional closure alignment already passes with real 5/5 process-log issue codes, 11/11 cases, automatic validation-content restoration, editor build, Plugin regression, project batch, and ChangedOnly evidence. This final one-file contract is limited to the six required top-level report fields, explicit process-log evidence records, synthetic-marker rejection, and `all_passed` predicates tied to restoration and process-log booleans.
+
+## 2026-07-13 - v0.7.1 DataAssetDiff Closure Alignment TaskSource
+
+### Source Plan
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+```
+
+### Inspect Result
+
+```text
+ok: true
+blocking_unresolved: []
+non_blocking_unresolved: explicit "None."
+target_file_candidates: 2
+```
+
+### Compile Result
+
+```text
+ok: true
+generated_targets: codex
+compile_status: compiled
+codex_yaml_created: true
+must_change_targets: 2
+```
+
+### Generated Output
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+```
+
+### Mandatory Targets
+
+```text
+UE/Plugins/ue-assetdump/Source/AssetDump/Private/AssetDumpCommandlet.cpp
+UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+```
+
+### Notes
+
+The original closure implementation produced a nominal 11/11 candidate report. Independent review rejected it because five negative cases matched `HarnessStableErrorCode` lines appended by the harness rather than codes emitted by the commandlet, and `makefixtures` cleanup required manual restoration of validation binary assets. The alignment contract is limited to real structured issue logging and self-contained validation-content restoration.
+
+## 2026-07-13 - v0.7.1 DataAssetDiff Closure TaskSource
+
+### Source Plan
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
+```
+
+### Inspect Result
+
+```text
+ok: true
+blocking_unresolved: []
+non_blocking_unresolved: explicit "None."
+target_file_candidates: 1
+```
+
+### Compile Result
+
+```text
+ok: true
+generated_targets: codex
+compile_status: compiled
+codex_yaml_created: true
+must_change_targets: 1
+```
+
+### Generated Output
+
+```text
+UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+```
+
+### Mandatory Target
+
+```text
+UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
+```
+
+### Notes
+
+The closure contract covers all 11 remaining v0.7.1 acceptance cases with a standalone PowerShell evidence harness. It intentionally excludes AssetDump C++, `RunBPDumpRegression.ps1`, validation assets, maps, and project-owned assets from mandatory changes.
 
 ## 2026-07-13 - v0.7.2 InputSummary Alignment TaskSource
 
@@ -349,6 +479,26 @@ UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_
 The first compile attempt used a file path inside `output_targets` and failed with `ERR_PLAN_OUTPUT_TARGETS`. The retry used `output_targets: ["codex"]` and `output_file_path` for the YAML path, which succeeded.
 
 ## Changelog
+
+### v1.12
+
+- Recorded successful inspect and compile results for the v0.7.1 DataAsset Diff Report Contract TaskSource.
+- Confirmed one mandatory target: `RunDataAssetDiffClosure.ps1`.
+- Recorded that functional closure alignment already passes and only machine-readable report-shape alignment remains.
+- Added `v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml` as the current active contract.
+
+### v1.11
+
+- Recorded successful inspect and compile results for the v0.7.1 Closure Alignment TaskSource.
+- Confirmed two mandatory targets: `AssetDumpCommandlet.cpp` and `RunDataAssetDiffClosure.ps1`.
+- Recorded the evidence-integrity reasons for rejecting the original nominal 11/11 candidate report.
+- Added `v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml` as the current active contract.
+
+### v1.10
+
+- Recorded successful inspect and compile results for the v0.7.1 DataAsset Diff closure TaskSource.
+- Confirmed one mandatory target: `Scripts/RunDataAssetDiffClosure.ps1`.
+- Added `v0_7_1_DataAssetDiff_Closure_CodexTask.yaml` as the current active contract.
 
 ### v1.9
 
