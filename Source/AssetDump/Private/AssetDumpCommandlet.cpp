@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.10.0
+// Version: v0.10.1
 // Changelog:
+// - v0.10.1: BPDump 실패 반환 전 구조화된 FADumpIssue.Code를 실제 commandlet 로그에 출력.
 // - v0.10.0: input_summary 계약 정렬 검증과 실제 Trigger fixture 구성을 추가.
 // - v0.9.0: input_summary 섹션 등록과 Plugin validation smoke checks를 추가.
 // - v0.8.0: data_asset_diff 섹션 등록과 -DataAssetDiffBase= 옵션 전달을 추가.
@@ -2790,6 +2791,26 @@ namespace
 		return !InOutputFilePath.IsEmpty() && IFileManager::Get().FileExists(*InOutputFilePath);
 	}
 
+	// LogCommandletIssues는 실패 반환 전에 구조화된 issue code를 실제 프로세스 로그에 남긴다.
+	void LogCommandletIssues(const TArray<FADumpIssue>& InIssueArray)
+	{
+		for (const FADumpIssue& IssueItem : InIssueArray)
+		{
+			if (IssueItem.Code.IsEmpty())
+			{
+				continue;
+			}
+
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("AssetDumpIssueCode: %s | Target: %s | Message: %s"),
+				*IssueItem.Code,
+				*IssueItem.TargetPath,
+				*IssueItem.Message);
+		}
+	}
+
 	// BuildLegacyPropertyJson은 공통 details 프로퍼티를 레거시 property 객체로 변환한다.
 	TSharedPtr<FJsonValue> BuildLegacyPropertyJson(const FADumpPropertyItem& InPropertyItem)
 	{
@@ -3971,6 +3992,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FADumpResult DumpResult;
 		if (!DumpService.DumpBlueprint(DumpRunOpts, DumpResult))
 		{
+			LogCommandletIssues(DumpResult.Issues);
 			UE_LOG(LogTemp, Error, TEXT("BPDump failed for asset: %s"), *AssetPath);
 			return 2;
 		}
