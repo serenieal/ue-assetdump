@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.13
+- document_version: v1.14
 - created_at: 2026-07-10
-- updated_at: 2026-07-13
+- updated_at: 2026-07-24
 - document_role: implementation_result_log
 - codex_input: false
 
@@ -49,7 +49,7 @@ determinism acceptance: passed
 trigger-chain acceptance: passed
 v0.7.2 release-ready gate: passed
 human release review: pending
-v0.7.1 contract acceptance: pending_report_contract
+v0.7.1 contract acceptance: accepted
 ```
 
 ### Confirmed Implementation
@@ -165,7 +165,7 @@ UE/Plugins/ue-assetdump/Dumped/InputSummaryChecks/IMC_ADumpFixture_input_summary
 
 No v0.7.2 feature blocker remains. The feature release-ready gate has passed; tagging or publishing still requires human review.
 
-The v0.7.1 functional closure case set has now executed and passed 11/11 with real process-log evidence and automatic validation-content restoration. The entire v0.7.x line remains not release-complete only until the final closure report exposes the required top-level evidence fields and explicit final predicates; this does not reopen the completed v0.7.2 feature gate.
+The v0.7.1 contract is accepted after the mandatory no-SkipBuild closure executed with the required top-level evidence fields, real process-log codes, exact validation-content restoration, and explicit final predicates. This does not reopen the completed v0.7.2 feature gate.
 
 ### Migration
 
@@ -198,14 +198,16 @@ UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_
 implementation: completed
 core verification: passed
 regression verification: passed
-contract acceptance: pending report contract
+contract acceptance: accepted
 functional closure: passed
+mandatory no-SkipBuild closure: passed
 closure candidate: rejected_evidence_integrity
 closure alignment: functional alignment completed
-report contract: prepared
+report contract: accepted
 independent editor build: passed
 completed_at: 2026-07-10 16:36:09 KST
 functional_alignment_reported_at: 2026-07-13 15:33:17 KST
+final_acceptance_report_generated_time: 2026-07-14T23:27:25.4566757Z
 ```
 
 ### Implementation Summary
@@ -295,7 +297,7 @@ baseline-content-only regeneration at the same path: passed
 project-owned DataAsset diff snapshot: passed
 ```
 
-All 11 functional closure cases have executed and passed. Final TaskSource contract acceptance remains pending only for the additive top-level report fields, explicit process-log evidence records, synthetic-marker rejection, and `all_passed` predicates defined by the Report Contract task.
+All 11 functional closure cases executed and passed. At this intermediate checkpoint, final acceptance still required the additive top-level report fields, explicit process-log evidence records, synthetic-marker rejection, and `all_passed` predicates later completed by the Report Contract work.
 
 ### Closure Candidate Review
 
@@ -370,7 +372,7 @@ ChangedOnly: 43/43 skipped
 
 The known HTTP listener bind error on `127.0.0.1:8100` remains an allowlisted external environment issue. Fresh AssetDump reports passed.
 
-Functional closure alignment is accepted. Final machine-readable contract acceptance remains pending because the report does not yet expose the six required evidence fields at the top level and `all_passed` does not directly depend on the two required evidence booleans.
+Functional closure alignment was accepted as an intermediate checkpoint. Final machine-readable acceptance was completed later by the v1.5 report contract and mandatory no-SkipBuild closure recorded below.
 
 ### Report Contract Task
 
@@ -379,10 +381,80 @@ TaskSource: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_
 Codex contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 mandatory target:
   UE/Plugins/ue-assetdump/Scripts/RunDataAssetDiffClosure.ps1
-status: prepared / not yet implemented
+status: completed / contract accepted
 ```
 
-The remaining task is additive report-shape alignment only: six top-level fields, explicit process-log evidence records, synthetic-marker rejection, and final predicates tied to restoration and process-log booleans.
+The report-shape alignment was completed in `RunDataAssetDiffClosure.ps1` v1.5: six top-level fields, explicit process-log evidence records, synthetic-marker rejection, and final predicates tied to restoration and process-log booleans.
+
+### Final Contract Acceptance
+
+Canonical mandatory execution:
+
+```text
+PowerShell major line: 7
+Script: Scripts/RunDataAssetDiffClosure.ps1
+Arguments: -CompactLog
+-SkipBuild: not supplied
+Build wrapper: D:\Work\CarFight_git\Tools\BuildEditor.bat
+Engine root: D:\UnrealEngine_Source
+Build target: CarFight_ReEditor Win64 Development
+Build result: Succeeded
+```
+
+Canonical report:
+
+```text
+path: Dumped/DataAssetDiffClosure/data_asset_diff_closure_report.json
+schema_version: data_asset_diff_closure_report_v1
+generated_time: 2026-07-14T23:27:25.4566757Z
+case_count: 11
+passed_count: 11
+failed_count: 0
+validation_content_restored_count: 2
+validation_content_removed_new_file_count: 0
+validation_content_unchanged: true
+negative_error_codes_from_process_log: true
+all_passed: true
+```
+
+Validation-content acceptance:
+
+```text
+file_count before/after: 9 / 9
+relative path: exact match
+SHA-256: exact match
+byte length: exact match
+LastWriteTimeUtc.Ticks: exact match
+Content/Validation residual Git change: none
+```
+
+All five negative cases used actual commandlet process-log evidence and rejected synthetic markers:
+
+```text
+ADUMP_DIFF_BASE_NOT_FOUND
+ADUMP_DIFF_BASE_TOO_LARGE
+ADUMP_DIFF_BASE_JSON_INVALID
+ADUMP_DIFF_ASSET_MISMATCH
+ADUMP_DIFF_CURRENT_UNSUPPORTED
+```
+
+Independent wrapper evidence:
+
+```text
+run_id: testrun_4658af0ac765
+result: 1 passed
+started_at: 2026-07-14T23:24:44.154878Z
+finished_at: 2026-07-14T23:27:25.660411Z
+```
+
+Final result:
+
+```text
+ADUMP-v0.7.1-RC: Completed / Contract Accepted
+v0.7.3 Component Tree: Unblocked / Not Started
+```
+
+No additional C++, PowerShell, schema, or closure work remains for v0.7.1 acceptance.
 
 ### Migration
 
@@ -1168,6 +1240,14 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.14
+
+- Added the canonical mandatory no-SkipBuild v0.7.1 acceptance record and final report evidence.
+- Marked the v1.5 report contract completed and the DataAsset Diff contract accepted.
+- Recorded exact 9-file validation-content equality, real 5/5 process-log stable codes, and synthetic-marker rejection.
+- Updated the inherited v0.7.1 status in the completed v0.7.2 entry.
+- Preserved the rejected candidate and functional-alignment stages as historical intermediate checkpoints.
 
 ### v1.13
 

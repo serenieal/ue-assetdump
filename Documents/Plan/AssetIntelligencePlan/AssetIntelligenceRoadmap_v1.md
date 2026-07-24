@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.13
+- document_version: v1.14
 - created_at: 2026-07-10
-- updated_at: 2026-07-13
+- updated_at: 2026-07-24
 - owner_project: CarFight
 - target_plugin: AssetDump
 - document_role: master_roadmap
@@ -46,31 +46,34 @@ Summarize turret-related Blueprint and DataAsset assets.
 1. Prefer small, staged context over full dump consumption.
 2. Keep default full dump behavior backward compatible.
 3. Treat every new output group as a named section with a schema version.
-4. Make every Codex-sized implementation plan compile from a TaskSource document.
+4. Keep the current representative Plan, public contracts, protection boundaries, and verification requirements explicit before implementation starts.
 5. Preserve deterministic output ordering.
 6. Keep validation gates separate for Plugin, Project, and release-level policies.
-7. Do not mix master roadmap documents with executable Codex task source documents.
-8. Future draft TaskSources must not be handed to Codex until their `codex_input` field is changed to `true` and `Unresolved` is resolved.
+7. Separate Browser document/evidence review from Codex or user-selected local Source/Scripts implementation and validation-evidence generation.
+8. Preserve historical TaskSource and generated Codex YAML files as design and execution records, but do not require them as gates for new work.
 
 ## Document Structure
 
-This folder uses a two-layer planning model.
+This folder uses current planning documents plus preserved implementation-contract history.
 
 ```text
+README.md
+  Current state, execution responsibility, protection boundary, and next sequence.
+
 AssetIntelligenceRoadmap_v1.md
   Human-facing master roadmap.
 
 SectionRegistry_v1.md
   Shared section names, intent mapping, and schema policies.
 
-vX_Y_Z_*_TaskSource.md
-  Codex-compilable implementation plans.
+ValidationPolicy_v1.md
+  Verification and evidence interpretation policy.
 
-vX_Y_Z_*_TaskSource_Draft.md
-  Planning placeholders that are not yet Codex inputs.
+ImplementationResultLog_v1.md
+  Completed implementation and verification history.
 
-Generated/Final/*.yaml
-  Generated Codex task contracts created by plan tools.
+vX_Y_Z_*_TaskSource.md and Generated/Final/*.yaml
+  Preserved historical design and execution-contract records; not mandatory new-work gates.
 ```
 
 ## Current Baseline
@@ -141,7 +144,7 @@ Planned scope:
 
 ```text
 v0.7.0 DataAsset values - release gate completed 2026-07-10
-v0.7.1 DataAsset diff - functional closure alignment passed; final report-contract alignment prepared 2026-07-13
+v0.7.1 DataAsset diff - mandatory no-SkipBuild closure passed; contract accepted 2026-07-15
 v0.7.2 Enhanced Input summary - release-ready gate passed 2026-07-13; human release review pending
 v0.7.3 Actor/Blueprint component tree
 ```
@@ -195,30 +198,24 @@ v1.1.1 Ambiguous asset candidate flow
 v1.1.2 Multi-query context bundle assembly
 ```
 
-## TaskSource Policy
+## Implementation Planning Policy
 
-Every implementation unit that may be handed to Codex must be written as a TaskSource document with these sections:
+New Source/Scripts work uses the current AssetDump document system directly.
 
 ```text
-Metadata
-Goal
-In Scope
-Out of Scope
-Constraints
-Target Files
-Reference Files
-Current Behavior
-Desired Behavior
-Implementation Steps
-Acceptance Criteria
-Verification
-Migration
-Unresolved
-Codex Contract Source
-Changelog
+Browser
+  Read Git, representative Plan, contracts, implementation, and stored evidence.
+  Define or update scope, protection boundaries, completion criteria, and document state.
+  Audit the resulting diff, reports, process logs, and content-invariance evidence.
+
+Codex or user-selected local environment
+  Read AGENTS.md, Documents/ActiveWork.md, Documents/Plan/README.md, and this Plan family.
+  Implement allowed Source/Scripts changes.
+  Run the standard Editor build, parser, regression, commandlet, and required closure.
+  Generate fresh machine-readable reports, process logs, and content-invariance evidence.
 ```
 
-The TaskSource should pass `plan.inspect_unresolved` with no blocking unresolved items before `plan.compile_outputs` is used.
+Historical TaskSource and generated Codex YAML files remain available as design evidence and execution history. They are not mandatory prerequisites for new work.
 
 ## Completed Implementation Records
 
@@ -366,14 +363,16 @@ core_verification_status: passed
 regression_verification_status: passed
 independent_build_status: passed
 functional_closure_status: passed
-contract_acceptance_status: pending_report_contract
+contract_acceptance_status: accepted
+mandatory_no_skip_build_closure_status: passed
 closure_candidate_status: rejected_evidence_integrity
 closure_task_status: candidate_rejected
 closure_alignment_status: functional_alignment_completed
-report_contract_status: prepared
+report_contract_status: accepted
 completed_at: 2026-07-10 16:36:09 KST
 functional_alignment_reported_at: 2026-07-13 15:33:17 KST
 functional_report_generated_time: 2026-07-13T06:31:04.9960053Z
+final_acceptance_report_generated_time: 2026-07-14T23:27:25.4566757Z
 result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
 generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
@@ -399,7 +398,9 @@ Closure candidate report: nominal 11/11, rejected after independent evidence rev
 Independent CarFight_ReEditor build: passed
 ```
 
-The candidate positive outputs, fingerprint sequence, project-owned snapshot, and fixture hash evidence were valid. Final acceptance was rejected because five negative cases accepted `HarnessStableErrorCode` lines appended by the harness rather than codes emitted by the commandlet, and `makefixtures` cleanup required manual validation-asset restoration. The active alignment task adds real issue-code logging and automatic validation-content restoration.
+The first candidate positive outputs, fingerprint sequence, project-owned snapshot, and fixture hash evidence were valid, but that intermediate candidate was rejected because five negative cases accepted `HarnessStableErrorCode` lines appended by the harness rather than codes emitted by the commandlet, and `makefixtures` cleanup required manual validation-asset restoration.
+
+The corrective alignment and final report-contract work were subsequently completed. The canonical acceptance report records 11/11 cases, real process-log codes, exact validation-content restoration, `validation_content_unchanged=true`, `negative_error_codes_from_process_log=true`, and `all_passed=true` after a mandatory execution without `-SkipBuild`.
 
 ### AssetDump v0.7.2 Enhanced Input Summary
 
@@ -421,7 +422,7 @@ release_gate_status: passed
 implementation_reported_at: 2026-07-13 07:27:45 KST
 regression_completed_at: 2026-07-13 07:46:54 KST
 closure_reported_at: 2026-07-13 08:16:36 KST
-v0_7_1_contract_acceptance_status: pending_report_contract
+v0_7_1_contract_acceptance_status: accepted
 result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
 generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
@@ -446,19 +447,20 @@ IMC_Vehicle_Default: 42 mappings, 6 modifiers, 0 triggers
 git diff --check: passed with line-ending warnings only
 ```
 
-The v0.7.2 feature release-ready gate is complete. Tagging or publishing remains a human release decision. The v0.7.1 functional closure cases now pass 11/11 with real process-log codes and automatic validation-content restoration. The entire v0.7.x line remains not release-complete only until the closure report exposes the required top-level evidence fields and explicit final predicates.
+The v0.7.2 feature release-ready gate is complete. Tagging or publishing remains a human release decision. The separate v0.7.1 contract is accepted after the mandatory no-SkipBuild closure passed with the required top-level evidence fields and explicit final predicates.
 
 ## Recommended Next Execution Path
 
-The next execution sequence should be:
+There is no active implementation task. The next implementation candidate is v0.7.3 Component Tree.
 
 ```text
-1. Use `v0_7_1_DataAssetDiff_ReportContract_TaskSource.md` as the current execution source.
-2. Implement the one-file report alignment from `Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml`.
-3. Add the six required top-level restoration/process-log evidence fields while retaining the nested evidence object.
-4. Make `all_passed` explicitly require `validation_content_unchanged` and `negative_error_codes_from_process_log`.
-5. Run the closure without `-SkipBuild` and confirm no validation binary changes remain.
-6. After that report passes, mark v0.7.1 and the v0.7.x line release-ready, then prepare v0.7.3 Component Tree.
+1. Start v0.7.3 only after an explicit user request.
+2. Re-read assetdump_repo Git state, AGENTS.md, Documents/ActiveWork.md, Documents/Plan/README.md, and the current AssetIntelligencePlan README.
+3. Inspect the existing Actor/Blueprint component dump paths and representative Blueprint assets.
+4. Define component_tree_v1 scope, deterministic ordering, unsupported-asset behavior, limits, compatibility, and the v0.7.1 protection boundary in current Plan documents.
+5. Have Codex or a user-selected local environment implement the allowed Source/Scripts changes directly from the current documents.
+6. Generate fresh build, parser, regression, project smoke, ChangedOnly, process-log, and Content/Validation invariance evidence in that execution environment.
+7. Have Browser audit the actual diff and stored evidence, record unexecuted checks as `Not Run by Browser`, and synchronize ActiveWork and the representative Plan.
 ```
 
 ## Validation Policy Summary
@@ -494,6 +496,14 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.14
+
+- Synchronized v0.7.1 with the canonical mandatory no-SkipBuild closure and marked the report contract accepted.
+- Replaced the obsolete Report Contract execution path with the unblocked, not-started v0.7.3 Component Tree sequence.
+- Aligned planning policy with the current Browser review and Codex or local implementation responsibility split.
+- Reclassified TaskSource and generated Codex YAML files as preserved historical records rather than mandatory new-work gates.
+- Preserved the rejected candidate and functional-alignment checkpoints as historical evidence.
 
 ### v1.13
 

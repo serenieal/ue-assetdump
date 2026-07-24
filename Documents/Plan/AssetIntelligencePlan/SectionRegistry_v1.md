@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.11
+- document_version: v1.12
 - created_at: 2026-07-10
-- updated_at: 2026-07-13
+- updated_at: 2026-07-24
 - owner_project: CarFight
 - target_plugin: AssetDump
 - document_role: shared_registry
@@ -15,7 +15,7 @@
 
 This registry defines canonical AssetDump section names, intent-to-section mappings, and section schema policy for future AI-oriented AssetDump work.
 
-TaskSource documents should reference this registry rather than redefining section names independently.
+Current Plan documents and implementations should reference this registry rather than redefining section names independently. Historical TaskSource documents remain preserved design records.
 
 ## Section Naming Rules
 
@@ -24,7 +24,7 @@ TaskSource documents should reference this registry rather than redefining secti
 3. New sections must declare a schema version if they expose structured data.
 4. Section output should be deterministic.
 5. Specialized sections should provide a compact preview when possible.
-6. Section names used in commandlet options must match this registry unless a TaskSource explicitly updates this registry.
+6. Section names used in commandlet options must match this registry unless the current Plan and implementation explicitly update this registry with compatibility and migration notes.
 
 ## Core Sections
 
@@ -42,7 +42,7 @@ TaskSource documents should reference this registry rather than redefining secti
 |---|---|---:|---|
 | `widget_designer` | WidgetBlueprint Designer hierarchy | Existing | `widget_designer_v1` |
 | `data_asset_values` | DataAsset field/value summary | Implemented v0.7.0; release gate complete | `data_asset_values_v1` |
-| `data_asset_diff` | DataAsset before/after field diff | Implemented v0.7.1; functional closure passed, report contract pending | `data_asset_diff_v1` |
+| `data_asset_diff` | DataAsset before/after field diff | Implemented v0.7.1; mandatory no-SkipBuild closure passed, contract accepted | `data_asset_diff_v1` |
 | `input_summary` | Enhanced Input Action/Mapping summary | Implemented v0.7.2; release-ready gate passed, human release review pending | `input_summary_v1` |
 | `component_tree` | Actor/Blueprint component hierarchy | Planned v0.7.3 | `component_tree_v1` |
 | `material_param_summary` | Material and MaterialInstance parameter summary | Draft v0.7.4 | `material_param_summary_v1` |
@@ -75,11 +75,13 @@ implementation_status: completed
 regression_verification_status: passed
 independent_build_status: passed
 functional_closure_status: passed
-contract_acceptance_status: pending_report_contract
+contract_acceptance_status: accepted
+mandatory_no_skip_build_closure_status: passed
 closure_candidate_status: rejected_evidence_integrity
 closure_task_status: candidate_rejected
 closure_alignment_status: functional_alignment_completed
-report_contract_status: prepared
+report_contract_status: accepted
+final_acceptance_report_generated_time: 2026-07-14T23:27:25.4566757Z
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
 generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
 closure_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
@@ -110,14 +112,14 @@ release_ready_status: passed
 release_status: pending_human_review
 release_gate_status: passed
 closure_reported_at: 2026-07-13 08:16:36 KST
-v0_7_1_contract_acceptance_status: pending_report_contract
+v0_7_1_contract_acceptance_status: accepted
 source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
 generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
 alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
 alignment_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
 
-The accepted `input_summary_v1` contract includes bounded typed settings, stable warning codes, chain-aware deterministic mapping order, InputTriggerPressed fixture coverage, and repeated-output determinism. No v0.7.2 implementation task remains active. Human tag/publish review is pending, while the separate v0.7.1 full-contract acceptance list remains open.
+The accepted `input_summary_v1` contract includes bounded typed settings, stable warning codes, chain-aware deterministic mapping order, InputTriggerPressed fixture coverage, and repeated-output determinism. No v0.7.2 implementation task remains active. Human tag/publish review is pending. The separate v0.7.1 `data_asset_diff_v1` contract is accepted after the mandatory no-SkipBuild closure passed.
 
 The reserved `data_asset_values` and `input_bindings` Intents remain unavailable. Neither implementation task enabled them.
 
@@ -302,13 +304,21 @@ full mode remains compatible
 
 ## Migration
 
-No runtime migration is required for this registry. Implementation TaskSource documents should update this registry when adding or renaming section names.
+No runtime migration is required for this registry. New section work must update this registry through the current Plan documents and implementation when adding or renaming section names. Historical TaskSource files may remain as design evidence but are not mandatory execution gates.
 
 ## Unresolved
 
 None.
 
 ## Changelog
+
+### v1.12
+
+- Marked `data_asset_diff_v1` contract acceptance complete after the mandatory no-SkipBuild closure passed.
+- Recorded the canonical acceptance report time and accepted report-contract status while preserving the rejected candidate history.
+- Updated the inherited v0.7.1 status for the completed v0.7.2 section.
+- Aligned registry update policy with the current Plan and Browser/Codex responsibility model.
+- Reclassified historical TaskSource documents as preserved design records rather than mandatory new-work gates.
 
 ### v1.11
 

@@ -1,10 +1,10 @@
 # AssetIntelligencePlan
 
-- Document version: v1.15
-- Last updated: 2026-07-15
+- Document version: v1.16
+- Last updated: 2026-07-24
 - Status: Current
 
-This folder contains the planning documents and generated implementation contracts for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
+This folder contains the planning documents and preserved implementation-contract history for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
 
 ## Current State
 
@@ -161,6 +161,8 @@ v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
 Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 ```
 
+These files remain evidence and design history. They are not mandatory prerequisites for new Browser or Codex work.
+
 ## Main Documents
 
 ```text
@@ -171,20 +173,54 @@ ImplementationResultLog_v1.md
 TaskSourceTemplate_v1.md
 ```
 
+## Execution Responsibility
+
+```text
+Browser
+= bounded document/code reading, Git diff review, document updates, and audit of stored reports and logs
+
+Codex or a user-selected local implementation environment
+= Source/Scripts changes, standard Editor build, parser, regression, commandlet, and full closure execution
+
+Browser follow-up review
+= verification of the actual diff, stored machine-readable reports, process logs, and content-invariance evidence
+```
+
+The current Browser surface does not expose `agent.*`, `plan.*`, Work/Lab, arbitrary PowerShell execution, or automatic external Codex YAML generation. New work must not depend on those hidden surfaces.
+
+`apply_approved=true` is an MCP transport flag for an already authorized write. It is not evidence that the user approved a Browser direct code edit under the AssetDump project policy.
+
+If the user explicitly requires an external Codex YAML and the Browser work-order surface remains unavailable, report:
+
+```text
+Blocked — Browser Work-Order Surface Not Exposed
+```
+
 ## Next Sequence
 
 ```text
 1. Keep the accepted v0.7.1 commandlet, schema, stable codes, and closure contract protected.
 2. Start v0.7.3 only after an explicit AssetDump task request.
 3. Re-read assetdump_repo Git state, AGENTS.md, ActiveWork, and this representative Plan.
-4. Define the v0.7.3 Component Tree scope and protection boundary through Plan.
-5. Generate a TaskSource and Codex execution contract with plan.*.
-6. Require actual diff, build, parser, regression, and content-invariance review before completion claims.
+4. Define the v0.7.3 Component Tree scope and protection boundary through the current Plan documents.
+5. Have Codex or a user-selected local environment read those documents directly and implement the allowed Source/Scripts changes without requiring a new TaskSource or Codex YAML.
+6. Generate actual build, parser, regression, commandlet, closure, process-log, and content-invariance evidence in that execution environment.
+7. Use Browser follow-up review to audit the actual diff and stored evidence, then update ActiveWork and this representative Plan.
+8. Do not claim a Browser-unexecuted validation as newly passed merely because a historical report exists.
 ```
 
 The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
+
+### v1.16 - 2026-07-24
+
+- Aligned the representative Plan with the current 15-tool Browser surface and direct text I/O contract.
+- Removed hidden `plan.*`, Agent, Work/Lab, TaskSource, and Codex YAML generation from the mandatory new-work path.
+- Separated Browser document/evidence audit from Codex or local Source/Scripts implementation and validation-evidence generation.
+- Clarified that arbitrary PowerShell parser and AssetDump closure execution are not assumed Browser capabilities.
+- Reclassified the v0.7.1 TaskSource and generated YAML files as preserved contract history rather than new-work gates.
+- Distinguished MCP `apply_approved=true` from explicit AssetDump Browser direct-edit approval.
 
 ### v1.15 - 2026-07-15
 
@@ -214,6 +250,14 @@ The v0.7.2 Enhanced Input Summary human release review remains a separate releas
 - Promoted the Report Contract TaskSource and generated Codex YAML as the active task.
 
 ## Migration
+
+### v1.16
+
+- Treat the previous `plan.* -> TaskSource -> Codex YAML` sequence as preserved historical workflow, not the current Browser execution path.
+- New Source/Scripts work is performed directly in Codex or a user-selected local implementation environment after reading the current AssetDump documents.
+- Browser work is limited to the currently exposed bounded read, direct document write, Git review, allowlisted build, and stored-evidence audit capabilities.
+- Browser must record unsupported or unexecuted parser, closure, and commandlet validation as not run by Browser.
+- Existing TaskSource, generated contracts, script paths, report schema, and validation content paths remain unchanged.
 
 ### v1.15
 

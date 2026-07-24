@@ -1,18 +1,19 @@
 # AssetDump 작업 규칙
 
-- 문서 버전: v1.3
-- 최근 갱신일: 2026-07-16
+- 문서 버전: v1.4
+- 최근 갱신일: 2026-07-24
 - 적용 범위: `UE/Plugins/ue-assetdump/` 이하의 코드, 스크립트, 콘텐츠와 문서
 
-## 최우선 코드 작업지시서 게이트
+## 최우선 Browser·Codex 작업 경계
 
-- 이 게이트는 아래의 모든 일반 코드·스크립트 작성 규칙보다 우선한다.
-- 웹브라우저 AI 세션의 역할은 AssetDump 코드를 직접 수정하는 것이 아니라 `plan.*`으로 TaskSource와 최종 Codex YAML 작업지시서를 생성하고 그 경로를 사용자에게 전달하는 것이다.
-- `plan.*` 기능은 Codex 실행기가 아니다. 브라우저 세션에 Codex 실행 도구가 연결되어 있지 않아도 정상이며 차단 사유가 아니다.
-- 실제 코드·스크립트 수정은 사용자가 여는 별도 Codex 세션 또는 사용자가 선택한 Codex 환경에서 최종 YAML을 입력해 수행한다.
-- `plan.*` 기능 자체가 사용할 수 없거나 품질 게이트를 해결할 근거가 없으면 `Blocked — Plan Work-Order Generation Unavailable`로 보고한다.
-- 차단 보고 이후 사용자가 웹브라우저 AI의 직접 수정을 명시적으로 승인하기 전에는 직접 수정하지 않는다.
-- 일반적인 `수정해줘`, `구현해줘`, `계속해줘`는 직접 수정 승인으로 해석하지 않는다.
+- 이 경계는 아래의 모든 일반 코드·스크립트 작성 규칙보다 우선한다.
+- Browser 세션은 현재 MCP에 공개된 bounded read, Git review, 직접 text write와 allowlisted build surface만 사용한다.
+- Browser에서 비노출 `agent.*`, `plan.*`, Work/Lab 또는 별도 connector를 찾거나 전제로 삼지 않는다.
+- 일반 문서 수정과 읽기 전용 분석·리뷰는 Browser가 `repo.write_text`, `repo.patch_text`, `repo.write_batch`로 직접 수행할 수 있다.
+- AssetDump `Source/`와 `Scripts/` 구현의 기본 실행 환경은 별도 Codex 세션 또는 사용자가 선택한 로컬 구현 환경이다. Codex 세션은 별도 TaskSource나 Codex YAML 없이 이 문서체계와 대표 Plan을 직접 읽고 수정·검증한다.
+- Browser가 코드·스크립트를 직접 수정하는 예외는 사용자가 Browser 직접 수정을 명시적으로 승인한 경우에만 `Browser Direct Edit (User Approved Exception)`으로 적용한다.
+- MCP 입력의 `apply_approved=true`는 이미 승인된 write를 실행하는 전송 계층 플래그일 뿐, AssetDump 프로젝트 정책상 Browser 직접 수정 승인 증거가 아니다.
+- 사용자가 외부 Codex YAML 생성을 필수로 요청했지만 현재 Browser 공개 기능에 해당 surface가 없으면 `Blocked — Browser Work-Order Surface Not Exposed`로 보고한다.
 
 ---
 
@@ -37,51 +38,66 @@ CarFight의 `Document/ActiveWork.md`, `Document/Plan/README.md`, FeatureQueue와
 4. 선택된 대표 Plan과 실제 코드·스크립트·보고서를 교차검증한다.
 5. 기존 미커밋 변경을 임의로 정리, 되돌리거나 덮어쓰지 않는다.
 
-### 2.1 웹브라우저 AI의 Codex 작업지시서 생성
+### 2.1 Browser 분석·문서 작업 흐름
 
-브라우저 AI의 AssetDump 작업 준비 흐름은 다음과 같다.
+Browser 세션의 기본 흐름은 다음과 같다.
 
 ```text
 Git·대표 Plan·실제 구현 확인
 → 작업 범위와 보호 범위 확정
-→ plan.*으로 TaskSource 생성 또는 정제
-→ 최종 Codex YAML 작업지시서 생성
-→ quality_gate·evidence_gate·final_output_ready 확인
-→ 사용자에게 TaskSource와 최종 YAML 경로 전달
+→ 문서 작업이면 직접 atomic text write
+→ 코드·스크립트 작업이면 Codex 또는 사용자 선택 실행 환경으로 분리
+→ 실행 환경이 생성한 diff·report·log를 Browser가 감사
+→ 대표 Plan과 ActiveWork 갱신
 ```
 
-브라우저 AI 세션은 다음 상태로 종료할 수 있다.
+Browser는 다음 작업을 수행할 수 있다.
 
-```text
-Codex Work Order: Ready for External Codex
-External Codex Execution: Not Run
-Source Changes: Not Applied by Browser AI
-```
+- `assetdump_repo` Git 상태, 코드, 스크립트와 문서 읽기
+- 문서 생성·수정과 상태 동기화
+- 기존 report, process log와 콘텐츠 불변성 증거 감사
+- 공개 계약, 보호 범위, 완료·실패 조건 정리
+- 사용자가 명시적으로 승인한 경우에만 text code 직접 수정
 
-TaskSource와 최종 YAML에는 다음을 포함한다.
+Browser는 현재 공개 MCP만으로 다음 증거를 새로 생성할 수 있다고 가정하지 않는다.
 
-- 변경 가능한 `Source/`, `Scripts/`와 필요한 설정 경로
-- 변경 금지 commandlet 계약, report schema와 검증 콘텐츠
-- 빌드, parser, full closure, process-log evidence와 콘텐츠 불변성 조건
-- 완료·실패 조건과 결과 보고 형식
-- 사용자의 명시적 요청 없는 commit·push·reset·checkout·stash 금지
+- 임의 PowerShell 7 parser 실행
+- `Scripts/RunDataAssetDiffClosure.ps1` 실행
+- 임의 commandlet 인자와 full closure 실행
+- 외부 Codex TaskSource·YAML 자동 생성
 
-실제 외부 Codex 실행 후 검수를 요청받으면 브라우저 AI는 Git diff, 빌드, parser, full closure, process-log evidence와 콘텐츠 불변성을 확인한다.
-검수 미달 항목은 직접 임시 패치하지 않고 보정 TaskSource와 최종 YAML로 다시 만든다.
+### 2.2 Codex·로컬 구현 환경의 책임
 
-직접 수정 예외는 작업지시서 생성 차단 원인과 위험을 보고한 뒤 사용자가 명시적으로 승인한 경우에만 `Browser Direct Edit (User Approved Exception)`으로 적용한다.
-문서만 수정하는 작업과 읽기 전용 분석·리뷰는 이 작업지시서 게이트에서 제외한다.
+Codex 또는 사용자가 선택한 로컬 구현 환경은 다음을 직접 수행한다.
+
+- 가장 가까운 `AGENTS.md`, `Documents/ActiveWork.md`와 대표 Plan 읽기
+- 허용된 `Source/`, `Scripts/`와 필요한 설정 수정
+- 표준 Editor build, parser, regression과 full closure 실행
+- process-log evidence, machine-readable report와 콘텐츠 불변성 증거 생성
+- 완료·실패 조건과 실행하지 못한 검증을 분리해 보고
+
+과거 TaskSource와 Codex YAML은 완료 이력과 설계 근거로 보존하지만, 새 작업의 필수 선행조건으로 사용하지 않는다.
 
 ## 3. 작업 종료와 인계
 
-- TaskSource 또는 최종 Codex 작업지시서가 준비되면 대표 Plan에 실제 경로와 `Ready for External Codex` 상태를 기록한다.
-- 외부 Codex 실행 전에는 구현 완료, 빌드 PASS 또는 Accepted를 주장하지 않는다.
-- 외부 실행 후 코드, 스크립트, 계약, 검증 결과 또는 다음 단계가 바뀌면 대표 Plan을 갱신한다.
+- 코드·스크립트 실행 전에는 구현 완료, 빌드 PASS 또는 Accepted를 주장하지 않는다.
+- Codex 또는 로컬 실행 후 코드, 스크립트, 계약, 검증 결과나 다음 단계가 바뀌면 대표 Plan을 갱신한다.
+- Browser 검수는 Git diff와 저장된 build·parser·closure·process-log·콘텐츠 불변성 증거를 각각 분리해 판정한다.
+- Browser가 실행하지 않은 검증은 `Not Run by Browser`로 기록하며, 기존 파일이 있다는 이유만으로 새 PASS를 주장하지 않는다.
 - 마지막 작업 초점이나 활성 작업 목록이 바뀌면 `Documents/ActiveWork.md`를 갱신한다.
-- 빌드, commandlet, parser, report contract와 콘텐츠 불변성 검증을 서로 분리해 기록한다.
+- 과거 TaskSource와 Codex YAML은 경로를 유지하되 새 작업의 필수 실행 gate로 승격하지 않는다.
 - commit, push, reset, checkout과 stash는 사용자의 명시적 요청 없이 수행하지 않는다.
 
 ## 4. Changelog
+
+### v1.4 - 2026-07-24
+
+- Browser 공개 surface가 15개 direct I/O·build 계약으로 변경된 현재 MCP와 작업 경계를 정렬.
+- 비노출 `plan.*`, Agent, Work/Lab 탐색과 TaskSource·Codex YAML 필수 생성을 제거.
+- Browser 문서·읽기·증거 감사와 Codex·로컬 구현·검증 생성 책임을 분리.
+- `apply_approved=true`와 AssetDump 프로젝트의 Browser 직접 수정 승인을 구분.
+- 임의 PowerShell parser, AssetDump closure와 commandlet 증거 생성은 Browser 기능으로 가정하지 않도록 교정.
+- 과거 TaskSource와 Codex YAML은 완료 이력으로 보존하되 새 작업의 선행 gate에서 제외.
 
 ### v1.3 - 2026-07-16
 
@@ -110,7 +126,16 @@ TaskSource와 최종 YAML에는 다음을 포함한다.
 
 ## 5. Migration
 
-### v1.3 적용 안내
+### v1.4 적용 안내
+
+- 새 Browser 세션은 현재 공개된 `repo.*`, `git.*`, `ue.batchdump_safe`, `build.run/status` 범위만 사용한다.
+- 기존 `plan.* → TaskSource → Codex YAML` 절차는 현재 Browser 실행 절차가 아니라 과거 계약 이력으로 해석한다.
+- 새 코드·스크립트 작업은 별도 Codex 또는 사용자가 선택한 로컬 환경이 문서를 직접 읽고 구현·검증한다.
+- Browser는 문서 작업과 읽기 전용 검토를 직접 수행하고, 구현 환경이 생성한 diff와 저장된 증거를 감사한다.
+- 외부 Codex YAML이 명시적으로 필요하면 비노출 기능을 우회 탐색하지 않고 `Blocked — Browser Work-Order Surface Not Exposed`로 보고한다.
+- 기존 TaskSource, generated YAML, report와 검증 콘텐츠 경로는 이동하거나 삭제하지 않는다.
+
+### v1.3 과거 적용 안내
 
 - 기존 문서의 `Codex 실행 계약`은 `최종 Codex YAML 작업지시서`로 해석한다.
 - 기존 문서의 `Codex 실행`은 브라우저 세션의 필수 단계가 아니라 별도 Codex 환경의 후속 단계로 해석한다.

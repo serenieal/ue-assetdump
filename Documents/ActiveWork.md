@@ -1,7 +1,7 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.2
-- 최근 갱신일: 2026-07-15
+- 문서 버전: v1.3
+- 최근 갱신일: 2026-07-24
 - 문서 상태: Current
 - 역할: AssetDump 독립 저장소의 현재 활성 작업과 최근 완료 체크포인트를 연결하는 세션 복원 색인
 
@@ -14,7 +14,7 @@ CarFight 게임 기능과 GoPyMCP 내부 작업은 등록하지 않는다.
 
 ```text
 ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
-대표 Plan = 상세 설계, TaskSource와 검증 기준
+대표 Plan = 상세 설계, 공개 계약, 보호 범위와 검증 기준
 실제 코드·스크립트·콘텐츠·보고서 = 최종 상태 확인 대상
 ```
 
@@ -31,7 +31,7 @@ ADUMP-v0.7.1-RC = Completed / Contract Accepted
 v0.7.3 Component Tree = Unblocked / Not Started
 ```
 
-v0.7.3은 차단만 해제된 상태다. 사용자의 별도 착수 요청과 Plan 기반 TaskSource·Codex 계약 없이 구현을 시작하지 않는다.
+v0.7.3은 차단만 해제된 상태다. 사용자의 별도 착수 요청과 대표 Plan의 범위·보호 계약 확인 없이 구현을 시작하지 않는다. 구현은 별도 Codex 또는 사용자가 선택한 로컬 환경을 기본으로 하며, Browser 직접 수정은 명시 승인 예외로만 허용한다.
 
 ---
 
@@ -124,9 +124,13 @@ finished_at: 2026-07-14T23:27:25.660411Z
 1. 사용자가 v0.7.3 착수를 요청한다.
 2. assetdump_repo Git 상태와 최신 AGENTS.md를 재확인한다.
 3. AssetIntelligencePlan에서 v0.7.3 범위와 보호 계약을 확인한다.
-4. plan.*으로 TaskSource와 Codex 실행 계약을 준비한다.
-5. Codex 구현 후 실제 diff, build, parser와 closure 증거를 검수한다.
+4. Codex 또는 사용자 선택 로컬 환경이 문서를 직접 읽고 Source/Scripts를 구현한다.
+5. 해당 실행 환경이 표준 build, parser, regression과 필요한 closure 증거를 생성한다.
+6. Browser는 실제 diff와 저장된 report·process log·콘텐츠 불변성 증거를 감사한다.
+7. 완료·미검증 상태를 이 문서와 대표 Plan에 동기화한다.
 ```
+
+Browser에는 현재 `plan.*`, Agent, Work/Lab과 외부 Codex YAML 생성 surface가 노출되지 않는다. 과거 TaskSource와 generated YAML은 v0.7.1 완료 이력으로만 보존한다.
 
 v0.7.2 Enhanced Input Summary의 human release review는 별도 상태로 유지한다.
 
@@ -168,6 +172,14 @@ validation-content exact restoration 계약
 
 ## 7. Changelog
 
+### v1.3 - 2026-07-24
+
+- v0.7.3 착수 절차를 현재 Browser 15-tool 계약과 Codex 직접 구현 방식에 맞게 교정.
+- 비노출 `plan.*`, TaskSource와 Codex 실행 계약 필수 단계를 제거.
+- Codex·로컬 환경의 build·parser·regression·closure 증거 생성과 Browser의 diff·증거 감사를 분리.
+- 과거 TaskSource와 generated YAML을 v0.7.1 완료 이력으로 재분류.
+- Browser 직접 text code 수정은 사용자 명시 승인 예외라는 경계를 반영.
+
 ### v1.2 - 2026-07-15
 
 - PowerShell 7에서 `RunDataAssetDiffClosure.ps1 -CompactLog`를 `-SkipBuild` 없이 실행한 결과를 반영.
@@ -196,11 +208,18 @@ validation-content exact restoration 계약
 
 ## 8. Migration
 
+### v1.3 적용 안내
+
+- v0.7.3의 기존 `plan.* → TaskSource → Codex 계약` 단계는 새 작업의 필수 gate가 아니다.
+- Codex 또는 사용자가 선택한 로컬 환경은 이 문서체계와 대표 Plan을 직접 읽고 구현·검증한다.
+- Browser는 임의 PowerShell closure를 실행했다고 가정하지 않고 저장된 외부 실행 증거만 감사한다.
+- 기존 v0.7.1 TaskSource, generated YAML, report와 검증 콘텐츠 경로는 유지한다.
+
 ### v1.2 적용 안내
 
 - 기존 `ADUMP-v0.7.1-RC`의 차단 상태는 최종 no-SkipBuild PASS 증거로 대체한다.
 - 이전 `-SkipBuild` report는 진단 이력으로 남지만 최종 acceptance 기준은 새 `2026-07-14T23:27:25.4566757Z` report다.
-- v0.7.3은 자동 착수하지 않고 Plan 기반 새 TaskSource와 Codex 계약을 준비한 뒤 시작한다.
+- v0.7.3은 자동 착수하지 않고 대표 Plan의 범위·보호 계약을 확인한 뒤 Codex 또는 사용자 선택 로컬 환경에서 시작한다.
 - 기존 코드, 스크립트, report schema와 검증 콘텐츠 경로는 이동하지 않는다.
 
 ### 기존 적용 안내
