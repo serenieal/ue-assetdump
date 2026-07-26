@@ -1,7 +1,7 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.1
-- 최근 갱신일: 2026-07-24
+- 문서 버전: v1.6
+- 최근 갱신일: 2026-07-27
 - 문서 상태: Current
 - 역할: `assetdump_repo`의 Plan 폴더와 대표 진입 문서를 연결하는 색인
 
@@ -21,7 +21,7 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 
 | 폴더 | 현재 상태 | 역할 | 대표 진입 문서 |
 | --- | --- | --- | --- |
-| `AssetIntelligencePlan/` | v0.7.1 Contract Accepted / v0.7.3 Unblocked, Not Started | AI 지향 Asset Intelligence Layer 로드맵, 공개 계약, 검증과 구현 결과 | `AssetIntelligencePlan/README.md` |
+| `AssetIntelligencePlan/` | v0.7.1 Contract Accepted / v0.7.3 Contract Accepted | AI 지향 Asset Intelligence Layer 로드맵, 공개 계약, 검증과 구현 결과 | `AssetIntelligencePlan/README.md` |
 
 현재 작업 초점과 정확한 다음 단계는 다음 문서를 우선한다.
 
@@ -42,7 +42,8 @@ Documents/ActiveWork.md
 | 검증 정책 | `ValidationPolicy_v1.md` |
 | 구현 결과 이력 | `ImplementationResultLog_v1.md` |
 | 현재 상태와 다음 작업 | `Documents/ActiveWork.md`와 이 폴더의 `README.md` |
-| v0.7.3 범위 준비 | `AssetIntelligenceRoadmap_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v0.7.3 현재 구현 계약 | `v0_7_3_ComponentTreePlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v0.7.3 closure 현황 | `v0_7_3_ComponentTreeClosureReport_v1.md`, `ImplementationResultLog_v1.md` |
 | 완료 작업지시서 이력 | 필요한 `v0_7_1_*_TaskSource.md`와 대응 Codex YAML만 선택 |
 | 생성 결과와 증거 | 필요한 `Generated/` 결과만 선택 |
 
@@ -70,6 +71,34 @@ CarFight에는 공개 commandlet, report schema와 요구 버전 같은 소비 �
 ---
 
 ## 6. Changelog
+
+### v1.6 - 2026-07-27
+
+- v0.7.3 최종 Editor build, makefixtures idempotency, Plugin validate, regression, process-log, 결정성과 validation exact invariance PASS를 반영.
+- `ADUMP-v0.7.3-CT` 상태를 Completed / Contract Accepted로 승격.
+
+### v1.5 - 2026-07-25
+
+- v0.7.3 Plugin mount scan 복구와 10/10 Plugin full·ChangedOnly 검증을 색인 상태에 반영.
+- 전용 Component Tree fixture 4-node 출력과 반복 section 결정성 PASS를 반영.
+- 최종 acceptance는 makefixtures·Plugin validate·regression·exact manifest·git diff check 대기로 유지.
+
+### v1.4 - 2026-07-25
+
+- v0.7.3 partial closure report를 현재 선택 읽기 경로에 등록.
+- 최종 build/project/ChangedOnly 및 semantic determinism PASS와 Plugin closure Not Run 항목을 분리.
+- Contract Accepted 상태는 유지하지 않고 Plugin Closure Pending으로 보존.
+
+### v1.3 - 2026-07-25
+
+- v0.7.3 상태를 Implemented / Editor Build + Project Smoke Passed / Plugin Closure Pending으로 동기화.
+- 최종 acceptance 전 새 makefixtures, Plugin validate, regression self-test와 콘텐츠 exact manifest가 필요함을 명시.
+
+### v1.2 - 2026-07-24
+
+- `ADUMP-v0.7.3-CT` 활성화와 Component Tree 현재 구현 Plan을 등록.
+- v0.7.3 상태를 Active / Planning Complete로 변경.
+- 범위 준비 읽기 경로를 실제 current implementation plan 중심으로 전환.
 
 ### v1.1 - 2026-07-24
 

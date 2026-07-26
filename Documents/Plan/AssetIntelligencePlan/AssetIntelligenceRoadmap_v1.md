@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.14
+- document_version: v1.19
 - created_at: 2026-07-10
-- updated_at: 2026-07-24
+- updated_at: 2026-07-27
 - owner_project: CarFight
 - target_plugin: AssetDump
 - document_role: master_roadmap
@@ -146,7 +146,7 @@ Planned scope:
 v0.7.0 DataAsset values - release gate completed 2026-07-10
 v0.7.1 DataAsset diff - mandatory no-SkipBuild closure passed; contract accepted 2026-07-15
 v0.7.2 Enhanced Input summary - release-ready gate passed 2026-07-13; human release review pending
-v0.7.3 Actor/Blueprint component tree
+v0.7.3 Actor/Blueprint component tree - completed 2026-07-27; release-grade closure passed; contract accepted
 ```
 
 ### v0.8.x Blueprint Graph AI Digest
@@ -449,18 +449,24 @@ git diff --check: passed with line-ending warnings only
 
 The v0.7.2 feature release-ready gate is complete. Tagging or publishing remains a human release decision. The separate v0.7.1 contract is accepted after the mandatory no-SkipBuild closure passed with the required top-level evidence fields and explicit final predicates.
 
-## Recommended Next Execution Path
+## v0.7.3 Final Closure
 
-There is no active implementation task. The next implementation candidate is v0.7.3 Component Tree.
+v0.7.3 Component Tree completed its release-grade closure on 2026-07-27 and is Contract Accepted.
 
 ```text
-1. Start v0.7.3 only after an explicit user request.
-2. Re-read assetdump_repo Git state, AGENTS.md, Documents/ActiveWork.md, Documents/Plan/README.md, and the current AssetIntelligencePlan README.
-3. Inspect the existing Actor/Blueprint component dump paths and representative Blueprint assets.
-4. Define component_tree_v1 scope, deterministic ordering, unsupported-asset behavior, limits, compatibility, and the v0.7.1 protection boundary in current Plan documents.
-5. Have Codex or a user-selected local environment implement the allowed Source/Scripts changes directly from the current documents.
-6. Generate fresh build, parser, regression, project smoke, ChangedOnly, process-log, and Content/Validation invariance evidence in that execution environment.
-7. Have Browser audit the actual diff and stored evidence, record unexecuted checks as `Not Run by Browser`, and synchronize ActiveWork and the representative Plan.
+implementation_status: completed
+contract_acceptance_status: accepted
+commandlet_version: 0.11.3
+editor_build_status: passed
+makefixtures_repeat_status: passed
+plugin_validation_status: passed
+regression_self_test_status: passed
+full_regression_status: passed
+explicit_unsupported_process_log_status: passed
+fixture_determinism_status: passed
+validation_content_exact_invariance_status: passed
+git_diff_check_status: passed
+evidence_root: Dumped/ComponentTreeClosureFinalRetry1
 ```
 
 ## Validation Policy Summary
@@ -496,6 +502,39 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.19
+
+- Normalized the current v0.7.3 roadmap entry to Completed / Contract Accepted.
+- Distinguished the superseded Admin build job from the canonical final local v0.11.3 build log.
+- Preserved prior partial-closure entries as historical evidence.
+
+### v1.18
+
+- Recorded the v0.7.3 World fixture idempotency correction and final standard Editor build.
+- Recorded every release-grade closure predicate as passed using fresh local process logs and reports.
+- Promoted v0.7.3 Component Tree to Contract Accepted.
+
+### v1.17
+
+- Recorded the now-superseded historical Admin build `fe00627aac764bfdbfa1254cc1c9b4a2` from the normalized Source state.
+- Recorded Plugin mount scan recovery, Plugin 10/10 full batch, immediate 10/10 ChangedOnly skip, and dedicated fixture determinism.
+- Reconfirmed project 3/3 full and immediate 3/3 ChangedOnly after the scan correction.
+- Reduced the remaining release predicates without promoting v0.7.3 to Contract Accepted.
+
+### v1.16
+
+- Recorded v0.7.3 Component Tree implementation and extractor 2.8.1 corrections.
+- Recorded successful AssetDump module compile/link and project 3/3 full plus 3/3 ChangedOnly evidence.
+- Moved the active path from implementation to fresh Plugin closure and exact content-invariance verification.
+- Kept final contract acceptance pending.
+
+### v1.15
+
+- Activated v0.7.3 Component Tree after explicit user instruction.
+- Registered the independent lightweight `component_tree_v1` implementation and validation sequence.
+- Replaced the unstarted candidate path with the active Codex/local implementation path.
+- Kept accepted v0.7.1 and v0.7.2 contracts protected.
 
 ### v1.14
 

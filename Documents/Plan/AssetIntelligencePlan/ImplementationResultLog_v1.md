@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.14
+- document_version: v1.20
 - created_at: 2026-07-10
-- updated_at: 2026-07-24
+- updated_at: 2026-07-27
 - document_role: implementation_result_log
 - codex_input: false
 
@@ -13,6 +13,164 @@
 Record implementation and verification results for Asset Intelligence planning tasks after Codex or manual implementation work is completed.
 
 ## Results
+
+## 2026-07-25 - AssetDump v0.7.3 Component Tree Implementation Checkpoint
+
+### Status
+
+```text
+task_id: ADUMP-v0.7.3-CT
+implementation: completed
+schema: component_tree_v1
+extractor_version: 2.8.1
+editor_build: passed
+project_smoke: passed
+project_changed_only: passed
+plugin_batch: passed
+plugin_changed_only: passed
+fixture_determinism: passed
+unsupported_full_mode_omission: passed
+plugin_closure: passed
+contract_acceptance: accepted
+```
+
+### Implemented Contract
+
+```text
+section: component_tree
+supported asset: Actor Blueprint with AActor-derived GeneratedClass
+explicit unsupported: ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET
+unsupported full mode: silent omission
+shape: deterministic multi-root forest plus parent-first flat_nodes
+limits: nodes 256, depth 32, preview 12, warnings 64
+reserved component_overview Intent: disabled
+full details dependency: none
+```
+
+New implementation files:
+
+```text
+Source/AssetDump/Public/ADumpComponentTree.h
+Source/AssetDump/Private/ADumpComponentTree.cpp
+Content/Validation/BP_ADumpComponentTree.uasset
+```
+
+Integration includes section parsing, run-option builder planning, result types, service execution, JSON serialization, fingerprint invalidation, meaningful-output detection, focused validation and a dedicated fixture generator.
+
+### Direct Review Corrections
+
+The user explicitly approved Browser direct Source work in this session. Browser review identified and corrected:
+
+```text
+1. SCS NAME_None root parent was serialized as "None" and produced a false orphan warning.
+2. Mixed SCS/CDO sibling comparison was not a strict total order.
+3. commandlet skip detection did not treat component_tree-only output as meaningful.
+4. Widget fixture code intentionally deleted and recreated the existing asset on every makefixtures run.
+5. Focused fixture validation did not require orphan_count=0 and warning_count=0.
+```
+
+Extractor version was raised to `2.8.1` so ChangedOnly invalidates outputs produced before these behavioral corrections.
+
+### Historical Pre-v0.11.3 Admin Evidence (Superseded)
+
+Historical Admin build:
+
+```text
+historical_admin_build_job_id: fe00627aac764bfdbfa1254cc1c9b4a2
+target: CarFight_ReEditor Win64 Development
+AssetDump compile: passed
+AssetDump link: passed
+exit_code: 0
+```
+
+Fresh project and Plugin evidence:
+
+```text
+project path: Dumped/ComponentTreeClosure20260725/ProjectPostPluginScan
+project root: /Game/CarFight/Vehicles/Blueprints
+project class_filter: Blueprint
+project full batch: 3 succeeded / 0 skipped / 0 failed
+project immediate ChangedOnly: 0 succeeded / 3 skipped / 0 failed
+Plugin path: Dumped/ComponentTreeClosure20260725/PluginFixtureRun2
+Plugin root: /AssetDump/Validation
+Plugin full batch: 10 succeeded / 0 skipped / 0 failed
+Plugin immediate ChangedOnly: 0 succeeded / 10 skipped / 0 failed
+extractor_version: 2.8.1
+commandlet_version: 0.11.3
+```
+
+Representative output:
+
+```text
+asset: BP_CFVehiclePawn
+schema: component_tree_v1
+node_count: 33
+orphan_count: 0
+warning_count: 0
+summary.component_count baseline: 33
+```
+
+No Script or workflow file changed, so PowerShell parser status is `N/A - no script changed`.
+
+### Historical Partial Closure Execution (Superseded)
+
+Historical partial reports:
+
+```text
+Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreeClosureReport_v1.md
+Dumped/ComponentTreeClosure20260725/component_tree_closure_report.json
+```
+
+Newly executed evidence:
+
+```text
+historical Admin build job: fe00627aac764bfdbfa1254cc1c9b4a2
+AssetDump compile/link: PASS
+project final full batch: 3/3 succeeded
+project immediate ChangedOnly: 3/3 skipped
+Plugin final full batch: 10/10 succeeded
+Plugin immediate ChangedOnly: 10/10 skipped
+BP_CFVehiclePawn: component_tree_v1, 33 nodes, orphan 0, warnings 0
+BP_ADumpComponentTree: component_tree_v1, 4 nodes, orphan 0, warnings 0
+project Component Tree semantic determinism: PASS
+fixture Component Tree section determinism: PASS
+unsupported WidgetBlueprint full mode: 1/1 succeeded, component_tree omitted
+final static contract audit: no blocking defect found
+```
+
+The `component_tree` section matched across repeated 2.8.1 project outputs for schema/counts, preview order, root order, node IDs, parent links, pre-order flat nodes and empty warnings. Whole dump files differed only in runtime `perf.total_ms` and `perf.load_ms`, so full-file byte equality was not claimed.
+
+The zero-asset Plugin probes were traced to batchdump not scanning non-`/Game` mount paths before Asset Registry filtering. `AssetDumpCommandlet.cpp` v0.11.2 now calls `ScanPathsSynchronous` for the requested folder root. The final Plugin batch discovered and dumped all 10 fixtures, and an immediate ChangedOnly repeat skipped all 10. The dedicated fixture's `component_tree` section was identical across two independent output roots.
+
+A fresh focused full-mode probe dumped `WBP_ADumpWidgetFixture` successfully and confirmed that neither the `component_tree` key nor the `component_tree_v1` schema marker was emitted. This passes the unsupported full-mode silent-omission rule. An exact asset package used as `Root` returned zero assets; this was classified as folder-prefix batch semantics rather than a v0.7.3 contract failure.
+
+### Final Closure Execution
+
+The first local makefixtures run exposed repeated saving of `Map_ADumpSocket.umap`. The generator redundantly corrected the Actor transform even though the persisted root component transform already satisfied the validation contract. `AssetDumpCommandlet.cpp` v0.11.3 removed that duplicate correction, the original map bytes and timestamp were restored from the external baseline backup, and the full closure restarted from a new baseline.
+
+```text
+evidence root: Dumped/ComponentTreeClosureFinalRetry1
+standard Editor build: PASS, exit 0
+makefixtures run 1: 10/10, created 0, updated 0, saved 0, failed 0
+makefixtures run 2: 10/10, created 0, updated 0, saved 0, failed 0
+Plugin validate: 9/9, required_failed_count 0
+required Component Tree smoke checks: 3/3
+regression self-tests: PASS, exit 0
+full regression harness: PASS, exit 0
+project full batch: 3/3
+project ChangedOnly: 3/3 skipped
+explicit unsupported: process exit 2, stable code observed from process log
+fixture component_tree canonical equality: PASS
+validation exact invariance: 10/10 unchanged
+git diff --check: PASS, line-ending warnings only
+```
+
+### Result
+
+```text
+ADUMP-v0.7.3-CT:
+Completed / Contract Accepted
+```
 
 ## 2026-07-13 - AssetDump v0.7.2 Enhanced Input Summary
 
@@ -1240,6 +1398,47 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.20
+
+- Relabeled pre-v0.11.3 Admin build and partial closure evidence as superseded history.
+- Registered `Dumped/ComponentTreeClosureFinalRetry1/Logs/editor_build.log` and the final machine-readable closure report as canonical acceptance evidence.
+- Preserved all historical build IDs and partial reports without presenting them as the final v0.11.3 build.
+
+### v1.19
+
+- Recorded the v0.11.3 World fixture idempotency correction and full closure restart.
+- Recorded fresh build, two makefixtures runs, Plugin validate, self-test/full regression, real unsupported process-log, fixture determinism, validation invariance, and Git audit evidence.
+- Promoted `ADUMP-v0.7.3-CT` to Completed / Contract Accepted.
+
+### v1.18
+
+- Recorded a fresh 1/1 WidgetBlueprint full-mode success with silent `component_tree` omission.
+- Recorded final static contract audit with no release-blocking implementation defect found.
+- Clarified that batch `Root` is a folder-prefix input and exact asset package selection is outside the current contract.
+- Kept explicit unsupported process-log and the remaining closure predicates pending.
+
+### v1.17
+
+- Added batchdump Plugin mount scanning and recovered all 10 validation fixtures.
+- Recorded the now-superseded historical Admin build `fe00627aac764bfdbfa1254cc1c9b4a2`, project 3/3 full and ChangedOnly, and Plugin 10/10 full and ChangedOnly.
+- Recorded dedicated fixture output and repeated Component Tree section determinism.
+- Reduced the remaining release predicates while keeping contract acceptance pending.
+
+### v1.16
+
+- Added the v0.7.3 partial closure report and machine-readable result.
+- Recorded final build job `544f864409cf4766b2249023a84c6270`, project 3/3 full batch and immediate 3/3 ChangedOnly skip.
+- Recorded repeated project Component Tree semantic determinism and separated runtime perf-field differences from section determinism.
+- Recorded Plugin content probe zero-asset results and retained makefixtures/validate/regression/content-invariance gates as Not Run.
+- Kept contract acceptance pending.
+
+### v1.15
+
+- Added the v0.7.3 Component Tree implementation checkpoint and direct Browser review corrections.
+- Recorded extractor 2.8.1, successful AssetDump compile/link, project 3/3 full batch and immediate 3/3 ChangedOnly skip.
+- Recorded BP_CFVehiclePawn 33-node, orphan-free and warning-free evidence.
+- Kept contract acceptance pending for fresh makefixtures, Plugin validation, regression, determinism and exact validation-content evidence.
 
 ### v1.14
 

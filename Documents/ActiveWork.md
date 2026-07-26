@@ -1,7 +1,7 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.3
-- 최근 갱신일: 2026-07-24
+- 문서 버전: v1.11
+- 최근 갱신일: 2026-07-27
 - 문서 상태: Current
 - 역할: AssetDump 독립 저장소의 현재 활성 작업과 최근 완료 체크포인트를 연결하는 세션 복원 색인
 
@@ -24,113 +24,102 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 
 ## 2. 현재 활성 작업
 
-현재 명시적으로 착수된 AssetDump 작업은 없다.
+현재 명시적으로 활성화된 AssetDump 작업은 없다. 마지막 완료 작업은 v0.7.3 Component Tree다.
 
 ```text
 ADUMP-v0.7.1-RC = Completed / Contract Accepted
-v0.7.3 Component Tree = Unblocked / Not Started
+ADUMP-v0.7.3-CT = Completed / Contract Accepted
 ```
 
-v0.7.3은 차단만 해제된 상태다. 사용자의 별도 착수 요청과 대표 Plan의 범위·보호 계약 확인 없이 구현을 시작하지 않는다. 구현은 별도 Codex 또는 사용자가 선택한 로컬 환경을 기본으로 하며, Browser 직접 수정은 명시 승인 예외로만 허용한다.
+대표 구현 Plan:
+
+```text
+Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreePlan_v1.md
+```
+
+사용자는 2026-07-24에 v0.7.3 착수를 요청했고, 2026-07-25에는 이 세션의 Browser 직접 코드 수정을 명시적으로 승인했다. `component_tree_v1` 독립 builder, JSON/fingerprint/section 통합과 전용 `BP_ADumpComponentTree` fixture가 구현됐다. Browser 검토에서 발견한 NAME_None root false-orphan, 혼합 SCS/CDO 정렬의 비추이성, component-tree-only ChangedOnly 판정 누락과 Widget fixture 반복 재생성을 직접 수정했다.
 
 ---
 
 ## 3. 마지막 완료 작업 초점
 
-- 작업 ID: `ADUMP-v0.7.1-RC`
-- 작업명: DataAsset Diff Report Contract alignment
+- 작업 ID: `ADUMP-v0.7.3-CT`
+- 작업명: Actor/Blueprint Component Tree
 - 최종 상태: Completed / Contract Accepted
-- 구현 상태: `RunDataAssetDiffClosure.ps1` v1.5
-- 빌드 상태: 표준 `Tools\BuildEditor.bat` PASS
-- parser 상태: PowerShell 7 UTF-8 AST parser PASS
-- closure 상태: 필수 no-SkipBuild 실행 PASS
+- 공개 section: `component_tree`
+- schema: `component_tree_v1`
+- extractor version: `2.8.1`
+- commandlet version: `0.11.3`
+- 최종 로컬 빌드: PASS
+- closure 상태: 모든 release-grade predicate PASS
 - PIE 상태: N/A
-- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/README.md`
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreePlan_v1.md`
+- 최종 보고서: `Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreeClosureReport_v1.md`
 
 ### 최종 acceptance 증거
 
-필수 실행은 `-SkipBuild` 없이 다음 조건으로 수행했다.
-
 ```text
-PowerShell: C:\Users\chaeksong\AppData\Local\Microsoft\WindowsApps\pwsh.EXE
-PowerShell 7: true
-Script: Scripts/RunDataAssetDiffClosure.ps1
-Arguments: -CompactLog
-Build wrapper: D:\Work\CarFight_git\Tools\BuildEditor.bat
-Engine root: D:\UnrealEngine_Source
-Build result: Succeeded
-```
-
-새 report:
-
-```text
-generated_time: 2026-07-14T23:27:25.4566757Z
-schema_version: data_asset_diff_closure_report_v1
-case_count: 11
-passed_count: 11
-failed_count: 0
-validation_content_restored_count: 2
-validation_content_removed_new_file_count: 0
-validation_content_unchanged: true
-negative_error_codes_from_process_log: true
+final build log: Dumped/ComponentTreeClosureFinalRetry1/Logs/editor_build.log
+machine-readable report: Dumped/ComponentTreeClosureFinal/component_tree_closure_report.json
+evidence root: Dumped/ComponentTreeClosureFinalRetry1
+makefixtures: 10/10 twice, created 0, updated 0, saved 0, failed 0
+Plugin validate: 9/9, required_failed_count 0
+regression self-tests and full harness: PASS
+project full / ChangedOnly: 3/3 succeeded / 3/3 skipped
+explicit unsupported process log: ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET observed
+fixture canonical component_tree equality: PASS
+validation exact invariance: 10/10 unchanged
+git diff --check: PASS, line-ending warnings only
 all_passed: true
+contract_accepted: true
 ```
 
-검증 콘텐츠 계약:
-
-```text
-validation file count before: 9
-validation file count after: 9
-relative path / SHA-256 / length / LastWriteTimeUtc.Ticks: exact match
-Content/Validation Git change: none
-```
-
-negative case 5개는 모두 실제 commandlet process log를 증거로 사용한다.
-
-```text
-ADUMP_DIFF_BASE_NOT_FOUND
-ADUMP_DIFF_BASE_TOO_LARGE
-ADUMP_DIFF_BASE_JSON_INVALID
-ADUMP_DIFF_ASSET_MISMATCH
-ADUMP_DIFF_CURRENT_UNSUPPORTED
-```
-
-각 case는 다음 조건을 통과했다.
-
-```text
-observed_error_source = process_log
-matched_observed_line contains expected stable code
-synthetic_marker_present = false
-```
-
-독립 래퍼 검증:
-
-```text
-run_id: testrun_4658af0ac765
-result: 1 passed
-started_at: 2026-07-14T23:24:44.154878Z
-finished_at: 2026-07-14T23:27:25.660411Z
-```
-
-따라서 이전 CarFight `VehicleDurabilityConfig` 컴파일 오류에 의한 차단 기록은 해소된 과거 상태이며, v0.7.1의 최종 acceptance를 더 이상 막지 않는다.
+이전 `ADUMP-v0.7.1-RC` acceptance와 v0.7.2 release-ready 기록은 `ImplementationResultLog_v1.md`에 보존되며 후속 작업의 보호 계약으로 유지한다.
 
 ---
 
-## 4. 다음 작업 후보
+## 4. 현재 검증 상태
 
-다음 Asset Intelligence 구현 후보는 v0.7.3 Component Tree다.
+최종 승인 상태:
 
 ```text
-1. 사용자가 v0.7.3 착수를 요청한다.
-2. assetdump_repo Git 상태와 최신 AGENTS.md를 재확인한다.
-3. AssetIntelligencePlan에서 v0.7.3 범위와 보호 계약을 확인한다.
-4. Codex 또는 사용자 선택 로컬 환경이 문서를 직접 읽고 Source/Scripts를 구현한다.
-5. 해당 실행 환경이 표준 build, parser, regression과 필요한 closure 증거를 생성한다.
-6. Browser는 실제 diff와 저장된 report·process log·콘텐츠 불변성 증거를 감사한다.
-7. 완료·미검증 상태를 이 문서와 대표 Plan에 동기화한다.
+status: Completed / Contract Accepted
+extractor_version: 2.8.1
+commandlet_version: 0.11.3
+historical Admin build job before v0.11.3: fe00627aac764bfdbfa1254cc1c9b4a2
+final local build log: Dumped/ComponentTreeClosureFinalRetry1/Logs/editor_build.log
+final local build result: Succeeded
+makefixtures repeat: 10/10 twice, created 0, updated 0, saved 0, failed 0
+Plugin validate: 9/9, required_failed_count 0
+regression self-test and full harness: PASS
+project full / ChangedOnly: 3/3 succeeded / 3/3 skipped
+explicit unsupported process log: ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET observed
+fixture canonical component_tree equality: PASS
+validation exact invariance: 10/10 unchanged
+git diff --check: PASS, line-ending warnings only
+closure report: Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreeClosureReport_v1.md
+machine-readable report: Dumped/ComponentTreeClosureFinal/component_tree_closure_report.json
+final evidence root: Dumped/ComponentTreeClosureFinalRetry1
 ```
 
-Browser에는 현재 `plan.*`, Agent, Work/Lab과 외부 Codex YAML 생성 surface가 노출되지 않는다. 과거 TaskSource와 generated YAML은 v0.7.1 완료 이력으로만 보존한다.
+2026-07-27 로컬 closure에서 World fixture 반복 저장 결함을 `AssetDumpCommandlet.cpp` v0.11.3으로 최소 수정하고, validation map을 baseline과 정확히 복원한 뒤 전체 closure를 처음부터 다시 실행했다.
+
+최종 승인 증거:
+
+```text
+evidence root: Dumped/ComponentTreeClosureFinalRetry1
+machine-readable report: Dumped/ComponentTreeClosureFinal/component_tree_closure_report.json
+makefixtures run 1: 10/10, created 0, updated 0, saved 0, failed 0
+makefixtures run 2: 10/10, created 0, updated 0, saved 0, failed 0
+Plugin validate: 9/9, required_failed_count 0
+regression harness: exit 0
+project full: 3/3 succeeded
+ChangedOnly: 3/3 skipped
+explicit unsupported: process exit 2, ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET observed
+fixture determinism: PASS
+validation exact invariance: PASS, 10/10 unchanged
+git diff --check: PASS, line-ending warnings only
+```
 
 v0.7.2 Enhanced Input Summary의 human release review는 별도 상태로 유지한다.
 
@@ -171,6 +160,62 @@ validation-content exact restoration 계약
 ---
 
 ## 7. Changelog
+
+### v1.11 - 2026-07-27
+
+- 현재 활성 작업을 없음으로 교정하고 마지막 완료 초점을 `ADUMP-v0.7.3-CT`로 전환.
+- 오래된 v0.7.1 상세 acceptance 블록을 최신 v0.7.3 canonical closure 증거로 교체.
+- v0.7.1과 v0.7.2 기록은 ImplementationResultLog의 보호 계약 이력으로 유지.
+
+### v1.10 - 2026-07-27
+
+- 현재 검증 상태를 최종 v0.11.3 로컬 closure 증거로 정규화.
+- v0.11.3 이전 Admin build job을 historical evidence로 명시하고 최종 로컬 build log를 canonical build 증거로 등록.
+- 현재 machine-readable report 경로를 `Dumped/ComponentTreeClosureFinal/component_tree_closure_report.json`으로 교정.
+
+### v1.9 - 2026-07-27
+
+- `ADUMP-v0.7.3-CT-CLOSURE` 로컬 최종 검증과 World fixture idempotency 수정 결과를 반영.
+- 모든 release-grade predicate 통과를 기록하고 `ADUMP-v0.7.3-CT`를 Completed / Contract Accepted로 승격.
+- 최종 evidence root와 machine-readable closure report 경로를 등록.
+
+### v1.8 - 2026-07-25
+
+- `WBP_ADumpWidgetFixture` full-mode 1/1 성공과 `component_tree` silent omission을 새로 검증.
+- exact asset package root 0건은 공개 batch root 계약 밖의 folder-prefix semantics로 분류.
+- 최종 정적 계약 감사에서 release 차단 구현 결함이 없음을 기록.
+- remaining gate와 Contract Accepted 보류 상태는 유지.
+
+### v1.7 - 2026-07-25
+
+- batchdump에 Plugin mount 선스캔을 추가해 `/AssetDump/Validation`의 10개 자산 검색을 복구.
+- 현재는 superseded인 당시 Admin build job `fe00627aac764bfdbfa1254cc1c9b4a2` PASS를 기록.
+- Plugin 10/10 full, 즉시 10/10 ChangedOnly skip과 전용 4-node fixture section 결정성 PASS를 기록.
+- 프로젝트 3/3 full 및 3/3 ChangedOnly skip을 batch scan 수정 이후 다시 확인.
+- 남은 gate를 makefixtures, Plugin validate, regression, explicit unsupported process-log, exact manifest와 git diff --check로 축소.
+
+### v1.6 - 2026-07-25
+
+- `ADUMP-v0.7.3-CT-CLOSURE`의 현재 Admin surface 실행 결과를 별도 closure report로 기록.
+- 최종 AssetDump 재컴파일·링크 PASS와 프로젝트 3/3 full, 즉시 3/3 ChangedOnly skip을 갱신.
+- BP_CFVehiclePawn Component Tree section 의미 결정성 PASS와 전체 dump의 perf 필드 차이를 분리.
+- Plugin content probe 0건 및 미노출 makefixtures/validate/regression/content-manifest gate를 Not Run으로 기록.
+- 최종 상태를 Plugin Closure Pending으로 유지.
+
+### v1.5 - 2026-07-25
+
+- 사용자 명시 승인에 따라 Browser가 v0.7.3 Source 코드를 직접 검토·수정.
+- `component_tree_v1`, 전용 fixture, section/builder/JSON/fingerprint 통합 구현 상태를 기록.
+- NAME_None false orphan, strict mixed-source ordering, ChangedOnly 유의미 출력 판정과 Widget fixture idempotency를 보강.
+- 실제 AssetDump 재컴파일·링크 PASS, 프로젝트 3/3 full 및 3/3 ChangedOnly skip 증거를 기록.
+- 새 Plugin makefixtures/validate, regression self-test와 exact content manifest가 없어 최종 계약 승격은 보류.
+
+### v1.4 - 2026-07-24
+
+- 사용자 요청으로 `ADUMP-v0.7.3-CT`를 활성 작업으로 전환.
+- Component Tree 현재 구현 Plan과 Codex 구현·외부 검증·Browser 감사 순서를 등록.
+- BP_CFVehiclePawn 33-component summary와 details 비활성 baseline을 탐색 증거로 기록.
+- 탐색 batchdump를 신규 기능 acceptance로 오인하지 않도록 구분.
 
 ### v1.3 - 2026-07-24
 

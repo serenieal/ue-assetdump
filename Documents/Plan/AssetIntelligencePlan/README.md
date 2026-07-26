@@ -1,7 +1,7 @@
 # AssetIntelligencePlan
 
-- Document version: v1.16
-- Last updated: 2026-07-24
+- Document version: v1.22
+- Last updated: 2026-07-27
 - Status: Current
 
 This folder contains the planning documents and preserved implementation-contract history for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
@@ -13,7 +13,7 @@ v0.6.x selection/profile/regression foundation: completed
 v0.7.0 DataAsset Values: release gate passed
 v0.7.1 DataAsset Diff: mandatory no-SkipBuild closure passed; contract accepted
 v0.7.2 Enhanced Input Summary: release-ready gate passed; human release review pending
-v0.7.3 Component Tree: unblocked; not started
+v0.7.3 Component Tree: completed; release-grade closure passed; contract accepted
 ```
 
 ## v0.7.1 Contract Acceptance
@@ -106,7 +106,7 @@ Consequently:
 v1.5 PowerShell parser contract: verified
 mandatory no-SkipBuild closure: passed
 v0.7.1 contract accepted: yes
-v0.7.3 Component Tree preparation: unblocked
+v0.7.3 Component Tree preparation at that historical checkpoint: unblocked; final state is accepted below
 ```
 
 ## Prior Diagnostic Evidence
@@ -127,23 +127,25 @@ That report remains useful as implementation history, but the canonical acceptan
 
 The restore loop remains hardened for an open Unreal Editor: files already identical to the snapshot are skipped, while actual mismatches use bounded retry. No editor process was terminated as part of the accepted closure.
 
-## Current Active Task
+## Current Status
 
-There is no currently activated AssetDump implementation task.
+There is no active AssetDump implementation task.
 
 ```text
 ADUMP-v0.7.1-RC: Completed / Contract Accepted
-v0.7.3 Component Tree: Unblocked / Not Started
+ADUMP-v0.7.3-CT: Completed / Contract Accepted
 ```
 
-The v0.7.1 report-contract TaskSource and Codex contract are retained as completed contract history:
+Current implementation and closure documents:
 
 ```text
-v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
-Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
+v0_7_3_ComponentTreePlan_v1.md
+v0_7_3_ComponentTreeClosureReport_v1.md
 ```
 
-No further C++, PowerShell, or section-schema change is required for v0.7.1 acceptance.
+The accepted v0.7.1 commandlet, stable codes, report contract and validation restoration behavior remain protected. The historical v0.7.1 TaskSource and generated Codex contracts remain completed contract evidence and are not the execution source for v0.7.3.
+
+The user explicitly approved Browser direct code work for the initial v0.7.3 implementation. Browser implemented and corrected the Source integration and reviewed the new binary fixture; the later Codex/local closure added the v0.11.3 World fixture idempotency fix and generated the canonical release-grade evidence. No Script or workflow file changed.
 
 ## Contract History
 
@@ -199,19 +201,57 @@ Blocked — Browser Work-Order Surface Not Exposed
 ## Next Sequence
 
 ```text
-1. Keep the accepted v0.7.1 commandlet, schema, stable codes, and closure contract protected.
-2. Start v0.7.3 only after an explicit AssetDump task request.
-3. Re-read assetdump_repo Git state, AGENTS.md, ActiveWork, and this representative Plan.
-4. Define the v0.7.3 Component Tree scope and protection boundary through the current Plan documents.
-5. Have Codex or a user-selected local environment read those documents directly and implement the allowed Source/Scripts changes without requiring a new TaskSource or Codex YAML.
-6. Generate actual build, parser, regression, commandlet, closure, process-log, and content-invariance evidence in that execution environment.
-7. Use Browser follow-up review to audit the actual diff and stored evidence, then update ActiveWork and this representative Plan.
-8. Do not claim a Browser-unexecuted validation as newly passed merely because a historical report exists.
+1. Keep the accepted v0.7.1, v0.7.2 and v0.7.3 public contracts protected.
+2. Complete a human review of the final AssetDump diff and select the intended commit boundary.
+3. Stage, commit, push, tag or update the parent CarFight gitlink only after an explicit user request.
+4. Select the next Asset Intelligence task through ActiveWork and the Roadmap; do not reopen v0.7.3 closure without new evidence.
+5. Preserve `Dumped/ComponentTreeClosureFinalRetry1` and the final machine-readable report as canonical v0.7.3 acceptance evidence.
 ```
 
 The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
+
+### v1.22 - 2026-07-27
+
+- Corrected the current status to no active implementation task after v0.7.3 acceptance.
+- Replaced the obsolete pending-closure sequence with final diff review, explicit commit-boundary selection, and next-task selection.
+- Kept all accepted v0.7.1-v0.7.3 contracts and canonical closure evidence protected.
+
+### v1.21 - 2026-07-27
+
+- Recorded the final local v0.7.3 closure under `Dumped/ComponentTreeClosureFinalRetry1`.
+- Recorded `AssetDumpCommandlet.cpp` v0.11.3 World fixture idempotency correction and successful rebuild.
+- Recorded makefixtures 10/10 twice with zero saves, Plugin validate 9/9, regression exit 0, explicit unsupported process-log evidence, fixture determinism, exact 10-file validation invariance, and clean `git diff --check`.
+- Promoted `ADUMP-v0.7.3-CT` to Completed / Contract Accepted.
+
+### v1.20 - 2026-07-25
+
+- Added Plugin mount scanning to batchdump and recovered discovery of all 10 `/AssetDump/Validation` assets.
+- Recorded Plugin 10/10 full batch, immediate 10/10 ChangedOnly skip and dedicated fixture Component Tree section determinism.
+- Re-ran project 3/3 full and 3/3 ChangedOnly after the scan correction.
+- Reduced the remaining release gates to makefixtures idempotency, Plugin validation, regression, fresh explicit unsupported evidence, exact validation-content manifest and git diff check.
+
+### v1.19 - 2026-07-25
+
+- Added the v0.7.3 partial closure report and machine-readable evidence path.
+- Recorded final AssetDump compile/link, project 3/3 full batch, immediate 3/3 ChangedOnly skip and Component Tree semantic determinism.
+- Recorded that Plugin content is not discoverable through the current safe batch surface and arbitrary makefixtures/validate/regression execution is not exposed.
+- Kept v0.7.3 contract acceptance pending.
+
+### v1.18 - 2026-07-25
+
+- Recorded the directly implemented `component_tree_v1` builder, fixture and section integration.
+- Recorded extractor `2.8.1`, successful AssetDump module compile/link, 3/3 project batch and immediate 3/3 ChangedOnly skip.
+- Recorded NAME_None root normalization, strict mixed SCS/CDO ordering, component-tree meaningful-output handling and Widget fixture reuse corrections.
+- Kept final acceptance pending until fresh makefixtures, Plugin validation, regression self-tests and exact validation-content evidence pass.
+
+### v1.17 - 2026-07-24
+
+- Activated `ADUMP-v0.7.3-CT` after explicit user instruction.
+- Registered `v0_7_3_ComponentTreePlan_v1.md` as the current implementation contract.
+- Defined the Codex/local implementation and Browser evidence-audit sequence.
+- Recorded that Browser performed planning and representative baseline inspection only, not Source or binary implementation.
 
 ### v1.16 - 2026-07-24
 

@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.12
+- document_version: v1.17
 - created_at: 2026-07-10
-- updated_at: 2026-07-24
+- updated_at: 2026-07-27
 - owner_project: CarFight
 - target_plugin: AssetDump
 - document_role: shared_registry
@@ -44,7 +44,7 @@ Current Plan documents and implementations should reference this registry rather
 | `data_asset_values` | DataAsset field/value summary | Implemented v0.7.0; release gate complete | `data_asset_values_v1` |
 | `data_asset_diff` | DataAsset before/after field diff | Implemented v0.7.1; mandatory no-SkipBuild closure passed, contract accepted | `data_asset_diff_v1` |
 | `input_summary` | Enhanced Input Action/Mapping summary | Implemented v0.7.2; release-ready gate passed, human release review pending | `input_summary_v1` |
-| `component_tree` | Actor/Blueprint component hierarchy | Planned v0.7.3 | `component_tree_v1` |
+| `component_tree` | Actor Blueprint component hierarchy | Completed v0.7.3; release-grade closure passed, contract accepted | `component_tree_v1` |
 | `material_param_summary` | Material and MaterialInstance parameter summary | Draft v0.7.4 | `material_param_summary_v1` |
 | `blueprint_graph_digest` | AI-oriented Blueprint logic summary | Planned v0.8.0 | `bp_graph_digest_v1` |
 | `bp_search_index` | Blueprint symbol/function/variable search index | Planned v0.8.2 | `bp_search_index_v1` |
@@ -122,6 +122,26 @@ alignment_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan
 The accepted `input_summary_v1` contract includes bounded typed settings, stable warning codes, chain-aware deterministic mapping order, InputTriggerPressed fixture coverage, and repeated-output determinism. No v0.7.2 implementation task remains active. Human tag/publish review is pending. The separate v0.7.1 `data_asset_diff_v1` contract is accepted after the mandatory no-SkipBuild closure passed.
 
 The reserved `data_asset_values` and `input_bindings` Intents remain unavailable. Neither implementation task enabled them.
+
+Active v0.7.3 specialized section contract:
+
+```text
+section: component_tree
+schema_version: component_tree_v1
+task_id: ADUMP-v0.7.3-CT
+status: completed / contract accepted
+release_gate_status: passed
+contract_acceptance_status: accepted
+supported_asset: Actor Blueprint with AActor-generated class
+shape: multi-root forest plus deterministic pre-order flat_nodes
+explicit unsupported: ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET
+full-mode unsupported: silent omission
+builder_dependency: independent from full details property extraction
+limits: 256 nodes, depth 32, preview 12, warnings 64
+current_plan: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreePlan_v1.md
+```
+
+The reserved `component_overview` Intent remains unavailable in v0.7.3. Adding the section does not automatically activate the Intent.
 
 ## Initial Section Set for v0.6.0
 
@@ -311,6 +331,39 @@ No runtime migration is required for this registry. New section work must update
 None.
 
 ## Changelog
+
+### v1.17
+
+- Updated the current `component_tree` registry row to Completed / Contract Accepted.
+- Preserved `component_tree_v1`, stable unsupported behavior, limits, and the disabled `component_overview` Intent.
+- Clarified that prior Plugin Closure Pending records are superseded history.
+
+### v1.16
+
+- Recorded final `component_tree_v1` release-grade closure and contract acceptance.
+- Recorded fresh makefixtures idempotency, Plugin validation, regression, explicit unsupported process-log, determinism, validation invariance, and Git checks.
+- Kept the reserved `component_overview` Intent disabled.
+
+### v1.15
+
+- Recorded final v0.7.3 build, project and Plugin full/ChangedOnly batch evidence.
+- Recorded the dedicated 4-node Component Tree fixture and repeated section determinism.
+- Kept explicit unsupported process-log, makefixtures, Plugin validation, regression, exact content manifest and git diff check as pending closure predicates.
+- Preserved the disabled `component_overview` Intent and pending contract acceptance.
+
+### v1.14
+
+- Recorded the implemented `component_tree_v1` contract and extractor 2.8.1 checkpoint.
+- Recorded successful Editor build, BP_CFVehiclePawn 33-node output and immediate ChangedOnly skip.
+- Kept Plugin makefixtures/validate, regression self-test, determinism and exact validation-content evidence pending.
+- Kept the reserved `component_overview` Intent disabled.
+
+### v1.13
+
+- Activated `component_tree_v1` planning for `ADUMP-v0.7.3-CT`.
+- Defined Actor Blueprint support, multi-root forest output, explicit unsupported policy and independent builder boundary.
+- Kept the reserved `component_overview` Intent disabled.
+- Linked the current Component Tree implementation Plan.
 
 ### v1.12
 
