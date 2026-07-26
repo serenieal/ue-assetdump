@@ -1,6 +1,7 @@
 // File: ADumpTypes.h
-// Version: v0.16.0
+// Version: v0.17.0
 // Changelog:
+// - v0.17.0: component_tree_v1 노드, warning, 섹션 결과와 최상위 저장소를 추가.
 // - v0.16.0: input_summary_v1 계약 정렬용 typed setting descriptor, warning, mapping 필드를 추가.
 // - v0.15.0: input_summary_v1 전용 Enhanced Input Action/Mapping Context 구조와 섹션 값을 추가.
 // - v0.14.0: data_asset_diff_v1 결과 구조와 canonical section 값을 추가.
@@ -94,6 +95,7 @@ enum class EADumpSection : uint8
 	DataAssetValues,
 	DataAssetDiff,
 	InputSummary,
+	ComponentTree,
 	Graphs,
 	References,
 	WidgetDesigner
@@ -1216,6 +1218,111 @@ struct FADumpGraphLink
 	EADumpLinkKind LinkKind = EADumpLinkKind::All;
 };
 
+// FADumpComponentTreeWarning은 component_tree 내부의 bounded warning 한 건을 표현한다.
+struct FADumpComponentTreeWarning
+{
+	// Code는 자동 검증에 사용할 고정 warning 코드다.
+	FString Code;
+
+	// Message는 사람이 읽을 수 있는 warning 설명이다.
+	FString Message;
+
+	// TargetName은 warning과 관련된 컴포넌트 이름이다.
+	FString TargetName;
+};
+
+// FADumpComponentTreeNode는 Actor Blueprint 컴포넌트 계층의 노드 한 건을 표현한다.
+struct FADumpComponentTreeNode
+{
+	// NodeId는 반복 실행에서도 유지되는 결정적 노드 식별자다.
+	FString NodeId;
+
+	// ParentNodeId는 부모 노드 식별자이며 root이면 빈 문자열이다.
+	FString ParentNodeId;
+
+	// ComponentName은 Blueprint 또는 CDO에서 확인한 컴포넌트 이름이다.
+	FString ComponentName;
+
+	// ComponentClass는 컴포넌트 클래스의 짧은 이름이다.
+	FString ComponentClass;
+
+	// SourceKind는 native_cdo, inherited_cdo, scs 중 하나다.
+	FString SourceKind;
+
+	// SourceIndex는 원본 컬렉션의 안정적인 순서 인덱스다.
+	int32 SourceIndex = 0;
+
+	// bSceneComponent는 USceneComponent 계열인지 나타낸다.
+	bool bSceneComponent = false;
+
+	// bInherited는 부모 클래스에서 상속된 컴포넌트인지 나타낸다.
+	bool bInherited = false;
+
+	// AttachParentName은 원본 데이터가 가리킨 attach parent 이름이다.
+	FString AttachParentName;
+
+	// Depth는 root를 0으로 하는 해석된 계층 깊이다.
+	int32 Depth = 0;
+
+	// ChildIndex는 해석된 부모의 children 배열 안에서의 순서다.
+	int32 ChildIndex = 0;
+
+	// Children은 현재 노드의 결정적으로 정렬된 자식 노드 목록이다.
+	TArray<FADumpComponentTreeNode> Children;
+};
+
+// FADumpComponentTree는 component_tree_v1 최상위 섹션 결과다.
+struct FADumpComponentTree
+{
+	// SchemaVersion은 component_tree 전용 스키마 버전이다.
+	FString SchemaVersion;
+
+	// bSupported는 현재 자산이 Actor Blueprint 지원 대상인지 나타낸다.
+	bool bSupported = false;
+
+	// NodeCount는 출력에 포함된 전체 노드 수다.
+	int32 NodeCount = 0;
+
+	// RootCount는 roots 배열의 노드 수다.
+	int32 RootCount = 0;
+
+	// SceneComponentCount는 scene component 노드 수다.
+	int32 SceneComponentCount = 0;
+
+	// NonSceneComponentCount는 non-scene component 노드 수다.
+	int32 NonSceneComponentCount = 0;
+
+	// InheritedCount는 상속된 노드 수다.
+	int32 InheritedCount = 0;
+
+	// OrphanCount는 부모 이름을 해석하지 못해 root가 된 노드 수다.
+	int32 OrphanCount = 0;
+
+	// MaxDepth는 출력 계층에서 관측된 최대 깊이다.
+	int32 MaxDepth = 0;
+
+	// bTruncated는 노드 또는 깊이 한도로 일부 노드가 생략됐는지 나타낸다.
+	bool bTruncated = false;
+
+	// OmittedNodeCount는 한도로 인해 생략된 노드 수다.
+	int32 OmittedNodeCount = 0;
+
+	// WarningCount는 bounded warning 배열의 항목 수다.
+	int32 WarningCount = 0;
+
+	// PreviewLines는 최대 12줄의 결정적 계층 미리보기다.
+	TArray<FString> PreviewLines;
+
+	// Roots는 복수 root를 허용하는 중첩 forest다.
+	TArray<FADumpComponentTreeNode> Roots;
+
+	// FlatNodes는 parent-first pre-order의 평면 노드 목록이다.
+	TArray<FADumpComponentTreeNode> FlatNodes;
+
+	// Warnings는 component_tree 전용 bounded warning 목록이다.
+	TArray<FADumpComponentTreeWarning> Warnings;
+};
+
 // FADumpGraph는 그래프 섹션의 단위 항목이다.
 struct FADumpGraph
 {
@@ -1392,6 +1499,9 @@ struct FADumpResult
 
 	// InputSummary는 Enhanced Input Action/Mapping Context 전용 의미 요약 섹션이다.
 	FADumpInputSummary InputSummary;
+
+	// ComponentTree는 Actor Blueprint 전용 경량 컴포넌트 계층 섹션이다.
+	FADumpComponentTree ComponentTree;
 
 	// Graphs는 그래프 덤프 결과다.
 	TArray<FADumpGraph> Graphs;

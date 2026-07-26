@@ -1,6 +1,10 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.10.1
+// Version: v0.11.3
 // Changelog:
+// - v0.11.3: World fixture의 중복 Actor Transform 보정을 제거해 makefixtures 반복 저장을 방지.
+// - v0.11.2: batchdump가 Plugin mount 경로를 명시적으로 스캔해 /AssetDump fixture를 검색하도록 보강.
+// - v0.11.1: component_tree orphan 검증과 Widget fixture 반복 실행 idempotency를 보강.
+// - v0.11.0: component_tree 섹션 등록과 전용 Actor Blueprint fixture 생성을 추가.
 // - v0.10.1: BPDump 실패 반환 전 구조화된 FADumpIssue.Code를 실제 commandlet 로그에 출력.
 // - v0.10.0: input_summary 계약 정렬 검증과 실제 Trigger fixture 구성을 추가.
 // - v0.9.0: input_summary 섹션 등록과 Plugin validation smoke checks를 추가.
@@ -48,6 +52,7 @@
 
 #include "ADumpDataAsset.h"
 #include "ADumpDataDiff.h"
+#include "ADumpComponentTree.h"
 #include "ADumpInput.h"
 #include "ADumpValidRow.h"
 #include "ADumpFingerprint.h"
@@ -62,10 +67,12 @@
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/ActorComponent.h"
+#include "Components/ApplicationLifecycleComponent.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/CanvasPanel.h"
 #include "Components/ScrollBox.h"
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -108,6 +115,9 @@ namespace
 	// AssetDumpActorFixtureName은 일반 Actor Blueprint fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpActorFixtureName = TEXT("BP_ADumpActorFixture");
 
+	// AssetDumpComponentTreeFixtureName은 component_tree_v1 전용 Actor Blueprint fixture 자산명이다.
+	constexpr const TCHAR* AssetDumpComponentTreeFixtureName = TEXT("BP_ADumpComponentTree");
+
 	// AssetDumpWidgetFixtureName은 Widget Blueprint fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpWidgetFixtureName = TEXT("WBP_ADumpWidgetFixture");
 
@@ -120,7 +130,7 @@ namespace
 	// AssetDumpCurveFloatFixtureName은 CurveFloat fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpCurveFloatFixtureName = TEXT("CF_ADumpFixture");
 
-				// AssetDumpDataTableFixtureName은 DataTable fixture 자산명이다.
+	// AssetDumpDataTableFixtureName은 DataTable fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpDataTableFixtureName = TEXT("DT_ADumpValid");
 
 	// AssetDumpDataAssetFixtureName은 data_asset_values 전용 PrimaryDataAsset fixture 자산명이다.
@@ -228,9 +238,9 @@ namespace
 	}
 
 	// GetValidSectionNamesText는 -Sections=에서 허용하는 정식 섹션 이름 목록을 반환한다.
-				FString GetValidSectionNamesText()
+	FString GetValidSectionNamesText()
 	{
-		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,input_summary,graphs,references,widget_designer");
+		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,input_summary,component_tree,graphs,references,widget_designer");
 	}
 
 	// GetValidIntentNamesText는 -Intent=에서 허용하는 정식 분석 목적 이름 목록을 반환한다.
@@ -258,7 +268,7 @@ namespace
 			OutSection = EADumpSection::Digest;
 			return true;
 		}
-								if (InSectionName == TEXT("details"))
+		if (InSectionName == TEXT("details"))
 		{
 			OutSection = EADumpSection::Details;
 			return true;
@@ -276,6 +286,11 @@ namespace
 		if (InSectionName == TEXT("input_summary"))
 		{
 			OutSection = EADumpSection::InputSummary;
+			return true;
+		}
+		if (InSectionName == TEXT("component_tree"))
+		{
+			OutSection = EADumpSection::ComponentTree;
 			return true;
 		}
 		if (InSectionName == TEXT("graphs"))
@@ -1610,6 +1625,195 @@ namespace
 		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
 	}
 
+	// EnsureComponentTreeFixture는 component_tree_v1 전용 Actor Blueprint 계층 fixture를 생성하거나 확인한다.
+	void EnsureComponentTreeFixture(FValidationFixtureBuildResult& OutResult)
+	{
+		InitializeValidationFixtureResult(
+			OutResult,
+			TEXT("component_tree"),
+			AssetDumpComponentTreeFixtureName,
+			TEXT("Blueprint"));
+
+		// ExistingObject는 이미 저장된 component_tree fixture 자산 로드 결과다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
+
+		// BlueprintAsset은 생성 또는 로드된 component_tree Actor Blueprint다.
+		UBlueprint* BlueprintAsset = Cast<UBlueprint>(ExistingObject);
+		if (ExistingObject && !BlueprintAsset)
+		{
+			OutResult.FailureMessage = FString::Printf(TEXT("기존 component_tree fixture 클래스가 Blueprint가 아닙니다: %s"), *ExistingObject->GetClass()->GetName());
+			return;
+		}
+
+		// bNeedsSave는 fixture 생성 또는 보정 후 저장이 필요한지 나타낸다.
+		bool bNeedsSave = false;
+		if (!BlueprintAsset)
+		{
+			// FixturePackage는 새 component_tree Blueprint를 담을 package다.
+			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath);
+			if (!FixturePackage)
+			{
+				OutResult.FailureMessage = TEXT("component_tree fixture package를 만들지 못했습니다.");
+				return;
+			}
+
+			BlueprintAsset = FKismetEditorUtilities::CreateBlueprint(
+				AActor::StaticClass(),
+				FixturePackage,
+				FName(*OutResult.AssetName),
+				BPTYPE_Normal,
+				UBlueprint::StaticClass(),
+				UBlueprintGeneratedClass::StaticClass(),
+				TEXT("AssetDumpComponentTreeFixture"));
+			if (!BlueprintAsset)
+			{
+				OutResult.FailureMessage = TEXT("component_tree Actor Blueprint 생성에 실패했습니다.");
+				return;
+			}
+
+			FAssetRegistryModule::AssetCreated(BlueprintAsset);
+			OutResult.bCreated = true;
+			bNeedsSave = true;
+		}
+
+		if (!BlueprintAsset->ParentClass || !BlueprintAsset->ParentClass->IsChildOf(AActor::StaticClass()))
+		{
+			OutResult.FailureMessage = TEXT("component_tree fixture의 부모 클래스가 Actor 계열이 아닙니다.");
+			return;
+		}
+
+		if (!BlueprintAsset->SimpleConstructionScript)
+		{
+			BlueprintAsset->SimpleConstructionScript = NewObject<USimpleConstructionScript>(
+				BlueprintAsset,
+				USimpleConstructionScript::StaticClass(),
+				TEXT("SimpleConstructionScript"),
+				RF_Transactional);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// FindScsNodeByName은 fixture SCS에서 고정 변수명 노드를 찾는 helper다.
+		const auto FindScsNodeByName = [BlueprintAsset](const TCHAR* InNodeName) -> USCS_Node*
+		{
+			if (!BlueprintAsset || !BlueprintAsset->SimpleConstructionScript)
+			{
+				return nullptr;
+			}
+
+			for (USCS_Node* ScsNode : BlueprintAsset->SimpleConstructionScript->GetAllNodes())
+			{
+				if (ScsNode && ScsNode->GetVariableName() == FName(InNodeName))
+				{
+					return ScsNode;
+				}
+			}
+			return nullptr;
+		};
+
+		// RootNode는 fixture 계층의 최상위 SceneComponent 노드다.
+		USCS_Node* RootNode = FindScsNodeByName(TEXT("Scene_ADumpRoot"));
+		if (!RootNode)
+		{
+			RootNode = BlueprintAsset->SimpleConstructionScript->CreateNode(
+				USceneComponent::StaticClass(),
+				TEXT("Scene_ADumpRoot"));
+			if (!RootNode)
+			{
+				OutResult.FailureMessage = TEXT("component_tree root SceneComponent 생성에 실패했습니다.");
+				return;
+			}
+			RootNode->SetVariableName(TEXT("Scene_ADumpRoot"));
+			BlueprintAsset->SimpleConstructionScript->AddNode(RootNode);
+			bNeedsSave = true;
+		}
+
+		// ChildNode는 root 아래에 연결할 SceneComponent 노드다.
+		USCS_Node* ChildNode = FindScsNodeByName(TEXT("Scene_ADumpChild"));
+		if (!ChildNode)
+		{
+			ChildNode = BlueprintAsset->SimpleConstructionScript->CreateNode(
+				USceneComponent::StaticClass(),
+				TEXT("Scene_ADumpChild"));
+			if (!ChildNode)
+			{
+				OutResult.FailureMessage = TEXT("component_tree child SceneComponent 생성에 실패했습니다.");
+				return;
+			}
+			ChildNode->SetVariableName(TEXT("Scene_ADumpChild"));
+			RootNode->AddChildNode(ChildNode);
+			bNeedsSave = true;
+		}
+
+		// GrandchildNode는 child 아래에 연결할 StaticMeshComponent 노드다.
+		USCS_Node* GrandchildNode = FindScsNodeByName(TEXT("SMC_ADumpGrandchild"));
+		if (!GrandchildNode)
+		{
+			GrandchildNode = BlueprintAsset->SimpleConstructionScript->CreateNode(
+				UStaticMeshComponent::StaticClass(),
+				TEXT("SMC_ADumpGrandchild"));
+			if (!GrandchildNode)
+			{
+				OutResult.FailureMessage = TEXT("component_tree grandchild StaticMeshComponent 생성에 실패했습니다.");
+				return;
+			}
+			GrandchildNode->SetVariableName(TEXT("SMC_ADumpGrandchild"));
+			ChildNode->AddChildNode(GrandchildNode);
+			bNeedsSave = true;
+		}
+
+		// LogicNode는 별도 root로 유지할 non-scene ActorComponent 노드다.
+		USCS_Node* LogicNode = FindScsNodeByName(TEXT("AC_ADumpLogic"));
+		if (!LogicNode)
+		{
+			LogicNode = BlueprintAsset->SimpleConstructionScript->CreateNode(
+				UApplicationLifecycleComponent::StaticClass(),
+				TEXT("AC_ADumpLogic"));
+			if (!LogicNode)
+			{
+				OutResult.FailureMessage = TEXT("component_tree non-scene ActorComponent 생성에 실패했습니다.");
+				return;
+			}
+			LogicNode->SetVariableName(TEXT("AC_ADumpLogic"));
+			BlueprintAsset->SimpleConstructionScript->AddNode(LogicNode);
+			bNeedsSave = true;
+		}
+
+		if (BlueprintAsset->SimpleConstructionScript->FindParentNode(ChildNode) != RootNode
+			|| BlueprintAsset->SimpleConstructionScript->FindParentNode(GrandchildNode) != ChildNode
+			|| BlueprintAsset->SimpleConstructionScript->FindParentNode(LogicNode) != nullptr)
+		{
+			OutResult.FailureMessage = TEXT("기존 component_tree fixture의 부모 계층이 현재 계약과 다릅니다.");
+			return;
+		}
+
+		if (!RootNode->ComponentTemplate->IsA<USceneComponent>()
+			|| !ChildNode->ComponentTemplate->IsA<USceneComponent>()
+			|| !GrandchildNode->ComponentTemplate->IsA<UStaticMeshComponent>()
+			|| LogicNode->ComponentTemplate->IsA<USceneComponent>())
+		{
+			OutResult.FailureMessage = TEXT("component_tree fixture의 컴포넌트 클래스 구성이 현재 계약과 다릅니다.");
+			return;
+		}
+
+		if (bNeedsSave)
+		{
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(BlueprintAsset);
+			FKismetEditorUtilities::CompileBlueprint(BlueprintAsset);
+			OutResult.bUpdated = !OutResult.bCreated;
+			OutResult.bSaved = SaveValidationFixtureAsset(
+				BlueprintAsset,
+				OutResult.SavedFilePath,
+				OutResult.FailureMessage);
+			if (!OutResult.bSaved)
+			{
+				return;
+			}
+		}
+
+		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
+	}
+
 	// EnsureWidgetBlueprintFixture는 공용 Widget Blueprint fixture를 생성하거나 확인한다.
 	// SyncWidgetBlueprintVariableGuids는 commandlet에서 직접 만든 widget source object의 변수 GUID 맵을 보정한다.
 	void SyncWidgetBlueprintVariableGuids(UWidgetBlueprint& InWidgetBlueprint)
@@ -1655,8 +1859,8 @@ namespace
 			AssetDumpWidgetFixtureName,
 			TEXT("WidgetBlueprint"));
 
-		// ExistingObject는 Widget Blueprint fixture를 매번 재생성하기 위해 의도적으로 로드하지 않는다.
-		UObject* ExistingObject = nullptr;
+		// ExistingObject는 이미 저장된 Widget Blueprint fixture가 있으면 재사용한다.
+		UObject* ExistingObject = LoadValidationFixtureAsset(OutResult.AssetName);
 
 		// WidgetBlueprintAsset은 생성 또는 로드된 Widget Blueprint 자산이다.
 		UWidgetBlueprint* WidgetBlueprintAsset = Cast<UWidgetBlueprint>(ExistingObject);
@@ -1670,11 +1874,6 @@ namespace
 		bool bNeedsSave = false;
 		if (!WidgetBlueprintAsset)
 		{
-			if (!DeleteValidationFixturePackageFile(OutResult.PackagePath, OutResult.FailureMessage))
-			{
-				return;
-			}
-
 			// FixturePackage는 새 Widget Blueprint fixture를 담을 package다.
 			UPackage* FixturePackage = CreateValidationFixturePackage(OutResult.PackagePath, false);
 			if (!FixturePackage)
@@ -2651,14 +2850,6 @@ namespace
 			bNeedsSave = true;
 		}
 
-		if (!SocketActor->GetActorTransform().Equals(ExpectedActorTransform, KINDA_SMALL_NUMBER))
-		{
-			SocketActor->Modify();
-			SocketActor->SetActorTransform(ExpectedActorTransform);
-			OutResult.bUpdated = !OutResult.bCreated;
-			bNeedsSave = true;
-		}
-
 		if (SocketActor->GetRootComponent() == SocketComponent
 			&& !SocketComponent->GetRelativeTransform().Equals(ExpectedActorTransform, KINDA_SMALL_NUMBER))
 		{
@@ -2758,6 +2949,7 @@ namespace
 			|| InDumpResult.Details.StaticMeshSockets.Num() > 0
 			|| InDumpResult.Details.WorldStaticMeshSocketTransforms.Num() > 0
 			|| InDumpResult.DataAssetValues.FieldCount > 0
+			|| !InDumpResult.ComponentTree.SchemaVersion.IsEmpty()
 			|| InDumpResult.References.Hard.Num() > 0
 			|| InDumpResult.References.Soft.Num() > 0
 			|| !InDumpResult.Summary.ParentClassPath.IsEmpty()
@@ -3111,7 +3303,7 @@ namespace
 		FString FullProfileDetail;
 		// bFullProfilePassed는 full Profile의 전체 모드 및 builder 호환 여부다.
 		const bool bFullProfilePassed = VerifyIntentResolution(
-			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,data_asset_values,input_summary,graphs,references,widget_designer"), FullProfileDetail);
+			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,data_asset_values,input_summary,component_tree,graphs,references,widget_designer"), FullProfileDetail);
 		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_full"), bFullProfilePassed, FullProfileDetail);
 
 		// SummaryProfileDetail은 summary_only Profile 매핑 검증 결과다.
@@ -3250,6 +3442,7 @@ namespace
 		const bool bCompactBuilderControlPassed = CompactRunOpts.ShouldBuildSummary()
 			&& !CompactRunOpts.ShouldBuildDetails()
 			&& !CompactRunOpts.ShouldBuildDataAssetValues()
+			&& !CompactRunOpts.ShouldBuildComponentTree()
 			&& !CompactRunOpts.ShouldBuildGraphs()
 			&& !CompactRunOpts.ShouldBuildReferences()
 			&& !CompactRunOpts.ShouldBuildWidgetDesigner()
@@ -3325,6 +3518,7 @@ namespace
 		const bool bWidgetBuilderControlPassed = WidgetRunOpts.ShouldBuildSummary()
 			&& !WidgetRunOpts.ShouldBuildDetails()
 			&& !WidgetRunOpts.ShouldBuildDataAssetValues()
+			&& !WidgetRunOpts.ShouldBuildComponentTree()
 			&& !WidgetRunOpts.ShouldBuildGraphs()
 			&& !WidgetRunOpts.ShouldBuildReferences()
 			&& WidgetRunOpts.ShouldBuildWidgetDesigner()
@@ -3337,6 +3531,138 @@ namespace
 			TEXT("widget_builder_control"),
 			bWidgetBuilderControlPassed,
 			FString::Printf(TEXT("실행 예정 builder: %s"), *FString::Join(WidgetBuilderNames, TEXT(","))));
+
+		// ComponentTreeSelection은 component_tree만 명시적으로 요청한 선택값이다.
+		FADumpSectionSelection ComponentTreeSelection;
+
+		// ComponentTreeParseError는 component_tree 선택 파싱 실패 메시지다.
+		FString ComponentTreeParseError;
+
+		// bComponentTreeParsed는 component_tree 선택 파싱 성공 여부다.
+		const bool bComponentTreeParsed = TryParseSectionSelection(
+			TEXT("-Mode=bpdump -Sections=component_tree"),
+			ComponentTreeSelection,
+			ComponentTreeParseError);
+
+		// ComponentTreeRunOpts는 독립 builder 계획을 검증할 실행 옵션이다.
+		FADumpRunOpts ComponentTreeRunOpts;
+		ComponentTreeRunOpts.AssetObjectPath = BuildValidationFixtureObjectPath(AssetDumpComponentTreeFixtureName);
+		ComponentTreeRunOpts.SectionSelection = ComponentTreeSelection;
+
+		// ComponentTreeBuilderNames는 component_tree-only 실행 예정 builder 목록이다.
+		const TArray<FString> ComponentTreeBuilderNames = ComponentTreeRunOpts.GetBuilderSectionNames();
+
+		// bComponentTreeBuilderPlanPassed는 details 없이 component_tree만 실행되는지 나타낸다.
+		const bool bComponentTreeBuilderPlanPassed = bComponentTreeParsed
+			&& !ComponentTreeRunOpts.ShouldBuildSummary()
+			&& !ComponentTreeRunOpts.ShouldBuildDetails()
+			&& !ComponentTreeRunOpts.ShouldBuildDataAssetValues()
+			&& !ComponentTreeRunOpts.ShouldBuildInputSummary()
+			&& ComponentTreeRunOpts.ShouldBuildComponentTree()
+			&& !ComponentTreeRunOpts.ShouldBuildGraphs()
+			&& !ComponentTreeRunOpts.ShouldBuildReferences()
+			&& ComponentTreeBuilderNames.Num() == 1
+			&& ComponentTreeBuilderNames[0] == TEXT("component_tree");
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("component_tree_builder_plan"),
+			bComponentTreeBuilderPlanPassed,
+			bComponentTreeParsed ? FString::Join(ComponentTreeBuilderNames, TEXT(",")) : ComponentTreeParseError);
+
+		// ComponentTreeResult는 전용 fixture에서 직접 추출한 component_tree_v1 결과다.
+		FADumpComponentTree ComponentTreeResult;
+
+		// ComponentTreeIssues는 focused extractor가 보고한 공통 issue 목록이다.
+		TArray<FADumpIssue> ComponentTreeIssues;
+
+		// bComponentTreeExtracted는 전용 Actor Blueprint fixture 추출 성공 여부다.
+		const bool bComponentTreeExtracted = ADumpComponentTree::ExtractComponentTree(
+			ComponentTreeRunOpts.AssetObjectPath,
+			ComponentTreeResult,
+			ComponentTreeIssues,
+			true);
+
+		// ComponentTreeNodeIds는 flat_nodes의 identity 중복 검사용 집합이다.
+		TSet<FString> ComponentTreeNodeIds;
+
+		// bComponentTreeParentIdsResolved는 모든 비어 있지 않은 parent_node_id가 flat_nodes에 존재하는지 나타낸다.
+		bool bComponentTreeParentIdsResolved = true;
+		for (const FADumpComponentTreeNode& ComponentTreeNode : ComponentTreeResult.FlatNodes)
+		{
+			ComponentTreeNodeIds.Add(ComponentTreeNode.NodeId);
+		}
+		for (const FADumpComponentTreeNode& ComponentTreeNode : ComponentTreeResult.FlatNodes)
+		{
+			if (!ComponentTreeNode.ParentNodeId.IsEmpty() && !ComponentTreeNodeIds.Contains(ComponentTreeNode.ParentNodeId))
+			{
+				bComponentTreeParentIdsResolved = false;
+				break;
+			}
+		}
+
+		// bComponentTreeFocusedPassed는 fixture schema, forest, flat_nodes와 한도 계약이 일치하는지 나타낸다.
+		const bool bComponentTreeFocusedPassed = bComponentTreeExtracted
+			&& ComponentTreeResult.SchemaVersion == TEXT("component_tree_v1")
+			&& ComponentTreeResult.bSupported
+			&& ComponentTreeResult.NodeCount >= 4
+			&& ComponentTreeResult.NodeCount == ComponentTreeResult.FlatNodes.Num()
+			&& ComponentTreeResult.RootCount == ComponentTreeResult.Roots.Num()
+			&& ComponentTreeResult.RootCount >= 2
+			&& ComponentTreeResult.SceneComponentCount >= 3
+			&& ComponentTreeResult.NonSceneComponentCount >= 1
+			&& ComponentTreeResult.OrphanCount == 0
+			&& ComponentTreeResult.WarningCount == 0
+			&& ComponentTreeResult.Warnings.Num() == 0
+			&& ComponentTreeResult.MaxDepth >= 2
+			&& ComponentTreeResult.MaxDepth <= 32
+			&& ComponentTreeResult.PreviewLines.Num() <= 12
+			&& ComponentTreeNodeIds.Num() == ComponentTreeResult.NodeCount
+			&& bComponentTreeParentIdsResolved;
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("component_tree_fixture_contract"),
+			bComponentTreeFocusedPassed,
+			FString::Printf(
+				TEXT("schema=%s nodes=%d roots=%d scene=%d non_scene=%d orphan=%d warnings=%d depth=%d issues=%d"),
+				*ComponentTreeResult.SchemaVersion,
+				ComponentTreeResult.NodeCount,
+				ComponentTreeResult.RootCount,
+				ComponentTreeResult.SceneComponentCount,
+				ComponentTreeResult.NonSceneComponentCount,
+				ComponentTreeResult.OrphanCount,
+				ComponentTreeResult.WarningCount,
+				ComponentTreeResult.MaxDepth,
+				ComponentTreeIssues.Num()));
+
+		// UnsupportedComponentTree는 Widget Blueprint explicit 요청 실패 검증 결과다.
+		FADumpComponentTree UnsupportedComponentTree;
+
+		// UnsupportedComponentTreeIssues는 explicit 미지원 요청이 기록한 issue 목록이다.
+		TArray<FADumpIssue> UnsupportedComponentTreeIssues;
+
+		// bUnsupportedComponentTreeExtracted는 미지원 Widget Blueprint가 잘못 성공했는지 나타낸다.
+		const bool bUnsupportedComponentTreeExtracted = ADumpComponentTree::ExtractComponentTree(
+			BuildValidationFixtureObjectPath(AssetDumpWidgetFixtureName),
+			UnsupportedComponentTree,
+			UnsupportedComponentTreeIssues,
+			true);
+
+		// bUnsupportedComponentTreePassed는 stable unsupported code가 실제 extractor issue에서 관측됐는지 나타낸다.
+		const bool bUnsupportedComponentTreePassed = !bUnsupportedComponentTreeExtracted
+			&& UnsupportedComponentTreeIssues.ContainsByPredicate([](const FADumpIssue& InIssue)
+			{
+				return InIssue.Code == TEXT("ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET");
+			});
+		AddSectionSmokeCheck(
+			CheckArray,
+			OutFailureCount,
+			TEXT("component_tree_explicit_unsupported"),
+			bUnsupportedComponentTreePassed,
+			bUnsupportedComponentTreePassed
+				? TEXT("ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET observed")
+				: TEXT("미지원 explicit 요청에서 stable error code를 관측하지 못했습니다."));
 
 		// InvalidSelection은 잘못된 섹션 이름 파싱 시 변경될 선택 구조다.
 		FADumpSectionSelection InvalidSelection;
@@ -4059,6 +4385,11 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		GetCmdValue(CommandLine, TEXT("SimulateFailAsset="), SimulateFailAssetObjectPath);
 
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+		// BatchScanPathArray는 /Game 외 Plugin mount도 Asset Registry에 등록하기 위한 명시적 검색 경로다.
+		TArray<FString> BatchScanPathArray;
+		BatchScanPathArray.Add(BatchFilterPath);
+		AssetRegistryModule.Get().ScanPathsSynchronous(BatchScanPathArray, true);
 
 		// AssetFilter는 배치 대상 자산을 모을 재귀 검색 필터다.
 		FARFilter AssetFilter;
@@ -5417,7 +5748,7 @@ bool UAssetDumpCommandlet::BuildValidationFixtureJson(const FString& CommandLine
 
 	// FixtureResultArray는 생성/확인한 fixture 결과 목록이다.
 	TArray<FValidationFixtureBuildResult> FixtureResultArray;
-		FixtureResultArray.Reserve(9);
+	FixtureResultArray.Reserve(10);
 
 	{
 		// StaticMeshResult는 StaticMesh Socket fixture 생성/확인 결과다.
@@ -5438,6 +5769,13 @@ bool UAssetDumpCommandlet::BuildValidationFixtureJson(const FString& CommandLine
 		FValidationFixtureBuildResult ActorResult;
 		EnsureActorBlueprintFixture(ActorResult);
 		FixtureResultArray.Add(ActorResult);
+	}
+
+	{
+		// ComponentTreeResult는 component_tree 전용 Actor Blueprint fixture 생성/확인 결과다.
+		FValidationFixtureBuildResult ComponentTreeResult;
+		EnsureComponentTreeFixture(ComponentTreeResult);
+		FixtureResultArray.Add(ComponentTreeResult);
 	}
 
 	{

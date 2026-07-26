@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.9.0
+// Version: v0.10.0
 // Changelog:
+// - v0.10.0: component_tree 전용 builder 계획과 실행 판단을 추가.
 // - v0.9.0: input_summary 전용 builder 계획과 실행 판단을 추가.
 // - v0.8.0: data_asset_diff 전용 builder 계획과 data_asset_values prerequisite를 추가.
 // - v0.7.0: data_asset_values 전용 builder 계획과 실행 판단을 추가.
@@ -74,6 +75,14 @@ bool FADumpRunOpts::ShouldBuildInputSummary() const
 		: SectionSelection.IsEnabled(EADumpSection::InputSummary);
 }
 
+// ShouldBuildComponentTree는 Actor Blueprint 전용 경량 계층 builder 실행 여부를 반환한다.
+bool FADumpRunOpts::ShouldBuildComponentTree() const
+{
+	return SectionSelection.IsFullMode()
+		? true
+		: SectionSelection.IsEnabled(EADumpSection::ComponentTree);
+}
+
 // ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
 bool FADumpRunOpts::ShouldBuildGraphs() const
 {
@@ -121,6 +130,10 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 	if (ShouldBuildInputSummary())
 	{
 		BuilderSectionNames.Add(TEXT("input_summary"));
+	}
+	if (ShouldBuildComponentTree())
+	{
+		BuilderSectionNames.Add(TEXT("component_tree"));
 	}
 	if (ShouldBuildGraphs())
 	{

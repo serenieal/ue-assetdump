@@ -1,6 +1,8 @@
 // File: ADumpTypes.cpp
-// Version: v0.10.0
+// Version: v0.11.1
 // Changelog:
+// - v0.11.1: component_tree root 정규화와 strict ordering 반영을 위해 extractor를 2.8.1로 갱신.
+// - v0.11.0: component_tree 섹션 이름/순서와 extractor 2.8.0을 추가.
 // - v0.10.0: input_summary 섹션 이름/순서와 extractor 2.7.0을 추가.
 // - v0.9.0: data_asset_diff 섹션 이름/순서와 extractor 2.6.0을 추가.
 // - v0.8.0: data_asset_values 섹션 이름/순서와 extractor 2.5.0을 추가.
@@ -26,14 +28,14 @@
 
 namespace ADumpSchema
 {
-		const TCHAR* GetVersionText()
+	const TCHAR* GetVersionText()
 	{
 		return TEXT("2.0");
 	}
 
-		const TCHAR* GetExtractorVersionText()
+	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("2.7.0");
+		return TEXT("2.8.1");
 	}
 }
 
@@ -112,7 +114,7 @@ const TCHAR* ToString(EADumpSection InValue)
 		return TEXT("summary");
 	case EADumpSection::Digest:
 		return TEXT("digest");
-		case EADumpSection::Details:
+	case EADumpSection::Details:
 		return TEXT("details");
 	case EADumpSection::DataAssetValues:
 		return TEXT("data_asset_values");
@@ -120,6 +122,8 @@ const TCHAR* ToString(EADumpSection InValue)
 		return TEXT("data_asset_diff");
 	case EADumpSection::InputSummary:
 		return TEXT("input_summary");
+	case EADumpSection::ComponentTree:
+		return TEXT("component_tree");
 	case EADumpSection::Graphs:
 		return TEXT("graphs");
 	case EADumpSection::References:
@@ -178,12 +182,13 @@ TArray<FString> FADumpSectionSelection::GetEnabledNames() const
 {
 	// SectionOrder는 JSON 및 fingerprint에서 사용할 고정 섹션 순서다.
 	const EADumpSection SectionOrder[] = {
-				EADumpSection::Summary,
+		EADumpSection::Summary,
 		EADumpSection::Digest,
 		EADumpSection::Details,
 		EADumpSection::DataAssetValues,
 		EADumpSection::DataAssetDiff,
 		EADumpSection::InputSummary,
+		EADumpSection::ComponentTree,
 		EADumpSection::Graphs,
 		EADumpSection::References,
 		EADumpSection::WidgetDesigner

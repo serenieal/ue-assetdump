@@ -1,6 +1,7 @@
 // File: ADumpRunOpts.h
-// Version: v0.8.0
+// Version: v0.9.0
 // Changelog:
+// - v0.9.0: component_tree 전용 builder 실행 판단 helper를 추가.
 // - v0.8.0: input_summary 전용 builder 실행 판단 helper를 추가.
 // - v0.7.0: data_asset_diff baseline 옵션과 builder 실행 판단 helper를 추가.
 // - v0.6.0: data_asset_values 전용 builder 실행 판단 helper를 추가.
@@ -96,6 +97,9 @@ struct FADumpRunOpts
 
 	// ShouldBuildInputSummary는 Enhanced Input 전용 의미 요약 builder 실행 여부를 반환한다.
 	bool ShouldBuildInputSummary() const;
+
+	// ShouldBuildComponentTree는 Actor Blueprint 전용 경량 계층 builder 실행 여부를 반환한다.
+	bool ShouldBuildComponentTree() const;
 
 	// ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
 	bool ShouldBuildGraphs() const;

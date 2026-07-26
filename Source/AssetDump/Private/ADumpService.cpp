@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.10.0
+// Version: v0.11.0
 // Changelog:
+// - v0.11.0: component_tree_v1 builder를 details와 독립된 서비스 단계와 저장 가치 판단에 연결.
 // - v0.10.0: input_summary_v1 Enhanced Input builder를 서비스 단계와 저장 가치 판단에 연결.
 // - v0.9.0: data_asset_diff baseline preflight와 DataAsset 값 비교 builder를 서비스 단계에 연결.
 // - v0.8.0: data_asset_values 전용 builder를 조건부 서비스 단계에 연결.
@@ -25,6 +26,7 @@
 
 #include "ADumpDataAsset.h"
 #include "ADumpDataDiff.h"
+#include "ADumpComponentTree.h"
 #include "ADumpDetailExt.h"
 #include "ADumpFingerprint.h"
 #include "ADumpGraphExt.h"
@@ -160,6 +162,7 @@ namespace
 			|| InResult.DataAssetValues.FieldCount > 0
 			|| !InResult.DataAssetDiff.SchemaVersion.IsEmpty()
 			|| !InResult.InputSummary.SchemaVersion.IsEmpty()
+			|| !InResult.ComponentTree.SchemaVersion.IsEmpty()
 			|| InResult.References.Hard.Num() > 0
 			|| InResult.References.Soft.Num() > 0
 			|| !InResult.Summary.ParentClassPath.IsEmpty()
@@ -267,7 +270,7 @@ EADumpPhase FADumpService::ResolveNextPhase(EADumpPhase InCurrentPhase) const
 		{
 			return EADumpPhase::Summary;
 		}
-		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues() || ActiveRunOpts.ShouldBuildInputSummary())
+		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues() || ActiveRunOpts.ShouldBuildInputSummary() || ActiveRunOpts.ShouldBuildComponentTree())
 		{
 			return EADumpPhase::Details;
 		}
@@ -281,7 +284,7 @@ EADumpPhase FADumpService::ResolveNextPhase(EADumpPhase InCurrentPhase) const
 		}
 		return EADumpPhase::Save;
 	case EADumpPhase::Summary:
-		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues() || ActiveRunOpts.ShouldBuildInputSummary())
+		if (ActiveRunOpts.ShouldBuildDetails() || ActiveRunOpts.ShouldBuildDataAssetValues() || ActiveRunOpts.ShouldBuildInputSummary() || ActiveRunOpts.ShouldBuildComponentTree())
 		{
 			return EADumpPhase::Details;
 		}
@@ -625,7 +628,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		UpdateProgress(
 			EADumpPhase::Details,
 			TEXT("값 추출"),
-			TEXT("요청된 상세 정보, DataAsset 값, 입력 요약을 추출하고 있습니다."),
+			TEXT("요청된 상세 정보, DataAsset 값, 입력 요약과 컴포넌트 계층을 추출하고 있습니다."),
 			GetPhasePercent(EADumpPhase::Details));
 
 		if (ActiveRunOpts.ShouldBuildDetails()
@@ -682,6 +685,24 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		{
 			bAllRequestedSectionsSucceeded = false;
 			if (!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::InputSummary))
+			{
+				RecountIssueStats();
+				FinalizeStatus(ActiveResult, false);
+				bSessionActive = false;
+				OutMessage = StatusMessage;
+				return false;
+			}
+		}
+
+		if (ActiveRunOpts.ShouldBuildComponentTree()
+			&& !ADumpComponentTree::ExtractComponentTree(
+				ActiveRunOpts.AssetObjectPath,
+				ActiveResult.ComponentTree,
+				ActiveResult.Issues,
+				!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::ComponentTree)))
+		{
+			bAllRequestedSectionsSucceeded = false;
+			if (!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::ComponentTree))
 			{
 				RecountIssueStats();
 				FinalizeStatus(ActiveResult, false);

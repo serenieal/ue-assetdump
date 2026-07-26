@@ -1,6 +1,7 @@
 // File: ADumpJson.cpp
-// Version: v1.9.0
+// Version: v2.0.0
 // Changelog:
+// - v2.0.0: component_tree_v1 forest, flat_nodes와 bounded warning 직렬화를 추가.
 // - v1.9.0: input_summary_v1 필드명, warning, typed setting descriptor 직렬화를 계약에 맞춰 정렬.
 // - v1.8.0: data_asset_diff_v1 request 메타와 최상위 JSON 직렬화를 추가.
 // - v1.8.0: input_summary_v1 Enhanced Input 의미 요약을 최상위 JSON에 직렬화.
@@ -884,6 +885,86 @@ namespace
 		return InputSummaryObject;
 	}
 
+	// MakeComponentTreeNodeObject는 component_tree 노드를 JSON object로 재귀 변환한다.
+	TSharedRef<FJsonObject> MakeComponentTreeNodeObject(const FADumpComponentTreeNode& InNode)
+	{
+		// NodeObject는 component_tree 노드 한 건의 직렬화 결과다.
+		TSharedRef<FJsonObject> NodeObject = MakeShared<FJsonObject>();
+		NodeObject->SetStringField(TEXT("node_id"), InNode.NodeId);
+		NodeObject->SetStringField(TEXT("parent_node_id"), InNode.ParentNodeId);
+		NodeObject->SetStringField(TEXT("component_name"), InNode.ComponentName);
+		NodeObject->SetStringField(TEXT("component_class"), InNode.ComponentClass);
+		NodeObject->SetStringField(TEXT("source_kind"), InNode.SourceKind);
+		NodeObject->SetNumberField(TEXT("source_index"), InNode.SourceIndex);
+		NodeObject->SetBoolField(TEXT("scene_component"), InNode.bSceneComponent);
+		NodeObject->SetBoolField(TEXT("inherited"), InNode.bInherited);
+		NodeObject->SetStringField(TEXT("attach_parent_name"), InNode.AttachParentName);
+		NodeObject->SetNumberField(TEXT("depth"), InNode.Depth);
+		NodeObject->SetNumberField(TEXT("child_index"), InNode.ChildIndex);
+
+		// ChildArray는 현재 노드의 결정적 자식 노드 직렬화 배열이다.
+		TArray<TSharedPtr<FJsonValue>> ChildArray;
+		for (const FADumpComponentTreeNode& ChildNode : InNode.Children)
+		{
+			ChildArray.Add(MakeShared<FJsonValueObject>(MakeComponentTreeNodeObject(ChildNode)));
+		}
+		NodeObject->SetArrayField(TEXT("children"), ChildArray);
+		return NodeObject;
+	}
+
+	// MakeComponentTreeNodeArray는 component_tree 노드 배열을 JSON 배열로 변환한다.
+	TArray<TSharedPtr<FJsonValue>> MakeComponentTreeNodeArray(const TArray<FADumpComponentTreeNode>& InNodes)
+	{
+		// NodeArray는 component_tree 노드 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> NodeArray;
+		for (const FADumpComponentTreeNode& Node : InNodes)
+		{
+			NodeArray.Add(MakeShared<FJsonValueObject>(MakeComponentTreeNodeObject(Node)));
+		}
+		return NodeArray;
+	}
+
+	// MakeComponentTreeWarningArray는 component_tree warning 배열을 JSON 배열로 변환한다.
+	TArray<TSharedPtr<FJsonValue>> MakeComponentTreeWarningArray(const TArray<FADumpComponentTreeWarning>& InWarnings)
+	{
+		// WarningArray는 component_tree warning 직렬화 결과 배열이다.
+		TArray<TSharedPtr<FJsonValue>> WarningArray;
+		for (const FADumpComponentTreeWarning& Warning : InWarnings)
+		{
+			// WarningObject는 component_tree warning 한 건의 직렬화 결과다.
+			TSharedRef<FJsonObject> WarningObject = MakeShared<FJsonObject>();
+			WarningObject->SetStringField(TEXT("code"), Warning.Code);
+			WarningObject->SetStringField(TEXT("message"), Warning.Message);
+			WarningObject->SetStringField(TEXT("target_name"), Warning.TargetName);
+			WarningArray.Add(MakeShared<FJsonValueObject>(WarningObject));
+		}
+		return WarningArray;
+	}
+
+	// MakeComponentTreeObject는 Actor Blueprint 전용 경량 계층 섹션을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeComponentTreeObject(const FADumpComponentTree& InComponentTree)
+	{
+		// ComponentTreeObject는 component_tree_v1 최상위 직렬화 결과다.
+		TSharedRef<FJsonObject> ComponentTreeObject = MakeShared<FJsonObject>();
+		ComponentTreeObject->SetStringField(TEXT("schema_version"), InComponentTree.SchemaVersion);
+		ComponentTreeObject->SetBoolField(TEXT("supported"), InComponentTree.bSupported);
+		ComponentTreeObject->SetNumberField(TEXT("node_count"), InComponentTree.NodeCount);
+		ComponentTreeObject->SetNumberField(TEXT("root_count"), InComponentTree.RootCount);
+		ComponentTreeObject->SetNumberField(TEXT("scene_component_count"), InComponentTree.SceneComponentCount);
+		ComponentTreeObject->SetNumberField(TEXT("non_scene_component_count"), InComponentTree.NonSceneComponentCount);
+		ComponentTreeObject->SetNumberField(TEXT("inherited_count"), InComponentTree.InheritedCount);
+		ComponentTreeObject->SetNumberField(TEXT("orphan_count"), InComponentTree.OrphanCount);
+		ComponentTreeObject->SetNumberField(TEXT("max_depth"), InComponentTree.MaxDepth);
+		ComponentTreeObject->SetBoolField(TEXT("truncated"), InComponentTree.bTruncated);
+		ComponentTreeObject->SetNumberField(TEXT("omitted_node_count"), InComponentTree.OmittedNodeCount);
+		ComponentTreeObject->SetNumberField(TEXT("warning_count"), InComponentTree.WarningCount);
+		ComponentTreeObject->SetArrayField(TEXT("preview"), MakeStringArray(InComponentTree.PreviewLines));
+		ComponentTreeObject->SetArrayField(TEXT("roots"), MakeComponentTreeNodeArray(InComponentTree.Roots));
+		ComponentTreeObject->SetArrayField(TEXT("flat_nodes"), MakeComponentTreeNodeArray(InComponentTree.FlatNodes));
+		ComponentTreeObject->SetArrayField(TEXT("warnings"), MakeComponentTreeWarningArray(InComponentTree.Warnings));
+		return ComponentTreeObject;
+	}
+
 	// DiffChangeKindToString은 DataAsset Diff 변경 분류를 JSON 문자열로 변환한다.
 	const TCHAR* DiffChangeKindToString(EADumpDataAssetDiffChangeKind InChangeKind)
 	{
@@ -1655,6 +1736,10 @@ namespace ADumpJson
 			{
 				RootObject->SetObjectField(TEXT("input_summary"), MakeInputSummaryObject(InDumpResult.InputSummary));
 			}
+			if (!InDumpResult.ComponentTree.SchemaVersion.IsEmpty() && InDumpResult.ComponentTree.bSupported)
+			{
+				RootObject->SetObjectField(TEXT("component_tree"), MakeComponentTreeObject(InDumpResult.ComponentTree));
+			}
 			RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
 			RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
 		}
@@ -1686,6 +1771,12 @@ namespace ADumpJson
 				&& !InDumpResult.InputSummary.SchemaVersion.IsEmpty())
 			{
 				RootObject->SetObjectField(TEXT("input_summary"), MakeInputSummaryObject(InDumpResult.InputSummary));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::ComponentTree)
+				&& !InDumpResult.ComponentTree.SchemaVersion.IsEmpty()
+				&& InDumpResult.ComponentTree.bSupported)
+			{
+				RootObject->SetObjectField(TEXT("component_tree"), MakeComponentTreeObject(InDumpResult.ComponentTree));
 			}
 			if (SectionSelection.IsEnabled(EADumpSection::Graphs))
 			{

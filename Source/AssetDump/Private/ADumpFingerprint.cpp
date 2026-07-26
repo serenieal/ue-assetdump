@@ -98,7 +98,7 @@ namespace
 				*InRequestInfo.DataAssetDiffBaseSha256)
 			: FString();
 		return FString::Printf(
-			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1|input_summary_schema=input_summary_v1%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
+			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1|input_summary_schema=input_summary_v1|component_tree_schema=component_tree_v1%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
 			ToString(InRequestInfo.SourceKind),
 			*InRequestInfo.Intent,
 			*InRequestInfo.Profile,
