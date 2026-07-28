@@ -1,6 +1,8 @@
 // File: ADumpService.cpp
-// Version: v0.11.0
+// Version: v0.12.0
 // Changelog:
+// - v0.12.0: graph extraction 후 bp_search_index_v1 pure builder를 실행.
+// - v0.11.1: 실제 덤프 세션 시작 시 writable output을 한 번만 확정하고 request metadata 생성은 비mutation으로 유지.
 // - v0.11.0: component_tree_v1 builder를 details와 독립된 서비스 단계와 저장 가치 판단에 연결.
 // - v0.10.0: input_summary_v1 Enhanced Input builder를 서비스 단계와 저장 가치 판단에 연결.
 // - v0.9.0: data_asset_diff baseline preflight와 DataAsset 값 비교 builder를 서비스 단계에 연결.
@@ -27,6 +29,7 @@
 #include "ADumpDataAsset.h"
 #include "ADumpDataDiff.h"
 #include "ADumpComponentTree.h"
+#include "ADumpBPSearchIndex.h"
 #include "ADumpDetailExt.h"
 #include "ADumpFingerprint.h"
 #include "ADumpGraphExt.h"
@@ -163,6 +166,7 @@ namespace
 			|| !InResult.DataAssetDiff.SchemaVersion.IsEmpty()
 			|| !InResult.InputSummary.SchemaVersion.IsEmpty()
 			|| !InResult.ComponentTree.SchemaVersion.IsEmpty()
+			|| !InResult.BPSearchIndex.SchemaVersion.IsEmpty()
 			|| InResult.References.Hard.Num() > 0
 			|| InResult.References.Soft.Num() > 0
 			|| !InResult.Summary.ParentClassPath.IsEmpty()
@@ -412,6 +416,8 @@ bool FADumpService::BeginDumpSession(const FADumpRunOpts& InRunOpts, FString& Ou
 {
 	ResetSessionState();
 	ActiveRunOpts = InRunOpts;
+	// 실제 세션은 시작 시점에 writable output을 한 번 확정하고 이후 request/save/skip에서 같은 경로를 재사용한다.
+	ActiveRunOpts.OutputFilePath = ActiveRunOpts.ResolveOutputFilePath();
 	ActiveResult = FADumpResult::CreateDefault();
 	ActiveResult.Request = ActiveRunOpts.BuildRequestInfo();
 	ActivePhase = EADumpPhase::Prepare;
@@ -734,6 +740,16 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 				ActiveResult.Graphs,
 				ActiveResult.Issues,
 				ActiveResult.Perf))
+		{
+			bAllRequestedSectionsSucceeded = false;
+		}
+		if (ActiveRunOpts.ShouldBuildBPSearchIndex()
+			&& !ADumpBPSearchIndex::BuildSearchIndex(
+				ActiveResult.Asset,
+				ActiveResult.Graphs,
+				ActiveRunOpts.bLinksOnly,
+				!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::BPSearchIndex),
+				ActiveResult.BPSearchIndex))
 		{
 			bAllRequestedSectionsSucceeded = false;
 		}

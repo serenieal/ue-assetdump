@@ -1,4 +1,5 @@
 ﻿// SSOTDumpCmdlet.cpp
+// v0.4.1 - 실제 기본 SSOT 출력에서 writable resolver를 사용해 read-only Plugin fallback 유지
 // v0.4.0 - 기본 출력 경로를 Document/SSOT에서 AssetDump 플러그인 Dumped/SSOT로 변경
 // v0.3b patch (path non-fixed)
 // - DetectInputRoot() with longest common prefix folder
@@ -449,7 +450,7 @@ void USSOTDumpCmdlet::ParseArgs(const FString& CmdLine)
 
 
 	// 기본 출력 폴더
-	OutputDir = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("SSOT"));
+	OutputDir = FPaths::Combine(ADumpJson::ResolveWritableDefaultDumpRootDirectory(), TEXT("SSOT"));
 
 	// [변수] 출력 파일 접두어 기본값(없음)
 	OutputFilePrefix = TEXT("");

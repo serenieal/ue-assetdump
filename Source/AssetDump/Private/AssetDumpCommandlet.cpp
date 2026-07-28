@@ -1,6 +1,14 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.11.3
+// Version: v0.14.3
 // Changelog:
+// - v0.14.3: full Profile builder 기대 목록에 bp_search_index를 추가하고 graph prerequisite 중복 제거 계약을 반영.
+// - v0.14.2: 실제 13개 Require 항목과 어긋난 bp_search_index registry 총계·validation 기대값을 13으로 교정.
+// - v0.14.1: bp_search_index actual contract와 production-shared 12-case registry validation을 추가.
+// - v0.14.0: bp_search_index section parsing과 validation wiring 기반을 추가.
+// - v0.13.0: actual execution preview integrity와 production-shared 13-case traversal registry를 추가.
+// - v0.12.1: 실제 role trait classifier에 15-case exact/fallback registry self-test를 연결.
+// - v0.12.0: graph_node_role_v1 canonical 값, pin 구조, tag 순서와 legacy semantic 일치 validation을 추가.
+// - v0.11.4: 인자 생략 기본 출력에서만 writable root resolver를 호출해 explicit validate/batch 경로의 선제 Plugin Dumped 생성을 방지.
 // - v0.11.3: World fixture의 중복 Actor Transform 보정을 제거해 makefixtures 반복 저장을 방지.
 // - v0.11.2: batchdump가 Plugin mount 경로를 명시적으로 스캔해 /AssetDump fixture를 검색하도록 보강.
 // - v0.11.1: component_tree orphan 검증과 Widget fixture 반복 실행 idempotency를 보강.
@@ -51,11 +59,13 @@
 #include "AssetDumpCommandlet.h"
 
 #include "ADumpDataAsset.h"
+#include "ADumpBPSearchIndex.h"
 #include "ADumpDataDiff.h"
 #include "ADumpComponentTree.h"
 #include "ADumpInput.h"
 #include "ADumpValidRow.h"
 #include "ADumpFingerprint.h"
+#include "ADumpGraphExt.h"
 #include "ADumpJson.h"
 #include "ADumpRunOpts.h"
 #include "ADumpService.h"
@@ -240,7 +250,7 @@ namespace
 	// GetValidSectionNamesText는 -Sections=에서 허용하는 정식 섹션 이름 목록을 반환한다.
 	FString GetValidSectionNamesText()
 	{
-		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,input_summary,component_tree,graphs,references,widget_designer");
+		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,input_summary,component_tree,bp_search_index,graphs,references,widget_designer");
 	}
 
 	// GetValidIntentNamesText는 -Intent=에서 허용하는 정식 분석 목적 이름 목록을 반환한다.
@@ -293,7 +303,12 @@ namespace
 			OutSection = EADumpSection::ComponentTree;
 			return true;
 		}
-		if (InSectionName == TEXT("graphs"))
+		if (InSectionName == TEXT("bp_search_index"))
+	{
+		OutSection = EADumpSection::BPSearchIndex;
+		return true;
+	}
+	if (InSectionName == TEXT("graphs"))
 		{
 			OutSection = EADumpSection::Graphs;
 			return true;
@@ -1219,7 +1234,796 @@ namespace
 		}
 	}
 
-	// BuildValidationCaseObject는 validate 한 케이스 결과를 report용 JSON object로 정리한다.
+	// ResolveExpectedGraphNodeRoleFamily는 primary role의 canonical family를 반환한다.
+	FString ResolveExpectedGraphNodeRoleFamily(const FString& InPrimaryRole)
+	{
+		if (InPrimaryRole == TEXT("event") || InPrimaryRole == TEXT("execution_entry")) return TEXT("entry");
+		if (InPrimaryRole == TEXT("function_call") || InPrimaryRole == TEXT("interface_call")) return TEXT("call");
+		if (InPrimaryRole == TEXT("variable_get") || InPrimaryRole == TEXT("variable_set")) return TEXT("variable");
+		if (InPrimaryRole == TEXT("dynamic_cast")) return TEXT("conversion");
+		if (InPrimaryRole == TEXT("branch") || InPrimaryRole == TEXT("sequence") || InPrimaryRole == TEXT("switch") || InPrimaryRole == TEXT("flow_control")) return TEXT("control_flow");
+		if (InPrimaryRole == TEXT("select") || InPrimaryRole == TEXT("pure_expression")) return TEXT("data_flow");
+		if (InPrimaryRole == TEXT("timeline")) return TEXT("timing");
+		if (InPrimaryRole == TEXT("execution_sink") || InPrimaryRole == TEXT("impure_operation")) return TEXT("operation");
+		return TEXT("unknown");
+	}
+
+	// GetGraphNodeRoleTagRank는 deterministic tag registry 순서를 반환한다.
+	int32 GetGraphNodeRoleTagRank(const FString& InTag)
+	{
+		if (InTag == TEXT("pure")) return 0;
+		if (InTag == TEXT("impure")) return 1;
+		if (InTag == TEXT("latent")) return 2;
+		if (InTag == TEXT("has_exec_input")) return 3;
+		if (InTag == TEXT("has_exec_output")) return 4;
+		if (InTag == TEXT("interface")) return 5;
+		if (InTag == TEXT("member_access")) return 6;
+		if (InTag == TEXT("conditional")) return 7;
+		if (InTag == TEXT("multi_output")) return 8;
+		return INDEX_NONE;
+	}
+
+	// TestGraphNodeRoleContract는 role schema, canonical 값, pin 구조, tag와 legacy semantic 일치를 검사한다.
+	bool TestGraphNodeRoleContract(const FADumpGraphNode& InNode, FString& OutFailureReason)
+	{
+		OutFailureReason.Reset();
+
+		const TArray<FString> CanonicalPrimaryRoles = {
+			TEXT("event"), TEXT("function_call"), TEXT("interface_call"), TEXT("variable_get"), TEXT("variable_set"),
+			TEXT("dynamic_cast"), TEXT("branch"), TEXT("sequence"), TEXT("select"), TEXT("switch"), TEXT("timeline"),
+			TEXT("execution_entry"), TEXT("execution_sink"), TEXT("flow_control"), TEXT("pure_expression"),
+			TEXT("impure_operation"), TEXT("unknown") };
+		const TArray<FString> CanonicalSources = { TEXT("exact_class"), TEXT("function_metadata"), TEXT("structural_inference"), TEXT("fallback") };
+		const TArray<FString> CanonicalConfidence = { TEXT("exact"), TEXT("inferred"), TEXT("fallback") };
+
+		if (InNode.Role.SchemaVersion != TEXT("graph_node_role_v1"))
+		{
+			OutFailureReason = FString::Printf(TEXT("schema=%s"), *InNode.Role.SchemaVersion);
+			return false;
+		}
+		if (!CanonicalPrimaryRoles.Contains(InNode.Role.Primary))
+		{
+			OutFailureReason = FString::Printf(TEXT("primary=%s"), *InNode.Role.Primary);
+			return false;
+		}
+		const FString ExpectedFamily = ResolveExpectedGraphNodeRoleFamily(InNode.Role.Primary);
+		if (InNode.Role.Family != ExpectedFamily)
+		{
+			OutFailureReason = FString::Printf(TEXT("family=%s expected=%s"), *InNode.Role.Family, *ExpectedFamily);
+			return false;
+		}
+		if (!CanonicalSources.Contains(InNode.Role.Source) || !CanonicalConfidence.Contains(InNode.Role.Confidence))
+		{
+			OutFailureReason = FString::Printf(TEXT("source=%s confidence=%s"), *InNode.Role.Source, *InNode.Role.Confidence);
+			return false;
+		}
+
+		bool bHasExecInput = false;
+		bool bHasExecOutput = false;
+		for (const FADumpGraphPin& Pin : InNode.Pins)
+		{
+			if (!Pin.bIsExec)
+			{
+				continue;
+			}
+			bHasExecInput |= Pin.Direction == TEXT("input");
+			bHasExecOutput |= Pin.Direction == TEXT("output");
+		}
+		if (InNode.Role.bHasExecInput != bHasExecInput || InNode.Role.bHasExecOutput != bHasExecOutput)
+		{
+			OutFailureReason = TEXT("exec_pin_trait_mismatch");
+			return false;
+		}
+		if (InNode.Role.bIsPure && (bHasExecInput || bHasExecOutput))
+		{
+			OutFailureReason = TEXT("pure_node_has_exec_pin");
+			return false;
+		}
+
+		TSet<FString> UniqueTags;
+		int32 PreviousTagRank = INDEX_NONE;
+		for (const FString& Tag : InNode.Role.Tags)
+		{
+			const int32 TagRank = GetGraphNodeRoleTagRank(Tag);
+			if (TagRank == INDEX_NONE || UniqueTags.Contains(Tag) || (PreviousTagRank != INDEX_NONE && TagRank <= PreviousTagRank))
+			{
+				OutFailureReason = FString::Printf(TEXT("invalid_tag=%s"), *Tag);
+				return false;
+			}
+			UniqueTags.Add(Tag);
+			PreviousTagRank = TagRank;
+		}
+		if (!InNode.Role.Tags.Contains(InNode.Role.bIsPure ? TEXT("pure") : TEXT("impure")))
+		{
+			OutFailureReason = TEXT("purity_tag_missing");
+			return false;
+		}
+
+		FString LegacySemantic;
+		if (InNode.Extra.IsValid() && InNode.Extra->TryGetStringField(TEXT("node_semantic"), LegacySemantic) && !LegacySemantic.IsEmpty() && LegacySemantic != InNode.Role.Primary)
+		{
+			OutFailureReason = FString::Printf(TEXT("legacy_semantic=%s role=%s"), *LegacySemantic, *InNode.Role.Primary);
+			return false;
+		}
+
+		return true;
+	}
+
+	// VerifyGraphNodeRoleClassifierRegistry는 exact semantic 11종과 structural fallback 4종을 공용 trait classifier로 검증한다.
+	bool VerifyGraphNodeRoleClassifierRegistry(FString& OutDetailText)
+	{
+		struct FRoleClassifierCase
+		{
+			FString Name;
+			FString Semantic;
+			bool bHasExecInput = false;
+			bool bHasExecOutput = false;
+			int32 ExecOutputCount = 0;
+			bool bPurityResolved = false;
+			bool bMetadataIsPure = false;
+			bool bIsLatent = false;
+			FString ExpectedPrimary;
+			FString ExpectedFamily;
+			FString ExpectedSource;
+			FString ExpectedConfidence;
+			FString RequiredTagA;
+			FString RequiredTagB;
+		};
+
+		const TArray<FRoleClassifierCase> Cases = {
+			{ TEXT("event"), TEXT("event"), false, true, 1, false, false, false, TEXT("event"), TEXT("entry"), TEXT("exact_class"), TEXT("exact"), TEXT("has_exec_output"), FString() },
+			{ TEXT("function_call"), TEXT("function_call"), false, false, 0, true, true, false, TEXT("function_call"), TEXT("call"), TEXT("function_metadata"), TEXT("exact"), TEXT("pure"), FString() },
+			{ TEXT("interface_call"), TEXT("interface_call"), true, true, 1, true, false, false, TEXT("interface_call"), TEXT("call"), TEXT("function_metadata"), TEXT("exact"), TEXT("interface"), FString() },
+			{ TEXT("variable_get"), TEXT("variable_get"), false, false, 0, false, false, false, TEXT("variable_get"), TEXT("variable"), TEXT("exact_class"), TEXT("exact"), TEXT("member_access"), TEXT("pure") },
+			{ TEXT("variable_set"), TEXT("variable_set"), true, true, 1, false, false, false, TEXT("variable_set"), TEXT("variable"), TEXT("exact_class"), TEXT("exact"), TEXT("member_access"), TEXT("impure") },
+			{ TEXT("dynamic_cast"), TEXT("dynamic_cast"), true, true, 2, false, false, false, TEXT("dynamic_cast"), TEXT("conversion"), TEXT("exact_class"), TEXT("exact"), TEXT("multi_output"), FString() },
+			{ TEXT("branch"), TEXT("branch"), true, true, 2, false, false, false, TEXT("branch"), TEXT("control_flow"), TEXT("exact_class"), TEXT("exact"), TEXT("conditional"), TEXT("multi_output") },
+			{ TEXT("sequence"), TEXT("sequence"), true, true, 3, false, false, false, TEXT("sequence"), TEXT("control_flow"), TEXT("exact_class"), TEXT("exact"), TEXT("multi_output"), FString() },
+			{ TEXT("select"), TEXT("select"), false, false, 0, false, false, false, TEXT("select"), TEXT("data_flow"), TEXT("exact_class"), TEXT("exact"), TEXT("conditional"), TEXT("pure") },
+			{ TEXT("switch"), TEXT("switch"), true, true, 3, false, false, false, TEXT("switch"), TEXT("control_flow"), TEXT("exact_class"), TEXT("exact"), TEXT("conditional"), TEXT("multi_output") },
+			{ TEXT("timeline"), TEXT("timeline"), true, true, 2, false, false, false, TEXT("timeline"), TEXT("timing"), TEXT("exact_class"), TEXT("exact"), TEXT("latent"), TEXT("multi_output") },
+			{ TEXT("pure_expression"), FString(), false, false, 0, false, false, false, TEXT("pure_expression"), TEXT("data_flow"), TEXT("structural_inference"), TEXT("inferred"), TEXT("pure"), FString() },
+			{ TEXT("execution_entry"), FString(), false, true, 1, false, false, false, TEXT("execution_entry"), TEXT("entry"), TEXT("structural_inference"), TEXT("inferred"), TEXT("has_exec_output"), FString() },
+			{ TEXT("execution_sink"), FString(), true, false, 0, false, false, false, TEXT("execution_sink"), TEXT("operation"), TEXT("structural_inference"), TEXT("inferred"), TEXT("has_exec_input"), FString() },
+			{ TEXT("flow_control"), FString(), true, true, 1, false, false, false, TEXT("flow_control"), TEXT("control_flow"), TEXT("structural_inference"), TEXT("inferred"), TEXT("has_exec_input"), TEXT("has_exec_output") }
+		};
+
+		int32 PassedCount = 0;
+		for (const FRoleClassifierCase& TestCase : Cases)
+		{
+			FADumpGraphNode SyntheticNode;
+			SyntheticNode.NodeClass = TestCase.Name;
+			SyntheticNode.Role = ADumpGraphExt::BuildGraphNodeRoleFromTraits(
+				TestCase.Semantic,
+				TestCase.bHasExecInput,
+				TestCase.bHasExecOutput,
+				TestCase.ExecOutputCount,
+				TestCase.bPurityResolved,
+				TestCase.bMetadataIsPure,
+				TestCase.bIsLatent);
+
+			if (!TestCase.Semantic.IsEmpty())
+			{
+				SyntheticNode.Extra = MakeShared<FJsonObject>();
+				SyntheticNode.Extra->SetStringField(TEXT("node_semantic"), TestCase.Semantic);
+			}
+			if (TestCase.bHasExecInput)
+			{
+				FADumpGraphPin InputPin;
+				InputPin.Direction = TEXT("input");
+				InputPin.bIsExec = true;
+				SyntheticNode.Pins.Add(InputPin);
+			}
+			for (int32 OutputIndex = 0; OutputIndex < TestCase.ExecOutputCount; ++OutputIndex)
+			{
+				FADumpGraphPin OutputPin;
+				OutputPin.Direction = TEXT("output");
+				OutputPin.bIsExec = true;
+				SyntheticNode.Pins.Add(OutputPin);
+			}
+
+			FString ContractFailure;
+			const bool bRoleMatches = SyntheticNode.Role.Primary == TestCase.ExpectedPrimary
+				&& SyntheticNode.Role.Family == TestCase.ExpectedFamily
+				&& SyntheticNode.Role.Source == TestCase.ExpectedSource
+				&& SyntheticNode.Role.Confidence == TestCase.ExpectedConfidence
+				&& (TestCase.RequiredTagA.IsEmpty() || SyntheticNode.Role.Tags.Contains(TestCase.RequiredTagA))
+				&& (TestCase.RequiredTagB.IsEmpty() || SyntheticNode.Role.Tags.Contains(TestCase.RequiredTagB))
+				&& TestGraphNodeRoleContract(SyntheticNode, ContractFailure);
+			if (!bRoleMatches)
+			{
+				OutDetailText = FString::Printf(
+					TEXT("failed=%s primary=%s family=%s source=%s confidence=%s contract=%s"),
+					*TestCase.Name,
+					*SyntheticNode.Role.Primary,
+					*SyntheticNode.Role.Family,
+					*SyntheticNode.Role.Source,
+					*SyntheticNode.Role.Confidence,
+					*ContractFailure);
+				return false;
+			}
+			++PassedCount;
+		}
+
+		OutDetailText = FString::Printf(TEXT("passed=%d total=%d"), PassedCount, Cases.Num());
+		return PassedCount == Cases.Num();
+	}
+
+	// TestExecutionPathPreviewContract는 graph preview count, path, step, link와 termination 무결성을 검사한다.
+	bool TestExecutionPathPreviewContract(const FADumpGraph& InGraph, FString& OutFailureReason)
+	{
+		OutFailureReason.Reset();
+		const FADumpExecutionPathPreview& Preview = InGraph.ExecutionPreview;
+		if (Preview.SchemaVersion != TEXT("execution_path_preview_v1"))
+		{
+			OutFailureReason = FString::Printf(TEXT("schema=%s"), *Preview.SchemaVersion);
+			return false;
+		}
+		if (!Preview.bSupported)
+		{
+			const bool bReasonValid = Preview.UnsupportedReason == TEXT("links_only") || Preview.UnsupportedReason == TEXT("exec_links_not_requested");
+			const bool bCountsEmpty = Preview.EntryCount == 0 && Preview.PathCount == 0 && Preview.Paths.Num() == 0
+				&& Preview.TerminalPathCount == 0 && Preview.CyclePathCount == 0 && Preview.DepthLimitedPathCount == 0;
+			if (!bReasonValid || !bCountsEmpty)
+			{
+				OutFailureReason = FString::Printf(TEXT("unsupported_reason=%s path_count=%d"), *Preview.UnsupportedReason, Preview.PathCount);
+				return false;
+			}
+			return true;
+		}
+		if (!Preview.UnsupportedReason.IsEmpty() || Preview.MaxPaths <= 0 || Preview.MaxDepth <= 0)
+		{
+			OutFailureReason = TEXT("supported_header_invalid");
+			return false;
+		}
+
+		TMap<FString, const FADumpGraphNode*> NodeById;
+		int32 ExpectedEntryCount = 0;
+		for (const FADumpGraphNode& Node : InGraph.Nodes)
+		{
+			NodeById.Add(Node.NodeId, &Node);
+			if (Node.Role.Primary == TEXT("event") || Node.Role.Primary == TEXT("execution_entry") || (!Node.Role.bHasExecInput && Node.Role.bHasExecOutput))
+			{
+				++ExpectedEntryCount;
+			}
+		}
+		if (Preview.EntryCount != ExpectedEntryCount || Preview.PathCount != Preview.Paths.Num())
+		{
+			OutFailureReason = FString::Printf(TEXT("entry=%d/%d paths=%d/%d"), Preview.EntryCount, ExpectedEntryCount, Preview.PathCount, Preview.Paths.Num());
+			return false;
+		}
+
+		auto HasOutgoingExecLink = [&InGraph](const FString& InNodeId)
+		{
+			for (const FADumpGraphLink& Link : InGraph.Links)
+			{
+				if (Link.LinkKind == EADumpLinkKind::Exec && Link.FromNodeId == InNodeId) return true;
+			}
+			return false;
+		};
+
+		int32 TerminalCount = 0;
+		int32 CycleCount = 0;
+		int32 DepthCount = 0;
+		int32 ObservedMaxDepth = 0;
+		TSet<FString> UniquePathIds;
+		for (int32 PathIndex = 0; PathIndex < Preview.Paths.Num(); ++PathIndex)
+		{
+			const FADumpExecutionPath& Path = Preview.Paths[PathIndex];
+			const FString ExpectedPathId = FString::Printf(TEXT("path_%03d"), PathIndex);
+			if (Path.PathId != ExpectedPathId || UniquePathIds.Contains(Path.PathId) || Path.StepCount != Path.Steps.Num() || Path.Steps.Num() <= 0)
+			{
+				OutFailureReason = FString::Printf(TEXT("path_header=%s"), *Path.PathId);
+				return false;
+			}
+			UniquePathIds.Add(Path.PathId);
+			if (Path.EntryNodeId != Path.Steps[0].NodeId || Path.TerminalNodeId != Path.Steps.Last().NodeId)
+			{
+				OutFailureReason = FString::Printf(TEXT("path_endpoints=%s"), *Path.PathId);
+				return false;
+			}
+
+			const FADumpGraphNode* EntryNode = NodeById.FindRef(Path.EntryNodeId);
+			if (!EntryNode || !(EntryNode->Role.Primary == TEXT("event") || EntryNode->Role.Primary == TEXT("execution_entry") || (!EntryNode->Role.bHasExecInput && EntryNode->Role.bHasExecOutput)))
+			{
+				OutFailureReason = FString::Printf(TEXT("invalid_entry=%s"), *Path.EntryNodeId);
+				return false;
+			}
+
+			for (int32 StepIndex = 0; StepIndex < Path.Steps.Num(); ++StepIndex)
+			{
+				const FADumpExecutionPathStep& Step = Path.Steps[StepIndex];
+				const FADumpGraphNode* Node = NodeById.FindRef(Step.NodeId);
+				if (!Node || Step.Depth != StepIndex || Step.PrimaryRole != Node->Role.Primary)
+				{
+					OutFailureReason = FString::Printf(TEXT("step=%s:%d"), *Path.PathId, StepIndex);
+					return false;
+				}
+				ObservedMaxDepth = FMath::Max(ObservedMaxDepth, Step.Depth);
+				if (StepIndex == 0)
+				{
+					if (!Step.ViaPinId.IsEmpty() || !Step.ViaPinName.IsEmpty())
+					{
+						OutFailureReason = FString::Printf(TEXT("entry_via_pin=%s"), *Path.PathId);
+						return false;
+					}
+					continue;
+				}
+
+				const FADumpExecutionPathStep& PreviousStep = Path.Steps[StepIndex - 1];
+				const FADumpGraphNode* PreviousNode = NodeById.FindRef(PreviousStep.NodeId);
+				bool bPinMatched = false;
+				if (PreviousNode)
+				{
+					for (const FADumpGraphPin& Pin : PreviousNode->Pins)
+					{
+						if (Pin.PinId == Step.ViaPinId && Pin.PinName == Step.ViaPinName && Pin.bIsExec && Pin.Direction == TEXT("output"))
+						{
+							bPinMatched = true;
+							break;
+						}
+					}
+				}
+				bool bLinkMatched = false;
+				for (const FADumpGraphLink& Link : InGraph.Links)
+				{
+					if (Link.LinkKind == EADumpLinkKind::Exec && Link.FromNodeId == PreviousStep.NodeId
+						&& Link.FromPinId == Step.ViaPinId && Link.ToNodeId == Step.NodeId)
+					{
+						bLinkMatched = true;
+						break;
+					}
+				}
+				if (!bPinMatched || !bLinkMatched)
+				{
+					OutFailureReason = FString::Printf(TEXT("step_link=%s:%d"), *Path.PathId, StepIndex);
+					return false;
+				}
+			}
+
+			if (Path.Termination == TEXT("terminal"))
+			{
+				++TerminalCount;
+				if (HasOutgoingExecLink(Path.TerminalNodeId))
+				{
+					OutFailureReason = FString::Printf(TEXT("terminal_has_output=%s"), *Path.PathId);
+					return false;
+				}
+			}
+			else if (Path.Termination == TEXT("cycle"))
+			{
+				++CycleCount;
+				bool bRepeated = false;
+				for (int32 EarlierIndex = 0; EarlierIndex < Path.Steps.Num() - 1; ++EarlierIndex)
+				{
+					bRepeated |= Path.Steps[EarlierIndex].NodeId == Path.TerminalNodeId;
+				}
+				if (!bRepeated)
+				{
+					OutFailureReason = FString::Printf(TEXT("cycle_not_repeated=%s"), *Path.PathId);
+					return false;
+				}
+			}
+			else if (Path.Termination == TEXT("depth_limit"))
+			{
+				++DepthCount;
+				if (Path.Steps.Last().Depth != Preview.MaxDepth || !HasOutgoingExecLink(Path.TerminalNodeId))
+				{
+					OutFailureReason = FString::Printf(TEXT("depth_limit=%s"), *Path.PathId);
+					return false;
+				}
+			}
+			else
+			{
+				OutFailureReason = FString::Printf(TEXT("termination=%s"), *Path.Termination);
+				return false;
+			}
+		}
+
+		if (Preview.TerminalPathCount != TerminalCount || Preview.CyclePathCount != CycleCount || Preview.DepthLimitedPathCount != DepthCount
+			|| Preview.ObservedMaxDepth != ObservedMaxDepth || Preview.bTruncated != (DepthCount > 0 || Preview.OmittedPathCount > 0))
+		{
+			OutFailureReason = TEXT("summary_count_mismatch");
+			return false;
+		}
+		if ((CycleCount > 0) != Preview.Warnings.Contains(TEXT("cycle_detected"))
+			|| (DepthCount > 0) != Preview.Warnings.Contains(TEXT("depth_limit_reached"))
+			|| (Preview.OmittedPathCount > 0) != Preview.Warnings.Contains(TEXT("path_limit_reached")))
+		{
+			OutFailureReason = TEXT("warning_mismatch");
+			return false;
+		}
+		if (ExpectedEntryCount == 0 && InGraph.Nodes.Num() > 0 && !Preview.Warnings.Contains(TEXT("no_entry_nodes")))
+		{
+			OutFailureReason = TEXT("no_entry_warning_missing");
+			return false;
+		}
+		return true;
+	}
+
+	// MakeExecutionPreviewTestNode는 production preview registry용 synthetic node를 만든다.
+	FADumpGraphNode MakeExecutionPreviewTestNode(
+		const FString& InNodeId,
+		const FString& InPrimaryRole,
+		bool bInHasExecInput,
+		const TArray<FString>& InOutputPinNames)
+	{
+		FADumpGraphNode Node;
+		Node.NodeId = InNodeId;
+		Node.NodeClass = InPrimaryRole;
+		Node.Role.Primary = InPrimaryRole;
+		Node.Role.bHasExecInput = bInHasExecInput;
+		Node.Role.bHasExecOutput = InOutputPinNames.Num() > 0;
+		if (bInHasExecInput)
+		{
+			FADumpGraphPin InputPin;
+			InputPin.PinId = InNodeId + TEXT("_in");
+			InputPin.PinName = TEXT("execute");
+			InputPin.Direction = TEXT("input");
+			InputPin.bIsExec = true;
+			Node.Pins.Add(MoveTemp(InputPin));
+		}
+		for (int32 OutputIndex = 0; OutputIndex < InOutputPinNames.Num(); ++OutputIndex)
+		{
+			FADumpGraphPin OutputPin;
+			OutputPin.PinId = FString::Printf(TEXT("%s_out_%02d"), *InNodeId, OutputIndex);
+			OutputPin.PinName = InOutputPinNames[OutputIndex];
+			OutputPin.Direction = TEXT("output");
+			OutputPin.bIsExec = true;
+			Node.Pins.Add(MoveTemp(OutputPin));
+		}
+		return Node;
+	}
+
+	// AddExecutionPreviewTestLink는 synthetic graph에 deterministic exec/data link를 추가한다.
+	void AddExecutionPreviewTestLink(FADumpGraph& InOutGraph, const FString& InFromNodeId, int32 InOutputIndex, const FString& InToNodeId, EADumpLinkKind InLinkKind = EADumpLinkKind::Exec)
+	{
+		FADumpGraphLink Link;
+		Link.FromNodeId = InFromNodeId;
+		Link.FromPinId = FString::Printf(TEXT("%s_out_%02d"), *InFromNodeId, InOutputIndex);
+		Link.ToNodeId = InToNodeId;
+		Link.ToPinId = InToNodeId + TEXT("_in");
+		Link.LinkKind = InLinkKind;
+		InOutGraph.Links.Add(MoveTemp(Link));
+	}
+
+	// VerifyExecutionPathPreviewRegistry는 production builder로 13개 bounded traversal 계약을 검증한다.
+	bool VerifyExecutionPathPreviewRegistry(FString& OutDetailText)
+	{
+		int32 PassedCount = 0;
+		auto Require = [&OutDetailText, &PassedCount](bool bCondition, const FString& InCaseName, const FString& InDetail)
+		{
+			if (!bCondition)
+			{
+				OutDetailText = FString::Printf(TEXT("failed=%s detail=%s"), *InCaseName, *InDetail);
+				return false;
+			}
+			++PassedCount;
+			return true;
+		};
+
+		{
+			FADumpGraph Graph;
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			if (!Require(Preview.bSupported && Preview.EntryCount == 0 && Preview.PathCount == 0 && Preview.Warnings.Num() == 0, TEXT("empty_graph"), TEXT("non_empty_result"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, false, true);
+			if (!Require(!Preview.bSupported && Preview.UnsupportedReason == TEXT("links_only") && Preview.Paths.Num() == 0, TEXT("links_only"), Preview.UnsupportedReason)) return false;
+		}
+		{
+			FADumpGraph Graph;
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, false);
+			if (!Require(!Preview.bSupported && Preview.UnsupportedReason == TEXT("exec_links_not_requested") && Preview.Paths.Num() == 0, TEXT("data_only_selection"), Preview.UnsupportedReason)) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("then") }));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			if (!Require(Preview.PathCount == 1 && Preview.Paths[0].Termination == TEXT("terminal") && Preview.Paths[0].StepCount == 1, TEXT("single_terminal_entry"), TEXT("path_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("O"), TEXT("flow_control"), true, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("T"), TEXT("execution_sink"), true, {}));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("O"));
+			AddExecutionPreviewTestLink(Graph, TEXT("O"), 0, TEXT("T"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			const bool bPassed = Preview.PathCount == 1 && Preview.Paths[0].StepCount == 3 && Preview.Paths[0].Steps[1].NodeId == TEXT("O") && Preview.Paths[0].TerminalNodeId == TEXT("T");
+			if (!Require(bPassed, TEXT("linear"), TEXT("path_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("first"), TEXT("second") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("A"), TEXT("execution_sink"), true, {}));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("B"), TEXT("execution_sink"), true, {}));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 1, TEXT("B"));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("A"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			const bool bPassed = Preview.PathCount == 2 && Preview.Paths[0].Steps[1].ViaPinName == TEXT("first") && Preview.Paths[1].Steps[1].ViaPinName == TEXT("second");
+			if (!Require(bPassed, TEXT("branch_order"), TEXT("pin_order_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("a"), TEXT("b") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("A"), TEXT("flow_control"), true, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("B"), TEXT("flow_control"), true, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("M"), TEXT("execution_sink"), true, {}));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("A"));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 1, TEXT("B"));
+			AddExecutionPreviewTestLink(Graph, TEXT("A"), 0, TEXT("M"));
+			AddExecutionPreviewTestLink(Graph, TEXT("B"), 0, TEXT("M"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			const bool bPassed = Preview.PathCount == 2 && Preview.Paths[0].TerminalNodeId == TEXT("M") && Preview.Paths[1].TerminalNodeId == TEXT("M");
+			if (!Require(bPassed, TEXT("merge"), TEXT("merge_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), true, { TEXT("loop") }));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("E"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			if (!Require(Preview.PathCount == 1 && Preview.CyclePathCount == 1 && Preview.Paths[0].StepCount == 2, TEXT("self_cycle"), TEXT("cycle_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("A"), TEXT("flow_control"), true, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("B"), TEXT("flow_control"), true, { TEXT("then") }));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("A"));
+			AddExecutionPreviewTestLink(Graph, TEXT("A"), 0, TEXT("B"));
+			AddExecutionPreviewTestLink(Graph, TEXT("B"), 0, TEXT("A"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			if (!Require(Preview.PathCount == 1 && Preview.CyclePathCount == 1 && Preview.Paths[0].TerminalNodeId == TEXT("A"), TEXT("multi_cycle"), TEXT("cycle_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("A"), TEXT("flow_control"), true, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("B"), TEXT("flow_control"), true, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("C"), TEXT("execution_sink"), true, {}));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("A"));
+			AddExecutionPreviewTestLink(Graph, TEXT("A"), 0, TEXT("B"));
+			AddExecutionPreviewTestLink(Graph, TEXT("B"), 0, TEXT("C"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true, 64, 2);
+			if (!Require(Preview.PathCount == 1 && Preview.DepthLimitedPathCount == 1 && Preview.Paths[0].TerminalNodeId == TEXT("B") && Preview.bTruncated, TEXT("depth_limit"), TEXT("depth_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("one"), TEXT("two"), TEXT("three") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("A"), TEXT("execution_sink"), true, {}));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("B"), TEXT("execution_sink"), true, {}));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("C"), TEXT("execution_sink"), true, {}));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("A"));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 1, TEXT("B"));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 2, TEXT("C"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true, 2, 32);
+			if (!Require(Preview.PathCount == 2 && Preview.OmittedPathCount == 1 && Preview.bTruncated && Preview.Warnings.Contains(TEXT("path_limit_reached")), TEXT("path_limit"), TEXT("limit_mismatch"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("A"), TEXT("flow_control"), true, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("B"), TEXT("flow_control"), true, { TEXT("then") }));
+			AddExecutionPreviewTestLink(Graph, TEXT("A"), 0, TEXT("B"));
+			AddExecutionPreviewTestLink(Graph, TEXT("B"), 0, TEXT("A"));
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			if (!Require(Preview.EntryCount == 0 && Preview.PathCount == 0 && Preview.Warnings.Contains(TEXT("no_entry_nodes")), TEXT("no_entry"), TEXT("warning_missing"))) return false;
+		}
+		{
+			FADumpGraph Graph;
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("E"), TEXT("event"), false, { TEXT("then") }));
+			Graph.Nodes.Add(MakeExecutionPreviewTestNode(TEXT("D"), TEXT("execution_sink"), true, {}));
+			AddExecutionPreviewTestLink(Graph, TEXT("E"), 0, TEXT("D"), EADumpLinkKind::Data);
+			const FADumpExecutionPathPreview Preview = ADumpGraphExt::BuildExecutionPathPreview(Graph, true, true);
+			if (!Require(Preview.PathCount == 1 && Preview.Paths[0].Termination == TEXT("terminal") && Preview.Paths[0].TerminalNodeId == TEXT("E"), TEXT("data_link_exclusion"), TEXT("data_link_traversed"))) return false;
+		}
+
+		OutDetailText = FString::Printf(TEXT("passed=%d total=13"), PassedCount);
+		return PassedCount == 13;
+	}
+
+	// ResolveBPSearchKindCount는 index summary에서 kind별 count를 반환한다.
+	int32 ResolveBPSearchKindCount(const FADumpBPSearchIndex& InIndex, const FString& InKind)
+	{
+		if (InKind == TEXT("graph")) return InIndex.GraphSymbolCount;
+		if (InKind == TEXT("event")) return InIndex.EventSymbolCount;
+		if (InKind == TEXT("function_call")) return InIndex.FunctionCallSymbolCount;
+		if (InKind == TEXT("interface_call")) return InIndex.InterfaceCallSymbolCount;
+		if (InKind == TEXT("variable_read")) return InIndex.VariableReadSymbolCount;
+		if (InKind == TEXT("variable_write")) return InIndex.VariableWriteSymbolCount;
+		if (InKind == TEXT("class_reference")) return InIndex.ClassReferenceSymbolCount;
+		return INDEX_NONE;
+	}
+
+	// TestBPSearchIndexContract는 schema/count/order/source와 term 계약을 검사한다.
+	bool TestBPSearchIndexContract(const FADumpResult& InResult, FString& OutFailureReason)
+	{
+		OutFailureReason.Reset();
+		const FADumpBPSearchIndex& Index = InResult.BPSearchIndex;
+		if (Index.SchemaVersion != TEXT("bp_search_index_v1") || !Index.bSupported || !Index.UnsupportedReason.IsEmpty())
+		{
+			OutFailureReason = FString::Printf(TEXT("header=%s supported=%d reason=%s"), *Index.SchemaVersion, Index.bSupported ? 1 : 0, *Index.UnsupportedReason);
+			return false;
+		}
+		if (Index.MaxSymbols != 512 || Index.SymbolCount != Index.Symbols.Num() || Index.SymbolCount > Index.MaxSymbols
+			|| Index.bTruncated != (Index.OmittedSymbolCount > 0))
+		{
+			OutFailureReason = TEXT("summary_count_mismatch");
+			return false;
+		}
+
+		TMap<FString, int32> ActualKindCounts;
+		TSet<FString> ClassPaths;
+		TSet<FString> SymbolIds;
+		TMap<FString, const FADumpGraph*> GraphByName;
+		for (const FADumpGraph& Graph : InResult.Graphs)
+		{
+			GraphByName.Add(Graph.GraphName, &Graph);
+		}
+
+		for (int32 SymbolIndex = 0; SymbolIndex < Index.Symbols.Num(); ++SymbolIndex)
+		{
+			const FADumpBPSearchSymbol& Symbol = Index.Symbols[SymbolIndex];
+			const FString ExpectedId = FString::Printf(TEXT("symbol_%03d"), SymbolIndex);
+			if (Symbol.SymbolId != ExpectedId || SymbolIds.Contains(Symbol.SymbolId))
+			{
+				OutFailureReason = FString::Printf(TEXT("symbol_id=%s expected=%s"), *Symbol.SymbolId, *ExpectedId);
+				return false;
+			}
+			SymbolIds.Add(Symbol.SymbolId);
+			if (Symbol.Name.IsEmpty() || Symbol.NormalizedName != ADumpBPSearchIndex::NormalizeSearchName(Symbol.Name)
+				|| Symbol.SearchTerms.IsEmpty() || Symbol.SearchTerms.Num() > 8)
+			{
+				OutFailureReason = FString::Printf(TEXT("symbol_shape=%s"), *Symbol.SymbolId);
+				return false;
+			}
+			TSet<FString> UniqueTerms;
+			for (const FString& Term : Symbol.SearchTerms)
+			{
+				const FString Key = Term.ToLower();
+				if (Term.IsEmpty() || UniqueTerms.Contains(Key))
+				{
+					OutFailureReason = FString::Printf(TEXT("term=%s symbol=%s"), *Term, *Symbol.SymbolId);
+					return false;
+				}
+				UniqueTerms.Add(Key);
+			}
+			ActualKindCounts.FindOrAdd(Symbol.Kind)++;
+
+			if (Symbol.Kind == TEXT("graph"))
+			{
+				if (!GraphByName.Contains(Symbol.GraphName) || !Symbol.NodeId.IsEmpty())
+				{
+					OutFailureReason = FString::Printf(TEXT("graph_symbol=%s"), *Symbol.SymbolId);
+					return false;
+				}
+			}
+			else if (Symbol.Kind == TEXT("class_reference"))
+			{
+				if (Symbol.MemberParent.IsEmpty() || ClassPaths.Contains(Symbol.MemberParent))
+				{
+					OutFailureReason = FString::Printf(TEXT("class_symbol=%s"), *Symbol.SymbolId);
+					return false;
+				}
+				ClassPaths.Add(Symbol.MemberParent);
+			}
+			else
+			{
+				const FADumpGraph* const* GraphPtr = GraphByName.Find(Symbol.GraphName);
+				if (!GraphPtr || !*GraphPtr)
+				{
+					OutFailureReason = FString::Printf(TEXT("node_graph=%s"), *Symbol.SymbolId);
+					return false;
+				}
+				const FADumpGraphNode* Node = (*GraphPtr)->Nodes.FindByPredicate([&Symbol](const FADumpGraphNode& Item){ return Item.NodeId == Symbol.NodeId; });
+				if (!Node)
+				{
+					OutFailureReason = FString::Printf(TEXT("node_missing=%s"), *Symbol.SymbolId);
+					return false;
+				}
+				FString ExpectedKind;
+				if (Node->Role.Primary == TEXT("event")) ExpectedKind = TEXT("event");
+				else if (Node->Role.Primary == TEXT("function_call")) ExpectedKind = TEXT("function_call");
+				else if (Node->Role.Primary == TEXT("interface_call")) ExpectedKind = TEXT("interface_call");
+				else if (Node->Role.Primary == TEXT("variable_get")) ExpectedKind = TEXT("variable_read");
+				else if (Node->Role.Primary == TEXT("variable_set")) ExpectedKind = TEXT("variable_write");
+				if (ExpectedKind != Symbol.Kind || Symbol.PrimaryRole != Node->Role.Primary)
+				{
+					OutFailureReason = FString::Printf(TEXT("node_kind=%s expected=%s"), *Symbol.Kind, *ExpectedKind);
+					return false;
+				}
+			}
+		}
+
+		for (const FString Kind : { TEXT("graph"), TEXT("event"), TEXT("function_call"), TEXT("interface_call"), TEXT("variable_read"), TEXT("variable_write"), TEXT("class_reference") })
+		{
+			if (ResolveBPSearchKindCount(Index, Kind) != ActualKindCounts.FindRef(Kind))
+			{
+				OutFailureReason = FString::Printf(TEXT("kind_count=%s"), *Kind);
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// MakeBPSearchTestNode는 production search registry용 synthetic graph node를 만든다.
+	FADumpGraphNode MakeBPSearchTestNode(const FString& InId, const FString& InRole, const FString& InMemberName, const FString& InMemberParent)
+	{
+		FADumpGraphNode Node;
+		Node.NodeId = InId;
+		Node.NodeClass = InRole + TEXT("_class");
+		Node.Role.Primary = InRole;
+		Node.MemberName = InMemberName;
+		Node.MemberParent = InMemberParent;
+		return Node;
+	}
+
+	// VerifyBPSearchIndexRegistry는 production builder로 13개 search index 계약을 검증한다.
+	bool VerifyBPSearchIndexRegistry(FString& OutDetail)
+	{
+		int32 Passed = 0;
+		auto Require = [&OutDetail, &Passed](bool Condition, const TCHAR* Name)
+		{
+			if (!Condition) { OutDetail = FString::Printf(TEXT("failed=%s"), Name); return false; }
+			++Passed; return true;
+		};
+
+		FADumpAssetInfo BlueprintAsset;
+		BlueprintAsset.AssetFamily = TEXT("actor_blueprint");
+		BlueprintAsset.ParentClassPath = TEXT("/Script/Engine.Actor");
+		BlueprintAsset.GeneratedClassPath = TEXT("/AssetDump/Test/BP_Test.BP_Test_C");
+		FADumpAssetInfo OtherAsset;
+		OtherAsset.AssetFamily = TEXT("data_asset");
+		FADumpBPSearchIndex Index;
+
+		ADumpBPSearchIndex::BuildSearchIndex(OtherAsset, {}, false, false, Index);
+		if (!Require(Index.SchemaVersion.IsEmpty(), TEXT("unsupported_full_omit"))) return false;
+		ADumpBPSearchIndex::BuildSearchIndex(OtherAsset, {}, false, true, Index);
+		if (!Require(Index.SchemaVersion == TEXT("bp_search_index_v1") && !Index.bSupported && Index.UnsupportedReason == TEXT("unsupported_asset_class"), TEXT("unsupported_explicit"))) return false;
+		ADumpBPSearchIndex::BuildSearchIndex(BlueprintAsset, {}, true, true, Index);
+		if (!Require(!Index.bSupported && Index.UnsupportedReason == TEXT("links_only"), TEXT("links_only"))) return false;
+		ADumpBPSearchIndex::BuildSearchIndex(BlueprintAsset, {}, false, true, Index);
+		if (!Require(Index.bSupported && Index.SymbolCount == 2 && Index.ClassReferenceSymbolCount == 2, TEXT("empty_blueprint_classes"))) return false;
+
+		FADumpGraph Graph;
+		Graph.GraphName = TEXT("My_Test-Graph");
+		Graph.GraphType = EADumpGraphType::EventGraph;
+		Graph.Nodes.Add(MakeBPSearchTestNode(TEXT("N0"), TEXT("event"), TEXT("On_Start"), TEXT("/Script/Engine.Actor")));
+		Graph.Nodes.Add(MakeBPSearchTestNode(TEXT("N1"), TEXT("function_call"), TEXT("DoWork"), TEXT("/Script/Test.Owner")));
+		Graph.Nodes.Add(MakeBPSearchTestNode(TEXT("N2"), TEXT("interface_call"), TEXT("Interact"), TEXT("/Script/Test.Interface")));
+		Graph.Nodes.Add(MakeBPSearchTestNode(TEXT("N3"), TEXT("variable_get"), TEXT("Health"), TEXT("/Script/Test.Owner")));
+		Graph.Nodes.Add(MakeBPSearchTestNode(TEXT("N4"), TEXT("variable_set"), TEXT("Health"), TEXT("/Script/Test.Owner")));
+		Graph.Nodes.Add(MakeBPSearchTestNode(TEXT("N5"), TEXT("pure_expression"), TEXT("Ignored"), TEXT("/Script/Test.Owner")));
+		ADumpBPSearchIndex::BuildSearchIndex(BlueprintAsset, { Graph }, false, true, Index);
+		if (!Require(Index.GraphSymbolCount == 1 && Index.EventSymbolCount == 1, TEXT("graph_event"))) return false;
+		if (!Require(Index.FunctionCallSymbolCount == 1 && Index.InterfaceCallSymbolCount == 1, TEXT("calls"))) return false;
+		if (!Require(Index.VariableReadSymbolCount == 1 && Index.VariableWriteSymbolCount == 1, TEXT("variables"))) return false;
+		if (!Require(Index.ClassReferenceSymbolCount == 4, TEXT("class_dedupe"))) return false;
+		const FADumpBPSearchSymbol* GraphSymbol = Index.Symbols.FindByPredicate([](const FADumpBPSearchSymbol& S){ return S.Kind == TEXT("graph"); });
+		if (!Require(GraphSymbol && GraphSymbol->NormalizedName == TEXT("my test graph"), TEXT("normalization"))) return false;
+		bool bIdsAndTermsValid = true;
+		for (int32 I = 0; I < Index.Symbols.Num(); ++I) bIdsAndTermsValid &= Index.Symbols[I].SymbolId == FString::Printf(TEXT("symbol_%03d"), I) && Index.Symbols[I].SearchTerms.Num() <= 8;
+		if (!Require(bIdsAndTermsValid, TEXT("ids_terms"))) return false;
+		const int32 FirstEvent = Index.Symbols.IndexOfByPredicate([](const FADumpBPSearchSymbol& S){ return S.Kind == TEXT("event"); });
+		const int32 FirstClass = Index.Symbols.IndexOfByPredicate([](const FADumpBPSearchSymbol& S){ return S.Kind == TEXT("class_reference"); });
+		if (!Require(FirstEvent >= 0 && FirstClass > FirstEvent, TEXT("kind_order"))) return false;
+		Graph.Nodes.Add(MakeBPSearchTestNode(TEXT("N6"), TEXT("event"), FString(), FString()));
+		ADumpBPSearchIndex::BuildSearchIndex(BlueprintAsset, { Graph }, false, true, Index);
+		const FADumpBPSearchSymbol* Fallback = Index.Symbols.FindByPredicate([](const FADumpBPSearchSymbol& S){ return S.NodeId == TEXT("N6"); });
+		if (!Require(Fallback && Fallback->Name == TEXT("event_class"), TEXT("fallback_name"))) return false;
+
+		FADumpGraph LargeGraph;
+		LargeGraph.GraphName = TEXT("Large");
+		for (int32 I = 0; I < 520; ++I) LargeGraph.Nodes.Add(MakeBPSearchTestNode(FString::Printf(TEXT("N%03d"), I), TEXT("event"), FString::Printf(TEXT("Event%03d"), I), FString()));
+		ADumpBPSearchIndex::BuildSearchIndex(BlueprintAsset, { LargeGraph }, false, true, Index);
+		if (!Require(Index.SymbolCount == 512 && Index.bTruncated && Index.OmittedSymbolCount > 0, TEXT("truncation"))) return false;
+
+				OutDetail = FString::Printf(TEXT("passed=%d total=13"), Passed);
+		return Passed == 13;
+	}
+
+		// BuildValidationCaseObject는 validate 한 케이스 결과를 report용 JSON object로 정리한다.
 	TSharedRef<FJsonObject> BuildValidationCaseObject(
 		const FValidationCaseDefinition& InCaseDefinition,
 		const FString& InResolvedObjectPath,
@@ -3303,7 +4107,7 @@ namespace
 		FString FullProfileDetail;
 		// bFullProfilePassed는 full Profile의 전체 모드 및 builder 호환 여부다.
 		const bool bFullProfilePassed = VerifyIntentResolution(
-			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,data_asset_values,input_summary,component_tree,graphs,references,widget_designer"), FullProfileDetail);
+			TEXT("-Mode=bpdump -Profile=full"), TEXT(""), TEXT("full"), TEXT("profile"), TEXT(""), TEXT("summary,details,data_asset_values,input_summary,component_tree,graphs,bp_search_index,references,widget_designer"), FullProfileDetail);
 		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_full"), bFullProfilePassed, FullProfileDetail);
 
 		// SummaryProfileDetail은 summary_only Profile 매핑 검증 결과다.
@@ -4158,7 +4962,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FString DumpRootPath;
 		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
 		{
-			DumpRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDump"));
+			DumpRootPath = FPaths::Combine(ADumpJson::ResolveWritableDefaultDumpRootDirectory(), TEXT("BPDump"));
 		}
 
 		// IndexFilePath는 저장할 index.json 최종 경로다.
@@ -4201,7 +5005,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		if (OutputFilePath.IsEmpty())
 		{
 			OutputFilePath = FPaths::Combine(
-				ADumpJson::BuildDefaultDumpRootDirectory(),
+				ADumpJson::ResolveWritableDefaultDumpRootDirectory(),
 				TEXT("BPDumpValidationPlugin"),
 				TEXT("fixture_report.json"));
 		}
@@ -4227,7 +5031,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FString ValidationRootPath;
 		if (!GetCmdValue(CommandLine, TEXT("ValidationRoot="), ValidationRootPath))
 		{
-			ValidationRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDumpValidation"));
+			ValidationRootPath = FPaths::Combine(ADumpJson::ResolveWritableDefaultDumpRootDirectory(), TEXT("BPDumpValidation"));
 		}
 
 		if (OutputFilePath.IsEmpty())
@@ -4354,7 +5158,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		FString DumpRootPath;
 		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
 		{
-			DumpRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDump"));
+			DumpRootPath = FPaths::Combine(ADumpJson::ResolveWritableDefaultDumpRootDirectory(), TEXT("BPDump"));
 		}
 
 		// bRebuildIndexAfterBatch는 배치 종료 후 인덱스 재생성 여부다.
@@ -5056,7 +5860,7 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	FString ValidationRootPath;
 	if (!GetCmdValue(CommandLine, TEXT("ValidationRoot="), ValidationRootPath))
 	{
-		ValidationRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDumpValidation"));
+		ValidationRootPath = FPaths::Combine(ADumpJson::ResolveWritableDefaultDumpRootDirectory(), TEXT("BPDumpValidation"));
 	}
 	ValidationRootPath = FPaths::ConvertRelativePathToFull(ValidationRootPath);
 
@@ -5439,6 +6243,137 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 				DumpResult.Graphs.Num() >= ValidationCase.MinGraphCount,
 				FString::Printf(TEXT(">=%d"), ValidationCase.MinGraphCount),
 				FString::FromInt(DumpResult.Graphs.Num()),
+				true);
+		}
+
+		if (ValidationCase.MinGraphCount > 0)
+		{
+			int32 GraphNodeCount = 0;
+			int32 ValidGraphNodeRoleCount = 0;
+			FString FirstGraphNodeRoleFailure;
+			for (const FADumpGraph& Graph : DumpResult.Graphs)
+			{
+				for (const FADumpGraphNode& Node : Graph.Nodes)
+				{
+					++GraphNodeCount;
+					FString FailureReason;
+					if (TestGraphNodeRoleContract(Node, FailureReason))
+					{
+						++ValidGraphNodeRoleCount;
+					}
+					else if (FirstGraphNodeRoleFailure.IsEmpty())
+					{
+						FirstGraphNodeRoleFailure = FString::Printf(TEXT("%s:%s"), *Node.NodeClass, *FailureReason);
+					}
+				}
+			}
+
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("graph_node_role_node_count_min"),
+				GraphNodeCount > 0,
+				TEXT(">=1"),
+				FString::FromInt(GraphNodeCount),
+				true);
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("graph_node_role_contract"),
+				GraphNodeCount > 0 && ValidGraphNodeRoleCount == GraphNodeCount,
+				FString::Printf(TEXT("valid=%d"), GraphNodeCount),
+				FString::Printf(TEXT("valid=%d total=%d first_failure=%s"), ValidGraphNodeRoleCount, GraphNodeCount, *FirstGraphNodeRoleFailure),
+				true);
+		}
+
+		if (ValidationCase.MinGraphCount > 0)
+		{
+			int32 ValidExecutionPreviewGraphCount = 0;
+			FString FirstExecutionPreviewFailure;
+			for (const FADumpGraph& Graph : DumpResult.Graphs)
+			{
+				FString FailureReason;
+				if (TestExecutionPathPreviewContract(Graph, FailureReason))
+				{
+					++ValidExecutionPreviewGraphCount;
+				}
+				else if (FirstExecutionPreviewFailure.IsEmpty())
+				{
+					FirstExecutionPreviewFailure = FString::Printf(TEXT("%s:%s"), *Graph.GraphName, *FailureReason);
+				}
+			}
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("graph_execution_preview_graph_count_min"),
+				DumpResult.Graphs.Num() > 0,
+				TEXT(">=1"),
+				FString::FromInt(DumpResult.Graphs.Num()),
+				true);
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("graph_execution_preview_contract"),
+				DumpResult.Graphs.Num() > 0 && ValidExecutionPreviewGraphCount == DumpResult.Graphs.Num(),
+				FString::Printf(TEXT("valid=%d"), DumpResult.Graphs.Num()),
+				FString::Printf(TEXT("valid=%d total=%d first_failure=%s"), ValidExecutionPreviewGraphCount, DumpResult.Graphs.Num(), *FirstExecutionPreviewFailure),
+				true);
+		}
+
+		if (ValidationCase.MinGraphCount > 0)
+		{
+			FString BPSearchFailure;
+			const bool bBPSearchContractPassed = TestBPSearchIndexContract(DumpResult, BPSearchFailure);
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("bp_search_index_symbol_count_min"),
+				DumpResult.BPSearchIndex.SymbolCount > 0,
+				TEXT(">=1"),
+				FString::FromInt(DumpResult.BPSearchIndex.SymbolCount),
+				true);
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("bp_search_index_contract"),
+				bBPSearchContractPassed,
+				TEXT("true"),
+				bBPSearchContractPassed ? TEXT("true") : BPSearchFailure,
+				true);
+		}
+
+		if (ValidationCase.CaseName == TEXT("actor_blueprint"))
+		{
+			FString ClassifierRegistryDetail;
+			const bool bClassifierRegistryPassed = VerifyGraphNodeRoleClassifierRegistry(ClassifierRegistryDetail);
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("graph_node_role_classifier_registry"),
+				bClassifierRegistryPassed,
+				TEXT("passed=15 total=15"),
+				ClassifierRegistryDetail,
+				true);
+
+			FString ExecutionPreviewRegistryDetail;
+			const bool bExecutionPreviewRegistryPassed = VerifyExecutionPathPreviewRegistry(ExecutionPreviewRegistryDetail);
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("graph_execution_preview_registry"),
+				bExecutionPreviewRegistryPassed,
+				TEXT("passed=13 total=13"),
+				ExecutionPreviewRegistryDetail,
+				true);
+			FString BPSearchRegistryDetail;
+			const bool bBPSearchRegistryPassed = VerifyBPSearchIndexRegistry(BPSearchRegistryDetail);
+			AddValidationCheck(
+				CaseCheckArray,
+				bCasePassed,
+				TEXT("bp_search_index_registry"),
+				bBPSearchRegistryPassed,
+				TEXT("passed=13 total=13"),
+				BPSearchRegistryDetail,
 				true);
 		}
 

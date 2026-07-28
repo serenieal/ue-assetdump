@@ -1,6 +1,8 @@
 // File: ADumpRunOpts.h
-// Version: v0.9.0
+// Version: v0.11.0
 // Changelog:
+// - v0.11.0: bp_search_index builder와 graph dependency helper를 추가.
+// - v0.10.0: request metadata용 비mutation output candidate resolver를 추가.
 // - v0.9.0: component_tree 전용 builder 실행 판단 helper를 추가.
 // - v0.8.0: input_summary 전용 builder 실행 판단 helper를 추가.
 // - v0.7.0: data_asset_diff baseline 옵션과 builder 실행 판단 helper를 추가.
@@ -101,6 +103,9 @@ struct FADumpRunOpts
 	// ShouldBuildComponentTree는 Actor Blueprint 전용 경량 계층 builder 실행 여부를 반환한다.
 	bool ShouldBuildComponentTree() const;
 
+	// ShouldBuildBPSearchIndex는 자산별 Blueprint search index builder 실행 여부를 반환한다.
+	bool ShouldBuildBPSearchIndex() const;
+
 	// ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
 	bool ShouldBuildGraphs() const;
 
@@ -113,9 +118,12 @@ struct FADumpRunOpts
 	// GetBuilderSectionNames는 실제 실행 예정인 builder 이름을 고정 순서로 반환한다.
 	TArray<FString> GetBuilderSectionNames() const;
 
-	// ResolveOutputFilePath는 명시 경로가 없으면 기본 dump.json 경로를 계산한다.
+	// ResolveOutputFilePathCandidate는 request metadata용 최종 후보 경로를 파일시스템 변경 없이 계산한다.
+	FString ResolveOutputFilePathCandidate() const;
+
+	// ResolveOutputFilePath는 명시 경로가 없으면 writable 기본 dump.json 경로를 준비한다.
 	FString ResolveOutputFilePath() const;
 
-	// BuildRequestInfo는 결과 JSON용 요청 스냅샷을 만든다.
+	// BuildRequestInfo는 파일시스템을 변경하지 않고 결과 JSON용 요청 스냅샷을 만든다.
 	FADumpRequestInfo BuildRequestInfo() const;
 };

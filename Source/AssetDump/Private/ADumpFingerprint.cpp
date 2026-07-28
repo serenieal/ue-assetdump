@@ -1,6 +1,9 @@
 // File: ADumpFingerprint.cpp
-// Version: v0.7.0
+// Version: v0.10.0
 // Changelog:
+// - v0.10.0: bp_search_index_v1 schema와 symbol bounds를 fingerprint에 반영.
+// - v0.9.0: execution_path_preview_v1과 고정 bounds를 options fingerprint에 반영.
+// - v0.8.0: graph_node_role_v1 스키마 토큰을 options fingerprint에 반영.
 // - v0.7.0: input_summary builder 계획과 input_summary_v1 스키마 토큰을 fingerprint 입력에 반영.
 // - v0.6.0: data_asset_diff_v1 baseline 경로와 SHA-256을 changed-only fingerprint 입력에 반영.
 // - v0.5.0: data_asset_values builder 계획과 data_asset_values_v1 스키마 토큰을 fingerprint 입력에 반영.
@@ -98,7 +101,7 @@ namespace
 				*InRequestInfo.DataAssetDiffBaseSha256)
 			: FString();
 		return FString::Printf(
-			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1|input_summary_schema=input_summary_v1|component_tree_schema=component_tree_v1%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
+			TEXT("source=%s|intent=%s|profile=%s|section_source=%s|section_mode=%s|sections=%s|builders=%s|data_asset_values_schema=data_asset_values_v1|input_summary_schema=input_summary_v1|component_tree_schema=component_tree_v1|graph_node_role_schema=graph_node_role_v1|execution_path_preview_schema=execution_path_preview_v1|execution_path_preview_max_paths=64|execution_path_preview_max_depth=32|bp_search_index_schema=bp_search_index_v1|bp_search_index_max_symbols=512|bp_search_index_max_terms=8%s|summary=%d|details=%d|graphs=%d|refs=%d|compile=%d|graph=%s|links_only=%d|link_kind=%s|links_meta=%s"),
 			ToString(InRequestInfo.SourceKind),
 			*InRequestInfo.Intent,
 			*InRequestInfo.Profile,

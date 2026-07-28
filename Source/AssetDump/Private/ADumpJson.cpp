@@ -1,6 +1,12 @@
 // File: ADumpJson.cpp
-// Version: v2.0.0
+// Version: v2.6.0
 // Changelog:
+// - v2.6.0: bp_search_index_v1 section과 symbol array를 직렬화.
+// - v2.5.0: graph별 execution_path_preview_v1 object를 additive 직렬화.
+// - v2.4.0: 모든 graph node에 graph_node_role_v1 object를 additive 직렬화.
+// - v2.3.0: request metadata용 candidate output path를 분리해 BuildRequestInfo 경로 계산을 완전 비mutation으로 전환.
+// - v2.2.0: 기본 경로 계산과 writable 준비를 분리해 명시 출력 validation이 PluginRoot/Dumped를 선제 생성하지 않도록 수정.
+// - v2.1.0: 기본 출력 루트를 ASSETDUMP_OUTPUT_ROOT, writable PluginRoot/Dumped, Project/Saved/AssetDump 순서로 실제 write probe해 read-only 설치 fallback을 추가.
 // - v2.0.0: component_tree_v1 forest, flat_nodes와 bounded warning 직렬화를 추가.
 // - v1.9.0: input_summary_v1 필드명, warning, typed setting descriptor 직렬화를 계약에 맞춰 정렬.
 // - v1.8.0: data_asset_diff_v1 request 메타와 최상위 JSON 직렬화를 추가.
@@ -42,9 +48,11 @@
 #include "ADumpFingerprint.h"
 
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
 #include "Interfaces/IPluginManager.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Guid.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
@@ -142,6 +150,40 @@ namespace
 		FString FullOutputPath = FPaths::ConvertRelativePathToFull(InOutputPath);
 		FPaths::NormalizeFilename(FullOutputPath);
 		return FullOutputPath;
+	}
+
+	// TryPrepareWritableDirectory는 후보 디렉터리를 생성하고 임시 probe 파일 write/delete까지 성공하는지 검사한다.
+	bool TryPrepareWritableDirectory(const FString& InCandidatePath, FString& OutResolvedPath)
+	{
+		OutResolvedPath.Reset();
+		if (InCandidatePath.IsEmpty())
+		{
+			return false;
+		}
+
+		const FString NormalizedCandidatePath = NormalizeOutputPath(InCandidatePath);
+		if (NormalizedCandidatePath.IsEmpty() || !IFileManager::Get().MakeDirectory(*NormalizedCandidatePath, true))
+		{
+			return false;
+		}
+
+		const FString ProbeFileName = FString::Printf(
+			TEXT(".assetdump_write_probe_%s.tmp"),
+			*FGuid::NewGuid().ToString(EGuidFormats::Digits));
+		const FString ProbeFilePath = FPaths::Combine(NormalizedCandidatePath, ProbeFileName);
+		if (!FFileHelper::SaveStringToFile(TEXT("AssetDump write probe"), *ProbeFilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+		{
+			return false;
+		}
+
+		const bool bProbeRemoved = IFileManager::Get().Delete(*ProbeFilePath, false, true, true);
+		if (!bProbeRemoved)
+		{
+			return false;
+		}
+
+		OutResolvedPath = NormalizedCandidatePath;
+		return true;
 	}
 
 	// IsDirectoryLikePath는 사용자 입력이 파일 경로보다 디렉터리 경로에 가까운지 판단한다.
@@ -1062,6 +1104,68 @@ namespace
 		return PinObject;
 	}
 
+	// MakeBPSearchSymbolObject는 bp_search_index symbol 한 건을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeBPSearchSymbolObject(const FADumpBPSearchSymbol& InSymbol)
+	{
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetStringField(TEXT("symbol_id"), InSymbol.SymbolId);
+		Object->SetStringField(TEXT("kind"), InSymbol.Kind);
+		Object->SetStringField(TEXT("name"), InSymbol.Name);
+		Object->SetStringField(TEXT("normalized_name"), InSymbol.NormalizedName);
+		Object->SetStringField(TEXT("graph_name"), InSymbol.GraphName);
+		Object->SetStringField(TEXT("graph_type"), InSymbol.GraphType);
+		Object->SetStringField(TEXT("node_id"), InSymbol.NodeId);
+		Object->SetStringField(TEXT("primary_role"), InSymbol.PrimaryRole);
+		Object->SetStringField(TEXT("member_parent"), InSymbol.MemberParent);
+		Object->SetStringField(TEXT("member_name"), InSymbol.MemberName);
+		Object->SetArrayField(TEXT("search_terms"), MakeStringArray(InSymbol.SearchTerms));
+		return Object;
+	}
+
+	// MakeBPSearchIndexObject는 bp_search_index_v1 section을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeBPSearchIndexObject(const FADumpBPSearchIndex& InIndex)
+	{
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetStringField(TEXT("schema_version"), InIndex.SchemaVersion);
+		Object->SetBoolField(TEXT("supported"), InIndex.bSupported);
+		Object->SetStringField(TEXT("unsupported_reason"), InIndex.UnsupportedReason);
+		Object->SetNumberField(TEXT("max_symbols"), InIndex.MaxSymbols);
+		Object->SetNumberField(TEXT("symbol_count"), InIndex.SymbolCount);
+		Object->SetNumberField(TEXT("graph_symbol_count"), InIndex.GraphSymbolCount);
+		Object->SetNumberField(TEXT("event_symbol_count"), InIndex.EventSymbolCount);
+		Object->SetNumberField(TEXT("function_call_symbol_count"), InIndex.FunctionCallSymbolCount);
+		Object->SetNumberField(TEXT("interface_call_symbol_count"), InIndex.InterfaceCallSymbolCount);
+		Object->SetNumberField(TEXT("variable_read_symbol_count"), InIndex.VariableReadSymbolCount);
+		Object->SetNumberField(TEXT("variable_write_symbol_count"), InIndex.VariableWriteSymbolCount);
+		Object->SetNumberField(TEXT("class_reference_symbol_count"), InIndex.ClassReferenceSymbolCount);
+		Object->SetBoolField(TEXT("truncated"), InIndex.bTruncated);
+		Object->SetNumberField(TEXT("omitted_symbol_count"), InIndex.OmittedSymbolCount);
+		TArray<TSharedPtr<FJsonValue>> SymbolArray;
+		for (const FADumpBPSearchSymbol& Symbol : InIndex.Symbols)
+		{
+			SymbolArray.Add(MakeShared<FJsonValueObject>(MakeBPSearchSymbolObject(Symbol)));
+		}
+		Object->SetArrayField(TEXT("symbols"), SymbolArray);
+		return Object;
+	}
+
+	// MakeGraphNodeRoleObject는 graph_node_role_v1 분류를 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeGraphNodeRoleObject(const FADumpGraphNodeRole& InRole)
+	{
+		TSharedRef<FJsonObject> RoleObject = MakeShared<FJsonObject>();
+		RoleObject->SetStringField(TEXT("schema_version"), InRole.SchemaVersion);
+		RoleObject->SetStringField(TEXT("primary"), InRole.Primary);
+		RoleObject->SetStringField(TEXT("family"), InRole.Family);
+		RoleObject->SetStringField(TEXT("source"), InRole.Source);
+		RoleObject->SetStringField(TEXT("confidence"), InRole.Confidence);
+		RoleObject->SetBoolField(TEXT("is_pure"), InRole.bIsPure);
+		RoleObject->SetBoolField(TEXT("has_exec_input"), InRole.bHasExecInput);
+		RoleObject->SetBoolField(TEXT("has_exec_output"), InRole.bHasExecOutput);
+		RoleObject->SetBoolField(TEXT("is_latent"), InRole.bIsLatent);
+		RoleObject->SetArrayField(TEXT("tags"), MakeStringArray(InRole.Tags));
+		return RoleObject;
+	}
+
 	// MakeNodeObject는 그래프 노드 항목을 JSON object로 변환한다.
 	TSharedRef<FJsonObject> MakeNodeObject(const FADumpGraphNode& InNode)
 	{
@@ -1076,6 +1180,7 @@ namespace
 		NodeObject->SetStringField(TEXT("enabled_state"), InNode.EnabledState);
 		NodeObject->SetStringField(TEXT("member_parent"), InNode.MemberParent);
 		NodeObject->SetStringField(TEXT("member_name"), InNode.MemberName);
+		NodeObject->SetObjectField(TEXT("role"), MakeGraphNodeRoleObject(InNode.Role));
 
 		if (InNode.Extra.IsValid())
 		{
@@ -1107,7 +1212,64 @@ namespace
 		return LinkObject;
 	}
 
-	// MakeGraphObject는 그래프 섹션 항목을 JSON object로 변환한다.
+	// MakeExecutionPathStepObject는 execution preview step을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeExecutionPathStepObject(const FADumpExecutionPathStep& InStep)
+	{
+		TSharedRef<FJsonObject> StepObject = MakeShared<FJsonObject>();
+		StepObject->SetNumberField(TEXT("depth"), InStep.Depth);
+		StepObject->SetStringField(TEXT("node_id"), InStep.NodeId);
+		StepObject->SetStringField(TEXT("primary_role"), InStep.PrimaryRole);
+		StepObject->SetStringField(TEXT("via_pin_id"), InStep.ViaPinId);
+		StepObject->SetStringField(TEXT("via_pin_name"), InStep.ViaPinName);
+		return StepObject;
+	}
+
+	// MakeExecutionPathObject는 bounded execution path 한 건을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeExecutionPathObject(const FADumpExecutionPath& InPath)
+	{
+		TSharedRef<FJsonObject> PathObject = MakeShared<FJsonObject>();
+		PathObject->SetStringField(TEXT("path_id"), InPath.PathId);
+		PathObject->SetStringField(TEXT("entry_node_id"), InPath.EntryNodeId);
+		PathObject->SetStringField(TEXT("termination"), InPath.Termination);
+		PathObject->SetStringField(TEXT("terminal_node_id"), InPath.TerminalNodeId);
+		PathObject->SetNumberField(TEXT("step_count"), InPath.StepCount);
+		TArray<TSharedPtr<FJsonValue>> StepArray;
+		for (const FADumpExecutionPathStep& Step : InPath.Steps)
+		{
+			StepArray.Add(MakeShared<FJsonValueObject>(MakeExecutionPathStepObject(Step)));
+		}
+		PathObject->SetArrayField(TEXT("steps"), StepArray);
+		return PathObject;
+	}
+
+	// MakeExecutionPathPreviewObject는 graph-level execution_path_preview_v1을 JSON object로 변환한다.
+	TSharedRef<FJsonObject> MakeExecutionPathPreviewObject(const FADumpExecutionPathPreview& InPreview)
+	{
+		TSharedRef<FJsonObject> PreviewObject = MakeShared<FJsonObject>();
+		PreviewObject->SetStringField(TEXT("schema_version"), InPreview.SchemaVersion);
+		PreviewObject->SetBoolField(TEXT("supported"), InPreview.bSupported);
+		PreviewObject->SetStringField(TEXT("unsupported_reason"), InPreview.UnsupportedReason);
+		PreviewObject->SetNumberField(TEXT("max_paths"), InPreview.MaxPaths);
+		PreviewObject->SetNumberField(TEXT("max_depth"), InPreview.MaxDepth);
+		PreviewObject->SetNumberField(TEXT("entry_count"), InPreview.EntryCount);
+		PreviewObject->SetNumberField(TEXT("path_count"), InPreview.PathCount);
+		PreviewObject->SetNumberField(TEXT("terminal_path_count"), InPreview.TerminalPathCount);
+		PreviewObject->SetNumberField(TEXT("cycle_path_count"), InPreview.CyclePathCount);
+		PreviewObject->SetNumberField(TEXT("depth_limited_path_count"), InPreview.DepthLimitedPathCount);
+		PreviewObject->SetNumberField(TEXT("omitted_path_count"), InPreview.OmittedPathCount);
+		PreviewObject->SetNumberField(TEXT("observed_max_depth"), InPreview.ObservedMaxDepth);
+		PreviewObject->SetBoolField(TEXT("truncated"), InPreview.bTruncated);
+		PreviewObject->SetArrayField(TEXT("warnings"), MakeStringArray(InPreview.Warnings));
+		TArray<TSharedPtr<FJsonValue>> PathArray;
+		for (const FADumpExecutionPath& Path : InPreview.Paths)
+		{
+			PathArray.Add(MakeShared<FJsonValueObject>(MakeExecutionPathObject(Path)));
+		}
+		PreviewObject->SetArrayField(TEXT("paths"), PathArray);
+		return PreviewObject;
+	}
+
+			// MakeGraphObject는 그래프 섹션 항목을 JSON object로 변환한다.
 	TSharedRef<FJsonObject> MakeGraphObject(const FADumpGraph& InGraph)
 	{
 		TSharedRef<FJsonObject> GraphObject = MakeShared<FJsonObject>();
@@ -1130,6 +1292,7 @@ namespace
 			LinkArray.Add(MakeShared<FJsonValueObject>(MakeLinkObject(LinkItem)));
 		}
 		GraphObject->SetArrayField(TEXT("links"), LinkArray);
+		GraphObject->SetObjectField(TEXT("execution_preview"), MakeExecutionPathPreviewObject(InGraph.ExecutionPreview));
 		return GraphObject;
 	}
 
@@ -1659,17 +1822,108 @@ namespace
 
 namespace ADumpJson
 {
-	FString BuildDefaultDumpRootDirectory()
+	FString BuildDefaultDumpRootDirectory(FString* OutSource)
 	{
+		if (OutSource != nullptr)
+		{
+			OutSource->Reset();
+		}
+
+		// EnvironmentOutputRoot는 mutation 없이 표시·계산할 최우선 기본 경로 후보다.
+		const FString EnvironmentOutputRoot = FPlatformMisc::GetEnvironmentVariable(TEXT("ASSETDUMP_OUTPUT_ROOT"));
+		if (!EnvironmentOutputRoot.IsEmpty())
+		{
+			if (OutSource != nullptr)
+			{
+				*OutSource = TEXT("ASSETDUMP_OUTPUT_ROOT_candidate");
+			}
+			return NormalizeOutputPath(EnvironmentOutputRoot);
+		}
+
 		// AssetDumpPlugin은 현재 AssetDump 플러그인의 설치 루트 조회 결과다.
 		const TSharedPtr<IPlugin> AssetDumpPlugin = IPluginManager::Get().FindPlugin(TEXT("AssetDump"));
-
-		// PluginBaseDirectory는 Dumped 폴더를 만들 기준 플러그인 루트다.
 		const FString PluginBaseDirectory = AssetDumpPlugin.IsValid()
 			? AssetDumpPlugin->GetBaseDir()
 			: FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("ue-assetdump"));
 
+		if (OutSource != nullptr)
+		{
+			*OutSource = TEXT("legacy_plugin_dumped_candidate");
+		}
 		return NormalizeOutputPath(FPaths::Combine(PluginBaseDirectory, TEXT("Dumped")));
+	}
+
+	FString ResolveWritableDefaultDumpRootDirectory(FString* OutSource)
+	{
+		if (OutSource != nullptr)
+		{
+			OutSource->Reset();
+		}
+
+		FString ResolvedOutputRoot;
+
+		// EnvironmentOutputRoot는 실제 기본 출력이 필요할 때만 write probe하는 최우선 후보다.
+		const FString EnvironmentOutputRoot = FPlatformMisc::GetEnvironmentVariable(TEXT("ASSETDUMP_OUTPUT_ROOT"));
+		if (!EnvironmentOutputRoot.IsEmpty())
+		{
+			if (TryPrepareWritableDirectory(EnvironmentOutputRoot, ResolvedOutputRoot))
+			{
+				if (OutSource != nullptr)
+				{
+					*OutSource = TEXT("ASSETDUMP_OUTPUT_ROOT");
+				}
+				return ResolvedOutputRoot;
+			}
+
+			UE_LOG(LogTemp, Warning, TEXT("AssetDump output root from ASSETDUMP_OUTPUT_ROOT is not writable; falling back: %s"), *EnvironmentOutputRoot);
+		}
+
+		const TSharedPtr<IPlugin> AssetDumpPlugin = IPluginManager::Get().FindPlugin(TEXT("AssetDump"));
+		const FString PluginBaseDirectory = AssetDumpPlugin.IsValid()
+			? AssetDumpPlugin->GetBaseDir()
+			: FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("ue-assetdump"));
+		const FString LegacyPluginOutputRoot = FPaths::Combine(PluginBaseDirectory, TEXT("Dumped"));
+		if (TryPrepareWritableDirectory(LegacyPluginOutputRoot, ResolvedOutputRoot))
+		{
+			if (OutSource != nullptr)
+			{
+				*OutSource = TEXT("legacy_plugin_dumped");
+			}
+			return ResolvedOutputRoot;
+		}
+
+		const FString ProjectSavedOutputRoot = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("AssetDump"));
+		if (TryPrepareWritableDirectory(ProjectSavedOutputRoot, ResolvedOutputRoot))
+		{
+			if (OutSource != nullptr)
+			{
+				*OutSource = TEXT("project_saved_fallback");
+			}
+			return ResolvedOutputRoot;
+		}
+
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("AssetDump could not resolve a writable default output root. Set -Output/-DumpRoot/-ValidationRoot or ASSETDUMP_OUTPUT_ROOT. legacy='%s' saved='%s'"),
+			*LegacyPluginOutputRoot,
+			*ProjectSavedOutputRoot);
+
+		if (OutSource != nullptr)
+		{
+			*OutSource = TEXT("unresolved_project_saved");
+		}
+		return NormalizeOutputPath(ProjectSavedOutputRoot);
+	}
+
+	FString BuildDefaultOutputFilePathCandidate(const FString& AssetObjectPath)
+	{
+		// AssetName은 자산별 하위 폴더명으로 사용할 안전한 이름이다.
+		const FString AssetName = GetSafeAssetFileNameBase(AssetObjectPath);
+
+		// DumpRootDirectory는 request metadata용 mutation 없는 기본 후보 루트다.
+		const FString DumpRootDirectory = BuildDefaultDumpRootDirectory();
+		return NormalizeOutputPath(FPaths::Combine(DumpRootDirectory, TEXT("BPDump"), AssetName, BuildDumpFileName(AssetObjectPath)));
 	}
 
 	FString BuildDefaultOutputFilePath(const FString& AssetObjectPath)
@@ -1677,9 +1931,24 @@ namespace ADumpJson
 		// AssetName은 자산별 하위 폴더명으로 사용할 안전한 이름이다.
 		const FString AssetName = GetSafeAssetFileNameBase(AssetObjectPath);
 
-		// DumpRootDirectory는 플러그인 Dumped 기준 기본 출력 루트다.
-		const FString DumpRootDirectory = BuildDefaultDumpRootDirectory();
+		// DumpRootDirectory는 실제 기본 출력이 필요하므로 writable resolver를 사용한다.
+		const FString DumpRootDirectory = ResolveWritableDefaultDumpRootDirectory();
 		return NormalizeOutputPath(FPaths::Combine(DumpRootDirectory, TEXT("BPDump"), AssetName, BuildDumpFileName(AssetObjectPath)));
+	}
+
+	FString ResolveOutputFilePathCandidate(const FString& UserOutputPath, const FString& AssetObjectPath)
+	{
+		if (UserOutputPath.IsEmpty())
+		{
+			return BuildDefaultOutputFilePathCandidate(AssetObjectPath);
+		}
+
+		if (IsDirectoryLikePath(UserOutputPath))
+		{
+			return NormalizeOutputPath(FPaths::Combine(UserOutputPath, BuildDumpFileName(AssetObjectPath)));
+		}
+
+		return NormalizeOutputPath(UserOutputPath);
 	}
 
 	FString ResolveOutputFilePath(const FString& UserOutputPath, const FString& AssetObjectPath)
@@ -1689,12 +1958,7 @@ namespace ADumpJson
 			return BuildDefaultOutputFilePath(AssetObjectPath);
 		}
 
-		if (IsDirectoryLikePath(UserOutputPath))
-		{
-			return NormalizeOutputPath(FPaths::Combine(UserOutputPath, BuildDumpFileName(AssetObjectPath)));
-		}
-
-		return NormalizeOutputPath(UserOutputPath);
+		return ResolveOutputFilePathCandidate(UserOutputPath, AssetObjectPath);
 	}
 
 	FString BuildTempOutputFilePath(const FString& FinalOutputFilePath)
@@ -1740,6 +2004,10 @@ namespace ADumpJson
 			{
 				RootObject->SetObjectField(TEXT("component_tree"), MakeComponentTreeObject(InDumpResult.ComponentTree));
 			}
+			if (!InDumpResult.BPSearchIndex.SchemaVersion.IsEmpty())
+			{
+				RootObject->SetObjectField(TEXT("bp_search_index"), MakeBPSearchIndexObject(InDumpResult.BPSearchIndex));
+			}
 			RootObject->SetArrayField(TEXT("graphs"), MakeGraphsArray(InDumpResult.Graphs));
 			RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
 		}
@@ -1777,6 +2045,11 @@ namespace ADumpJson
 				&& InDumpResult.ComponentTree.bSupported)
 			{
 				RootObject->SetObjectField(TEXT("component_tree"), MakeComponentTreeObject(InDumpResult.ComponentTree));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::BPSearchIndex)
+				&& !InDumpResult.BPSearchIndex.SchemaVersion.IsEmpty())
+			{
+				RootObject->SetObjectField(TEXT("bp_search_index"), MakeBPSearchIndexObject(InDumpResult.BPSearchIndex));
 			}
 			if (SectionSelection.IsEnabled(EADumpSection::Graphs))
 			{

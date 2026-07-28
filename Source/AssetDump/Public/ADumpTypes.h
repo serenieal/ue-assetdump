@@ -1,6 +1,9 @@
 // File: ADumpTypes.h
-// Version: v0.17.0
+// Version: v0.20.0
 // Changelog:
+// - v0.20.0: bp_search_index_v1 symbol/index 타입과 section/result 저장소를 추가.
+// - v0.19.0: graph별 bounded execution_path_preview_v1 결과 타입을 추가.
+// - v0.18.0: 모든 graph node에 additive graph_node_role_v1 분류 결과를 추가.
 // - v0.17.0: component_tree_v1 노드, warning, 섹션 결과와 최상위 저장소를 추가.
 // - v0.16.0: input_summary_v1 계약 정렬용 typed setting descriptor, warning, mapping 필드를 추가.
 // - v0.15.0: input_summary_v1 전용 Enhanced Input Action/Mapping Context 구조와 섹션 값을 추가.
@@ -96,6 +99,7 @@ enum class EADumpSection : uint8
 	DataAssetDiff,
 	InputSummary,
 	ComponentTree,
+	BPSearchIndex,
 	Graphs,
 	References,
 	WidgetDesigner
@@ -1159,6 +1163,40 @@ struct FADumpGraphPin
 	bool bIsSet = false;
 };
 
+// FADumpGraphNodeRole은 Blueprint graph node의 AI 판독용 역할 분류를 표현한다.
+struct FADumpGraphNodeRole
+{
+	// SchemaVersion은 role object 전용 스키마 버전이다.
+	FString SchemaVersion = TEXT("graph_node_role_v1");
+
+	// Primary는 event, function_call, flow_control 같은 canonical 주 역할이다.
+	FString Primary = TEXT("unknown");
+
+	// Family는 entry, call, variable, control_flow 같은 상위 역할군이다.
+	FString Family = TEXT("unknown");
+
+	// Source는 exact_class, function_metadata, structural_inference, fallback 중 분류 근거다.
+	FString Source = TEXT("fallback");
+
+	// Confidence는 exact, inferred, fallback 중 분류 신뢰 수준이다.
+	FString Confidence = TEXT("fallback");
+
+	// bIsPure는 실행 핀 없이 값만 계산하는 노드인지 나타낸다.
+	bool bIsPure = false;
+
+	// bHasExecInput은 입력 exec 핀이 하나 이상인지 나타낸다.
+	bool bHasExecInput = false;
+
+	// bHasExecOutput은 출력 exec 핀이 하나 이상인지 나타낸다.
+	bool bHasExecOutput = false;
+
+	// bIsLatent는 latent function/action 메타가 확인됐는지 나타낸다.
+	bool bIsLatent = false;
+
+	// Tags는 고정 registry 순서의 bounded 보조 역할 태그다.
+	TArray<FString> Tags;
+};
+
 // FADumpGraphNode는 그래프 노드 하나를 표현한다.
 struct FADumpGraphNode
 {
@@ -1194,6 +1232,9 @@ struct FADumpGraphNode
 
 	// Extra는 노드 종류별 보조 메타데이터다.
 	TSharedPtr<FJsonObject> Extra;
+
+	// Role은 모든 emitted node에 적용되는 graph_node_role_v1 분류다.
+	FADumpGraphNodeRole Role;
 
 	// Pins는 노드가 가진 핀 목록이다.
 	TArray<FADumpGraphPin> Pins;
@@ -1323,6 +1364,96 @@ struct FADumpComponentTree
 	TArray<FADumpComponentTreeWarning> Warnings;
 };
 
+// FADumpExecutionPathStep은 execution preview 경로의 노드 한 단계를 표현한다.
+struct FADumpExecutionPathStep
+{
+	// Depth는 entry를 0으로 하는 현재 단계 깊이다.
+	int32 Depth = 0;
+
+	// NodeId는 현재 단계의 graph node ID다.
+	FString NodeId;
+
+	// PrimaryRole은 현재 노드의 graph_node_role_v1 primary 값이다.
+	FString PrimaryRole;
+
+	// ViaPinId는 이전 단계에서 현재 단계로 진입한 output exec pin ID다.
+	FString ViaPinId;
+
+	// ViaPinName은 이전 단계 output exec pin의 표시 이름이다.
+	FString ViaPinName;
+};
+
+// FADumpExecutionPath는 entry에서 terminal/cycle/depth limit까지의 한 경로다.
+struct FADumpExecutionPath
+{
+	// PathId는 결정적 순회 순서에서 부여한 path_000 형식 ID다.
+	FString PathId;
+
+	// EntryNodeId는 경로 첫 노드 ID다.
+	FString EntryNodeId;
+
+	// Termination은 terminal, cycle, depth_limit 중 하나다.
+	FString Termination;
+
+	// TerminalNodeId는 마지막 step node ID다.
+	FString TerminalNodeId;
+
+	// StepCount는 Steps.Num()과 같은 명시적 개수다.
+	int32 StepCount = 0;
+
+	// Steps는 entry부터 종료 지점까지의 순서 배열이다.
+	TArray<FADumpExecutionPathStep> Steps;
+};
+
+// FADumpExecutionPathPreview는 graph의 bounded exec 흐름 미리보기다.
+struct FADumpExecutionPathPreview
+{
+	// SchemaVersion은 execution preview 전용 스키마 버전이다.
+	FString SchemaVersion = TEXT("execution_path_preview_v1");
+
+	// bSupported는 현재 요청이 node와 exec link를 모두 포함하는지 나타낸다.
+	bool bSupported = true;
+
+	// UnsupportedReason은 links_only 또는 exec_links_not_requested다.
+	FString UnsupportedReason;
+
+	// MaxPaths는 emitted path 상한이다.
+	int32 MaxPaths = 64;
+
+	// MaxDepth는 entry depth 0 기준 traversal 상한이다.
+	int32 MaxDepth = 32;
+
+	// EntryCount는 인식된 execution entry 노드 수다.
+	int32 EntryCount = 0;
+
+	// PathCount는 실제 emitted path 수다.
+	int32 PathCount = 0;
+
+	// TerminalPathCount는 terminal 종료 path 수다.
+	int32 TerminalPathCount = 0;
+
+	// CyclePathCount는 cycle 종료 path 수다.
+	int32 CyclePathCount = 0;
+
+	// DepthLimitedPathCount는 depth_limit 종료 path 수다.
+	int32 DepthLimitedPathCount = 0;
+
+	// OmittedPathCount는 path limit으로 순회하지 못한 branch 수다.
+	int32 OmittedPathCount = 0;
+
+	// ObservedMaxDepth는 emitted path에서 관측한 최대 step depth다.
+	int32 ObservedMaxDepth = 0;
+
+	// bTruncated는 depth/path limit이 하나라도 적용됐는지 나타낸다.
+	bool bTruncated = false;
+
+	// Warnings는 no_entry_nodes, cycle_detected와 limit 경고의 고정 순서 배열이다.
+	TArray<FString> Warnings;
+
+	// Paths는 결정적 순서의 bounded execution path 배열이다.
+	TArray<FADumpExecutionPath> Paths;
+};
+
 // FADumpGraph는 그래프 섹션의 단위 항목이다.
 struct FADumpGraph
 {
@@ -1346,6 +1477,9 @@ struct FADumpGraph
 
 	// Links는 링크 목록이다.
 	TArray<FADumpGraphLink> Links;
+
+	// ExecutionPreview는 graph-level execution_path_preview_v1 결과다.
+	FADumpExecutionPathPreview ExecutionPreview;
 };
 
 // FADumpRefItem은 직접 참조 한 건을 표현한다.
@@ -1461,6 +1595,42 @@ struct FADumpProgressState
 	bool bIsCancelable = false;
 };
 
+// FADumpBPSearchSymbol은 Blueprint search index의 symbol 한 건을 표현한다.
+struct FADumpBPSearchSymbol
+{
+	FString SymbolId;
+	FString Kind;
+	FString Name;
+	FString NormalizedName;
+	FString GraphName;
+	FString GraphType;
+	FString NodeId;
+	FString PrimaryRole;
+	FString MemberParent;
+	FString MemberName;
+	TArray<FString> SearchTerms;
+};
+
+// FADumpBPSearchIndex는 자산별 Blueprint symbol search section을 표현한다.
+struct FADumpBPSearchIndex
+{
+	FString SchemaVersion;
+	bool bSupported = false;
+	FString UnsupportedReason;
+	int32 MaxSymbols = 512;
+	int32 SymbolCount = 0;
+	int32 GraphSymbolCount = 0;
+	int32 EventSymbolCount = 0;
+	int32 FunctionCallSymbolCount = 0;
+	int32 InterfaceCallSymbolCount = 0;
+	int32 VariableReadSymbolCount = 0;
+	int32 VariableWriteSymbolCount = 0;
+	int32 ClassReferenceSymbolCount = 0;
+	bool bTruncated = false;
+	int32 OmittedSymbolCount = 0;
+	TArray<FADumpBPSearchSymbol> Symbols;
+};
+
 // FADumpResult는 dump.json 전체를 담는 최상위 중간 결과 구조다.
 struct FADumpResult
 {
@@ -1502,6 +1672,9 @@ struct FADumpResult
 
 	// ComponentTree는 Actor Blueprint 전용 경량 컴포넌트 계층 섹션이다.
 	FADumpComponentTree ComponentTree;
+
+	// BPSearchIndex는 자산별 Blueprint symbol 검색 section이다.
+	FADumpBPSearchIndex BPSearchIndex;
 
 	// Graphs는 그래프 덤프 결과다.
 	TArray<FADumpGraph> Graphs;

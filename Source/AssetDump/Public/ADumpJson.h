@@ -1,6 +1,9 @@
 // File: ADumpJson.h
-// Version: v0.4.0
+// Version: v0.7.0
 // Changelog:
+// - v0.7.0: request metadata용 candidate output path와 실제 writable output path 해석을 분리.
+// - v0.6.0: mutation 없는 기본 경로 계산과 실제 writable 준비 helper를 분리해 explicit output 실행의 선제 디렉터리 생성을 제거.
+// - v0.5.0: ASSETDUMP_OUTPUT_ROOT, writable PluginRoot/Dumped와 Project/Saved/AssetDump fallback의 source-aware 기본 출력 helper로 확장.
 // - v0.4.0: Saved 대신 플러그인 Dumped 루트를 기본 출력 경로로 쓰는 helper를 추가.
 // - v0.3.0: dump 저장 시 manifest/digest/section sidecar 파일도 함께 저장하는 2차 Phase 1 경로를 추가.
 // - v0.2.0: 출력 폴더/파일 경로 해석과 자산별 파일명 규칙 helper 추가.
@@ -14,13 +17,22 @@
 
 namespace ADumpJson
 {
-	// BuildDefaultDumpRootDirectory는 AssetDump 플러그인 아래 Dumped 기본 출력 루트를 계산한다.
-	FString BuildDefaultDumpRootDirectory();
+	// BuildDefaultDumpRootDirectory는 환경 변수 또는 legacy Plugin Dumped 기본 후보를 mutation 없이 계산한다.
+	FString BuildDefaultDumpRootDirectory(FString* OutSource = nullptr);
 
-	// BuildDefaultOutputFilePath는 AssetObjectPath 기준 기본 dump.json 저장 경로를 계산한다.
+	// ResolveWritableDefaultDumpRootDirectory는 실제 기본 출력이 필요할 때 env, Plugin Dumped와 Project Saved를 write probe해 결정한다.
+	FString ResolveWritableDefaultDumpRootDirectory(FString* OutSource = nullptr);
+
+	// BuildDefaultOutputFilePathCandidate는 파일시스템 변경 없이 기본 dump.json 후보 경로를 계산한다.
+	FString BuildDefaultOutputFilePathCandidate(const FString& AssetObjectPath);
+
+	// BuildDefaultOutputFilePath는 AssetObjectPath 기준 writable 기본 dump.json 저장 경로를 계산한다.
 	FString BuildDefaultOutputFilePath(const FString& AssetObjectPath);
 
-	// ResolveOutputFilePath는 사용자 입력이 폴더면 자산별 파일명을 조합하고, 파일이면 그대로 사용한다.
+	// ResolveOutputFilePathCandidate는 request metadata용 최종 후보 경로를 mutation 없이 계산한다.
+	FString ResolveOutputFilePathCandidate(const FString& UserOutputPath, const FString& AssetObjectPath);
+
+	// ResolveOutputFilePath는 실제 저장용 경로를 계산하며 명시 경로가 없으면 writable 기본 루트를 준비한다.
 	FString ResolveOutputFilePath(const FString& UserOutputPath, const FString& AssetObjectPath);
 
 	// BuildTempOutputFilePath는 원자적 교체를 위한 임시 파일 경로를 계산한다.

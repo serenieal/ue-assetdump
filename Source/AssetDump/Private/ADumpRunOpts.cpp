@@ -1,6 +1,9 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.10.0
+// Version: v0.12.1
 // Changelog:
+// - v0.12.1: bp_search_index가 선행 추가한 graphs builder를 full plan에서 중복 기록하지 않도록 AddUnique로 교정.
+// - v0.12.0: bp_search_index를 full/explicit builder로 등록하고 graphs dependency를 연결.
+// - v0.11.0: BuildRequestInfo가 비mutation output candidate를 사용하도록 분리.
 // - v0.10.0: component_tree 전용 builder 계획과 실행 판단을 추가.
 // - v0.9.0: input_summary 전용 builder 계획과 실행 판단을 추가.
 // - v0.8.0: data_asset_diff 전용 builder 계획과 data_asset_values prerequisite를 추가.
@@ -83,12 +86,20 @@ bool FADumpRunOpts::ShouldBuildComponentTree() const
 		: SectionSelection.IsEnabled(EADumpSection::ComponentTree);
 }
 
+// ShouldBuildBPSearchIndex는 자산별 Blueprint search index builder 실행 여부를 반환한다.
+bool FADumpRunOpts::ShouldBuildBPSearchIndex() const
+{
+	return SectionSelection.IsFullMode()
+		? true
+		: SectionSelection.IsEnabled(EADumpSection::BPSearchIndex);
+}
+
 // ShouldBuildGraphs는 graphs builder 실행 여부를 반환한다.
 bool FADumpRunOpts::ShouldBuildGraphs() const
 {
 	return SectionSelection.IsFullMode()
-		? bIncludeGraphs
-		: SectionSelection.IsEnabled(EADumpSection::Graphs);
+		? (bIncludeGraphs || ShouldBuildBPSearchIndex())
+		: (SectionSelection.IsEnabled(EADumpSection::Graphs) || ShouldBuildBPSearchIndex());
 }
 
 // ShouldBuildReferences는 references builder 실행 여부를 반환한다.
@@ -135,9 +146,14 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 	{
 		BuilderSectionNames.Add(TEXT("component_tree"));
 	}
-	if (ShouldBuildGraphs())
+	if (ShouldBuildBPSearchIndex())
 	{
-		BuilderSectionNames.Add(TEXT("graphs"));
+		BuilderSectionNames.AddUnique(TEXT("graphs"));
+		BuilderSectionNames.Add(TEXT("bp_search_index"));
+	}
+		if (ShouldBuildGraphs())
+	{
+		BuilderSectionNames.AddUnique(TEXT("graphs"));
 	}
 	if (ShouldBuildReferences())
 	{
@@ -152,6 +168,11 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 		BuilderSectionNames.Add(TEXT("widget_designer"));
 	}
 	return BuilderSectionNames;
+}
+
+FString FADumpRunOpts::ResolveOutputFilePathCandidate() const
+{
+	return ADumpJson::ResolveOutputFilePathCandidate(OutputFilePath, AssetObjectPath);
 }
 
 FString FADumpRunOpts::ResolveOutputFilePath() const
@@ -181,6 +202,6 @@ FADumpRequestInfo FADumpRunOpts::BuildRequestInfo() const
 	RequestInfo.bLinksOnly = bLinksOnly;
 	RequestInfo.LinkKind = LinkKind;
 	RequestInfo.LinksMeta = LinksMeta;
-	RequestInfo.OutputFilePath = ResolveOutputFilePath();
+	RequestInfo.OutputFilePath = ResolveOutputFilePathCandidate();
 	return RequestInfo;
 }

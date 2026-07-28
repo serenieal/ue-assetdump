@@ -1,6 +1,7 @@
 // File: ADumpExecCtrl.cpp
-// Version: v0.3.2
+// Version: v0.3.3
 // Changelog:
+// - v0.3.3: 실제 세션 로그 저장 경로에서 writable default resolver를 사용해 read-only Plugin fallback을 유지.
 // - v0.3.2: 세션 로그 저장 경로를 Project Saved/BPDump/Logs에서 AssetDump 플러그인 Dumped/BPDump/logs로 변경.
 // - v0.3.1: 세션 로그 파일에 issue code/severity/phase를 함께 남겨 실패 원인 직접 검증 근거를 보강.
 // - v0.3.0: 마지막 failed 실행 재사용과 마지막 실행 시간(ms) 스냅샷 갱신을 추가.
@@ -198,8 +199,8 @@ FString FADumpExecCtrl::BuildLogFilePath() const
 	// TimeStampText는 로그 파일명을 고유하게 만들기 위한 현재 시간 문자열이다.
 	const FString TimeStampText = FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"));
 
-	// DumpRootDirectory는 AssetDump 플러그인 아래 Dumped 기본 출력 루트다.
-	const FString DumpRootDirectory = ADumpJson::BuildDefaultDumpRootDirectory();
+	// DumpRootDirectory는 실제 로그 저장이 필요하므로 writable 기본 출력 루트다.
+	const FString DumpRootDirectory = ADumpJson::ResolveWritableDefaultDumpRootDirectory();
 
 	// LogFilePath는 문서 기준 Dumped/BPDump/logs 아래에 저장되는 최종 로그 파일 경로다.
 	const FString LogFilePath = FPaths::Combine(

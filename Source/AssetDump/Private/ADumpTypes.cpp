@@ -1,6 +1,9 @@
 // File: ADumpTypes.cpp
-// Version: v0.11.1
+// Version: v0.14.0
 // Changelog:
+// - v0.14.0: bp_search_index section 이름과 extractor 2.11.0을 등록.
+// - v0.13.0: execution_path_preview_v1 도입에 맞춰 extractor를 2.10.0으로 갱신.
+// - v0.12.0: graph_node_role_v1 결과 도입에 맞춰 extractor를 2.9.0으로 갱신.
 // - v0.11.1: component_tree root 정규화와 strict ordering 반영을 위해 extractor를 2.8.1로 갱신.
 // - v0.11.0: component_tree 섹션 이름/순서와 extractor 2.8.0을 추가.
 // - v0.10.0: input_summary 섹션 이름/순서와 extractor 2.7.0을 추가.
@@ -35,7 +38,7 @@ namespace ADumpSchema
 
 	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("2.8.1");
+		return TEXT("2.11.0");
 	}
 }
 
@@ -124,6 +127,8 @@ const TCHAR* ToString(EADumpSection InValue)
 		return TEXT("input_summary");
 	case EADumpSection::ComponentTree:
 		return TEXT("component_tree");
+	case EADumpSection::BPSearchIndex:
+		return TEXT("bp_search_index");
 	case EADumpSection::Graphs:
 		return TEXT("graphs");
 	case EADumpSection::References:
@@ -189,6 +194,7 @@ TArray<FString> FADumpSectionSelection::GetEnabledNames() const
 		EADumpSection::DataAssetDiff,
 		EADumpSection::InputSummary,
 		EADumpSection::ComponentTree,
+		EADumpSection::BPSearchIndex,
 		EADumpSection::Graphs,
 		EADumpSection::References,
 		EADumpSection::WidgetDesigner

@@ -1,6 +1,9 @@
 // File: ADumpGraphExt.cpp
-// Version: v0.6.0
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: emitted graph record 기반 bounded execution_path_preview_v1 traversal을 추가.
+// - v0.7.1: role 계산을 trait helper로 분리해 extractor와 15-case registry self-test가 동일 로직을 사용.
+// - v0.7.0: 모든 emitted graph node에 deterministic graph_node_role_v1 exact/fallback 분류를 추가.
 // - v0.6.0: Blueprint 외 자산은 graph 미지원 경고만 남기고 안전하게 빈 graphs 결과를 반환하도록 확장.
 // - v0.5.2: Blueprint 공통 asset family 분류 helper를 연결해 graphs-only 실행에서도 자산군 메타를 유지.
 // - v0.5.1: 핀 단위 linked_to_count / has_default_value / is_exec 요약을 추가해 입출력 해석 비용을 줄임.
@@ -389,6 +392,100 @@ namespace
 		return FString();
 	}
 
+	// ResolveGraphNodeRoleFamily는 primary role을 고정 상위 family로 변환한다.
+	FString ResolveGraphNodeRoleFamily(const FString& InPrimaryRole)
+	{
+		if (InPrimaryRole == TEXT("event") || InPrimaryRole == TEXT("execution_entry"))
+		{
+			return TEXT("entry");
+		}
+		if (InPrimaryRole == TEXT("function_call") || InPrimaryRole == TEXT("interface_call"))
+		{
+			return TEXT("call");
+		}
+		if (InPrimaryRole == TEXT("variable_get") || InPrimaryRole == TEXT("variable_set"))
+		{
+			return TEXT("variable");
+		}
+		if (InPrimaryRole == TEXT("dynamic_cast"))
+		{
+			return TEXT("conversion");
+		}
+		if (InPrimaryRole == TEXT("branch") || InPrimaryRole == TEXT("sequence") || InPrimaryRole == TEXT("switch") || InPrimaryRole == TEXT("flow_control"))
+		{
+			return TEXT("control_flow");
+		}
+		if (InPrimaryRole == TEXT("select") || InPrimaryRole == TEXT("pure_expression"))
+		{
+			return TEXT("data_flow");
+		}
+		if (InPrimaryRole == TEXT("timeline"))
+		{
+			return TEXT("timing");
+		}
+		if (InPrimaryRole == TEXT("execution_sink") || InPrimaryRole == TEXT("impure_operation"))
+		{
+			return TEXT("operation");
+		}
+		return TEXT("unknown");
+	}
+
+	// AddGraphNodeRoleTag는 역할 태그를 고정 순서로 중복 없이 추가한다.
+	void AddGraphNodeRoleTag(FADumpGraphNodeRole& InOutRole, const FString& InTag)
+	{
+		if (!InTag.IsEmpty() && !InOutRole.Tags.Contains(InTag))
+		{
+			InOutRole.Tags.Add(InTag);
+		}
+	}
+
+	// BuildGraphNodeRole은 실제 node에서 stable trait을 수집하고 공용 trait classifier를 호출한다.
+	FADumpGraphNodeRole BuildGraphNodeRole(const UEdGraphNode* InGraphNode, const FADumpGraphNode& InDumpGraphNode)
+	{
+		if (!InGraphNode)
+		{
+			return FADumpGraphNodeRole();
+		}
+
+		int32 ExecInputCount = 0;
+		int32 ExecOutputCount = 0;
+		for (const UEdGraphPin* GraphPinObject : InGraphNode->Pins)
+		{
+			if (!GraphPinObject || GraphPinObject->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec)
+			{
+				continue;
+			}
+			if (GraphPinObject->Direction == EGPD_Input)
+			{
+				++ExecInputCount;
+			}
+			else if (GraphPinObject->Direction == EGPD_Output)
+			{
+				++ExecOutputCount;
+			}
+		}
+
+		FString ExistingSemantic;
+		bool bMetadataIsPure = false;
+		bool bPurityResolvedFromMetadata = false;
+		bool bIsLatent = false;
+		if (InDumpGraphNode.Extra.IsValid())
+		{
+			InDumpGraphNode.Extra->TryGetStringField(TEXT("node_semantic"), ExistingSemantic);
+			bPurityResolvedFromMetadata = InDumpGraphNode.Extra->TryGetBoolField(TEXT("is_pure"), bMetadataIsPure);
+			InDumpGraphNode.Extra->TryGetBoolField(TEXT("is_latent"), bIsLatent);
+		}
+
+		return ADumpGraphExt::BuildGraphNodeRoleFromTraits(
+			ExistingSemantic,
+			ExecInputCount > 0,
+			ExecOutputCount > 0,
+			ExecOutputCount,
+			bPurityResolvedFromMetadata,
+			bMetadataIsPure,
+			bIsLatent);
+	}
+
 	// PopulateSupportedNodeMetadata는 문서에서 지정한 노드 5종에 한해 member/extra 메타를 채운다.
 	void PopulateSupportedNodeMetadata(const UEdGraphNode* InGraphNode, FADumpGraphNode& OutDumpGraphNode)
 	{
@@ -420,6 +517,10 @@ namespace
 				OutDumpGraphNode.Extra,
 				TEXT("is_pure"),
 				TargetFunction ? TargetFunction->HasAllFunctionFlags(FUNC_BlueprintPure) : false);
+			SetExtraBoolField(
+				OutDumpGraphNode.Extra,
+				TEXT("is_latent"),
+				TargetFunction ? TargetFunction->HasMetaData(FName(TEXT("Latent"))) : false);
 			SetExtraBoolField(
 				OutDumpGraphNode.Extra,
 				TEXT("is_interface_message"),
@@ -611,7 +712,314 @@ namespace
 
 namespace ADumpGraphExt
 {
-	bool ExtractGraphs(
+	FADumpGraphNodeRole BuildGraphNodeRoleFromTraits(
+		const FString& InExistingSemantic,
+		bool bInHasExecInput,
+		bool bInHasExecOutput,
+		int32 InExecOutputCount,
+		bool bInPurityResolvedFromMetadata,
+		bool bInMetadataIsPure,
+		bool bInIsLatent)
+	{
+		FADumpGraphNodeRole Role;
+		Role.bHasExecInput = bInHasExecInput;
+		Role.bHasExecOutput = bInHasExecOutput;
+		Role.bIsPure = bInPurityResolvedFromMetadata ? bInMetadataIsPure : (!bInHasExecInput && !bInHasExecOutput);
+		Role.bIsLatent = bInIsLatent;
+
+		if (!InExistingSemantic.IsEmpty())
+		{
+			Role.Primary = InExistingSemantic;
+			Role.Source = InExistingSemantic == TEXT("function_call") || InExistingSemantic == TEXT("interface_call")
+				? TEXT("function_metadata")
+				: TEXT("exact_class");
+			Role.Confidence = TEXT("exact");
+		}
+		else if (!bInHasExecInput && !bInHasExecOutput)
+		{
+			Role.Primary = TEXT("pure_expression");
+			Role.Source = TEXT("structural_inference");
+			Role.Confidence = TEXT("inferred");
+		}
+		else if (!bInHasExecInput && bInHasExecOutput)
+		{
+			Role.Primary = TEXT("execution_entry");
+			Role.Source = TEXT("structural_inference");
+			Role.Confidence = TEXT("inferred");
+		}
+		else if (bInHasExecInput && !bInHasExecOutput)
+		{
+			Role.Primary = TEXT("execution_sink");
+			Role.Source = TEXT("structural_inference");
+			Role.Confidence = TEXT("inferred");
+		}
+		else
+		{
+			Role.Primary = TEXT("flow_control");
+			Role.Source = TEXT("structural_inference");
+			Role.Confidence = TEXT("inferred");
+		}
+
+		if (Role.Primary == TEXT("event") || Role.Primary == TEXT("variable_set") || Role.Primary == TEXT("branch") || Role.Primary == TEXT("sequence") || Role.Primary == TEXT("switch") || Role.Primary == TEXT("timeline"))
+		{
+			Role.bIsPure = false;
+		}
+		else if (Role.Primary == TEXT("variable_get") || Role.Primary == TEXT("select"))
+		{
+			Role.bIsPure = !bInHasExecInput && !bInHasExecOutput;
+		}
+		if (Role.Primary == TEXT("timeline"))
+		{
+			Role.bIsLatent = true;
+		}
+
+		Role.Family = ResolveGraphNodeRoleFamily(Role.Primary);
+		AddGraphNodeRoleTag(Role, Role.bIsPure ? TEXT("pure") : TEXT("impure"));
+		if (Role.bIsLatent) AddGraphNodeRoleTag(Role, TEXT("latent"));
+		if (bInHasExecInput) AddGraphNodeRoleTag(Role, TEXT("has_exec_input"));
+		if (bInHasExecOutput) AddGraphNodeRoleTag(Role, TEXT("has_exec_output"));
+		if (Role.Primary == TEXT("interface_call")) AddGraphNodeRoleTag(Role, TEXT("interface"));
+		if (Role.Primary == TEXT("variable_get") || Role.Primary == TEXT("variable_set")) AddGraphNodeRoleTag(Role, TEXT("member_access"));
+		if (Role.Primary == TEXT("branch") || Role.Primary == TEXT("switch") || Role.Primary == TEXT("select")) AddGraphNodeRoleTag(Role, TEXT("conditional"));
+		if (InExecOutputCount > 1) AddGraphNodeRoleTag(Role, TEXT("multi_output"));
+		return Role;
+	}
+
+	FADumpExecutionPathPreview BuildExecutionPathPreview(
+		const FADumpGraph& InGraph,
+		bool bInNodesAvailable,
+		bool bInExecLinksAvailable,
+		int32 InMaxPaths,
+		int32 InMaxDepth)
+	{
+		FADumpExecutionPathPreview Preview;
+		Preview.MaxPaths = FMath::Max(1, InMaxPaths);
+		Preview.MaxDepth = FMath::Max(1, InMaxDepth);
+
+		if (!bInNodesAvailable)
+		{
+			Preview.bSupported = false;
+			Preview.UnsupportedReason = TEXT("links_only");
+			return Preview;
+		}
+		if (!bInExecLinksAvailable)
+		{
+			Preview.bSupported = false;
+			Preview.UnsupportedReason = TEXT("exec_links_not_requested");
+			return Preview;
+		}
+		if (InGraph.Nodes.Num() <= 0)
+		{
+			return Preview;
+		}
+
+		struct FPreviewEdge
+		{
+			FString FromPinId;
+			FString FromPinName;
+			FString ToNodeId;
+			FString ToPinId;
+			int32 SourcePinIndex = INDEX_NONE;
+			int32 TargetNodeIndex = INDEX_NONE;
+		};
+
+		TMap<FString, const FADumpGraphNode*> NodeById;
+		TMap<FString, int32> NodeIndexById;
+		TMap<FString, int32> OutputExecPinIndexByKey;
+		TMap<FString, FString> OutputExecPinNameByKey;
+		auto MakePinKey = [](const FString& InNodeId, const FString& InPinId)
+		{
+			return InNodeId + TEXT("|") + InPinId;
+		};
+
+		for (int32 NodeIndex = 0; NodeIndex < InGraph.Nodes.Num(); ++NodeIndex)
+		{
+			const FADumpGraphNode& Node = InGraph.Nodes[NodeIndex];
+			NodeById.Add(Node.NodeId, &Node);
+			NodeIndexById.Add(Node.NodeId, NodeIndex);
+			for (int32 PinIndex = 0; PinIndex < Node.Pins.Num(); ++PinIndex)
+			{
+				const FADumpGraphPin& Pin = Node.Pins[PinIndex];
+				if (Pin.bIsExec && Pin.Direction == TEXT("output"))
+				{
+					const FString PinKey = MakePinKey(Node.NodeId, Pin.PinId);
+					OutputExecPinIndexByKey.Add(PinKey, PinIndex);
+					OutputExecPinNameByKey.Add(PinKey, Pin.PinName);
+				}
+			}
+		}
+
+		TMap<FString, TArray<FPreviewEdge>> OutgoingEdgesByNode;
+		for (const FADumpGraphLink& Link : InGraph.Links)
+		{
+			if (Link.LinkKind != EADumpLinkKind::Exec || !NodeById.Contains(Link.FromNodeId) || !NodeById.Contains(Link.ToNodeId))
+			{
+				continue;
+			}
+
+			const FString PinKey = MakePinKey(Link.FromNodeId, Link.FromPinId);
+			const int32* SourcePinIndex = OutputExecPinIndexByKey.Find(PinKey);
+			const int32* TargetNodeIndex = NodeIndexById.Find(Link.ToNodeId);
+			if (!SourcePinIndex || !TargetNodeIndex)
+			{
+				continue;
+			}
+
+			FPreviewEdge Edge;
+			Edge.FromPinId = Link.FromPinId;
+			Edge.FromPinName = OutputExecPinNameByKey.FindRef(PinKey);
+			Edge.ToNodeId = Link.ToNodeId;
+			Edge.ToPinId = Link.ToPinId;
+			Edge.SourcePinIndex = *SourcePinIndex;
+			Edge.TargetNodeIndex = *TargetNodeIndex;
+			OutgoingEdgesByNode.FindOrAdd(Link.FromNodeId).Add(MoveTemp(Edge));
+		}
+
+		for (TPair<FString, TArray<FPreviewEdge>>& Pair : OutgoingEdgesByNode)
+		{
+			Pair.Value.Sort([](const FPreviewEdge& Left, const FPreviewEdge& Right)
+			{
+				if (Left.SourcePinIndex != Right.SourcePinIndex) return Left.SourcePinIndex < Right.SourcePinIndex;
+				if (Left.TargetNodeIndex != Right.TargetNodeIndex) return Left.TargetNodeIndex < Right.TargetNodeIndex;
+				if (Left.FromPinId != Right.FromPinId) return Left.FromPinId < Right.FromPinId;
+				return Left.ToPinId < Right.ToPinId;
+			});
+		}
+
+		TArray<FString> EntryNodeIds;
+		for (const FADumpGraphNode& Node : InGraph.Nodes)
+		{
+			const bool bIsEntry = Node.Role.Primary == TEXT("event")
+				|| Node.Role.Primary == TEXT("execution_entry")
+				|| (!Node.Role.bHasExecInput && Node.Role.bHasExecOutput);
+			if (bIsEntry)
+			{
+				EntryNodeIds.Add(Node.NodeId);
+			}
+		}
+		Preview.EntryCount = EntryNodeIds.Num();
+		if (EntryNodeIds.Num() <= 0)
+		{
+			Preview.Warnings.Add(TEXT("no_entry_nodes"));
+			return Preview;
+		}
+
+		auto EmitPath = [&Preview](const TArray<FADumpExecutionPathStep>& InSteps, const FString& InTermination)
+		{
+			FADumpExecutionPath Path;
+			Path.PathId = FString::Printf(TEXT("path_%03d"), Preview.Paths.Num());
+			Path.EntryNodeId = InSteps.Num() > 0 ? InSteps[0].NodeId : FString();
+			Path.Termination = InTermination;
+			Path.TerminalNodeId = InSteps.Num() > 0 ? InSteps.Last().NodeId : FString();
+			Path.Steps = InSteps;
+			Path.StepCount = Path.Steps.Num();
+			if (Path.Steps.Num() > 0)
+			{
+				Preview.ObservedMaxDepth = FMath::Max(Preview.ObservedMaxDepth, Path.Steps.Last().Depth);
+			}
+			if (InTermination == TEXT("terminal")) ++Preview.TerminalPathCount;
+			else if (InTermination == TEXT("cycle")) ++Preview.CyclePathCount;
+			else if (InTermination == TEXT("depth_limit")) ++Preview.DepthLimitedPathCount;
+			Preview.Paths.Add(MoveTemp(Path));
+		};
+
+		TFunction<void(const FString&, TArray<FADumpExecutionPathStep>&, TSet<FString>&)> VisitNode;
+		VisitNode = [&](const FString& CurrentNodeId, TArray<FADumpExecutionPathStep>& CurrentSteps, TSet<FString>& CurrentNodeIds)
+		{
+			if (Preview.Paths.Num() >= Preview.MaxPaths)
+			{
+				++Preview.OmittedPathCount;
+				Preview.bTruncated = true;
+				return;
+			}
+
+			const TArray<FPreviewEdge>* OutgoingEdges = OutgoingEdgesByNode.Find(CurrentNodeId);
+			if (!OutgoingEdges || OutgoingEdges->Num() <= 0)
+			{
+				EmitPath(CurrentSteps, TEXT("terminal"));
+				return;
+			}
+
+			const int32 CurrentDepth = CurrentSteps.Num() > 0 ? CurrentSteps.Last().Depth : 0;
+			if (CurrentDepth >= Preview.MaxDepth)
+			{
+				EmitPath(CurrentSteps, TEXT("depth_limit"));
+				Preview.bTruncated = true;
+				return;
+			}
+
+			for (const FPreviewEdge& Edge : *OutgoingEdges)
+			{
+				if (Preview.Paths.Num() >= Preview.MaxPaths)
+				{
+					++Preview.OmittedPathCount;
+					Preview.bTruncated = true;
+					continue;
+				}
+
+				const FADumpGraphNode* TargetNode = NodeById.FindRef(Edge.ToNodeId);
+				if (!TargetNode)
+				{
+					continue;
+				}
+
+				FADumpExecutionPathStep NextStep;
+				NextStep.Depth = CurrentSteps.Num();
+				NextStep.NodeId = TargetNode->NodeId;
+				NextStep.PrimaryRole = TargetNode->Role.Primary;
+				NextStep.ViaPinId = Edge.FromPinId;
+				NextStep.ViaPinName = Edge.FromPinName;
+				const bool bCycle = CurrentNodeIds.Contains(TargetNode->NodeId);
+				CurrentSteps.Add(MoveTemp(NextStep));
+				if (bCycle)
+				{
+					EmitPath(CurrentSteps, TEXT("cycle"));
+				}
+				else
+				{
+					CurrentNodeIds.Add(TargetNode->NodeId);
+					VisitNode(TargetNode->NodeId, CurrentSteps, CurrentNodeIds);
+					CurrentNodeIds.Remove(TargetNode->NodeId);
+				}
+				CurrentSteps.Pop();
+			}
+		};
+
+		for (const FString& EntryNodeId : EntryNodeIds)
+		{
+			if (Preview.Paths.Num() >= Preview.MaxPaths)
+			{
+				++Preview.OmittedPathCount;
+				Preview.bTruncated = true;
+				continue;
+			}
+
+			const FADumpGraphNode* EntryNode = NodeById.FindRef(EntryNodeId);
+			if (!EntryNode)
+			{
+				continue;
+			}
+
+			TArray<FADumpExecutionPathStep> Steps;
+			FADumpExecutionPathStep EntryStep;
+			EntryStep.Depth = 0;
+			EntryStep.NodeId = EntryNode->NodeId;
+			EntryStep.PrimaryRole = EntryNode->Role.Primary;
+			Steps.Add(MoveTemp(EntryStep));
+			TSet<FString> CurrentNodeIds;
+			CurrentNodeIds.Add(EntryNodeId);
+			VisitNode(EntryNodeId, Steps, CurrentNodeIds);
+		}
+
+		Preview.PathCount = Preview.Paths.Num();
+		if (Preview.CyclePathCount > 0) Preview.Warnings.Add(TEXT("cycle_detected"));
+		if (Preview.DepthLimitedPathCount > 0) Preview.Warnings.Add(TEXT("depth_limit_reached"));
+		if (Preview.OmittedPathCount > 0) Preview.Warnings.Add(TEXT("path_limit_reached"));
+		Preview.bTruncated = Preview.bTruncated || Preview.DepthLimitedPathCount > 0 || Preview.OmittedPathCount > 0;
+		return Preview;
+	}
+
+		bool ExtractGraphs(
 		const FString& AssetObjectPath,
 		const FADumpRunOpts& InRunOpts,
 		FADumpAssetInfo& OutAssetInfo,
@@ -767,6 +1175,7 @@ namespace ADumpGraphExt
 				DumpGraphNode.PosY = GraphNodeObject->NodePosY;
 				DumpGraphNode.EnabledState = ResolveNodeEnabledState(GraphNodeObject);
 				PopulateSupportedNodeMetadata(GraphNodeObject, DumpGraphNode);
+				DumpGraphNode.Role = BuildGraphNodeRole(GraphNodeObject, DumpGraphNode);
 				DumpGraphNode.Pins = ExtractPinsFromNode(GraphNodeObject);
 				DumpGraph.Nodes.Add(MoveTemp(DumpGraphNode));
 				InOutPerf.NodeCount++;
@@ -774,6 +1183,10 @@ namespace ADumpGraphExt
 
 			DumpGraph.NodeCount = DumpGraph.Nodes.Num();
 			DumpGraph.LinkCount = DumpGraph.Links.Num();
+			DumpGraph.ExecutionPreview = BuildExecutionPathPreview(
+				DumpGraph,
+				!InRunOpts.bLinksOnly,
+				InRunOpts.LinkKind != EADumpLinkKind::Data);
 			OutGraphs.Add(MoveTemp(DumpGraph));
 			InOutPerf.GraphCount++;
 			InOutPerf.LinkCount += AddedLinkCountForGraph;
