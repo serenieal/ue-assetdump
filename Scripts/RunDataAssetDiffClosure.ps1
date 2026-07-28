@@ -1,6 +1,9 @@
-# File: RunDataAssetDiffClosure.ps1
-# Version: v1.5
+﻿# File: RunDataAssetDiffClosure.ps1
+# Version: v1.7
 # Changelog:
+# - v1.7: output root를 explicit, ASSETDUMP_OUTPUT_ROOT, writable PluginRoot/Dumped, Host Saved/AssetDump 순서로 실제 write probe하고 report에 source를 추가.
+# - v1.6.1: Windows PowerShell 5.1 UTF-8/Utility 호환을 보강하고, 유일한 오류가 allowlist된 HttpListener 충돌일 때 UE 종료 요약을 외부 오류로 함께 분류.
+# - v1.6: ProjectFile을 explicit > ASSETDUMP_PROJECT_FILE > exact conventional host 순서로 결정하고 resolver self-test, generic BuildTarget, Plugin-owned 필수 11-case와 optional Consumer Integration report를 추가.
 # - v1.5: 검증 콘텐츠 전후 manifest와 실제 process-log 오류 코드 증거를 최상위 report 계약에 추가하고, 동일한 validation 파일은 복원 시 건너뛰며 실제 변경 파일의 일시 잠금만 제한적으로 재시도.
 # - v1.4: PowerShell 정규식 escape를 보정해 UE error(s) 요약 매칭을 실제 동작하게 수정.
 # - v1.3: 기대 실패 음성 케이스의 UE error count 요약을 개수와 무관하게 허용.
@@ -8,13 +11,20 @@
 # - v1.1: 실제 commandlet 로그의 안정 오류 코드만 검증하고, makefixtures 전후 Content/Validation 복원 증거를 기록.
 # - v1.0: v0.7.1 DataAsset Diff 잔여 11개 acceptance case를 검증하는 독립 PowerShell closure harness 추가.
 # Migration:
-# - 기존 AssetDump commandlet, C++ 구현, RunBPDumpRegression.ps1 호출 방식은 변경하지 않는다.
+# - Windows PowerShell 5.1 호환을 위해 이 파일의 UTF-8 BOM과 Microsoft.PowerShell.Utility 명시 로드를 유지한다.
+# - HttpListener allowlist는 해당 충돌과 정확한 UE 종료 요약만 허용하며 AssetDump 소유 오류나 치명적 오류는 계속 실패한다. 함수 시그니처와 CLI 사용법은 변경되지 않는다.
+# - 기존 AssetDump commandlet과 C++ 공개 계약은 변경하지 않는다.
+# - case_count/passed_count/failed_count/all_passed는 계속 Plugin 필수 11-case 결과를 의미하고 schema_version은 data_asset_diff_closure_report_v1을 유지한다.
+# - 기존 project_data_asset 문자열 필드는 Plugin snapshot asset을 기록하며 실제 요청값은 requested_project_data_asset에 분리한다.
+# - Consumer Project DataAsset 검증은 -ProjectDataAsset을 명시한 경우에만 integration_cases에서 추가 실행한다.
 # - 기존 validation_content_restoration 소비자는 호환되며, 새 자동화는 최상위 evidence 필드를 우선 사용한다.
 # - 새 검증은 필요할 때 .\Scripts\RunDataAssetDiffClosure.ps1 -CompactLog 로 opt-in 실행한다.
+# - 명시 -OutputRoot는 최우선이며 쓰기 불가 시 fallback하지 않고 실패한다.
+# - 기본 출력은 ASSETDUMP_OUTPUT_ROOT/DataAssetDiffClosure, writable PluginRoot/Dumped/DataAssetDiffClosure, Host Saved/AssetDump/DataAssetDiffClosure 순서다.
 
 [CmdletBinding()]
 param(
-    # ProjectFile은 검증 대상 Unreal 프로젝트 파일 경로다. 비워두면 플러그인 상위 프로젝트에서 첫 .uproject를 찾는다.
+    # ProjectFile은 검증 대상 Unreal 프로젝트 파일 경로다. 비워두면 ASSETDUMP_PROJECT_FILE과 exact conventional host layout을 순서대로 검사한다.
     [string]$ProjectFile = "",
 
     # EngineRoot는 Unreal Engine 설치 루트 경로다. 비워두면 -EngineRoot, ASSETDUMP_ENGINE_ROOT, UE_ENGINE_ROOT, HMD_UE_CMD 순서로 결정한다.
@@ -23,8 +33,11 @@ param(
     # FixtureAsset은 closure fixture로 사용할 플러그인 DataAsset object path다.
     [string]$FixtureAsset = "/AssetDump/Validation/DA_ADumpValues.DA_ADumpValues",
 
-    # ProjectDataAsset은 프로젝트 소유 DataAsset snapshot diff에 사용할 object path다.
-    [string]$ProjectDataAsset = "/Game/CarFight/Input/IA_VehicleMove.IA_VehicleMove",
+                # ProjectDataAsset은 선택적 Consumer Integration snapshot diff에 사용할 프로젝트 DataAsset object path다. 비우면 Plugin Contract만 실행한다.
+    [string]$ProjectDataAsset = "",
+
+    # BuildTarget은 UBT Editor build target 이름이다. 비워두면 프로젝트 파일명 + Editor로 계산한다.
+    [string]$BuildTarget = "",
 
     # OutputRoot는 closure evidence와 최종 report를 저장할 루트 폴더다.
     [string]$OutputRoot = "",
@@ -32,12 +45,18 @@ param(
     # CompactLog는 commandlet 전체 로그를 파일에 보존하고 콘솔에는 핵심 줄만 표시할지 여부다.
     [switch]$CompactLog,
 
-    # SkipBuild는 editor build 단계를 생략할지 여부다.
-    [switch]$SkipBuild
+                # SkipBuild는 editor build 단계를 생략할지 여부다.
+    [switch]$SkipBuild,
+
+    # RunSelfTests는 엔진 실행 없이 ProjectFile resolver 계약을 검사할지 여부다.
+    [switch]$RunSelfTests
 )
 
 # StopOnError는 PowerShell 내부 오류를 즉시 중단하기 위한 설정값이다.
 $ErrorActionPreference = "Stop"
+
+# Microsoft.PowerShell.Utility 모듈은 Windows PowerShell 5.1 clean -NoProfile 실행에서 Get-FileHash를 보장한다.
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 
 # New-Utf8NoBomEncoding은 UTF-8 without BOM 인코딩 객체를 만든다.
 function New-Utf8NoBomEncoding {
@@ -58,6 +77,111 @@ function Convert-PathToFullPath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $PathText))
 }
 
+# Test-WritableDirectory는 실제 probe 파일 write/delete로 디렉터리 쓰기 가능 여부를 검사한다.
+function Test-WritableDirectory {
+    param([string]$DirectoryPath)
+
+    $ProbePath = $null
+    try {
+        if (-not (Test-Path -LiteralPath $DirectoryPath -PathType Container)) {
+            New-Item -ItemType Directory -Path $DirectoryPath -Force | Out-Null
+        }
+        $ProbePath = Join-Path $DirectoryPath (".assetdump_write_probe_" + [Guid]::NewGuid().ToString("N") + ".tmp")
+        [System.IO.File]::WriteAllText($ProbePath, "AssetDump write probe", (New-Utf8NoBomEncoding))
+        Remove-Item -LiteralPath $ProbePath -Force
+        return $true
+    } catch {
+        if ($null -ne $ProbePath -and (Test-Path -LiteralPath $ProbePath -PathType Leaf)) {
+            Remove-Item -LiteralPath $ProbePath -Force -ErrorAction SilentlyContinue
+        }
+        return $false
+    }
+}
+
+# Resolve-WritableOutputRoot은 explicit, env, legacy Plugin Dumped와 Host Saved fallback 순서로 closure 출력 루트를 결정한다.
+function Resolve-WritableOutputRoot {
+    param(
+        [string]$ExplicitOutputRoot,
+        [string]$PluginRootPath,
+        [string]$ProjectFilePath,
+        [string]$SubdirectoryName
+    )
+
+    $AttemptedCandidateList = [System.Collections.Generic.List[object]]::new()
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitOutputRoot)) {
+        $ExplicitPath = Convert-PathToFullPath -PathText $ExplicitOutputRoot.Trim().Trim('"')
+        $AttemptedCandidateList.Add([pscustomobject]@{ source = "explicit_argument"; path = $ExplicitPath })
+        if (-not (Test-WritableDirectory -DirectoryPath $ExplicitPath)) {
+            throw "명시한 -OutputRoot에 쓸 수 없습니다: $ExplicitPath"
+        }
+        return [pscustomobject]@{ source = "explicit_argument"; path = $ExplicitPath; attempted_candidates = @($AttemptedCandidateList) }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:ASSETDUMP_OUTPUT_ROOT)) {
+        $EnvironmentBasePath = Convert-PathToFullPath -PathText $env:ASSETDUMP_OUTPUT_ROOT.Trim().Trim('"')
+        $EnvironmentPath = if ([string]::IsNullOrWhiteSpace($SubdirectoryName)) { $EnvironmentBasePath } else { Join-Path $EnvironmentBasePath $SubdirectoryName }
+        $AttemptedCandidateList.Add([pscustomobject]@{ source = "ASSETDUMP_OUTPUT_ROOT"; path = $EnvironmentPath })
+        if (Test-WritableDirectory -DirectoryPath $EnvironmentPath) {
+            return [pscustomobject]@{ source = "ASSETDUMP_OUTPUT_ROOT"; path = $EnvironmentPath; attempted_candidates = @($AttemptedCandidateList) }
+        }
+        Write-Warning "ASSETDUMP_OUTPUT_ROOT가 쓰기 불가하여 fallback합니다: $EnvironmentPath"
+    }
+
+    $LegacyBasePath = Join-Path $PluginRootPath "Dumped"
+    $LegacyPath = if ([string]::IsNullOrWhiteSpace($SubdirectoryName)) { $LegacyBasePath } else { Join-Path $LegacyBasePath $SubdirectoryName }
+    $AttemptedCandidateList.Add([pscustomobject]@{ source = "legacy_plugin_dumped"; path = $LegacyPath })
+    if (Test-WritableDirectory -DirectoryPath $LegacyPath) {
+        return [pscustomobject]@{ source = "legacy_plugin_dumped"; path = $LegacyPath; attempted_candidates = @($AttemptedCandidateList) }
+    }
+
+    $ProjectDirectoryPath = Split-Path -Parent $ProjectFilePath
+    $SavedBasePath = Join-Path $ProjectDirectoryPath "Saved\AssetDump"
+    $SavedPath = if ([string]::IsNullOrWhiteSpace($SubdirectoryName)) { $SavedBasePath } else { Join-Path $SavedBasePath $SubdirectoryName }
+    $AttemptedCandidateList.Add([pscustomobject]@{ source = "project_saved_fallback"; path = $SavedPath })
+    if (Test-WritableDirectory -DirectoryPath $SavedPath) {
+        return [pscustomobject]@{ source = "project_saved_fallback"; path = $SavedPath; attempted_candidates = @($AttemptedCandidateList) }
+    }
+
+    throw "AssetDump closure 출력 루트를 결정하지 못했습니다. -OutputRoot 또는 ASSETDUMP_OUTPUT_ROOT를 지정하세요. attempted=$($AttemptedCandidateList | ConvertTo-Json -Compress)"
+}
+
+# Invoke-OutputRootSelfTests는 엔진 없이 output root 우선순위와 probe residue를 검사한다.
+function Invoke-OutputRootSelfTests {
+    param([string]$TemporaryParentPath)
+
+    $PreviousOutputRoot = $env:ASSETDUMP_OUTPUT_ROOT
+    try {
+        $ProjectRootPath = Join-Path $TemporaryParentPath "Host"
+        $ProjectFilePath = Join-Path $ProjectRootPath "Host.uproject"
+        New-Item -ItemType Directory -Path $ProjectRootPath -Force | Out-Null
+        New-Item -ItemType File -Path $ProjectFilePath -Force | Out-Null
+
+        $ExplicitPath = Join-Path $TemporaryParentPath "Explicit"
+        $env:ASSETDUMP_OUTPUT_ROOT = Join-Path $TemporaryParentPath "Env"
+        $ExplicitResult = Resolve-WritableOutputRoot -ExplicitOutputRoot $ExplicitPath -PluginRootPath (Join-Path $TemporaryParentPath "Plugin") -ProjectFilePath $ProjectFilePath -SubdirectoryName "DataAssetDiffClosure"
+        if ($ExplicitResult.source -ne "explicit_argument") { throw "self test 실패: explicit output wins" }
+
+        $EnvironmentResult = Resolve-WritableOutputRoot -ExplicitOutputRoot "" -PluginRootPath (Join-Path $TemporaryParentPath "Plugin") -ProjectFilePath $ProjectFilePath -SubdirectoryName "DataAssetDiffClosure"
+        if ($EnvironmentResult.source -ne "ASSETDUMP_OUTPUT_ROOT") { throw "self test 실패: env output wins" }
+
+        $env:ASSETDUMP_OUTPUT_ROOT = ""
+        $LegacyResult = Resolve-WritableOutputRoot -ExplicitOutputRoot "" -PluginRootPath (Join-Path $TemporaryParentPath "WritablePlugin") -ProjectFilePath $ProjectFilePath -SubdirectoryName "DataAssetDiffClosure"
+        if ($LegacyResult.source -ne "legacy_plugin_dumped") { throw "self test 실패: legacy output" }
+
+        $BlockedPluginPath = Join-Path $TemporaryParentPath "BlockedPlugin"
+        New-Item -ItemType File -Path $BlockedPluginPath -Force | Out-Null
+        $SavedResult = Resolve-WritableOutputRoot -ExplicitOutputRoot "" -PluginRootPath $BlockedPluginPath -ProjectFilePath $ProjectFilePath -SubdirectoryName "DataAssetDiffClosure"
+        if ($SavedResult.source -ne "project_saved_fallback") { throw "self test 실패: saved fallback" }
+
+        $ProbeResidue = @(Get-ChildItem -LiteralPath $TemporaryParentPath -Recurse -File -Filter ".assetdump_write_probe_*.tmp")
+        if ($ProbeResidue.Count -ne 0) { throw "self test 실패: write probe residue" }
+        Write-Host "DataAsset Diff output root self tests: passed"
+    } finally {
+        $env:ASSETDUMP_OUTPUT_ROOT = $PreviousOutputRoot
+    }
+}
+
 # Resolve-RequiredFile은 필수 파일 존재 여부를 확인하고 절대 경로를 반환한다.
 function Resolve-RequiredFile {
     param(
@@ -75,26 +199,175 @@ function Resolve-RequiredFile {
     return (Resolve-Path -LiteralPath $PathText).ProviderPath
 }
 
-# Get-DefaultProjectFile은 플러그인 위치 기준으로 상위 프로젝트의 .uproject 파일을 찾는다.
-function Get-DefaultProjectFile {
+# Resolve-ProjectFile은 explicit, 환경 변수와 exact conventional layout 순서로 Host Project를 결정한다.
+function Resolve-ProjectFile {
     param(
+        # ExplicitProjectFile은 -ProjectFile로 전달된 최우선 후보 경로다.
+        [string]$ExplicitProjectFile,
+
         # PluginRootPath는 AssetDump 플러그인 루트 경로다.
         [string]$PluginRootPath
     )
 
-    # PluginsDirectoryPath는 Unreal 프로젝트의 Plugins 폴더 경로다.
-    $PluginsDirectoryPath = Split-Path -Parent $PluginRootPath
+    # AttemptedCandidateList는 ProjectFile 결정 중 검사한 후보 목록이다.
+    $AttemptedCandidateList = [System.Collections.Generic.List[object]]::new()
 
-    # ProjectDirectoryPath는 Unreal 프로젝트 루트 경로다.
-    $ProjectDirectoryPath = Split-Path -Parent $PluginsDirectoryPath
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitProjectFile)) {
+        # ExplicitCandidatePath는 따옴표와 공백을 제거한 명시 후보다.
+        $ExplicitCandidatePath = $ExplicitProjectFile.Trim().Trim('"')
+        $AttemptedCandidateList.Add([pscustomobject]@{ source = "explicit_argument"; path = $ExplicitCandidatePath })
 
-    # ProjectFileList는 프로젝트 루트에서 찾은 .uproject 파일 목록이다.
-    $ProjectFileList = @(Get-ChildItem -LiteralPath $ProjectDirectoryPath -Filter "*.uproject" -File)
-    if ($ProjectFileList.Count -lt 1) {
-        throw "프로젝트 루트에서 .uproject 파일을 찾을 수 없습니다: $ProjectDirectoryPath"
+        # ExplicitFullPath는 명시 후보의 절대 경로다.
+        $ExplicitFullPath = Convert-PathToFullPath -PathText $ExplicitCandidatePath
+        if ([System.IO.Path]::GetExtension($ExplicitFullPath) -ne ".uproject" -or -not (Test-Path -LiteralPath $ExplicitFullPath -PathType Leaf)) {
+            throw "명시한 -ProjectFile이 유효한 .uproject 파일이 아닙니다: $ExplicitFullPath`n잘못된 명시 입력은 다른 후보로 fallback하지 않습니다.`n사용법: -ProjectFile <HostProject.uproject> 또는 ASSETDUMP_PROJECT_FILE 설정"
+        }
+
+        return [pscustomobject]@{
+            source = "explicit_argument"
+            project_file = (Resolve-Path -LiteralPath $ExplicitFullPath).ProviderPath
+            attempted_candidates = @($AttemptedCandidateList)
+        }
     }
 
-    return $ProjectFileList[0].FullName
+    if (-not [string]::IsNullOrWhiteSpace($env:ASSETDUMP_PROJECT_FILE)) {
+        # EnvironmentCandidatePath는 AssetDump 전용 환경 변수 후보다.
+        $EnvironmentCandidatePath = $env:ASSETDUMP_PROJECT_FILE.Trim().Trim('"')
+        $AttemptedCandidateList.Add([pscustomobject]@{ source = "ASSETDUMP_PROJECT_FILE"; path = $EnvironmentCandidatePath })
+
+        # EnvironmentFullPath는 환경 변수 후보의 절대 경로다.
+        $EnvironmentFullPath = Convert-PathToFullPath -PathText $EnvironmentCandidatePath
+        if ([System.IO.Path]::GetExtension($EnvironmentFullPath) -ne ".uproject" -or -not (Test-Path -LiteralPath $EnvironmentFullPath -PathType Leaf)) {
+            throw "ASSETDUMP_PROJECT_FILE이 유효한 .uproject 파일이 아닙니다: $EnvironmentFullPath`n잘못된 환경 변수 입력은 conventional layout으로 fallback하지 않습니다.`n사용법: -ProjectFile <HostProject.uproject> 또는 ASSETDUMP_PROJECT_FILE 설정"
+        }
+
+        return [pscustomobject]@{
+            source = "ASSETDUMP_PROJECT_FILE"
+            project_file = (Resolve-Path -LiteralPath $EnvironmentFullPath).ProviderPath
+            attempted_candidates = @($AttemptedCandidateList)
+        }
+    }
+
+    # PluginsDirectoryPath는 conventional layout에서 Plugin root의 직계 부모다.
+    $PluginsDirectoryPath = Split-Path -Parent $PluginRootPath
+    $AttemptedCandidateList.Add([pscustomobject]@{ source = "conventional_plugins_parent"; path = $PluginsDirectoryPath })
+    if ([System.IO.Path]::GetFileName($PluginsDirectoryPath) -ine "Plugins") {
+        throw "Host Project를 결정하지 못했습니다. Plugin root의 직계 부모가 Plugins 폴더가 아닙니다: $PluginsDirectoryPath`n사용법: -ProjectFile <HostProject.uproject> 또는 ASSETDUMP_PROJECT_FILE 설정`n광범위한 상위 폴더 검색은 수행하지 않습니다."
+    }
+
+    # ProjectDirectoryPath는 exact conventional Host Project root다.
+    $ProjectDirectoryPath = Split-Path -Parent $PluginsDirectoryPath
+    $AttemptedCandidateList.Add([pscustomobject]@{ source = "conventional_project_root"; path = $ProjectDirectoryPath })
+
+    # ProjectFileList는 Host Project root 직계 자식 .uproject 목록이다.
+    $ProjectFileList = @(Get-ChildItem -LiteralPath $ProjectDirectoryPath -Filter "*.uproject" -File | Sort-Object FullName)
+    if ($ProjectFileList.Count -ne 1) {
+        throw "Host Project를 결정하지 못했습니다. conventional candidate '$ProjectDirectoryPath'에서 .uproject 파일 $($ProjectFileList.Count)개를 찾았습니다.`n정확히 1개가 필요하며 첫 파일을 임의 선택하지 않습니다.`n사용법: -ProjectFile <HostProject.uproject> 또는 ASSETDUMP_PROJECT_FILE 설정"
+    }
+
+    return [pscustomobject]@{
+        source = "conventional_project_plugins_layout"
+        project_file = $ProjectFileList[0].FullName
+        attempted_candidates = @($AttemptedCandidateList)
+    }
+}
+
+# Invoke-ProjectFileResolverSelfTests는 엔진 없이 ProjectFile 우선순위와 오류 계약을 검사한다.
+function Invoke-ProjectFileResolverSelfTests {
+    # TemporaryRootPath는 resolver self-test 전용 임시 폴더다.
+    $TemporaryRootPath = Join-Path ([System.IO.Path]::GetTempPath()) ("AssetDumpDataAssetDiffResolver_" + [Guid]::NewGuid().ToString("N"))
+
+    # PreviousProjectEnvironmentPath는 self-test 후 복원할 환경 변수 값이다.
+    $PreviousProjectEnvironmentPath = $env:ASSETDUMP_PROJECT_FILE
+
+    # Assert-ResolutionFails는 지정한 resolver 호출이 반드시 실패하는지 검사한다.
+    function Assert-ResolutionFails {
+        param(
+            [scriptblock]$Action,
+            [string]$Label
+        )
+
+        # FailureObserved는 기대한 예외가 발생했는지 여부다.
+        $FailureObserved = $false
+        try {
+            & $Action | Out-Null
+        } catch {
+            $FailureObserved = $true
+        }
+
+        if (-not $FailureObserved) {
+            throw "self test 실패: $Label"
+        }
+    }
+
+    try {
+        # ConventionalProjectRootPath는 정상 conventional layout의 Host root다.
+        $ConventionalProjectRootPath = Join-Path $TemporaryRootPath "ConventionalHost"
+
+        # ConventionalPluginRootPath는 정상 conventional layout의 Plugin root다.
+        $ConventionalPluginRootPath = Join-Path $ConventionalProjectRootPath "Plugins\ue-assetdump"
+        New-Item -ItemType Directory -Path $ConventionalPluginRootPath -Force | Out-Null
+
+        # ConventionalProjectFilePath는 conventional layout의 단일 .uproject다.
+        $ConventionalProjectFilePath = Join-Path $ConventionalProjectRootPath "ConventionalHost.uproject"
+        New-Item -ItemType File -Path $ConventionalProjectFilePath -Force | Out-Null
+
+        # ExplicitProjectFilePath는 명시 우선순위 검사 전용 프로젝트 파일이다.
+        $ExplicitProjectFilePath = Join-Path $TemporaryRootPath "ExplicitHost.uproject"
+        New-Item -ItemType File -Path $ExplicitProjectFilePath -Force | Out-Null
+
+        # EnvironmentProjectFilePath는 환경 변수 우선순위 검사 전용 프로젝트 파일이다.
+        $EnvironmentProjectFilePath = Join-Path $TemporaryRootPath "EnvironmentHost.uproject"
+        New-Item -ItemType File -Path $EnvironmentProjectFilePath -Force | Out-Null
+
+        $env:ASSETDUMP_PROJECT_FILE = $EnvironmentProjectFilePath
+        # ExplicitResolution은 env/conventional보다 explicit이 우선하는지 검사한다.
+        $ExplicitResolution = Resolve-ProjectFile -ExplicitProjectFile $ExplicitProjectFilePath -PluginRootPath $ConventionalPluginRootPath
+        if ($ExplicitResolution.source -ne "explicit_argument" -or $ExplicitResolution.project_file -ne (Resolve-Path -LiteralPath $ExplicitProjectFilePath).ProviderPath) { throw "self test 실패: explicit valid wins" }
+
+        Assert-ResolutionFails -Label "explicit invalid fails without fallback" -Action {
+            Resolve-ProjectFile -ExplicitProjectFile (Join-Path $TemporaryRootPath "MissingExplicit.uproject") -PluginRootPath $ConventionalPluginRootPath
+        }
+
+        # EnvironmentResolution은 conventional보다 환경 변수가 우선하는지 검사한다.
+        $EnvironmentResolution = Resolve-ProjectFile -ExplicitProjectFile "" -PluginRootPath $ConventionalPluginRootPath
+        if ($EnvironmentResolution.source -ne "ASSETDUMP_PROJECT_FILE" -or $EnvironmentResolution.project_file -ne (Resolve-Path -LiteralPath $EnvironmentProjectFilePath).ProviderPath) { throw "self test 실패: env valid wins" }
+
+        $env:ASSETDUMP_PROJECT_FILE = Join-Path $TemporaryRootPath "MissingEnvironment.uproject"
+        Assert-ResolutionFails -Label "env invalid fails without fallback" -Action {
+            Resolve-ProjectFile -ExplicitProjectFile "" -PluginRootPath $ConventionalPluginRootPath
+        }
+
+        $env:ASSETDUMP_PROJECT_FILE = ""
+        # ConventionalResolution은 단일 exact conventional project가 선택되는지 검사한다.
+        $ConventionalResolution = Resolve-ProjectFile -ExplicitProjectFile "" -PluginRootPath $ConventionalPluginRootPath
+        if ($ConventionalResolution.source -ne "conventional_project_plugins_layout") { throw "self test 실패: conventional single project" }
+
+        Remove-Item -LiteralPath $ConventionalProjectFilePath -Force
+        Assert-ResolutionFails -Label "conventional zero project fails" -Action {
+            Resolve-ProjectFile -ExplicitProjectFile "" -PluginRootPath $ConventionalPluginRootPath
+        }
+
+        New-Item -ItemType File -Path $ConventionalProjectFilePath -Force | Out-Null
+        New-Item -ItemType File -Path (Join-Path $ConventionalProjectRootPath "Second.uproject") -Force | Out-Null
+        Assert-ResolutionFails -Label "conventional multiple projects fail" -Action {
+            Resolve-ProjectFile -ExplicitProjectFile "" -PluginRootPath $ConventionalPluginRootPath
+        }
+
+        # StandalonePluginRootPath는 부모가 Plugins가 아닌 standalone 배치다.
+        $StandalonePluginRootPath = Join-Path $TemporaryRootPath "Standalone\ue-assetdump"
+        New-Item -ItemType Directory -Path $StandalonePluginRootPath -Force | Out-Null
+        Assert-ResolutionFails -Label "non-Plugins standalone layout fails" -Action {
+            Resolve-ProjectFile -ExplicitProjectFile "" -PluginRootPath $StandalonePluginRootPath
+        }
+
+        Write-Host "DataAsset Diff ProjectFile resolver self tests: passed"
+    } finally {
+        $env:ASSETDUMP_PROJECT_FILE = $PreviousProjectEnvironmentPath
+        if (Test-Path -LiteralPath $TemporaryRootPath) {
+            Remove-Item -LiteralPath $TemporaryRootPath -Recurse -Force
+        }
+    }
 }
 
 # Resolve-EngineRoot은 명시 인자와 환경 변수를 v1.5 회귀 하네스 우선순위로 해석한다.
@@ -653,12 +926,15 @@ function Get-ExternalErrorClassification {
         # IsAllowedPortConflict는 포트 충돌 로그인지 여부다.
         $IsAllowedPortConflict = $ErrorLineText.Contains($KnownPortConflictPattern)
 
+        # IsAllowedPortConflictSummary는 확인된 포트 충돌 하나를 집계한 UE 종료 요약인지 여부다.
+        $IsAllowedPortConflictSummary = $HasKnownPortConflict -and ($ErrorLineText.Contains("Warning/Error Summary (Unique only)") -or $ErrorLineText -match "Failure - 1 error\(s\), 1 warning\(s\)")
+
         # IsExpectedCommandletSummary는 기대 실패 commandlet에서 UE가 남기는 일반 종료 요약인지 여부다.
         $IsExpectedCommandletSummary = (-not [string]::IsNullOrWhiteSpace($ExpectedAssetDumpErrorCode)) -and ($ErrorLineText.Contains("Commandlet->Main return this error code:") -or $ErrorLineText -match "With \d+ error\(s\)" -or $ErrorLineText.Contains("Warning/Error Summary (Unique only)") -or $ErrorLineText -match "Failure - \d+ error\(s\)")
 
         # IsExpectedAssetDumpError는 음성 케이스에서 기대한 AssetDump 오류 코드 또는 그 wrapper 오류인지 여부다.
         $IsExpectedAssetDumpError = (-not [string]::IsNullOrWhiteSpace($ExpectedAssetDumpErrorCode)) -and ($ErrorLineText.Contains($ExpectedAssetDumpErrorCode) -or $ErrorLineText.Contains("BPDump failed for asset:"))
-        if (-not $IsAllowedPortConflict -and -not $IsExpectedAssetDumpError -and -not $IsExpectedCommandletSummary) {
+        if (-not $IsAllowedPortConflict -and -not $IsAllowedPortConflictSummary -and -not $IsExpectedAssetDumpError -and -not $IsExpectedCommandletSummary) {
             return "unrelated_error"
         }
     }
@@ -1119,9 +1395,28 @@ $ScriptDirectoryPath = $PSScriptRoot
 # PluginRootPath는 AssetDump 플러그인 루트 경로다.
 $PluginRootPath = (Resolve-Path -LiteralPath (Join-Path $ScriptDirectoryPath "..")).ProviderPath
 
-# ResolvedProjectFile은 실제 사용할 .uproject 파일 경로다.
-$ResolvedProjectFile = if ([string]::IsNullOrWhiteSpace($ProjectFile)) { Get-DefaultProjectFile -PluginRootPath $PluginRootPath } else { Convert-PathToFullPath -PathText $ProjectFile }
-$ResolvedProjectFile = Resolve-RequiredFile -PathText $ResolvedProjectFile -Label "ProjectFile"
+if ($RunSelfTests) {
+    Invoke-ProjectFileResolverSelfTests
+    $OutputSelfTestRootPath = Join-Path ([System.IO.Path]::GetTempPath()) ("AssetDumpDataAssetDiffOutput_" + [Guid]::NewGuid().ToString("N"))
+    try {
+        Invoke-OutputRootSelfTests -TemporaryParentPath $OutputSelfTestRootPath
+    } finally {
+        if (Test-Path -LiteralPath $OutputSelfTestRootPath) { Remove-Item -LiteralPath $OutputSelfTestRootPath -Recurse -Force }
+    }
+    return
+}
+
+# ProjectResolution은 결정적 우선순위와 exact conventional layout으로 얻은 Host Project 결과다.
+$ProjectResolution = Resolve-ProjectFile -ExplicitProjectFile $ProjectFile -PluginRootPath $PluginRootPath
+
+# ResolvedProjectFile은 존재 검증이 끝난 프로젝트 파일 절대 경로다.
+$ResolvedProjectFile = Resolve-RequiredFile -PathText $ProjectResolution.project_file -Label "ProjectFile"
+
+# HostProjectSource는 선택된 Host Project 경로의 출처다.
+$HostProjectSource = $ProjectResolution.source
+
+# AttemptedProjectCandidates는 Host Project 결정 중 시도한 후보 목록이다.
+$AttemptedProjectCandidates = $ProjectResolution.attempted_candidates
 
 # EngineResolution은 엔진 루트와 commandlet 경로 결정 결과다.
 $EngineResolution = Resolve-EngineRoot -ExplicitEngineRoot $EngineRoot
@@ -1144,8 +1439,32 @@ $ProjectDirectoryPath = Split-Path -Parent $ResolvedProjectFile
 # ProjectName은 .uproject 파일명에서 확장자를 제거한 이름이다.
 $ProjectName = [System.IO.Path]::GetFileNameWithoutExtension($ResolvedProjectFile)
 
+# ResolvedBuildTarget은 실제 UBT Editor build target 이름이다.
+$ResolvedBuildTarget = if ([string]::IsNullOrWhiteSpace($BuildTarget)) { "${ProjectName}Editor" } else { $BuildTarget.Trim() }
+
+# SnapshotAsset은 Plugin 필수 11번째 case가 사용하는 Plugin 소유 DataAsset이다.
+$SnapshotAsset = $FixtureAsset
+
+# SnapshotAssetScope는 필수 snapshot case의 소유 범위다.
+$SnapshotAssetScope = "plugin"
+
+# RequestedProjectDataAsset은 호출자가 optional Consumer Integration으로 요청한 원문 값이다.
+$RequestedProjectDataAsset = if ([string]::IsNullOrWhiteSpace($ProjectDataAsset)) { "" } else { $ProjectDataAsset.Trim() }
+
+# ProjectIntegrationRequested는 Consumer Integration 실행 요청 여부다.
+$ProjectIntegrationRequested = -not [string]::IsNullOrWhiteSpace($RequestedProjectDataAsset)
+
+# OutputResolution은 explicit, env, writable legacy와 Host Saved fallback으로 결정한 closure 출력 결과다.
+$OutputResolution = Resolve-WritableOutputRoot -ExplicitOutputRoot $OutputRoot -PluginRootPath $PluginRootPath -ProjectFilePath $ResolvedProjectFile -SubdirectoryName "DataAssetDiffClosure"
+
 # ResolvedOutputRoot는 closure evidence 루트 경로다.
-$ResolvedOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) { Join-Path $PluginRootPath "Dumped\DataAssetDiffClosure" } else { Convert-PathToFullPath -PathText $OutputRoot }
+$ResolvedOutputRoot = $OutputResolution.path
+
+# OutputRootSource는 최종 출력 루트 출처다.
+$OutputRootSource = $OutputResolution.source
+
+# AttemptedOutputCandidates는 출력 경로 결정 중 검사한 후보 목록이다.
+$AttemptedOutputCandidates = $OutputResolution.attempted_candidates
 
 if (Test-Path -LiteralPath $ResolvedOutputRoot -PathType Container) {
     # ArchiveRootPath는 이전 closure evidence를 보존할 archive 부모 폴더다.
@@ -1169,10 +1488,14 @@ $BaselineRootPath = Join-Path $ResolvedOutputRoot "baselines"
 $CaseOutputRootPath = Join-Path $ResolvedOutputRoot "cases"
 New-Item -ItemType Directory -Path $LogRootPath, $BaselineRootPath, $CaseOutputRootPath -Force | Out-Null
 
+Write-Host "host_project_source: $HostProjectSource"
+Write-Host "project_file: $ResolvedProjectFile"
 Write-Host "engine_root_source: $EngineRootSource"
 Write-Host "engine_root: $ResolvedEngineRoot"
+Write-Host "build_target: $ResolvedBuildTarget"
 Write-Host "build_bat: $BuildBatPath"
 Write-Host "commandlet: $CommandletPath"
+Write-Host "output_root_source: $OutputRootSource"
 Write-Host "output_root: $ResolvedOutputRoot"
 
 # ValidationContentRootPath는 makefixtures가 건드릴 수 있는 플러그인 검증 자산 루트다.
@@ -1189,19 +1512,13 @@ $ValidationContentBeforeSnapshot = Get-ValidationContentSnapshot -RootPath $Vali
 $ValidationContentRestoreEvidence = $null
 
 if (-not $SkipBuild) {
-    # CarFightBuildScriptPath는 CarFight 표준 editor build 배치 파일 경로다.
-    $CarFightBuildScriptPath = Join-Path (Split-Path -Parent $ProjectDirectoryPath) "Tools\BuildEditor.bat"
+    # BuildArguments는 Unreal Build.bat에 전달할 generic Editor target 인자다.
+    $BuildArguments = @($ResolvedBuildTarget, "Win64", "Development", $ResolvedProjectFile, "-WaitMutex", "-FromMsBuild")
 
-    # BuildFilePath는 실제 실행할 build 스크립트 경로다.
-    $BuildFilePath = if (Test-Path -LiteralPath $CarFightBuildScriptPath -PathType Leaf) { $CarFightBuildScriptPath } else { $BuildBatPath }
-
-    # BuildArguments는 build 스크립트에 전달할 인자 배열이다.
-    $BuildArguments = if ($BuildFilePath -eq $BuildBatPath) { @("${ProjectName}Editor", "Win64", "Development", $ResolvedProjectFile, "-WaitMutex", "-FromMsBuild") } else { @() }
-
-    # BuildResult는 editor build 실행 결과다.
-    $BuildResult = Invoke-CapturedCommand -FilePath $BuildFilePath -Arguments $BuildArguments -StepName "Build Editor" -LogDirectoryPath $LogRootPath -CompactLog:$CompactLog
+    # BuildResult는 generic Editor build 실행 결과다.
+    $BuildResult = Invoke-CapturedCommand -FilePath $BuildBatPath -Arguments $BuildArguments -StepName "Build Editor" -LogDirectoryPath $LogRootPath -CompactLog:$CompactLog
     if ($BuildResult.process_exit_code -ne 0) {
-        throw "Build Editor 실패: exit=$($BuildResult.process_exit_code)"
+        throw "Build Editor 실패: target=$ResolvedBuildTarget exit=$($BuildResult.process_exit_code)"
     }
 }
 
@@ -1238,11 +1555,7 @@ $FixtureBeforeSnapshot = Get-FileSnapshot -PathText $FixtureUAssetPath
 $FixtureBaselinePath = Join-Path $BaselineRootPath "fixture_current.dump.json"
 Invoke-BaselineSnapshot -AssetPath $FixtureAsset -OutputPath $FixtureBaselinePath -StepName "Fresh Fixture DataAsset Values"
 
-# ProjectBaselinePath는 fresh project-owned DataAsset snapshot 경로다.
-$ProjectBaselinePath = Join-Path $BaselineRootPath "project_current.dump.json"
-Invoke-BaselineSnapshot -AssetPath $ProjectDataAsset -OutputPath $ProjectBaselinePath -StepName "Fresh Project DataAsset Values"
-
-# FixtureBaselineObject는 변형 case의 원본으로 사용할 fresh fixture dump 객체다.
+# FixtureBaselineObject는 변형 case와 Plugin-owned snapshot case의 원본으로 사용할 fresh fixture dump 객체다.
 $FixtureBaselineObject = Read-JsonFile -PathText $FixtureBaselinePath
 
 # FixtureFieldArray는 fresh fixture dump의 field 배열이다.
@@ -1466,20 +1779,65 @@ $FingerprintShaChanged = $FingerprintA1Dump.request.data_asset_diff_base_sha256 
 $FingerprintCasePassed = $FingerprintA1.passed -and $FingerprintA2Unchanged -and $FingerprintB1.passed -and $FingerprintB1Changed -and $FingerprintB2Unchanged -and $FingerprintShaChanged
 $CaseResultList.Add((New-CaseResult -Name "same_path_baseline_fingerprint_sequence" -Passed:$FingerprintCasePassed -ExpectedBehavior "A1 generated, A2 skipped, B1 regenerated, B2 skipped, baseline sha changed" -ObservedBehavior "a1=$($FingerprintA1.passed) a2_unchanged=$FingerprintA2Unchanged b1=$($FingerprintB1.passed) b1_changed=$FingerprintB1Changed b2_unchanged=$FingerprintB2Unchanged sha_changed=$FingerprintShaChanged" -ProcessExitCode $FingerprintB2Process.process_exit_code -ExpectedErrorCode "" -ObservedErrorCode "" -BaselinePath $FingerprintBaselinePath -OutputPath $FingerprintOutputPath -LogPath $FingerprintB2Process.log_path -Details ([pscustomobject]@{ a1 = $FingerprintA1; a1_snapshot = $FingerprintA1Snapshot; a2_before = $FingerprintA2Before; a2_after = $FingerprintA2After; b1_before = $FingerprintB1Before; b1_after = $FingerprintB1After; b2_before = $FingerprintB2Before; b2_after = $FingerprintB2After; sha_a = $FingerprintA1Dump.request.data_asset_diff_base_sha256; sha_b = $FingerprintB1Dump.request.data_asset_diff_base_sha256 })))
 
-$CaseResultList.Add((Invoke-PositiveDiffCase -Name "project_owned_snapshot_diff" -AssetPath $ProjectDataAsset -BaselinePath $ProjectBaselinePath -OutputPath (Join-Path $CaseOutputRootPath "case_11_project_snapshot.diff.dump.json") -StepName "Case 11 Project Snapshot Diff" -SkipIfUpToDate:$false -ValidatorScript {
+# PluginSnapshotCase는 기존 case name을 유지하면서 Plugin 소유 asset으로 실행하는 필수 11번째 case다.
+$PluginSnapshotCase = Invoke-PositiveDiffCase -Name "project_owned_snapshot_diff" -AssetPath $SnapshotAsset -BaselinePath $FixtureBaselinePath -OutputPath (Join-Path $CaseOutputRootPath "case_11_project_snapshot.diff.dump.json") -StepName "Case 11 Plugin Snapshot Diff" -SkipIfUpToDate:$false -ValidatorScript {
     param($DumpObject)
-    # DiffObject는 project-owned DataAsset diff 결과다.
+    # DiffObject는 Plugin-owned DataAsset diff 결과다.
     $DiffObject = $DumpObject.data_asset_diff
 
-    # PathMatches는 baseline/current asset path가 설정한 프로젝트 asset과 같은지 여부다.
-    $PathMatches = $DiffObject.baseline_asset_path -eq $script:ProjectDataAsset -and $DiffObject.current_asset_path -eq $script:ProjectDataAsset
+    # PathMatches는 baseline/current asset path가 Plugin snapshot asset과 같은지 여부다.
+    $PathMatches = $DiffObject.baseline_asset_path -eq $script:SnapshotAsset -and $DiffObject.current_asset_path -eq $script:SnapshotAsset
 
-    # ChangeCount는 project snapshot diff에서 보고된 총 변경 수다.
+    # ChangeCount는 Plugin snapshot diff에서 보고된 총 변경 수다.
     $ChangeCount = [int]$DiffObject.added_count + [int]$DiffObject.removed_count + [int]$DiffObject.changed_count + [int]$DiffObject.type_changed_count + [int]$DiffObject.partial_count
     return [pscustomobject]@{ passed = ($PathMatches -and $ChangeCount -le 128); detail = "path_matches=$PathMatches bounded_change_count=$ChangeCount" }
-}))
+}
+$PluginSnapshotCase | Add-Member -NotePropertyName canonical_name -NotePropertyValue "plugin_owned_snapshot_diff"
+$PluginSnapshotCase | Add-Member -NotePropertyName asset_scope -NotePropertyValue $SnapshotAssetScope
+$CaseResultList.Add($PluginSnapshotCase)
 
-# FixtureAfterSnapshot은 모든 closure case 실행 후 fixture .uasset 상태다.
+# IntegrationCaseResultList는 optional Consumer Integration 결과 목록이다.
+$IntegrationCaseResultList = [System.Collections.Generic.List[object]]::new()
+
+# ProjectIntegrationExecuted는 명시된 project asset 검증을 실제 시도했는지 여부다.
+$ProjectIntegrationExecuted = $false
+if ($ProjectIntegrationRequested) {
+    $ProjectIntegrationExecuted = $true
+
+    # IntegrationBaselinePath는 명시된 Consumer Project DataAsset의 fresh baseline 경로다.
+    $IntegrationBaselinePath = Join-Path $BaselineRootPath "integration_project_current.dump.json"
+
+    # IntegrationOutputPath는 Consumer Integration diff 결과 경로다.
+    $IntegrationOutputPath = Join-Path $CaseOutputRootPath "integration_project_snapshot.diff.dump.json"
+    try {
+        Invoke-BaselineSnapshot -AssetPath $RequestedProjectDataAsset -OutputPath $IntegrationBaselinePath -StepName "Consumer Integration Fresh DataAsset Values"
+
+        # IntegrationCase는 명시된 project asset의 별도 snapshot diff 결과다.
+        $IntegrationCase = Invoke-PositiveDiffCase -Name "consumer_project_snapshot_diff" -AssetPath $RequestedProjectDataAsset -BaselinePath $IntegrationBaselinePath -OutputPath $IntegrationOutputPath -StepName "Consumer Integration Snapshot Diff" -SkipIfUpToDate:$false -ValidatorScript {
+            param($DumpObject)
+            # DiffObject는 Consumer Project DataAsset diff 결과다.
+            $DiffObject = $DumpObject.data_asset_diff
+
+            # PathMatches는 baseline/current asset path가 요청한 project asset과 같은지 여부다.
+            $PathMatches = $DiffObject.baseline_asset_path -eq $script:RequestedProjectDataAsset -and $DiffObject.current_asset_path -eq $script:RequestedProjectDataAsset
+
+            # ChangeCount는 Consumer Integration snapshot diff의 총 변경 수다.
+            $ChangeCount = [int]$DiffObject.added_count + [int]$DiffObject.removed_count + [int]$DiffObject.changed_count + [int]$DiffObject.type_changed_count + [int]$DiffObject.partial_count
+            return [pscustomobject]@{ passed = ($PathMatches -and $ChangeCount -le 128); detail = "path_matches=$PathMatches bounded_change_count=$ChangeCount" }
+        }
+        $IntegrationCase | Add-Member -NotePropertyName canonical_name -NotePropertyValue "consumer_project_snapshot_diff"
+        $IntegrationCase | Add-Member -NotePropertyName asset_scope -NotePropertyValue "project"
+        $IntegrationCaseResultList.Add($IntegrationCase)
+    } catch {
+        # IntegrationFailureCase는 baseline 또는 commandlet 단계 예외를 최종 report에 보존하는 실패 결과다.
+        $IntegrationFailureCase = New-CaseResult -Name "consumer_project_snapshot_diff" -Passed:$false -ExpectedBehavior "fresh project data_asset_values baseline and compatible data_asset_diff_v1 output" -ObservedBehavior $_.Exception.Message -ProcessExitCode $null -ExpectedErrorCode "" -ObservedErrorCode "" -BaselinePath $IntegrationBaselinePath -OutputPath $IntegrationOutputPath -LogPath "" -Details ([pscustomobject]@{ requested_asset = $RequestedProjectDataAsset; exception_type = $_.Exception.GetType().FullName })
+        $IntegrationFailureCase | Add-Member -NotePropertyName canonical_name -NotePropertyValue "consumer_project_snapshot_diff"
+        $IntegrationFailureCase | Add-Member -NotePropertyName asset_scope -NotePropertyValue "project"
+        $IntegrationCaseResultList.Add($IntegrationFailureCase)
+    }
+}
+
+# FixtureAfterSnapshot은 모든 closure case와 optional integration 실행 후 fixture .uasset 상태다.
 $FixtureAfterSnapshot = Get-FileSnapshot -PathText $FixtureUAssetPath
 
 # ValidationContentFinalComparison은 closure 종료 시점의 validation 자산 전체 원복 검증 결과다.
@@ -1596,8 +1954,20 @@ foreach ($RequiredNegativeCaseName in $RequiredNegativeCaseNameArray) {
     }
 }
 
-# AllPassed는 case 수, 실패 수, validation 불변성, 실제 process-log 증거를 직접 요구한다.
+# AllPassed는 Plugin case 수, 실패 수, validation 불변성, 실제 process-log 증거를 직접 요구한다.
 $AllPassed = ($CaseResultList.Count -eq 11 -and $FailedCaseArray.Count -eq 0 -and $ValidationContentUnchanged -eq $true -and $NegativeErrorCodesFromProcessLog -eq $true)
+
+# IntegrationPassedCaseArray는 통과한 optional integration case 목록이다.
+$IntegrationPassedCaseArray = @($IntegrationCaseResultList | Where-Object { $_.passed })
+
+# IntegrationFailedCaseArray는 실패한 optional integration case 목록이다.
+$IntegrationFailedCaseArray = @($IntegrationCaseResultList | Where-Object { -not $_.passed })
+
+# IntegrationAllPassed는 요청하지 않았으면 true, 요청했다면 단일 integration case 성공을 요구한다.
+$IntegrationAllPassed = if ($ProjectIntegrationRequested) { $IntegrationCaseResultList.Count -eq 1 -and $IntegrationFailedCaseArray.Count -eq 0 } else { $true }
+
+# OverallPassed는 Plugin Contract와 명시된 Consumer Integration을 합친 process verdict다.
+$OverallPassed = $AllPassed -and $IntegrationAllPassed
 
 # ReportPath는 최종 closure report 경로다.
 $ReportPath = Join-Path $ResolvedOutputRoot "data_asset_diff_closure_report.json"
@@ -1605,12 +1975,22 @@ $ReportPath = Join-Path $ResolvedOutputRoot "data_asset_diff_closure_report.json
 # ReportObject는 최종 machine-readable closure report 객체다.
 $ReportObject = [pscustomobject]@{
     schema_version = "data_asset_diff_closure_report_v1"
-    generated_time = (Get-Date).ToUniversalTime().ToString("o")
+        generated_time = (Get-Date).ToUniversalTime().ToString("o")
     project_file = $ResolvedProjectFile
+    host_project_source = $HostProjectSource
+    attempted_project_candidates = @($AttemptedProjectCandidates)
     engine_root_source = $EngineRootSource
     engine_root = $ResolvedEngineRoot
+    build_target = $ResolvedBuildTarget
     fixture_asset = $FixtureAsset
-    project_data_asset = $ProjectDataAsset
+    snapshot_asset = $SnapshotAsset
+    snapshot_asset_scope = $SnapshotAssetScope
+    project_data_asset = $SnapshotAsset
+    requested_project_data_asset = $RequestedProjectDataAsset
+    project_integration_requested = $ProjectIntegrationRequested
+        project_integration_executed = $ProjectIntegrationExecuted
+    output_root_source = $OutputRootSource
+    attempted_output_candidates = @($AttemptedOutputCandidates)
     output_root = $ResolvedOutputRoot
     validation_content_before = $ValidationContentBeforeManifest
     validation_content_after = $ValidationContentAfterManifest
@@ -1625,11 +2005,17 @@ $ReportObject = [pscustomobject]@{
         post_restore_comparison = $ValidationContentPostRestoreComparison
         final_comparison = $ValidationContentFinalComparison
         manifest_comparison = $ValidationContentManifestComparison
-    }
+        }
     case_count = $CaseResultList.Count
     passed_count = $PassedCaseArray.Count
     failed_count = $FailedCaseArray.Count
     all_passed = $AllPassed
+    integration_case_count = $IntegrationCaseResultList.Count
+    integration_passed_count = $IntegrationPassedCaseArray.Count
+    integration_failed_count = $IntegrationFailedCaseArray.Count
+    integration_all_passed = $IntegrationAllPassed
+    integration_cases = @($IntegrationCaseResultList)
+    overall_passed = $OverallPassed
     fixture_before = $FixtureBeforeSnapshot
     fixture_after = $FixtureAfterSnapshot
     cases = @($CaseResultList)
@@ -1645,12 +2031,27 @@ Write-Host "failed_count: $($ReportObject.failed_count)"
 Write-Host "validation_content_unchanged: $($ReportObject.validation_content_unchanged)"
 Write-Host "negative_error_codes_from_process_log: $($ReportObject.negative_error_codes_from_process_log)"
 Write-Host "all_passed: $($ReportObject.all_passed)"
+Write-Host "project_integration_requested: $($ReportObject.project_integration_requested)"
+Write-Host "integration_case_count: $($ReportObject.integration_case_count)"
+Write-Host "integration_failed_count: $($ReportObject.integration_failed_count)"
+Write-Host "integration_all_passed: $($ReportObject.integration_all_passed)"
+Write-Host "overall_passed: $($ReportObject.overall_passed)"
 
 if (-not $ReportObject.all_passed) {
-    Write-Host "failed cases:"
+    Write-Host "failed Plugin cases:"
     foreach ($FailedCase in $FailedCaseArray) {
         Write-Host "- $($FailedCase.name): $($FailedCase.observed_behavior)"
     }
+}
+
+if (-not $ReportObject.integration_all_passed) {
+    Write-Host "failed integration cases:"
+    foreach ($FailedIntegrationCase in $IntegrationFailedCaseArray) {
+        Write-Host "- $($FailedIntegrationCase.name): $($FailedIntegrationCase.observed_behavior)"
+    }
+}
+
+if (-not $ReportObject.overall_passed) {
     exit 1
 }
 
