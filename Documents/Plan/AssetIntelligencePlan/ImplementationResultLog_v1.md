@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.20
+- document_version: v1.27
 - created_at: 2026-07-10
-- updated_at: 2026-07-27
+- updated_at: 2026-07-28
 - document_role: implementation_result_log
 - codex_input: false
 
@@ -13,6 +13,256 @@
 Record implementation and verification results for Asset Intelligence planning tasks after Codex or manual implementation work is completed.
 
 ## Results
+
+## 2026-07-28 - AssetDump v0.8.2 Blueprint Search Index
+
+### Status
+
+```text
+task_id: ADUMP-v0.8.2-BSI
+implementation: completed
+schema: bp_search_index_v1
+extractor_version: 2.11.0
+commandlet_version: 0.14.3
+buildplugin: passed
+generic_host_editor_build: passed
+generic_host_runtime: passed
+plugin_validation: passed
+production_registry: 13/13 passed
+actual_actor_widget_contracts: passed
+focused_section_semantics: passed
+bounds_and_ids: passed
+determinism: passed
+full_batch: passed
+changed_only: passed
+content_invariance: passed
+p2b_fallback: passed
+git_diff_check: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added a per-asset Blueprint search section independent from global `index.json` and `dependency_index.json`.
+- Added `graph`, `event`, `function_call`, `interface_call`, `variable_read`, `variable_write` and `class_reference` symbols.
+- Added deterministic normalization, kind ordering, canonical-path class deduplication, sequential IDs, 512-symbol and 8-term bounds.
+- Connected full/explicit section serialization, graph-builder dependency, fingerprint versioning and extractor `2.11.0`.
+- Connected actual Actor/Widget contract validation and the production-shared 13-case registry.
+- Corrected the initial registry total from 12 to the actual 13 production cases.
+- Corrected full-profile builder metadata so the graph prerequisite is recorded once and `bp_search_index` is explicit.
+- Added Phase 2 v1.7.5 focused full/explicit/unsupported/LinksOnly/omission/determinism JSON evidence.
+- Used raw fixed-field inspection for graph-heavy JSON under Windows PowerShell 5.1 while retaining object-level comparison for compact search-only output.
+
+### Canonical Verification Result
+
+```text
+BuildPlugin source job: 2bc60881f64d49fc989838d45d0240ae
+BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_051506_600_388dc8e9\Reports\buildplugin_report.json
+BuildPlugin report SHA-256: 17d9a4297e159fdec5c630e71005a449a3e431e18bf6ae4a760487afb196f03a
+canonical Process Runner job: dc8443cabe1e4c3faf40468c3f65dc93
+canonical phase2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_052145_921_9ce86530\Reports\phase2_report.json
+canonical phase2 report SHA-256: 08fd774d22f4949eaca6c1bfbd72f8de9431d6ee64c9466250a3b5e1d3b454ed
+validation report SHA-256: e1c2b0ec17acb64d6df5d16f0ede9214f1f60ce58990765381e8028e90a87b82
+BuildPlugin: PASS
+Generic Host Editor build/runtime: PASS
+Plugin validation: 9/9, required_failed_count 0
+production search registry: passed=13 total=13
+Actor/Widget contracts: PASS
+focused full/explicit/omission/unsupported/LinksOnly: PASS
+symbol bounds / sequential IDs / search-term bounds: PASS
+representative Actor symbol_count: 7
+repeated search-index determinism: PASS
+Plugin full: 10/10, failed 0
+ChangedOnly: 10/10 skipped
+Content/Validation exact invariance: PASS
+P2B output fallback: PASS
+git diff --check: PASS, line-ending warnings only
+phase2_implementation_gate_passed: true
+failure_count: 0
+```
+
+The earlier Live Coding build refusal is preserved as diagnostic history only. The accepted closure passed the same Generic Host requirement after the active Editor session was released.
+
+The generic Phase 2 field `release_contract_accepted=false` remains intentionally separate from feature acceptance. Every v0.8.2 predicate passed, so the feature contract is accepted without promoting the repository release-management flag.
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing consumers may ignore `bp_search_index`. Global dump-root index contracts are unchanged. `symbol_id` is local to one generated search index; stable matching should use kind plus graph/node/member fields.
+
+## 2026-07-28 - AssetDump v0.8.1 Execution Path Preview
+
+### Status
+
+```text
+task_id: ADUMP-v0.8.1-EPP
+implementation: completed
+schema: execution_path_preview_v1
+extractor_version: 2.10.0
+commandlet_version: 0.13.0
+host_build: passed
+buildplugin: passed
+generic_host_runtime: passed
+plugin_validation: passed
+traversal_registry: 13/13 passed
+actual_graph_preview_coverage: 5/5 passed
+actual_path_count: 11
+focused_unsupported_modes: passed
+determinism: passed
+full_batch: passed
+changed_only: passed
+content_invariance: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added an additive `execution_preview` object to every existing Blueprint graph record.
+- Built bounded execution paths only from emitted nodes, `graph_node_role_v1`, pins and exec links.
+- Added deterministic DFS with fixed `max_paths=64` and `max_depth=32`.
+- Added terminal, cycle and depth-limit termination, omitted-path counting, truncation and fixed warnings.
+- Added explicit safe output for `LinksOnly` and `LinkKind=Data`.
+- Shared the production traversal helper with a 13-case registry covering empty, branch, merge, cycles and limits.
+- Preserved existing graph/node/pin/link arrays, v0.8.0 roles, references, fixtures and command-line selection behavior.
+
+### Changed Files
+
+```text
+Source/AssetDump/Public/ADumpTypes.h
+Source/AssetDump/Public/ADumpGraphExt.h
+Source/AssetDump/Private/ADumpGraphExt.cpp
+Source/AssetDump/Private/ADumpJson.cpp
+Source/AssetDump/Private/ADumpTypes.cpp
+Source/AssetDump/Private/ADumpFingerprint.cpp
+Source/AssetDump/Private/AssetDumpCommandlet.cpp
+```
+
+No binary fixture or regression PowerShell file changed for v0.8.1.
+
+### Verification Result
+
+```text
+final Host build job: 8f5e30ebc9ab46109006c5a98f1a78b5
+final Host build exit: 0
+canonical Process Runner job: 03eb262d39ad4cb49bdb70d445bec9d0
+canonical phase2 report SHA-256: 49680f7de4564d0d78a414a2a135888038be2f452d65c979cb3e496c516906fa
+validation report SHA-256: 8ed35a0c2fc37e9ecfb88c58c663c14fef46ff10c2d892e9fa49390fb4ff17a1
+BuildPlugin: PASS
+Generic Host Editor build/runtime: PASS
+Plugin validation: 9/9, required_failed_count 0
+execution preview checks: 5/5 PASS
+production traversal registry: passed=13 total=13
+actual graph previews: 5/5
+actual paths: 11 terminal, 0 cycle, 0 depth-limited
+focused LinksOnly/Data-only modes: PASS
+preview object exact determinism: PASS
+normalized graphs determinism: PASS
+Plugin full: 10/10, failed 0
+ChangedOnly: 10/10 skipped
+Content/Validation exact invariance: PASS
+P2B output fallback regression: PASS
+failure_count: 0
+```
+
+The current plugin-owned fixtures contain disconnected entry events, so actual outputs are one-step terminal paths. Branch, merge, cycle, depth and path limits are proved by the production-shared registry.
+
+Whole focused sidecars differ naturally in existing `dump_time`, `perf.total_ms` and `perf.load_ms`. The execution-preview objects were exactly equal, and whole sidecars were equal after normalizing only those three existing volatile fields at the same output path.
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v0_8_1_ExecutionPathPreviewPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_1_ExecutionPathPreviewClosureReport_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing consumers may ignore `execution_preview`. Consumers using it must treat every branch as a possible serialized route rather than evaluated runtime truth or probability.
+
+## 2026-07-28 - AssetDump v0.8.0 Graph Node Role Classification
+
+### Status
+
+```text
+task_id: ADUMP-v0.8.0-GNR
+implementation: completed
+schema: graph_node_role_v1
+extractor_version: 2.9.0
+commandlet_version: 0.12.1
+buildplugin: passed
+generic_host_runtime: passed
+plugin_validation: passed
+classifier_registry: 15/15 passed
+actual_node_role_coverage: 11/11 passed
+full_batch: passed
+changed_only: passed
+content_invariance: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added an additive `role` object to every emitted Blueprint graph node.
+- Preserved all existing graph/node/pin/link fields and `extra.node_semantic`.
+- Added exact semantic roles for 11 supported K2 node families and structural roles for all four exec-pin combinations.
+- Shared one pure trait classifier between production extraction and the 15-case registry self-test.
+- Added role schema, registry, pin-trait, tag-order and legacy-semantic validation.
+- Bumped extractor version to `2.9.0` and fingerprinted `graph_node_role_v1`.
+- Reused existing plugin-owned Blueprint fixtures; no binary fixture change was required.
+
+### Changed Files
+
+```text
+Source/AssetDump/Public/ADumpTypes.h
+Source/AssetDump/Public/ADumpGraphExt.h
+Source/AssetDump/Private/ADumpGraphExt.cpp
+Source/AssetDump/Private/ADumpJson.cpp
+Source/AssetDump/Private/ADumpTypes.cpp
+Source/AssetDump/Private/ADumpFingerprint.cpp
+Source/AssetDump/Private/AssetDumpCommandlet.cpp
+```
+
+### Verification Result
+
+```text
+canonical Process Runner job: c5130d4c617142aca368156582287b09
+canonical phase2 report SHA-256: 1862df8e6acfc88aca764127f5338f2ce6ac6cbb30cd9f52fbbd837bacb8fcd7
+BuildPlugin: PASS
+Generic Host Editor build/runtime: PASS
+Plugin validation: 9/9, required_failed_count 0
+role validation checks: 5/5 PASS
+production classifier registry: passed=15 total=15
+actual graphs sidecars: 10
+actual emitted nodes: 11
+valid role objects: 11
+Plugin full: 10/10, failed 0
+ChangedOnly: 10/10 skipped
+Content/Validation exact invariance: PASS
+P2B output fallback regression: PASS
+failure_count: 0
+```
+
+A source Host DLL link attempt was blocked by an active `UnrealEditor.exe` file lock after both AssetDump unity units compiled and the static library linked. The fresh BuildPlugin package and external Generic Host build are the canonical compile/link and runtime evidence.
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v0_8_0_GraphNodeRolePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_0_GraphNodeRoleClosureReport_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing consumers may ignore the additive role object. Consumers using `extra.node_semantic` should migrate to `role.primary` while retaining older-dump compatibility.
 
 ## 2026-07-25 - AssetDump v0.7.3 Component Tree Implementation Checkpoint
 
@@ -1398,6 +1648,28 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.27
+
+- Added the completed v0.8.2 Blueprint Search Index implementation and canonical closure record.
+- Recorded extractor 2.11.0, commandlet 0.14.3, the production-shared 13/13 registry and Actor/Widget contracts.
+- Recorded focused inclusion/omission, unsupported and LinksOnly semantics, bounds, sequential IDs and deterministic output.
+- Recorded BuildPlugin, Generic Host, P2B, Content invariance and `git diff --check` PASS with failure_count 0.
+- Promoted `ADUMP-v0.8.2-BSI` to Completed / Contract Accepted.
+
+### v1.22
+
+- Added the completed v0.8.1 Execution Path Preview implementation record.
+- Recorded bounded production DFS, the 13/13 shared traversal registry and actual 5/5 graph preview coverage.
+- Recorded focused unsupported-mode output, exact preview determinism and normalized full-sidecar determinism.
+- Promoted `ADUMP-v0.8.1-EPP` to Completed / Contract Accepted.
+
+### v1.21
+
+- Added the completed v0.8.0 Graph Node Role Classification implementation record.
+- Recorded the additive schema, production-shared 15-case registry, actual 11/11 node coverage and canonical external Generic Host closure.
+- Preserved the source Host DLL lock as diagnostic evidence and used the successful BuildPlugin package/runtime as canonical acceptance evidence.
+- Promoted `ADUMP-v0.8.0-GNR` to Completed / Contract Accepted.
 
 ### v1.20
 

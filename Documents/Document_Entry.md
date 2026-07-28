@@ -1,7 +1,7 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.1
-- 최근 갱신일: 2026-07-24
+- 문서 버전: v1.6
+- 최근 갱신일: 2026-07-28
 - 문서 상태: Current
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
 
@@ -9,14 +9,21 @@
 
 ## 1. 적용 범위
 
-이 문서체계는 다음 독립 Git 저장소만 관리한다.
+이 문서체계는 AssetDump Git 저장소 루트 이하만 관리한다.
 
 ```text
-UE/Plugins/ue-assetdump
+assetdump_repo/
+  AssetDump.uplugin
+  Source/
+  Scripts/
+  Content/
+  Documents/
 ```
 
-CarFight와 GoPyMCP의 내부 작업 상태, FeatureQueue, ActiveWork와 Plan을 이 문서체계에 복사하지 않는다.
-물리적으로 CarFight 폴더 아래에 존재하더라도 AssetDump의 코드, 스크립트, 콘텐츠, 릴리스 상태와 계획은 `assetdump_repo`가 소유한다.
+저장소가 특정 프로젝트의 `Plugins/` 아래에 중첩되어 있더라도 부모 프로젝트는 AssetDump의 owner가 아니다.
+CarFight와 GoPyMCP를 포함한 Consumer Project의 내부 상태, FeatureQueue, ActiveWork와 Plan을 이 문서체계에 복사하지 않는다.
+현재 문서와 실행 지침은 부모 저장소 상대 경로가 아니라 AssetDump 저장소 루트 상대 경로를 사용한다.
+저장소 독립화 작업은 `Documents/Plan/StandalonePlan.md`에서 관리한다.
 
 ---
 
@@ -54,7 +61,10 @@ AGENTS.md
 | 이전 세션 복원 또는 활성 작업 전환 | `Documents/ActiveWork.md` | 대표 Plan, Git 상태와 실제 구현 |
 | Asset Intelligence 현재 계획 확인 | `Documents/Plan/README.md` | `AssetIntelligencePlan/README.md` |
 | DataAsset Diff Report Contract 이력 확인 | `Documents/ActiveWork.md` | 완료 TaskSource 이력, 스크립트와 canonical closure report |
-| 새 코드·스크립트 구현 | `AGENTS.md` | 대표 Plan의 범위·보호 계약 확인 후 Codex 또는 사용자 선택 로컬 환경에서 실행 |
+| 새 코드·스크립트 구현 | `AGENTS.md` | 대표 Plan의 범위·보호 계약 확인 후 Browser가 허용 파일을 직접 수정하고 가능한 검증을 수행 |
+| Standalone 구현 착수 | `Documents/Plan/StandaloneImplementationWorkOrder.md` | 현재 Phase 작업 범위와 변경 허용 파일 |
+| Standalone 검증 강도 결정 | `Documents/Plan/StandaloneValidationPolicy.md` | Change Check, Task Close, Phase Close, Release 기준 |
+| 빌드 목적·엔진 경로·Editor Target 판정 | `AGENTS.md`의 엔진 바인딩 규칙 | `StandaloneValidationPolicy.md`의 Build identity 기준과 실제 build report |
 | Browser 문서·증거 검토 | `Documents/ActiveWork.md` | Git diff, 저장된 report·process log와 콘텐츠 불변성 증거 |
 | 공개 commandlet 계약 확인 | `Documents/Plan/AssetIntelligencePlan/SectionRegistry_v1.md` | 실제 commandlet 구현과 보고서 |
 | 검증 정책 확인 | `Documents/Plan/AssetIntelligencePlan/ValidationPolicy_v1.md` | 실행 스크립트와 결과 로그 |
@@ -74,7 +84,7 @@ AGENTS.md
 5. 선택한 대표 Plan 확인
 6. 실제 코드·스크립트와 필요한 과거 TaskSource 이력 확인
 7. 최신 report와 로그 확인
-8. Browser 검토와 Codex·로컬 실행 책임을 분리
+8. Browser 직접 구현과 실행 가능한 검증, 외부 보완 검증을 분리
 9. 완료 범위, 미검증 범위와 다음 작업을 보고한 뒤 재개
 ```
 
@@ -92,13 +102,17 @@ AGENTS.md
 
 ```text
 Browser
-= 문서 수정, bounded read, Git diff와 저장된 검증 증거 감사
+= 문서·Source·Scripts·text 설정 직접 수정
++ bounded read, Git diff, 정적 계약 감사
++ 공개된 allowlisted build·UE 검증
 
 Codex 또는 사용자 선택 로컬 환경
-= Source/Scripts 수정, 표준 build, parser, regression과 full closure 실행
+= Browser에 노출되지 않은 parser, 임의 build, regression과 full closure의 선택적 보완
 
-Browser 재검수
-= 새 diff·report·process log·콘텐츠 불변성 결과 판정과 문서 동기화
+Browser 최종 판정
+= 새 diff·report·process log·콘텐츠 불변성 결과 판정
++ `StandaloneValidationPolicy.md`에 따른 검증 레벨 선택
++ 상태가 전환된 문서만 동기화
 ```
 
 현재 Browser에 비노출된 `plan.*`, Agent, Work/Lab 또는 외부 Codex YAML 생성 surface를 새 작업의 필수 선행조건으로 가정하지 않는다.
@@ -145,6 +159,33 @@ GoPyMCP 역시 별도 저장소이며 GoPyMCP 내부 문서체계에서 관리�
 
 ## 7. Changelog
 
+### v1.6 - 2026-07-28
+
+- 새 세션에서 빌드 목적, EngineRoot와 Editor Target을 혼동하지 않도록 영구 라우팅 추가.
+- Consumer Editor Build, BuildPlugin과 Generic Host 검증의 분리 판정을 `AGENTS.md`와 `StandaloneValidationPolicy.md`로 연결.
+
+### v1.5 - 2026-07-27
+
+- Standalone 검증 강도 진입 문서를 `StandaloneValidationPolicy.md`로 추가.
+- 구현 착수와 검증 정책 라우팅을 분리.
+- 모든 작업에서 전체 matrix를 반복하지 않고 변경 위험에 맞는 검증 레벨을 선택하도록 교정.
+
+### v1.4 - 2026-07-27
+
+- `Source/`와 `Scripts/` 구현의 기본 실행 주체를 Browser 직접 수정으로 전환.
+- 새 코드·스크립트 구현 라우팅을 외부 Codex·로컬 필수 경로에서 Browser 구현·선택적 외부 검증 경로로 변경.
+- Browser가 실행하지 못한 parser·build·closure만 외부 환경에서 보완하도록 책임 분리.
+
+### v1.3 - 2026-07-27
+
+- Standalone 구현 즉시 착수 경로를 `Documents/Plan/StandaloneImplementationWorkOrder.md`로 등록.
+- 첫 구현 작업 `ADUMP-ARCH-001-P1A`의 두 script 범위와 검증 문서로 직접 라우팅.
+
+### v1.2 - 2026-07-27
+
+- AssetDump 저장소 루트와 `Documents/` 문서 위치를 명시하고 Standalone Plan 라우팅을 추가.
+- 부모 Project가 AssetDump owner가 아님을 명확히 하고 저장소 상대 경로 기준을 적용.
+
 ### v1.1 - 2026-07-24
 
 - 현재 Browser 15-tool 계약에 맞춰 문서·증거 검토와 구현·검증 실행 책임을 분리.
@@ -164,7 +205,9 @@ GoPyMCP 역시 별도 저장소이며 GoPyMCP 내부 문서체계에서 관리�
 
 - 기존 `Documents/Plan/AssetIntelligencePlan/` 문서와 파일 경로는 변경하지 않는다.
 - 기존 TaskSource와 generated Codex YAML은 삭제하지 않고 완료 이력으로 보존한다.
-- 새 작업은 비노출 Plan surface를 찾지 않고 `AGENTS.md`의 Browser·Codex 작업 경계를 따른다.
+- 새 작업은 비노출 Plan surface를 찾지 않고 `AGENTS.md`의 Browser 구현·검증 경계를 따른다.
+- 활성 작업 범위가 확정된 구현 요청은 Browser가 `Source/`와 `Scripts/`를 직접 수정한다.
+- Browser에 노출되지 않은 parser·build·closure만 Codex 또는 로컬 환경에서 선택적으로 보완한다.
 - Browser가 실행하지 않은 parser·closure·commandlet 검증은 저장된 외부 실행 증거를 기준으로만 판정한다.
 - 이전에 CarFight `Document/Plan/AssetDumpPlan/README.md`에 기록했던 세션 상태는 `Documents/ActiveWork.md`로 이관한다.
 - 앞으로 AssetDump 세션 복원은 이 문서와 `Documents/ActiveWork.md`를 기준으로 수행한다.

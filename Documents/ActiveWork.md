@@ -1,7 +1,7 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.11
-- 최근 갱신일: 2026-07-27
+- 문서 버전: v1.44
+- 최근 갱신일: 2026-07-28
 - 문서 상태: Current
 - 역할: AssetDump 독립 저장소의 현재 활성 작업과 최근 완료 체크포인트를 연결하는 세션 복원 색인
 
@@ -24,57 +24,295 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 
 ## 2. 현재 활성 작업
 
-현재 명시적으로 활성화된 AssetDump 작업은 없다. 마지막 완료 작업은 v0.7.3 Component Tree다.
+현재 명시적으로 활성화된 Asset Intelligence 구현 작업은 없다. 마지막 완료 작업은 v0.8.2 Blueprint Search Index다.
+
+### 마지막 완료 작업: ADUMP-v0.8.2-BSI
+
+- 작업 ID: `ADUMP-v0.8.2-BSI`
+- 작업명: Blueprint Search Index
+- 최종 상태: `Completed / Contract Accepted`
+- section: `bp_search_index`
+- schema: `bp_search_index_v1`
+- extractor version: `2.11.0`
+- commandlet version: `0.14.3`
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchIndexPlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md`
+- 핵심 경계: 자산별 Blueprint symbol index이며 기존 전역 `index.json`/`dependency_index.json`은 변경하지 않음
+- canonical Process Runner job: `dc8443cabe1e4c3faf40468c3f65dc93`
+- canonical report SHA-256: `08fd774d22f4949eaca6c1bfbd72f8de9431d6ee64c9466250a3b5e1d3b454ed`
+- BuildPlugin report SHA-256: `17d9a4297e159fdec5c630e71005a449a3e431e18bf6ae4a760487afb196f03a`
+- validation report SHA-256: `e1c2b0ec17acb64d6df5d16f0ede9214f1f60ce58990765381e8028e90a87b82`
+- production registry: `passed=13 total=13`
+- focused evidence: Actor/Widget full, explicit inclusion/omission, unsupported, LinksOnly, bounds, sequential IDs와 determinism 전체 PASS
+- Plugin full / ChangedOnly: 10/10 succeeded / 10/10 skipped
+- P2B fallback과 Content/Validation invariance: PASS
+- git diff --check: exit 0, line-ending 경고만 존재
+- 다음 후보: v0.9.0 Asset Index — 선택 가능 / 미활성
+
+### 이전 완료 작업: ADUMP-v0.8.1-EPP
+
+- 작업 ID: `ADUMP-v0.8.1-EPP`
+- 작업명: Blueprint Execution Path Preview
+- 최종 상태: `Completed / Contract Accepted`
+- 공개 계약: 기존 `graphs[]`의 additive `execution_path_preview_v1`
+- extractor version: `2.10.0`
+- commandlet version: `0.13.0`
+- 고정 bounds: max_paths=64, max_depth=32
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_8_1_ExecutionPathPreviewPlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v0_8_1_ExecutionPathPreviewClosureReport_v1.md`
+- final Host build job: `8f5e30ebc9ab46109006c5a98f1a78b5`
+- canonical Process Runner job: `03eb262d39ad4cb49bdb70d445bec9d0`
+- canonical report SHA-256: `49680f7de4564d0d78a414a2a135888038be2f452d65c979cb3e496c516906fa`
+
+### 이전 완료 작업: ADUMP-v0.8.0-GNR
+
+- 작업 ID: `ADUMP-v0.8.0-GNR`
+- 작업명: Blueprint Graph Node Role Classification
+- 최종 상태: `Completed / Contract Accepted`
+- 공개 계약: 기존 `graphs[].nodes[]`의 additive `graph_node_role_v1`
+- extractor version: `2.9.0`
+- commandlet version: `0.12.1`
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_8_0_GraphNodeRolePlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v0_8_0_GraphNodeRoleClosureReport_v1.md`
+- canonical Process Runner job: `c5130d4c617142aca368156582287b09`
+- canonical report SHA-256: `1862df8e6acfc88aca764127f5338f2ce6ac6cbb30cd9f52fbbd837bacb8fcd7`
+
+### 이전 완료 작업: ADUMP-ARCH-001
+
+- 작업 ID: `ADUMP-ARCH-001`
+- 작업명: Standalone Plugin Independence
+- 최종 상태: `Completed / Contract Accepted`
+- 목표: AssetDump의 현재 계약, 실행 스크립트와 acceptance를 특정 Host Project에서 완전히 분리한다.
+- 대표 Plan: `Documents/Plan/StandalonePlan.md`
+- 즉시 착수 문서: `Documents/Plan/StandaloneImplementationWorkOrder.md`
+- P1A Codex runtime 작업지시서: `Documents/Plan/P1ARuntimeVerificationCodexWorkOrder.md`
+- 공통 검증 정책: `Documents/Plan/StandaloneValidationPolicy.md`
+- P1B Task-Close 작업지시서: `Documents/Plan/P1BRuntimeVerificationCodexWorkOrder.md`
+- P2A-1 과거 단독 검증 계약: `Documents/Plan/P2ABuildPluginVerificationWorkOrder.md` — Superseded
+- 현재 Phase 1 통합 실행: `Scripts/RunStandalonePhase1MatrixVerification.ps1` v1.0
+- 현재 Phase 2 통합 실행: `Scripts/RunStandalonePhase2Verification.ps1` v1.7.5
+- 첫 작업 ID: `ADUMP-ARCH-001-P1A`
+- 첫 변경 범위: `Scripts/RunDataAssetDiffClosure.ps1`, `Scripts/RunBPDumpRegression.ps1`
+- 구현 주체: Browser 직접 text 수정
+- 추가 승인: 일반적인 구현·수정·진행 요청이면 별도 Browser 직접 수정 승인 불필요
+- 외부 환경: Browser에 노출되지 않은 parser·build·closure 검증만 선택적으로 보완
+- P1A 구현 결과: 두 script v1.6.1, ProjectFile resolver/self-test, generic BuildTarget, Plugin-owned 11-case, optional Consumer Integration과 Windows PowerShell runtime 보정 적용
+- 정적 감사: CarFight asset 기본값·`Tools\BuildEditor.bat`·구형 `Get-DefaultProjectFile` 참조 0건, report additive field와 core `case_count == 11` 조건 확인
+- 부분 runtime 증거: CarFight_ReEditor Host build PASS, `/AssetDump/Validation` batchdump 10/10 PASS, index 생성 PASS
+- Host build job: `87f902fc38c6430d8e9f1e4f7a8755b5`, target `CarFight_ReEditor`, exit 0
+- Plugin runtime smoke: root `/AssetDump/Validation`, asset_count 10, succeeded 10, failed 0, report updated, index built
+- commandlet process return code 1은 기존 allowlist 대상 `HttpListener unable to bind to 127.0.0.1:8100` 단독 오류와 성공 report가 함께 확인되어 safe wrapper에서 성공으로 판정
+- Codex 검증 PASS: PowerShell 5.1/7 parser 2/2, 두 self-test, generic no-SkipBuild, Plugin 11/11, integration 성공·실패, report compatibility, Content/Validation 10/10 invariance, `git diff --check`
+- Codex 실행 작업: `ADUMP-ARCH-001-P1A-CODEX-VERIFY` — Executed
+- P1B 구현 주체: Browser 직접 text 수정
+- P1B 변경 파일: `Scripts/RunBPDumpRegression.ps1` v1.6.1 → v1.7.1
+- P1B 구현: Plugin/Project/Both routing, Plugin `/AssetDump/Validation` full·ChangedOnly, Project fixture preflight, 0-asset 분류, makefixtures exact snapshot/restore, machine-readable summary와 command evidence
+- P1B 정적 감사: Plugin profile project branch false, Project profile plugin branch false, Both 분리 실행, project summary field 유지와 Plugin additive field 확인
+- P1B Admin Plugin smoke: `/AssetDump/Validation` full 10/10, ChangedOnly 10/10 skipped, failed 0, index built
+- P1B Admin Project smoke: `/Game/CarFight/Input`, class `InputAction;InputMappingContext`, full 15/15, ChangedOnly 15/15 skipped, failed 0, index built
+- P1B Browser 정적 Task-Close 감사: Plugin/Project routing 분리, Plugin profile `/Game` branch 차단, 기존 Project summary field 유지, Plugin additive field와 `step_results.command_text` 확인
+- P1B Browser 보호 감사: `Source/` 및 `Content/Validation` worktree diff 0
+- P1B Codex parser/self-test: Windows PowerShell 5.1 syntax error 0, v1.7.1 self-test PASS
+- P1B 실제 Plugin script profile: full 10/10, ChangedOnly 10/10 skip, failed 0, restoration PASS
+- P1B Plugin summary predicate: profile routing, `/Game`·Project·Version Probe 0회, 기존 Project field와 Plugin additive field PASS
+- P1B 결함 수정: Plugin list mode의 0-asset 결과를 치명적 preflight로 오판하던 조건을 경고로 낮추고 authoritative batchdump를 계속 실행
+- P1B Content/Validation 보호: 실행 전후 10개 path·length·LastWriteTimeUtc ticks·SHA-256 exact equality PASS
+- P1B Project script profile: Consumer `DA_Cam_Default`의 `reference_count_min >=1` 계약이 actual 0으로 실패해 batch 이전 차단
+- Project validation 분류: 기존 `ValidationPolicy_v1.md`가 이미 feature 대상 외 known `validation_policy_issue`로 분리하며, P1B routing·batch·restore 결함이 아님
+- Project routing 보완 증거: Project profile에서 Plugin step 0회, Browser 독립 `/Game/CarFight/Input` full 15/15와 ChangedOnly 15/15 skip PASS
+- P1B Codex 원본 판정: `Plugin Isolation Verified / Project Profile Blocked` — 실행 이력으로 보존
+- P1B Browser scoped 판정: `Completed / P1B Task Contract Accepted`
+- P1B git diff check: PASS
+- Phase 1 matrix Process Runner job: `20e5fcd573e34687bf0ecedfd5d95446`
+- Phase 1 matrix report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260728_092352_176_84250760\Reports\phase1_matrix_report.json`
+- Phase 1 matrix report SHA-256: `a8c5958a5d13bf7d1fa1354f9c1d0a2b9da1a5efa3bf4274efcf2a25a9e9c797`
+- Phase 1 final predicate: parser/self-test=true, Plugin=true, Project=true, Both=true, PS5.1 closure=true, PS7 closure=true, cross-shell=true, failure_count=0
+- Project/Both Generic Host `/Game`: `host_smoke_zero_asset`, Consumer Integration으로 자동 승격하지 않음
+- Source·Generic Host `Content/Validation` exact invariance: PASS
+- legacy `PluginRoot/Dumped` 비생성: PASS
+- Phase 1 판정: `Completed / Contract Accepted`
+- Release gate로 이동: 전체 Host binary manifest, package·Generic Host 검증
+- Phase 2 묶음: `P2A-1 BuildPlugin` + `P2A-2 Generic Host` + `P2B Writable Output`
+- Phase 2 실행 정책: 하위 작업별 외부 검증을 기다리지 않고 구현을 완료한 뒤 통합 runner 한 번으로 검증
+- P2A-1: `Scripts/RunBuildPluginVerification.ps1` v1.2, schema `assetdump_buildplugin_verification_v1`
+- P2A-2/P2B 통합 runner: `Scripts/RunStandalonePhase2Verification.ps1` v1.7.5, schema `assetdump_standalone_phase2_verification_v1`
+- Generic Host: AssetDump 저장소 밖 임시 작업공간에 생성하고 packaged Plugin 설치·Editor build·fixture·validate·full·ChangedOnly·0-asset smoke 실행
+- P2B C++: `ADumpJson.cpp` v2.3.0, `ADumpJson.h` v0.7.0, `ADumpRunOpts.cpp` v0.11.0, `ADumpRunOpts.h` v0.10.0, `ADumpService.cpp` v0.11.1 — request metadata candidate와 실제 writable session output 분리
+- P2B scripts: `RunDataAssetDiffClosure.ps1` v1.7, `RunBPDumpRegression.ps1` v1.8 — explicit output 우선, env·legacy·Saved fallback과 additive source evidence
+- P2B simulation: packaged PluginRoot/Dumped를 파일로 차단하고 두 harness와 C++ 인자 생략 BPDump의 Saved fallback 검사
+- C++ build: CarFight_ReEditor Win64 Development, job `b6bcfb779a1c41e9bf1e85dc81646ef8`, AssetDump compile/link PASS, exit 0
+- Phase 2 Browser 정적 감사: Consumer 고정 경로 0, Consumer/Release 자동 승격 0, package·Host·P2B verdict 분리 확인
+- Phase 2 runtime attempt 1: 2026-07-27 14:57 +09:00, PowerShell self-test 3종 PASS, RunUAT BuildPlugin exit 0, AssetDump DLL 생성 PASS
+- attempt 1 blocker: package Plugin root의 표준 `Intermediate/`를 위치 무관 금지 항목으로 오판해 package inspection 실패
+- downstream 상태: Generic Host와 P2B는 BuildPlugin gate 선행 실패로 미실행
+- source mutation 관측: RunUAT가 `Config/FilterPlugin.ini`를 생성
+- package contract fix: `RunBuildPluginVerification.ps1` v1.1에서 표준 PluginRoot/Intermediate만 허용·기록하고 비표준 Intermediate는 계속 차단
+- source contract fix: `Config/FilterPlugin.ini`를 명시적 packaging config로 편입하고 descriptor와 함께 BuildPlugin 전후 exact invariance 검사
+- Phase 2 runtime attempt 2: 2026-07-27 15:13 +09:00, 수정된 self-test 3종·BuildPlugin·package 계약·Generic Host Editor build PASS
+- Generic Host MakeFixtures 실제 처리: 10/10 PASS, fixture created/updated/saved 0
+- attempt 2 blocker: `Success - 0 error(s), 0 warning(s)` 정상 종료 요약을 `unexpected_error`로 오판
+- log classifier fix: `RunStandalonePhase2Verification.ps1` v1.3에서 zero-error success summary 허용, 1개 이상 error summary 차단
+- HttpListener failure summary는 실제 8100 port conflict와 함께일 때만 allowlist
+- 다음 실행 주체: Codex 또는 사용자 로컬 PowerShell 환경
+- 다음 실행 명령: `Scripts/RunStandalonePhase2Verification.ps1 -EngineRoot <EngineRoot> -CompactLog`
+- Phase 2 runtime attempt 3: 2026-07-27 15:25 +09:00, P2A BuildPlugin·package·Generic Host build·fixture·validate·full·ChangedOnly·/Game smoke·Validation invariance 전체 PASS
+- P2A 판정: `p2a_buildplugin_contract_passed=true`, `p2a_generic_host_runtime_passed=true`
+- attempt 3 blocker: explicit Plugin validation 중 legacy `PluginRoot/Dumped` 빈 디렉터리가 선제 생성되어 P2B blocker 설치 전 중단
+- production root cause: `BuildDefaultDumpRootDirectory()`가 경로 계산과 write probe를 결합해 실제 기본 출력 없이도 디렉터리를 mutation
+- production fix: candidate-only `BuildDefaultDumpRootDirectory()`와 actual-write `ResolveWritableDefaultDumpRootDirectory()` 분리
+- caller fix: commandlet/SSOT/editor log의 인자 생략 실제 저장 경로만 writable resolver 사용
+- runner fix: v1.4에서 Host build·fixture·validate·full·ChangedOnly·Game smoke 직후 legacy Dumped 비생성 assertion 추가
+- C++ build: job `717e97c244d5453a8d80c6205cbfc8b5`, AssetDump compile/link PASS, exit 0
+- Phase 2 runtime attempt 4: 2026-07-27 15:58 +09:00, 첫 mutex 충돌 실행은 무효 처리하고 새 workspace 재실행 결과 사용
+- attempt 4 PASS: self-test 3종, BuildPlugin/package, Generic Host build, MakeFixtures, Plugin validation command/report/error classification
+- attempt 4 blocker: Plugin validation의 section/intent smoke가 임시 `FADumpRunOpts.BuildRequestInfo()`를 호출하며 빈 output을 writable default로 해석해 legacy Dumped 생성
+- exact root cause: request metadata 생성 함수가 실제 출력 경로 준비를 수행하는 side effect 보유
+- production fix: candidate-only `ResolveOutputFilePathCandidate()`를 `ADumpJson`과 `FADumpRunOpts`에 추가하고 `BuildRequestInfo()`가 이를 사용
+- actual session fix: `FADumpService::BeginDumpSession()`에서 writable output을 한 번 확정해 `ActiveRunOpts.OutputFilePath`로 고정한 뒤 request/save/skip에서 재사용
+- static audit: `RequestInfo.OutputFilePath = ResolveOutputFilePath()` 참조 0건, candidate 사용 1건, actual session resolver 1건
+- C++ rebuild: job `0a941ef3777d49bba26200b007671fd3`, `Module.AssetDump.2.cpp` compile, AssetDump lib/dll link PASS, exit 0
+- Process Runner 직접 closure: job `6380b64b1ef344509844e1cc10f23be5`, exit 0, duration 446.122s
+- 최종 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260727_235229_182_44177640\Reports\phase2_report.json`
+- report SHA-256: `b157a7e5d3817a3b4809a105d8906312c893a392d67c6ea2f36860862ee27591`
+- final predicate: BuildPlugin=true, GenericHost=true, P2B=true, phase2_implementation_gate_passed=true, failure_count=0
+- Generic Host: fixture idempotent, validation PASS, full 10/10, ChangedOnly 10/10 skipped, `/Game` host_smoke_zero_asset
+- P2B regression output source: `project_saved_fallback`
+- P2B DataAsset closure output source: `project_saved_fallback`
+- P2B C++ default output: `GenericHost/Saved/AssetDump/BPDump/DA_ADumpValues/DA_ADumpValues.dump.json`
+- package·Host Content/Validation invariance: PASS
+- Consumer Integration: Not Run / 자동 승격 없음
+- Release Contract Accepted: false / Phase 2 acceptance와 분리
+- Phase 2 판정: `Completed / Phase 2 Accepted`
+- final source formatting normalization: Process Runner job `84d69ffd906a4f72bf180e5188645b94`, exit 0
+- final git diff check: Process Runner job `60ac16fd4c3e4fd685ae862e805f3861`, exit 0, line-ending warnings only
+- temporary diagnostic/normalization scripts: removed after use
+- Phase 0·3 문서 정규화: Completed / owner_repository와 저장소 루트 상대 경로 정렬
+- Historical Consumer Host Evidence 분리: Completed / CarFight build·asset·batch 기록의 current default 의미 제거
+- ADUMP-ARCH-001 최종 판정: `Completed / Contract Accepted`
+- 다음 기능 후보: `v0.8.0 Blueprint Graph Node Role Classification` 계획 착수 가능
+- 별도 cleanup 후보: Project validation primary_data_asset sample의 `reference_count_min` 정책 정합성 검토. CarFight 자산 수정으로 해소하지 않음
+- P1A Codex 결과 증거 루트: `Dumped/StandaloneP1ACodexVerification/`
+
+- Codex strict 결과: `Failed / P1A Runtime Contract Not Accepted`
+- Browser 감사: `Documents/Plan/P1ARuntimeVerificationAudit.md`
+- scoped 판정: parser·self-test·generic build·Plugin 11/11·integration·report compatibility·Validation invariance PASS로 P1A Plugin Runtime Contract Accepted
+- regression 실패 분류: P1A known limitation인 Plugin profile `/Game` batch 결합과 Consumer `BP_Basic_Movement` XRBase 오류, P1B entry evidence
+- Host binary 차이: 3건 실제 관측, AssetDump save 증거 없음, main_game 병행 변경 상태로 원인 귀속 불가
+- P1A 후속 구현: `ADUMP-ARCH-001-P1B` — Completed / Task Contract Accepted
+
+P1A 착수 시 확인된 직접 결합 지점과 현재 처리 상태:
+
+```text
+Scripts/RunDataAssetDiffClosure.ps1
+  [Resolved in P1A] CarFight ProjectDataAsset 기본값 제거
+  [Resolved in P1A] generic BuildTarget 및 표준 Engine Build.bat 사용
+
+Scripts/RunBPDumpRegression.ps1
+  [Resolved in P1A] deterministic ProjectFile resolver 적용
+
+현재 ValidationPolicy와 Roadmap
+  [Resolved in Phase 0] CarFight_ReEditor와 CarFight 에셋은 Historical Consumer Host Evidence로 분리
+
+현재 문서 경로
+  [Resolved in Phase 0] current 링크는 `assetdump_repo` 루트 상대 경로로 정규화
+```
+
+현재 판정:
+
+```text
+AssetDump Source의 공개 dump 구현에는 CarFight C++ 모듈 직접 의존성이 확인되지 않음
+CarFight 결합은 주로 문서·검증 기본값·Host Project 탐색과 acceptance 표현에 존재
+EnhancedInput, UMG, AnimGraph는 CarFight 의존성이 아니라 UE 기능 모듈 의존성이나 선택 기능 모듈화 검토 대상
+```
+
+DataAsset Diff closure non-regression 요구:
+
+```text
+ProjectDataAsset의 CarFight 기본 경로만 빈 값으로 바꾸는 수정은 금지
+Plugin 소유 fixture만으로 기존 필수 11-case와 all_passed 계약을 유지
+Consumer Project DataAsset 검증은 별도 optional integration case로 추가
+ProjectDataAsset 미지정 기본 실행도 중단·축소 없이 성공해야 함
+```
+
+추가 독립화 회귀 감사 결과:
+
+```text
+[Resolved in P1B implementation] Plugin profile의 `/Game` list·batch·ChangedOnly 제거
+[Resolved in P1B implementation] Plugin `/AssetDump/Validation` full·ChangedOnly 별도 실행
+[Resolved in P1B implementation] makefixtures 전후 validation-content exact snapshot/restore 추가
+두 harness와 C++ 기본 출력이 PluginRoot/Dumped에 의존해 read-only 설치에서 실패 가능
+[Resolved in P1A] DataAsset closure generic BuildTarget override와 Engine Build.bat 적용
+[Controlled in P1B implementation] Project profile의 Plugin DataTable fixture preflight 추가
+BuildPlugin PASS는 commandlet runtime PASS를 대체할 수 없음
+EnhancedInput/UMG/AnimGraph 의존성은 C++ direct include가 있어 단순 제거 불가
+```
+
+수정 후 필수 보호:
+
+```text
+기존 <Project>/Plugins/ue-assetdump 배치의 ProjectFile 생략 자동 탐색 유지
+explicit > ASSETDUMP_PROJECT_FILE > exact conventional host 순서 고정
+복수 .uproject는 ambiguity 실패
+Plugin profile은 /Game Consumer batch와 분리
+source checkout과 read-only package 양쪽 출력 경로 검증
+BuildPlugin과 Generic Host runtime을 별도 gate로 실행
+```
+
+보호되는 완료 계약:
 
 ```text
 ADUMP-v0.7.1-RC = Completed / Contract Accepted
 ADUMP-v0.7.3-CT = Completed / Contract Accepted
+ADUMP-v0.8.0-GNR = Completed / Contract Accepted
+ADUMP-v0.8.1-EPP = Completed / Contract Accepted
+ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 ```
 
-대표 구현 Plan:
-
-```text
-Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreePlan_v1.md
-```
-
-사용자는 2026-07-24에 v0.7.3 착수를 요청했고, 2026-07-25에는 이 세션의 Browser 직접 코드 수정을 명시적으로 승인했다. `component_tree_v1` 독립 builder, JSON/fingerprint/section 통합과 전용 `BP_ADumpComponentTree` fixture가 구현됐다. Browser 검토에서 발견한 NAME_None root false-orphan, 혼합 SCS/CDO 정렬의 비추이성, component-tree-only ChangedOnly 판정 누락과 Widget fixture 반복 재생성을 직접 수정했다.
+독립화 과정에서 위 공개 schema와 canonical closure 증거를 변경하거나 무효화하지 않는다.
 
 ---
 
 ## 3. 마지막 완료 작업 초점
 
-- 작업 ID: `ADUMP-v0.7.3-CT`
-- 작업명: Actor/Blueprint Component Tree
+- 작업 ID: `ADUMP-v0.8.2-BSI`
+- 작업명: Blueprint Search Index
 - 최종 상태: Completed / Contract Accepted
-- 공개 section: `component_tree`
-- schema: `component_tree_v1`
-- extractor version: `2.8.1`
-- commandlet version: `0.11.3`
-- 최종 로컬 빌드: PASS
-- closure 상태: 모든 release-grade predicate PASS
+- section: `bp_search_index`
+- schema: `bp_search_index_v1`
+- extractor version: `2.11.0`
+- commandlet version: `0.14.3`
+- symbol bounds: max_symbols=512, max_search_terms=8
+- BuildPlugin·Generic Host runtime·P2B: PASS
+- closure 상태: 모든 필수 predicate PASS
+- binary fixture 변경: 없음
 - PIE 상태: N/A
-- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreePlan_v1.md`
-- 최종 보고서: `Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreeClosureReport_v1.md`
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchIndexPlan_v1.md`
+- 최종 보고서: `Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md`
 
 ### 최종 acceptance 증거
 
 ```text
-final build log: Dumped/ComponentTreeClosureFinalRetry1/Logs/editor_build.log
-machine-readable report: Dumped/ComponentTreeClosureFinal/component_tree_closure_report.json
-evidence root: Dumped/ComponentTreeClosureFinalRetry1
-makefixtures: 10/10 twice, created 0, updated 0, saved 0, failed 0
+canonical process job: dc8443cabe1e4c3faf40468c3f65dc93
+phase2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_052145_921_9ce86530\Reports\phase2_report.json
+phase2 report SHA-256: 08fd774d22f4949eaca6c1bfbd72f8de9431d6ee64c9466250a3b5e1d3b454ed
+BuildPlugin report SHA-256: 17d9a4297e159fdec5c630e71005a449a3e431e18bf6ae4a760487afb196f03a
+validation report SHA-256: e1c2b0ec17acb64d6df5d16f0ede9214f1f60ce58990765381e8028e90a87b82
+BuildPlugin / Generic Host / P2B: PASS
 Plugin validate: 9/9, required_failed_count 0
-regression self-tests and full harness: PASS
-project full / ChangedOnly: 3/3 succeeded / 3/3 skipped
-explicit unsupported process log: ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET observed
-fixture canonical component_tree equality: PASS
-validation exact invariance: 10/10 unchanged
-git diff --check: PASS, line-ending warnings only
-all_passed: true
+Actor/Widget search-index contracts: PASS
+production-shared registry: passed=13 total=13
+focused inclusion/omission and unsupported semantics: PASS
+symbol bounds / sequential IDs / search-term bounds: PASS
+repeated search-index determinism: PASS
+representative Actor symbol_count: 7
+Plugin full / ChangedOnly: 10/10 succeeded / 10/10 skipped
+Content/Validation exact invariance: PASS
+git diff --check: PASS
+failure_count: 0
 contract_accepted: true
 ```
 
-이전 `ADUMP-v0.7.1-RC` acceptance와 v0.7.2 release-ready 기록은 `ImplementationResultLog_v1.md`에 보존되며 후속 작업의 보호 계약으로 유지한다.
+이전 `ADUMP-v0.7.1-RC`, v0.7.2 release-ready, `ADUMP-v0.7.3-CT`, `ADUMP-v0.8.0-GNR`와 `ADUMP-v0.8.1-EPP` acceptance 기록은 `ImplementationResultLog_v1.md`와 각 closure report에 보존되며 후속 작업의 보호 계약으로 유지한다.
 
 ---
 
@@ -84,44 +322,27 @@ contract_accepted: true
 
 ```text
 status: Completed / Contract Accepted
-extractor_version: 2.8.1
-commandlet_version: 0.11.3
-historical Admin build job before v0.11.3: fe00627aac764bfdbfa1254cc1c9b4a2
-final local build log: Dumped/ComponentTreeClosureFinalRetry1/Logs/editor_build.log
-final local build result: Succeeded
-makefixtures repeat: 10/10 twice, created 0, updated 0, saved 0, failed 0
+section: bp_search_index
+schema: bp_search_index_v1
+extractor_version: 2.11.0
+commandlet_version: 0.14.3
+canonical process job: dc8443cabe1e4c3faf40468c3f65dc93
+canonical report SHA-256: 08fd774d22f4949eaca6c1bfbd72f8de9431d6ee64c9466250a3b5e1d3b454ed
+BuildPlugin / Generic Host / P2B: PASS
 Plugin validate: 9/9, required_failed_count 0
-regression self-test and full harness: PASS
-project full / ChangedOnly: 3/3 succeeded / 3/3 skipped
-explicit unsupported process log: ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET observed
-fixture canonical component_tree equality: PASS
-validation exact invariance: 10/10 unchanged
-git diff --check: PASS, line-ending warnings only
-closure report: Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreeClosureReport_v1.md
-machine-readable report: Dumped/ComponentTreeClosureFinal/component_tree_closure_report.json
-final evidence root: Dumped/ComponentTreeClosureFinalRetry1
+Actor/Widget contracts: PASS
+production search registry: 13/13 PASS
+focused full/explicit/omission/unsupported/LinksOnly: PASS
+bounds and sequential IDs: PASS
+search-index determinism: PASS
+Plugin full / ChangedOnly: 10/10 succeeded / 10/10 skipped
+validation exact invariance: PASS
+git diff --check: PASS
+binary fixture changes: none
+closure report: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md
 ```
 
-2026-07-27 로컬 closure에서 World fixture 반복 저장 결함을 `AssetDumpCommandlet.cpp` v0.11.3으로 최소 수정하고, validation map을 baseline과 정확히 복원한 뒤 전체 closure를 처음부터 다시 실행했다.
-
-최종 승인 증거:
-
-```text
-evidence root: Dumped/ComponentTreeClosureFinalRetry1
-machine-readable report: Dumped/ComponentTreeClosureFinal/component_tree_closure_report.json
-makefixtures run 1: 10/10, created 0, updated 0, saved 0, failed 0
-makefixtures run 2: 10/10, created 0, updated 0, saved 0, failed 0
-Plugin validate: 9/9, required_failed_count 0
-regression harness: exit 0
-project full: 3/3 succeeded
-ChangedOnly: 3/3 skipped
-explicit unsupported: process exit 2, ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET observed
-fixture determinism: PASS
-validation exact invariance: PASS, 10/10 unchanged
-git diff --check: PASS, line-ending warnings only
-```
-
-v0.7.2 Enhanced Input Summary의 human release review는 별도 상태로 유지한다.
+v0.7.2 Enhanced Input Summary human release review와 이전 v0.7.3·v0.8.0·v0.8.1 closure는 별도 완료 이력으로 유지한다.
 
 ---
 
@@ -160,6 +381,228 @@ validation-content exact restoration 계약
 ---
 
 ## 7. Changelog
+
+### v1.44 - 2026-07-28
+
+- Completed `ADUMP-v0.8.2-BSI` and promoted `bp_search_index_v1` to Contract Accepted.
+- Recorded canonical BuildPlugin, Generic Host, focused JSON, P2B and Git integrity evidence with failure_count 0.
+- Cleared the active feature slot and moved v0.9.0 Asset Index to the next selectable candidate without activating it.
+- Added `v0_8_2_BPSearchClose_v1.md` as the canonical feature closure report.
+
+### v1.41 - 2026-07-28
+
+- Marked `ADUMP-v0.8.2-BSI` implementation complete while keeping contract acceptance open.
+- Added Phase 2 v1.7 focused Generic Host JSON evidence for full/explicit/unsupported/LinksOnly/section-omission/determinism checks.
+- Recorded fresh BuildPlugin PASS and the exact Generic Host blocker: active Unreal Live Coding.
+- Kept Plugin runtime, focused evidence, P2B and git diff check as Not Run rather than failed feature predicates.
+
+### v1.40 - 2026-07-28
+
+- Activated `ADUMP-v0.8.2-BSI` Blueprint Search Index.
+- Registered per-asset `bp_search_index_v1` separately from existing dump-root index files.
+- Defined deterministic symbol sources, normalization, ordering, bounds and graph-builder dependency.
+- Protected v0.8.0 roles, v0.8.1 execution previews and existing global index contracts.
+
+### v1.39 - 2026-07-28
+
+- Completed `ADUMP-v0.8.1-EPP` Blueprint Execution Path Preview and promoted it to Contract Accepted.
+- Recorded extractor 2.10.0, final Host build, fresh BuildPlugin/Generic Host closure and zero required failures.
+- Recorded production-shared 13-case traversal coverage, actual 5/5 graph previews, focused unsupported modes and deterministic output evidence.
+- Cleared the active implementation slot and moved v0.8.2 Blueprint Symbol/Search Index to Next Candidate / Not Active.
+
+### v1.38 - 2026-07-28
+
+- Activated `ADUMP-v0.8.1-EPP` Blueprint Execution Path Preview.
+- Registered additive `execution_path_preview_v1`, fixed 64-path/32-depth bounds and production-shared traversal validation.
+- Protected v0.8.0 role metadata, existing graph arrays and Consumer-independent Plugin acceptance.
+
+### v1.37 - 2026-07-28
+
+- Implemented and closed `ADUMP-v0.8.0-GNR` Graph Node Role Classification.
+- Recorded additive `graph_node_role_v1`, extractor 2.9.0, production-shared 15-case registry and actual 11/11 role coverage.
+- Recorded canonical BuildPlugin/Generic Host closure exit 0 and classified the source Host DLL lock as diagnostic only.
+- Promoted v0.8.0 to Completed / Contract Accepted and moved v0.8.1 to Next Candidate / Not Active.
+
+### v1.36 - 2026-07-28
+
+- Current Asset Intelligence 문서의 owner, 경로, build target와 Consumer evidence 표현을 저장소 중립적으로 정규화.
+- `UE/Plugins/ue-assetdump/...`, standard CarFight build와 mandatory `/Game/CarFight/...` 의미를 current 계약에서 제거.
+- Phase 0과 Phase 3을 완료하고 Phase 4 선택 모듈화는 Deferred / Non-blocking으로 유지.
+- `ADUMP-ARCH-001 Standalone Plugin Independence`를 Completed / Contract Accepted로 종료하고 v0.8.0 계획 착수 가능 상태로 전환.
+
+### v1.35 - 2026-07-28
+
+- `RunStandalonePhase1MatrixVerification.ps1` v1.0을 추가하고 MCP Process Runner로 Phase 1 Level 3 matrix를 직접 실행.
+- PowerShell 5.1/7 parser·self-test, Plugin/Project/Both profile, Generic Host 0-asset 의미와 양쪽 DataAsset closure를 전체 PASS로 확인.
+- Source·Generic Host Validation invariance, legacy Dumped 비생성과 git diff check PASS를 확인해 Phase 1을 Completed / Contract Accepted로 전환.
+- 다음 작업을 Phase 0 current-document owner/path 정규화로 전환.
+
+### v1.34 - 2026-07-28
+
+- Phase 2 acceptance 후 C++ 변경 구간의 누적 들여쓰기를 의미 변경 없이 정규화.
+- Process Runner에서 `git diff --check` exit 0을 확인하고 LF→CRLF 경고만 남음을 기록.
+- 일회성 진단·정규화 스크립트를 모두 제거해 제품 Scripts 범위에 잔여물을 남기지 않음.
+
+### v1.33 - 2026-07-28
+
+- MCP Process Runner로 Phase 2 통합 검증을 직접 실행하고 terminal exit 0을 확보.
+- BuildPlugin package에 P2B regression/closure harness를 명시적으로 포함하고 package contract v1.2로 검증.
+- 중첩 harness의 의도된 음성 테스트 로그는 child exit/report를 authoritative하게 판정하도록 runner v1.6에서 이중 오판 제거.
+- 최종 report에서 P2A BuildPlugin, Generic Host와 P2B writable output 전체 PASS, failure_count 0을 확인해 Phase 2 Accepted로 전환.
+
+### v1.32 - 2026-07-27
+
+- Phase 2 4차 실행에서도 Plugin validation 직후 legacy Dumped가 생성된 결과를 기록.
+- validation section/intent smoke의 `BuildRequestInfo()`가 writable default output을 준비한 exact call path를 확인.
+- request metadata candidate resolver와 실제 session writable resolver를 분리.
+- AssetDump 실제 compile/link PASS 후 P2B 통합 재실행 대기로 유지.
+
+### v1.31 - 2026-07-27
+
+- Phase 2 3차 실행에서 P2A BuildPlugin과 Generic Host 전체 계약 PASS를 기록.
+- Plugin validation이 explicit output과 무관한 빈 PluginRoot/Dumped를 생성해 P2B가 미실행된 문제를 production eager mutation으로 확정.
+- 기본 경로 candidate 계산과 writable preparation API를 분리하고 실제 인자 생략 저장 호출부만 writable resolver로 전환.
+- Phase 2 runner v1.4의 단계별 legacy-root 비생성 guard와 AssetDump compile/link PASS를 기록.
+
+### v1.30 - 2026-07-27
+
+- Phase 2 2차 실행에서 BuildPlugin·package·Generic Host build와 MakeFixtures 10/10이 통과한 결과 기록.
+- 정상 `Success - 0 error(s)` 요약을 unexpected error로 오판한 classifier 결함을 확인.
+- Phase 2 runner v1.3에서 zero-error success 허용, nonzero error와 unrelated failure summary 차단을 추가.
+- Plugin validation 이후 단계와 P2B는 재실행 전까지 Not Run 유지.
+
+### v1.29 - 2026-07-27
+
+- Phase 2 통합 실행 1차 결과에서 self-test와 BuildPlugin compile은 통과했으나 표준 package `Intermediate/` 오판으로 package inspection이 실패한 사실을 기록.
+- `RunBuildPluginVerification.ps1` v1.1에서 표준 PluginRoot/Intermediate 허용과 비표준 Intermediate 차단을 분리.
+- RunUAT 생성 `Config/FilterPlugin.ini`를 source packaging contract로 편입하고 descriptor와 함께 exact invariance 검사 추가.
+- Generic Host와 P2B는 재실행 전까지 Not Run 상태로 유지.
+
+### v1.28 - 2026-07-27
+
+- 속도 우선 Phase 묶음 정책을 적용해 P2A-1 외부 gate를 기다리지 않고 P2A-2와 P2B 구현까지 완료.
+- `RunStandalonePhase2Verification.ps1` v1.1로 BuildPlugin, Generic Host와 read-only output fallback을 단일 실행으로 통합.
+- C++과 두 PowerShell harness에 writable output fallback 및 source evidence 추가.
+- AssetDump C++ 재컴파일·링크 PASS를 기록하고 Phase 2 통합 runtime만 pending으로 유지.
+
+### v1.27 - 2026-07-27
+
+- P2A-1 보조 Host Editor compile을 allowlisted build로 실행해 exit 0 확인.
+- 해당 결과는 BuildPlugin package 증거가 아닌 supplementary compile smoke로 분리.
+- 실제 parser·self-test·RunUAT BuildPlugin·package contents runtime pending 상태 유지.
+
+### v1.26 - 2026-07-27
+
+- P2A를 P2A-1 BuildPlugin Contract와 P2A-2 Generic Host Runtime으로 분리.
+- Generic Host를 저장소 밖 임시 작업공간에서 생성하도록 결정.
+- `RunBuildPluginVerification.ps1` v1.0을 신규 구현하고 `assetdump_buildplugin_verification_v1` report 계약 추가.
+- package fixture·DLL 포함, build/evidence 배제, 저장소 외부 출력과 source Validation invariance 정적 감사 PASS.
+- P2A-1 parser·self-test·실제 RunUAT runtime을 `P2ABuildPluginVerificationWorkOrder.md`로 인계.
+
+### v1.25 - 2026-07-27
+
+- Codex P1B 결과와 v1.7.1 수정, Plugin summary·restoration·Project validation report를 감사.
+- `DA_Cam_Default reference_count_min` 실패를 기존 ValidationPolicy 근거에 따라 unrelated validation-policy issue로 재분류.
+- Project profile의 Plugin step 0회와 독립 Project full/ChangedOnly smoke를 routing 증거로 결합.
+- P1B Task Contract를 Accepted로 닫고 P2A를 Ready로 승격.
+- Consumer 자산 수정과 Project profile 재실행을 P2A 선행조건에서 제거.
+
+### v1.24 - 2026-07-27
+
+- P1B Codex Level 2 Task Close에서 Windows PowerShell 5.1 parser, self-test, Plugin profile, restoration, summary predicate와 git diff check PASS를 기록.
+- Plugin list 0-asset 오판을 regression harness v1.7.1에서 최소 수정하고 Plugin full 10/10·ChangedOnly 10/10 skip을 재확인.
+- Project profile은 Consumer `DA_Cam_Default`의 reference_count_min 실패로 batch 전에 차단되어 `Plugin Isolation Verified / Project Profile Blocked`로 판정.
+- P2A는 시작하지 않고 Consumer 입력 복구 후 Project profile 재실행을 다음 작업으로 유지.
+
+### v1.23 - 2026-07-27
+
+- P1B 간소화 Task Close 중 Browser 실행 가능 범위를 수행.
+- Project smoke `/Game/CarFight/Input` full 15/15, ChangedOnly 15/15 skip PASS 기록.
+- Plugin/Project routing과 summary additive contract를 정적으로 재감사.
+- `Source/`와 `Content/Validation` worktree diff 0 확인.
+- 임의 PowerShell 실행 surface 부재로 parser·self-test·실제 script profile·restoration summary·git diff check는 Codex pending 유지.
+
+### v1.22 - 2026-07-27
+
+- 검증 강도를 위험 기반 Level 1~4 정책으로 간소화.
+- P1B 필수 검증을 Windows PowerShell 5.1 parser, self-test, Plugin/Project profile, Content/Validation equality, summary 호환과 git diff check로 축소.
+- Both, 0-asset, PowerShell 7과 전체 profile matrix를 Phase 1 Close로 이동.
+- 전체 Host manifest와 package·Generic Host 검증을 Release gate로 이동.
+- `StandaloneValidationPolicy.md`와 간소화된 P1B Task-Close 작업지시서를 현재 실행 기준으로 연결.
+
+### v1.21 - 2026-07-27
+
+- `ADUMP-ARCH-001-P1B` Browser 구현 완료.
+- Regression harness를 v1.7로 갱신하고 Plugin/Project/Both batch routing을 분리.
+- Plugin full·ChangedOnly, Project fixture preflight, 0-asset Host Smoke 분류와 Content/Validation exact restoration 추가.
+- Admin Plugin batch smoke full 10/10, ChangedOnly 10/10 skip PASS 기록.
+- P1B Codex runtime 작업지시서를 등록하고 parser·profile·restoration·controlled Host invariance를 pending으로 분리.
+
+### v1.20 - 2026-07-27
+
+- Codex P1A runtime 결과와 v1.6.1 script diff를 Browser에서 감사.
+- P1A Plugin runtime contract를 Accepted로 판정하고 full Host invariance는 pending으로 분리.
+- regression 실패를 P1B의 알려진 Plugin profile `/Game` 결합 증거로 재분류.
+- Host binary 3건은 동시 main_game 변경 가능성으로 원인 귀속 불가 상태 유지.
+- `P1ARuntimeVerificationAudit.md`를 공식 감사 문서로 연결하고 P1B를 Ready로 승격.
+
+### v1.19 - 2026-07-27
+
+- Browser 미노출 P1A runtime gate를 Codex에 인계하는 전용 작업지시서 등록.
+- parser, self-test, generic script build, Plugin 11-case, Consumer Integration과 콘텐츠 불변성 검증 범위를 고정.
+- Codex 결과 증거 루트를 `Dumped/StandaloneP1ACodexVerification/`로 지정.
+- P1B 자동 착수 금지와 실패 시 두 script v1.6.1 최소 수정 규칙을 연결.
+
+### v1.18 - 2026-07-27
+
+- P1A 이후 가능한 부분 runtime 검증을 수행.
+- CarFight_ReEditor Host build exit 0과 `/AssetDump/Validation` batchdump 10/10 성공을 기록.
+- HttpListener 8100 충돌은 성공 report와 함께 확인된 기존 allowlist 외부 오류로 분리.
+- PowerShell parser·self-test·script no-SkipBuild·DataAsset closure·integration·콘텐츠 불변성은 pending 유지.
+- P1A 착수 시 직접 결합 목록을 해결됨/문서 cleanup pending 상태로 정정.
+
+### v1.17 - 2026-07-27
+
+- `ADUMP-ARCH-001-P1A` Browser 구현 완료.
+- `RunDataAssetDiffClosure.ps1`과 `RunBPDumpRegression.ps1`을 v1.6으로 갱신.
+- ProjectFile 결정성, resolver self-test, generic BuildTarget와 Plugin-owned 필수 11-case/optional integration 분리를 반영.
+- 정적 diff·stale reference 감사 PASS를 기록.
+- parser, self-test, build, closure와 콘텐츠 불변성은 `Runtime Verification Pending`으로 분리.
+
+### v1.16 - 2026-07-27
+
+- Source/Scripts 구현 주체를 외부 Codex·로컬 환경에서 Browser 직접 text 수정으로 전환.
+- 일반 구현·수정·진행 요청에 대해 별도 Browser 직접 수정 승인 절차를 요구하지 않도록 변경.
+- `ADUMP-ARCH-001-P1A` 상태를 `Browser Implementation Authorized / P1A Ready`로 갱신.
+- 외부 환경은 Browser에 없는 parser·build·closure 검증 보완 용도로만 유지.
+
+### v1.15 - 2026-07-27
+
+- `StandaloneImplementationWorkOrder.md`를 즉시 착수 문서로 등록.
+- 첫 구현 작업을 `ADUMP-ARCH-001-P1A`로 고정하고 변경 범위를 두 PowerShell script로 제한.
+- 현재 상태를 `Ready for External Implementation / P1A Work Order Prepared`로 승격.
+- P1B profile 분리, P2A Generic Host와 P2B writable output을 P1A 이후 독립 gate로 분리.
+
+### v1.14 - 2026-07-27
+
+- 독립화 예정 변경 전체를 동작 회귀 관점에서 추가 감사.
+- Plugin profile의 `/Game` batch 결합, makefixtures mutation 보호 부족, PluginRoot/Dumped 쓰기 가정과 BuildTarget override 누락 위험을 기록.
+- BuildPlugin compile/package와 Generic Host commandlet runtime을 별도 gate로 분리.
+- ProjectFile legacy layout 보존, ambiguity 실패와 read-only package 출력 fallback 요구를 확정.
+- EnhancedInput/UMG/AnimGraph 의존성 단순 제거를 금지하고 실제 adapter 분리 전 현 상태 유지로 결정.
+
+### v1.13 - 2026-07-27
+
+- CarFight `ProjectDataAsset` 기본값 제거 시 필수 11-case closure가 축소되거나 중단되지 않는 non-regression 요구를 등록.
+- Plugin 소유 fixture 기반 기본 closure와 optional Consumer Integration 결과 분리를 명시.
+
+### v1.12 - 2026-07-27
+
+- `ADUMP-ARCH-001 Standalone Plugin Independence`를 현재 활성 작업으로 등록.
+- CarFight 결합을 문서·검증 기본값·상위 프로젝트 탐색·acceptance 표현으로 분류.
+- AssetDump Source에 CarFight C++ 모듈 직접 의존성이 없음을 현재 감사 결과로 기록.
+- v0.7.1과 v0.7.3 공개 계약과 canonical evidence를 독립화 작업의 보호 범위로 지정.
+- 대표 Plan을 `Documents/Plan/StandalonePlan.md`로 연결.
 
 ### v1.11 - 2026-07-27
 
@@ -252,6 +695,35 @@ validation-content exact restoration 계약
 ---
 
 ## 8. Migration
+
+### v1.22 적용 안내
+
+- 각 작업은 전체 회귀 matrix가 아니라 변경 위험에 해당하는 Level 2 Task Close를 통과하면 다음 구현으로 이동할 수 있다.
+- 변경되지 않은 build·closure·profile 증거는 `StandaloneValidationPolicy.md` 조건을 만족하면 재사용한다.
+- 전체 matrix는 Phase Close, package·Generic Host·전체 Host mutation 감사는 Release gate에서 수행한다.
+- 과거 P1A strict 결과는 당시 증거로 보존하되 새 작업의 기본 검증 강도로 사용하지 않는다.
+
+### v1.16 적용 안내
+
+- 이후 AssetDump 구현 요청은 Browser가 활성 작업의 허용 파일을 직접 수정한다.
+- 별도의 `Browser 직접 수정을 승인합니다` 문구를 요구하지 않는다.
+- 분석·검토만 요청된 경우에는 수정하지 않는다.
+- 실행하지 못한 parser·build·closure는 `Not Run by Browser`로 남기고 외부 환경에서 선택적으로 보완한다.
+- commit, push, reset, checkout과 stash는 기존처럼 별도 요청이 필요하다.
+
+### v1.14 적용 안내
+
+- 독립화 구현은 `Documents/Plan/StandalonePlan.md`의 수정 후 회귀 matrix를 모두 충족해야 한다.
+- Plugin profile, Generic Host Smoke와 Consumer Integration 결과를 서로 대체하지 않는다.
+- BuildPlugin PASS만으로 commandlet runtime을 완료 처리하지 않는다.
+- Source/Scripts 수정 전후에는 legacy project layout, read-only package와 Content/Validation 불변성을 각각 검증한다.
+
+### v1.12 적용 안내
+
+- 새 세션은 `ADUMP-ARCH-001`과 `Documents/Plan/StandalonePlan.md`를 우선 복원한다.
+- CarFight를 AssetDump의 owner, 표준 빌드 대상 또는 필수 validation project로 해석하지 않는다.
+- 기존 CarFight 기반 acceptance 기록은 역사적 Host Project 통합 증거로만 유지한다.
+- 스크립트·Build.cs·uplugin 변경은 대표 Plan의 구현 단계와 새 검증 증거가 완료되기 전까지 Done으로 판정하지 않는다.
 
 ### v1.3 적용 안내
 

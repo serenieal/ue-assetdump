@@ -2,14 +2,15 @@
 
 ## Metadata
 
-- document_version: v1.17
+- document_version: v1.22
 - created_at: 2026-07-10
-- updated_at: 2026-07-27
-- owner_project: CarFight
+- updated_at: 2026-07-28
+- owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: shared_registry
 - codex_input: false
-- roadmap: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/AssetIntelligenceRoadmap_v1.md`
+- roadmap: `Documents/Plan/AssetIntelligencePlan/AssetIntelligenceRoadmap_v1.md`
+- standalone_policy: `Documents/Plan/StandalonePlan.md`
 
 ## Purpose
 
@@ -33,7 +34,7 @@ Current Plan documents and implementations should reference this registry rather
 | `summary` | Compact structured metadata and counts | Existing | Part of main dump schema |
 | `digest` | AI/human-friendly compressed overview | Existing | Part of main dump schema |
 | `details` | Detailed property/object information | Existing | Main dump schema or details schema |
-| `graphs` | Blueprint graph data | Existing | Graph schema |
+| `graphs` | Blueprint graph data | Existing; v0.8.0 node roles and v0.8.1 execution preview accepted | Graph schema plus `graph_node_role_v1` and graph-level `execution_path_preview_v1` |
 | `references` | Asset references/dependencies | Existing | Reference schema |
 
 ## Specialized Sections
@@ -46,8 +47,8 @@ Current Plan documents and implementations should reference this registry rather
 | `input_summary` | Enhanced Input Action/Mapping summary | Implemented v0.7.2; release-ready gate passed, human release review pending | `input_summary_v1` |
 | `component_tree` | Actor Blueprint component hierarchy | Completed v0.7.3; release-grade closure passed, contract accepted | `component_tree_v1` |
 | `material_param_summary` | Material and MaterialInstance parameter summary | Draft v0.7.4 | `material_param_summary_v1` |
-| `blueprint_graph_digest` | AI-oriented Blueprint logic summary | Planned v0.8.0 | `bp_graph_digest_v1` |
-| `bp_search_index` | Blueprint symbol/function/variable search index | Planned v0.8.2 | `bp_search_index_v1` |
+| `blueprint_graph_digest` | AI-oriented Blueprint logic summary | Planned later v0.8.x; not activated by v0.8.0 | `bp_graph_digest_v1` |
+| `bp_search_index` | Blueprint symbol/function/variable search index | Completed v0.8.2; external closure passed, contract accepted | `bp_search_index_v1` |
 | `asset_index` | Project-wide asset index | Planned v0.9.0 | `asset_index_v1` |
 | `section_index` | Section and symbol lookup index | Planned v0.9.1 | `section_index_v1` |
 | `query_result` | Structured query output | Planned v1.0.1 | `query_result_v1` |
@@ -62,8 +63,8 @@ section: data_asset_values
 schema_version: data_asset_values_v1
 implementation_status: completed
 release_gate_status: passed
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
-generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
+source_task: Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
+generated_contract: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
 ```
 
 v0.7.1 DataAsset Diff:
@@ -82,14 +83,14 @@ closure_task_status: candidate_rejected
 closure_alignment_status: functional_alignment_completed
 report_contract_status: accepted
 final_acceptance_report_generated_time: 2026-07-14T23:27:25.4566757Z
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
-generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
-closure_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
-closure_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
-closure_alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
-closure_alignment_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
-report_contract_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
-report_contract_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
+source_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+generated_contract: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+closure_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
+closure_contract: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+closure_alignment_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+closure_alignment_contract: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+report_contract_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+report_contract_contract: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 ```
 
 Completed v0.7.2 specialized section:
@@ -113,17 +114,17 @@ release_status: pending_human_review
 release_gate_status: passed
 closure_reported_at: 2026-07-13 08:16:36 KST
 v0_7_1_contract_acceptance_status: accepted
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
-generated_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
-alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
-alignment_contract: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
+source_task: Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+generated_contract: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
+alignment_task: Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
+alignment_contract: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
 
 The accepted `input_summary_v1` contract includes bounded typed settings, stable warning codes, chain-aware deterministic mapping order, InputTriggerPressed fixture coverage, and repeated-output determinism. No v0.7.2 implementation task remains active. Human tag/publish review is pending. The separate v0.7.1 `data_asset_diff_v1` contract is accepted after the mandatory no-SkipBuild closure passed.
 
 The reserved `data_asset_values` and `input_bindings` Intents remain unavailable. Neither implementation task enabled them.
 
-Active v0.7.3 specialized section contract:
+Accepted v0.7.3 specialized section contract:
 
 ```text
 section: component_tree
@@ -138,10 +139,83 @@ explicit unsupported: ADUMP_COMPONENT_TREE_UNSUPPORTED_ASSET
 full-mode unsupported: silent omission
 builder_dependency: independent from full details property extraction
 limits: 256 nodes, depth 32, preview 12, warnings 64
-current_plan: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreePlan_v1.md
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_7_3_ComponentTreePlan_v1.md
 ```
 
 The reserved `component_overview` Intent remains unavailable in v0.7.3. Adding the section does not automatically activate the Intent.
+
+Accepted v0.8.0 graph node metadata contract:
+
+```text
+task_id: ADUMP-v0.8.0-GNR
+parent_section: graphs
+shape: graphs[].nodes[].role
+schema_version: graph_node_role_v1
+status: completed / contract accepted
+extractor_version: 2.9.0
+active exact roles: 11
+active structural roles: 4
+classifier registry: 15/15 passed
+actual emitted node coverage: 11/11 passed
+legacy extra.node_semantic: retained and required to agree when present
+new top-level section: none
+blueprint_graph_digest activation: none
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_8_0_GraphNodeRolePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_0_GraphNodeRoleClosureReport_v1.md
+```
+
+`impure_operation` and `unknown` remain defensive reserved role values. Normal emitted nodes resolve through an exact semantic or one of the four complete exec-pin structural combinations.
+
+Accepted v0.8.1 graph execution preview contract:
+
+```text
+task_id: ADUMP-v0.8.1-EPP
+parent_section: graphs
+shape: graphs[].execution_preview
+schema_version: execution_path_preview_v1
+status: completed / contract accepted
+extractor_version: 2.10.0
+bounds: max_paths=64, max_depth=32
+entry_source: graph_node_role_v1 event/execution_entry plus structural entry fallback
+traversal_links: exec only
+termination_values: terminal, cycle, depth_limit
+unsupported_reasons: links_only, exec_links_not_requested
+production traversal registry: 13/13 passed
+actual graph preview coverage: 5/5 passed
+focused unsupported modes: passed
+new top-level section: none
+blueprint_graph_digest activation: none
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_8_1_ExecutionPathPreviewPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_1_ExecutionPathPreviewClosureReport_v1.md
+```
+
+`execution_preview` is a bounded serialized-graph route preview. It must not be interpreted as runtime branch probability, condition truth, or data-dependency execution.
+
+Accepted v0.8.2 Blueprint Search Index contract:
+
+```text
+task_id: ADUMP-v0.8.2-BSI
+section: bp_search_index
+schema_version: bp_search_index_v1
+status: completed / contract accepted
+extractor_version: 2.11.0
+symbol_kinds: graph,event,function_call,interface_call,variable_read,variable_write,class_reference
+bounds: max_symbols=512, max_search_terms=8
+builder_dependency: graphs extraction required, graphs serialization independently controlled
+unsupported_full_non_blueprint: section omitted
+unsupported_explicit_non_blueprint: supported=false / unsupported_asset_class
+unsupported_links_only: supported=false / links_only
+production registry: 13/13 passed
+Actor/Widget contracts: passed
+focused inclusion and omission: passed
+determinism: passed
+global index.json and dependency_index.json: unchanged
+new Intent: none
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md
+```
+
+`symbol_id` is local to one generated search index. Stable cross-dump matching should use kind plus graph/node/member identity fields.
 
 ## Initial Section Set for v0.6.0
 
@@ -331,6 +405,33 @@ No runtime migration is required for this registry. New section work must update
 None.
 
 ## Changelog
+
+### v1.22
+
+- Promoted `bp_search_index_v1` to Completed / Contract Accepted.
+- Recorded deterministic symbol kinds, 512/8 bounds, graph-builder dependency and explicit/full unsupported semantics.
+- Recorded the 13/13 production registry, Actor/Widget contracts, focused omission and deterministic output.
+- Kept the existing global index files and Intent registry unchanged.
+
+### v1.21
+
+- Promoted graph-level `execution_path_preview_v1` from active to Completed / Contract Accepted.
+- Recorded fixed bounds, exec-only traversal, termination values and safe unsupported reasons.
+- Recorded the 13/13 production registry, actual 5/5 graph coverage and no new top-level section or Intent.
+- Linked the accepted v0.8.1 Plan and closure report.
+
+### v1.20
+
+- Registered accepted node-level `graph_node_role_v1` metadata under the existing `graphs` section.
+- Recorded 11 exact roles, 4 structural roles, a 15/15 production classifier registry and actual 11/11 emitted-node coverage.
+- Kept `blueprint_graph_digest` planned for later v0.8.x and did not activate a new top-level section or Intent.
+- Linked the accepted v0.8.0 Plan and closure report.
+
+### v1.19
+
+- Normalized all current registry links to `assetdump_repo`-relative paths.
+- Reclassified the v0.7.3 block from active work to an accepted specialized-section contract.
+- Preserved historical TaskSource and generated contract links as repository-relative evidence references.
 
 ### v1.17
 

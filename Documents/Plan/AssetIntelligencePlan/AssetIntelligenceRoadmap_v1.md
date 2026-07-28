@@ -2,15 +2,16 @@
 
 ## Metadata
 
-- document_version: v1.19
+- document_version: v1.24
 - created_at: 2026-07-10
-- updated_at: 2026-07-27
-- owner_project: CarFight
+- updated_at: 2026-07-28
+- owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: master_roadmap
 - codex_input: false
-- base_path: `UE/Plugins/ue-assetdump`
-- plan_folder: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan`
+- base_path: `.`
+- plan_folder: `Documents/Plan/AssetIntelligencePlan`
+- standalone_policy: `Documents/Plan/StandalonePlan.md`
 
 ## Purpose
 
@@ -156,9 +157,9 @@ Goal: Convert Blueprint graph data into AI-readable logic summaries.
 Planned scope:
 
 ```text
-v0.8.0 Graph node role classification
-v0.8.1 Execution path preview
-v0.8.2 Blueprint symbol/search index
+v0.8.0 Graph node role classification - completed 2026-07-28; contract accepted
+v0.8.1 Execution path preview - completed 2026-07-28; contract accepted
+v0.8.2 Blueprint symbol/search index - completed 2026-07-28; contract accepted
 ```
 
 ### v0.9.x Index / Retrieval / Lazy Loading
@@ -217,6 +218,12 @@ Codex or user-selected local environment
 
 Historical TaskSource and generated Codex YAML files remain available as design evidence and execution history. They are not mandatory prerequisites for new work.
 
+## Historical Host Evidence Interpretation
+
+The completed implementation records below preserve the actual Consumer Host builds, project assets, and batch results observed at the time. Names such as `CarFight_ReEditor`, `CFVehiclePawn.cpp`, and `/Game/CarFight/...` are Historical Consumer Host Evidence only. They are not current AssetDump ownership metadata, default inputs, standard build targets, or mandatory Plugin Contract gates.
+
+Current execution paths and ownership use `assetdump_repo`-relative paths and the standalone validation hierarchy defined in `Documents/Plan/StandalonePlan.md`.
+
 ## Completed Implementation Records
 
 ### AssetDump v0.6.0 Sections Option
@@ -224,9 +231,9 @@ Historical TaskSource and generated Codex YAML files remain available as design 
 ```text
 implementation_status: completed
 completed_at: 2026-07-10
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_0_Sections_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_0_Sections_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_6_0_Sections_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_0_Sections_CodexTask.yaml
 ```
 
 Verification summary:
@@ -245,9 +252,9 @@ Section smoke tests: passed
 ```text
 implementation_status: completed
 completed_at: 2026-07-10
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_1_BuilderControl_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_1_BuilderControl_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_6_1_BuilderControl_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_1_BuilderControl_CodexTask.yaml
 ```
 
 Verification summary:
@@ -266,9 +273,9 @@ Builder timing evidence: passed
 ```text
 implementation_status: completed
 completed_at: 2026-07-10
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_2_IntentProfile_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_2_IntentProfile_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_6_2_IntentProfile_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_2_IntentProfile_CodexTask.yaml
 ```
 
 Verification summary:
@@ -287,9 +294,9 @@ Full editor build: blocked by 2 existing CFVehiclePawn.cpp errors
 ```text
 implementation_status: completed
 completed_at: 2026-07-10
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_3_AIContextProfile_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_3_AIContextProfile_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_6_3_AIContextProfile_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_3_AIContextProfile_CodexTask.yaml
 ```
 
 Verification summary:
@@ -309,9 +316,9 @@ Validation environment issue: unrelated HttpListener port 8100 conflict
 ```text
 implementation_status: completed
 completed_at: 2026-07-10
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_6_4_RegressionHarness_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_4_RegressionHarness_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_6_4_RegressionHarness_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_6_4_RegressionHarness_CodexTask.yaml
 ```
 
 Verification summary:
@@ -337,9 +344,9 @@ integration_verification_status: passed
 release_gate_status: passed
 completed_at: 2026-07-10 15:59 KST
 integration_closed_at: 2026-07-10 16:36:09 KST
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_7_0_DataAssetValues_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_0_DataAssetValues_CodexTask.yaml
 ```
 
 Verification summary:
@@ -373,15 +380,15 @@ completed_at: 2026-07-10 16:36:09 KST
 functional_alignment_reported_at: 2026-07-13 15:33:17 KST
 functional_report_generated_time: 2026-07-13T06:31:04.9960053Z
 final_acceptance_report_generated_time: 2026-07-14T23:27:25.4566757Z
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
-closure_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
-closure_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
-closure_alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
-closure_alignment_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
-report_contract_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
-report_contract_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_CodexTask.yaml
+closure_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_Closure_TaskSource.md
+closure_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_Closure_CodexTask.yaml
+closure_alignment_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ClosureAlignment_TaskSource.md
+closure_alignment_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ClosureAlignment_CodexTask.yaml
+report_contract_task: Documents/Plan/AssetIntelligencePlan/v0_7_1_DataAssetDiff_ReportContract_TaskSource.md
+report_contract_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_1_DataAssetDiff_ReportContract_CodexTask.yaml
 ```
 
 Verified summary:
@@ -423,11 +430,11 @@ implementation_reported_at: 2026-07-13 07:27:45 KST
 regression_completed_at: 2026-07-13 07:46:54 KST
 closure_reported_at: 2026-07-13 08:16:36 KST
 v0_7_1_contract_acceptance_status: accepted
-result_log: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
-source_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
-generated_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
-alignment_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
-alignment_codex_task: UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
+result_log: Documents/Plan/AssetIntelligencePlan/ImplementationResultLog_v1.md
+source_task: Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_TaskSource.md
+generated_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_CodexTask.yaml
+alignment_task: Documents/Plan/AssetIntelligencePlan/v0_7_2_InputSummary_Alignment_TaskSource.md
+alignment_codex_task: Documents/Plan/AssetIntelligencePlan/Generated/Final/v0_7_2_InputSummary_Alignment_CodexTask.yaml
 ```
 
 Final verification evidence:
@@ -448,6 +455,95 @@ git diff --check: passed with line-ending warnings only
 ```
 
 The v0.7.2 feature release-ready gate is complete. Tagging or publishing remains a human release decision. The separate v0.7.1 contract is accepted after the mandatory no-SkipBuild closure passed with the required top-level evidence fields and explicit final predicates.
+
+## v0.8.2 Final Closure
+
+v0.8.2 Blueprint Search Index completed its fresh package compile, external Generic Host runtime, focused JSON evidence and read-only output fallback on 2026-07-28 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v0.8.2-BSI
+implementation_status: completed
+contract_acceptance_status: accepted
+section: bp_search_index
+schema_version: bp_search_index_v1
+extractor_version: 2.11.0
+commandlet_version: 0.14.3
+bounds: max_symbols=512, max_search_terms=8
+BuildPlugin source job: 2bc60881f64d49fc989838d45d0240ae
+canonical_process_job: dc8443cabe1e4c3faf40468c3f65dc93
+canonical_phase2_report_sha256: 08fd774d22f4949eaca6c1bfbd72f8de9431d6ee64c9466250a3b5e1d3b454ed
+BuildPlugin / Generic Host / P2B: passed
+Plugin validation: 9/9, required_failed_count 0
+production search registry: 13/13 passed
+Actor/Widget contracts: passed
+focused section and unsupported semantics: passed
+bounds, sequential IDs and determinism: passed
+Plugin full / ChangedOnly: 10/10 / 10/10 skipped
+Content/Validation exact invariance: passed
+git diff --check: passed
+binary fixture changes: none
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md
+```
+
+The section remains per asset and does not alter the existing global `index.json` or `dependency_index.json` contracts. v0.9.0 Asset Index is the next selectable roadmap candidate and is not active.
+
+## v0.8.1 Final Closure
+
+v0.8.1 Execution Path Preview completed its Host build, fresh external package/runtime closure and focused option evidence on 2026-07-28 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v0.8.1-EPP
+implementation_status: completed
+contract_acceptance_status: accepted
+preview_schema_version: execution_path_preview_v1
+extractor_version: 2.10.0
+commandlet_version: 0.13.0
+bounds: max_paths=64, max_depth=32
+final_host_build_job: 8f5e30ebc9ab46109006c5a98f1a78b5
+canonical_process_job: 03eb262d39ad4cb49bdb70d445bec9d0
+canonical_phase2_report_sha256: 49680f7de4564d0d78a414a2a135888038be2f452d65c979cb3e496c516906fa
+BuildPlugin / Generic Host / P2B: passed
+Plugin validation: 9/9, required_failed_count 0
+actual graph checks: 5/5 passed
+production traversal registry: 13/13 passed
+actual serialized previews: 5/5 passed
+actual paths: 11 terminal / 0 cycle / 0 depth-limited
+focused LinksOnly/Data-only outputs: passed
+preview determinism: passed
+normalized graph determinism: passed
+Plugin full / ChangedOnly: 10/10 / 10/10 skipped
+Content/Validation exact invariance: passed
+binary fixture changes: none
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_1_ExecutionPathPreviewClosureReport_v1.md
+```
+
+The preview describes all serialized exec branches as possible routes. It does not evaluate runtime conditions or include pure data dependencies.
+
+## v0.8.0 Final Closure
+
+v0.8.0 Graph Node Role Classification completed its external package and Generic Host closure on 2026-07-28 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v0.8.0-GNR
+implementation_status: completed
+contract_acceptance_status: accepted
+role_schema_version: graph_node_role_v1
+extractor_version: 2.9.0
+commandlet_version: 0.12.1
+canonical_process_job: c5130d4c617142aca368156582287b09
+canonical_phase2_report_sha256: 1862df8e6acfc88aca764127f5338f2ce6ac6cbb30cd9f52fbbd837bacb8fcd7
+BuildPlugin / Generic Host / P2B: passed
+Plugin validation: 9/9, required_failed_count 0
+role checks: 5/5 passed
+production-shared classifier registry: 15/15 passed
+actual emitted role objects: 11/11 passed
+Plugin full / ChangedOnly: 10/10 / 10/10 skipped
+Content/Validation exact invariance: passed
+binary fixture changes: none
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_0_GraphNodeRoleClosureReport_v1.md
+```
+
+The source Host DLL link attempt was blocked by an active Unreal Editor file lock after compilation, so the fresh BuildPlugin package and external Generic Host build are the canonical compile/link evidence.
 
 ## v0.7.3 Final Closure
 
@@ -484,11 +580,11 @@ Both validation
   Release-level gate only when unrelated project validation failures have been resolved or explicitly waived.
 ```
 
-Known current caveat:
+Known Consumer Project policy issue:
 
 ```text
-Project/Both validation may fail due to primary_data_asset reference_count_min on DA_Cam_Default.
-This is separate from Widget Designer and section-gated output features unless a TaskSource explicitly targets validation policy cleanup.
+A historical Consumer Project sample may fail primary_data_asset reference_count_min on DA_Cam_Default.
+This is separate from the standalone Plugin Contract and Generic Host acceptance unless an explicit Consumer validation-policy task targets it.
 ```
 
 ## Migration
@@ -502,6 +598,33 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.24
+
+- Marked v0.8.2 Blueprint Search Index completed and Contract Accepted.
+- Recorded `bp_search_index_v1`, extractor 2.11.0, the 13/13 production registry and focused section semantics.
+- Recorded canonical BuildPlugin/Generic Host/P2B evidence, Content invariance and clean Git diff check.
+- Moved v0.9.0 Asset Index to the next selectable candidate without activating it.
+
+### v1.23
+
+- Marked v0.8.1 Execution Path Preview completed and Contract Accepted.
+- Recorded bounded production traversal, the 13/13 registry, actual 5/5 graph coverage and focused unsupported modes.
+- Recorded exact preview determinism and normalized whole-graph determinism.
+- Promoted v0.8.2 Blueprint Symbol/Search Index as the next candidate without activating it.
+
+### v1.22
+
+- Marked v0.8.0 Graph Node Role Classification completed and Contract Accepted.
+- Recorded additive `graph_node_role_v1`, extractor 2.9.0, production-shared 15-case registry and actual 11/11 node coverage.
+- Registered the fresh BuildPlugin/Generic Host closure with failure_count 0 and no binary fixture changes.
+- Promoted v0.8.1 Execution Path Preview as the next roadmap candidate without activating it.
+
+### v1.21
+
+- Normalized all current roadmap document links to `assetdump_repo`-relative paths.
+- Added an explicit Historical Host Evidence interpretation for preserved CarFight builds, assets, and project batch results.
+- Reclassified the DA_Cam_Default assertion as a separate Consumer Project validation-policy issue rather than a current standalone caveat.
 
 ### v1.19
 

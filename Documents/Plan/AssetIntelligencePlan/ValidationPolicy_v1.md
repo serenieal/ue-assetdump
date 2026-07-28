@@ -2,14 +2,15 @@
 
 ## Metadata
 
-- document_version: v1.3
+- document_version: v1.9
 - created_at: 2026-07-10
-- updated_at: 2026-07-13
-- owner_project: CarFight
+- updated_at: 2026-07-28
+- owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: validation_policy
 - codex_input: false
-- roadmap: `UE/Plugins/ue-assetdump/Documents/Plan/AssetIntelligencePlan/AssetIntelligenceRoadmap_v1.md`
+- roadmap: `Documents/Plan/AssetIntelligencePlan/AssetIntelligenceRoadmap_v1.md`
+- standalone_policy: `Documents/Plan/StandalonePlan.md`
 
 ## Purpose
 
@@ -30,6 +31,22 @@ Expected use:
 ```text
 RunBPDumpRegression.ps1 -ValidationProfile Plugin -SkipBuild -CompactLog
 ```
+
+Current accepted profile isolation after `ADUMP-ARCH-001` Phase 1:
+
+```text
+ValidationProfile=Plugin
+  runs Plugin-owned validation and `/AssetDump/Validation` full/ChangedOnly only
+  does not execute Consumer `/Game` batch steps
+
+ValidationProfile=Project
+  runs Project validation and the explicit project batch path only
+
+ValidationProfile=Both
+  records Plugin and Project results separately
+```
+
+The Phase 1 matrix verified all three profiles under PowerShell 5.1/7, including Generic Host `/Game` zero-asset classification as `host_smoke_zero_asset`. That classification is not Consumer Integration acceptance.
 
 ### Project Validation
 
@@ -61,9 +78,11 @@ AssetDump-owned C++ files must compile and the AssetDump module or DLL must link
 
 This is a required gate for AssetDump feature acceptance.
 
-### Repository Editor Target Build
+### Host Project Editor Target Build
 
-The full `CarFight_ReEditor` build is an integration gate. It should be attempted when practical, but failures must be classified by ownership.
+A Host Project Editor Target build is a runtime integration gate required before commandlet execution. The target may default to `<ProjectFileName>Editor` or be supplied explicitly when the project uses a custom target name.
+
+`CarFight_ReEditor` is a historical Consumer Project example, not the standard AssetDump build target. Host build failures must be classified by ownership.
 
 A full build failure may be treated as `unrelated_existing_issue` when all of the following are true:
 
@@ -83,6 +102,21 @@ CFVehiclePawn.cpp
 ```
 
 The error did not reproduce in the independent v0.6.3 build, which succeeded. AssetDump tasks must not modify gameplay files merely to clear an unrelated repository build failure. Such fixes require a separate gameplay build task.
+
+## BuildPlugin and Runtime Separation
+
+`RunUAT BuildPlugin` validates Plugin compilation and packaging without requiring a Consumer Project. It does not prove that a Host Editor can load the packaged Plugin, mount `/AssetDump/Validation`, or run the AssetDump commandlet.
+
+Standalone release evidence therefore separates:
+
+```text
+BuildPlugin compile/package
+Generic Host Editor Target build
+Generic Host AssetDump commandlet runtime
+optional Consumer Project integration
+```
+
+A successful BuildPlugin result must not be used to waive a failed or unexecuted Generic Host runtime gate.
 
 ## Commandlet Process Exit and Report Verdict
 
@@ -167,6 +201,20 @@ synthetic_marker_present: false
 
 A nominal passing count must be rejected when any required assertion depends on harness-synthesized evidence.
 
+## Writable Output Location
+
+Validation and dump output must not assume that the Plugin installation directory is writable. Source checkout workflows may continue using `PluginRoot/Dumped` when writable, but packaged or Engine-level installations require an explicit output root or a writable Host Project `Saved/AssetDump` fallback.
+
+Required evidence:
+
+```text
+resolved output path
+output path source
+write-probe success or explicit-path validation
+zero probe residue
+no Source or Content mutation caused by output fallback
+```
+
 ## Validation Content Preservation
 
 When a validation command may create, resave, or mutate repository-owned binary fixtures, the validation workflow must preserve repository state automatically.
@@ -246,15 +294,195 @@ For specialized sections, recommended checks are:
 - full mode still emits the section when expected
 ```
 
+## Blueprint Graph Node Role Validation
+
+Node-level metadata added under the existing `graphs` section must be validated independently from a future graph-digest section.
+
+Required `graph_node_role_v1` checks:
+
+```text
+- every emitted non-links-only graph node has a role object
+- role.schema_version == graph_node_role_v1
+- primary, family, source and confidence belong to their canonical registries
+- family matches the canonical primary-to-family mapping
+- has_exec_input and has_exec_output match the actual exec pins
+- is_pure is false when any exec pin exists
+- tags are canonical, unique and in fixed registry order
+- the pure or impure tag agrees with is_pure
+- extra.node_semantic agrees with role.primary when the legacy field is present
+- unknown custom K2 nodes resolve through stable structural traits without failing the dump
+```
+
+Classifier coverage must test the same production classifier used by extraction. A duplicated test-only classifier is insufficient evidence.
+
+For v0.8.0 acceptance, evidence includes:
+
+```text
+production-shared exact/structural registry: 15/15 PASS
+actual actor/widget validation checks: 5/5 PASS
+actual emitted node role coverage: 11/11 PASS
+Plugin validation required_failed_count: 0
+```
+
+The registry self-test proves taxonomy branches; fresh graph sidecars prove that real emitted nodes carry the schema. Both are required. A registry-only test does not replace actual serialized-output coverage.
+
+## Blueprint Execution Path Preview Validation
+
+Graph-level execution previews under the existing `graphs` section require both production-shared topology coverage and actual serialized-output evidence.
+
+Required `execution_path_preview_v1` checks:
+
+```text
+- every emitted graph has exactly one execution_preview object
+- normal node+exec-link selections are supported
+- LinksOnly emits unsupported_reason=links_only and zero paths
+- LinkKind=Data emits unsupported_reason=exec_links_not_requested and zero paths
+- schema, bounds, counts, truncation and warnings agree with the emitted arrays
+- path IDs are unique and sequential
+- path entries resolve to event/execution_entry nodes
+- step node IDs and roles agree with nodes[].role
+- non-entry via pins resolve to the previous output exec pin
+- consecutive steps have a matching exec link
+- terminal paths end without outgoing exec links
+- cycle paths end by repeating an earlier path node
+- depth-limit paths stop at max_depth while outgoing exec links remain
+- data links are never traversed as execution edges
+```
+
+Topology coverage must call the same production preview builder as extraction and cover at least:
+
+```text
+empty
+links-only
+data-only selection
+single terminal entry
+linear
+branch ordering
+merge
+self cycle
+multi-node cycle
+depth limit
+path limit
+no entry
+data-link exclusion
+```
+
+For v0.8.1 acceptance:
+
+```text
+production-shared traversal registry: 13/13 PASS
+actual Actor/Widget graph checks: 5/5 PASS
+actual serialized graph previews: 5/5 PASS
+focused LinksOnly/Data-only modes: PASS
+execution-preview objects exact equality: PASS
+whole graphs equality after normalizing dump_time/total_ms/load_ms only: PASS
+Plugin validation required_failed_count: 0
+```
+
+A synthetic registry does not replace actual serialized graph evidence. Actual disconnected event paths are valid terminal one-step paths; branch/cycle/limit semantics may be supplied by the production-shared registry without modifying binary fixtures solely for topology coverage.
+
+## Blueprint Search Index Validation
+
+The per-asset `bp_search_index_v1` section requires production-shared builder coverage and actual serialized Actor/Widget evidence.
+
+Required checks:
+
+```text
+- schema_version == bp_search_index_v1
+- symbol_count equals the symbols array length
+- symbol_count <= 512
+- search_terms per symbol <= 8 and are case-insensitively unique
+- symbol IDs are unique and sequential from symbol_000
+- kind counts agree with emitted symbols
+- graph and node symbols resolve to the extracted graph records
+- variable get/set map to variable_read/variable_write
+- class references are canonical-path deduplicated
+- canonical identity and sorting do not depend on localized node_title
+- repeated search-only output is deterministic
+```
+
+Section semantics:
+
+```text
+full Blueprint: bp_search_index emitted
+explicit bp_search_index: graph prerequisite runs; graphs serialization may be absent
+explicit graphs: bp_search_index absent
+non-Blueprint full: bp_search_index absent
+non-Blueprint explicit: supported=false, unsupported_reason=unsupported_asset_class
+LinksOnly explicit: supported=false, unsupported_reason=links_only
+```
+
+For v0.8.2 acceptance:
+
+```text
+production-shared registry: 13/13 PASS
+actual Actor and Widget contracts: PASS
+focused full/explicit inclusion and mutual omission: PASS
+unsupported and LinksOnly semantics: PASS
+symbol bound, sequential IDs and search-term bound: PASS
+repeated-output determinism: PASS
+Plugin validation: 9/9, required_failed_count 0
+Plugin full / ChangedOnly: 10/10 / 10/10 skipped
+Content/Validation exact invariance: PASS
+P2B writable output fallback: PASS
+git diff --check: PASS
+```
+
+Graph-heavy JSON may be inspected using raw fixed-field patterns under Windows PowerShell 5.1 when `ConvertFrom-Json` cannot represent case-insensitive key collisions. Compact search-only output must still receive object-level schema, bound and deterministic comparison.
+
+A BuildPlugin PASS does not replace Generic Host runtime or focused JSON evidence. Global `index.json`/`dependency_index.json` tests do not replace the per-asset search-section contract.
+
 ## Migration
 
 This policy does not change AssetDump behavior. TaskSource documents should reference this policy when defining verification gates.
 
 ## Unresolved
 
-None.
+No unresolved standalone validation-policy blocker remains.
+
+The historical Consumer Project `DA_Cam_Default reference_count_min` assertion remains a separate non-blocking validation-policy cleanup candidate. It must not be resolved by changing Consumer assets solely to satisfy AssetDump acceptance.
 
 ## Changelog
+
+### v1.9
+
+- Added the accepted `bp_search_index_v1` validation policy.
+- Required the production-shared 13-case registry and actual Actor/Widget serialized contracts.
+- Required focused full/explicit omission, unsupported/LinksOnly behavior, bounds, sequential IDs and determinism.
+- Documented the PowerShell 5.1 raw-JSON strategy without weakening compact object-level checks.
+
+### v1.8
+
+- Added the accepted `execution_path_preview_v1` validation policy under the existing `graphs` section.
+- Required actual path/link integrity, safe LinksOnly/Data-only output and production-shared 13-case topology coverage.
+- Separated exact preview determinism from existing volatile envelope/performance fields.
+- Recorded actual 5/5 graph preview coverage and zero required Plugin validation failures.
+
+### v1.7
+
+- Added the accepted `graph_node_role_v1` validation policy under the existing `graphs` section.
+- Required canonical registry/family checks, exec-pin trait agreement, deterministic tags and legacy semantic compatibility.
+- Required taxonomy coverage to use the production classifier and separated 15/15 registry evidence from actual 11/11 serialized-node coverage.
+- Linked v0.8.0 acceptance to zero required Plugin validation failures without activating a new graph-digest section.
+
+### v1.6
+
+- Replaced the pre-Phase-1 Plugin-profile limitation with the accepted Plugin/Project/Both isolation contract.
+- Recorded Generic Host zero-asset classification as Host Smoke rather than Consumer Integration acceptance.
+- Closed the obsolete Phase 1 and read-only output fallback unresolved items after the accepted Phase 1 and Phase 2 reports.
+- Kept the DA_Cam_Default assertion as a separate non-blocking Consumer validation-policy cleanup candidate.
+
+### v1.5
+
+- Recorded that the current `ValidationProfile=Plugin` harness still executes `/Game` batch and is not yet a fully isolated Plugin Contract gate.
+- Replaced the CarFight-specific repository build wording with generic Host Project Editor Target policy and classified `CarFight_ReEditor` as historical Consumer evidence.
+- Separated BuildPlugin compile/package evidence from Generic Host commandlet runtime evidence.
+- Added writable output-location requirements for read-only packaged or Engine plugin installations.
+
+### v1.4
+
+- Normalized repository ownership and document links to `assetdump_repo`-relative paths.
+- Linked the standalone independence policy without changing runtime validation behavior.
 
 ### v1.3
 

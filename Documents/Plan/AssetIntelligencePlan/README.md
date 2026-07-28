@@ -1,7 +1,7 @@
 # AssetIntelligencePlan
 
-- Document version: v1.22
-- Last updated: 2026-07-27
+- Document version: v1.28
+- Last updated: 2026-07-28
 - Status: Current
 
 This folder contains the planning documents and preserved implementation-contract history for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
@@ -14,6 +14,9 @@ v0.7.0 DataAsset Values: release gate passed
 v0.7.1 DataAsset Diff: mandatory no-SkipBuild closure passed; contract accepted
 v0.7.2 Enhanced Input Summary: release-ready gate passed; human release review pending
 v0.7.3 Component Tree: completed; release-grade closure passed; contract accepted
+v0.8.0 Graph Node Role Classification: completed; external Generic Host closure passed; contract accepted
+v0.8.1 Execution Path Preview: completed; Host build and external Generic Host closure passed; contract accepted
+v0.8.2 Blueprint Search Index: completed; BuildPlugin, Generic Host, focused JSON and P2B closure passed; contract accepted
 ```
 
 ## v0.7.1 Contract Acceptance
@@ -25,7 +28,7 @@ Source/AssetDump/Private/AssetDumpCommandlet.cpp v0.10.1
 Scripts/RunDataAssetDiffClosure.ps1 v1.5
 ```
 
-Mandatory acceptance execution:
+Historical acceptance execution (Consumer Host Evidence):
 
 ```text
 PowerShell: C:\Users\chaeksong\AppData\Local\Microsoft\WindowsApps\pwsh.EXE
@@ -34,8 +37,8 @@ Script: Scripts/RunDataAssetDiffClosure.ps1
 Arguments: -CompactLog
 -SkipBuild: not supplied
 Engine root: D:\UnrealEngine_Source
-Standard build wrapper: D:\Work\CarFight_git\Tools\BuildEditor.bat
-Build target: CarFight_ReEditor Win64 Development
+Historical consumer build wrapper: D:\Work\CarFight_git\Tools\BuildEditor.bat
+Historical consumer editor target: CarFight_ReEditor Win64 Development
 Build result: Succeeded
 ```
 
@@ -129,11 +132,14 @@ The restore loop remains hardened for an open Unreal Editor: files already ident
 
 ## Current Status
 
-There is no active AssetDump implementation task.
+There is no active Asset Intelligence feature implementation task. `ADUMP-v0.8.2-BSI` Blueprint Search Index is Completed / Contract Accepted. The next roadmap candidate is v0.9.0 Asset Index; it is selectable but not active until a separate Plan, schema, scope and protection boundary are registered in ActiveWork.
 
 ```text
 ADUMP-v0.7.1-RC: Completed / Contract Accepted
 ADUMP-v0.7.3-CT: Completed / Contract Accepted
+ADUMP-v0.8.0-GNR: Completed / Contract Accepted
+ADUMP-v0.8.1-EPP: Completed / Contract Accepted
+ADUMP-v0.8.2-BSI: Completed / Contract Accepted
 ```
 
 Current implementation and closure documents:
@@ -141,6 +147,12 @@ Current implementation and closure documents:
 ```text
 v0_7_3_ComponentTreePlan_v1.md
 v0_7_3_ComponentTreeClosureReport_v1.md
+v0_8_0_GraphNodeRolePlan_v1.md
+v0_8_0_GraphNodeRoleClosureReport_v1.md
+v0_8_1_ExecutionPathPreviewPlan_v1.md
+v0_8_1_ExecutionPathPreviewClosureReport_v1.md
+v0_8_2_BPSearchIndexPlan_v1.md
+v0_8_2_BPSearchClose_v1.md
 ```
 
 The accepted v0.7.1 commandlet, stable codes, report contract and validation restoration behavior remain protected. The historical v0.7.1 TaskSource and generated Codex contracts remain completed contract evidence and are not the execution source for v0.7.3.
@@ -175,20 +187,27 @@ ImplementationResultLog_v1.md
 TaskSourceTemplate_v1.md
 ```
 
+## Repository Independence Boundary
+
+Asset Intelligence 기능과 공개 schema는 `assetdump_repo`가 소유한다.
+CarFight를 포함한 프로젝트 이름, Editor Target, build wrapper와 `/Game/...` 경로는 현재 기능 계약의 기본값이나 필수 acceptance가 아니다.
+이 문서에 남아 있는 CarFight 빌드·에셋·closure 기록은 당시 실행된 `Historical Host Evidence`이며 새 작업의 표준 실행 경로로 해석하지 않는다.
+현재 저장소 독립화 범위와 완료 조건은 `Documents/Plan/StandalonePlan.md`를 따른다.
+
 ## Execution Responsibility
 
 ```text
 Browser
 = bounded document/code reading, Git diff review, document updates, and audit of stored reports and logs
 
-Codex or a user-selected local implementation environment
-= Source/Scripts changes, standard Editor build, parser, regression, commandlet, and full closure execution
+CarFightMCP_Admin Process Runner or a user-selected local implementation environment
+= authorized Source/Scripts changes, Host Editor build, parser, regression, commandlet, and full closure execution
 
 Browser follow-up review
 = verification of the actual diff, stored machine-readable reports, process logs, and content-invariance evidence
 ```
 
-The current Browser surface does not expose `agent.*`, `plan.*`, Work/Lab, arbitrary PowerShell execution, or automatic external Codex YAML generation. New work must not depend on those hidden surfaces.
+The current Admin surface exposes repository-scoped text operations, allowlisted builds, and repository-script Process Runner execution. New work must use those bounded surfaces and must not depend on hidden `agent.*`, `plan.*`, Work/Lab, or automatic external Codex YAML generation.
 
 `apply_approved=true` is an MCP transport flag for an already authorized write. It is not evidence that the user approved a Browser direct code edit under the AssetDump project policy.
 
@@ -201,16 +220,55 @@ Blocked — Browser Work-Order Surface Not Exposed
 ## Next Sequence
 
 ```text
-1. Keep the accepted v0.7.1, v0.7.2 and v0.7.3 public contracts protected.
-2. Complete a human review of the final AssetDump diff and select the intended commit boundary.
-3. Stage, commit, push, tag or update the parent CarFight gitlink only after an explicit user request.
-4. Select the next Asset Intelligence task through ActiveWork and the Roadmap; do not reopen v0.7.3 closure without new evidence.
-5. Preserve `Dumped/ComponentTreeClosureFinalRetry1` and the final machine-readable report as canonical v0.7.3 acceptance evidence.
+1. Keep the accepted v0.7.1-v0.8.2 public contracts protected.
+2. Select and register a separate v0.9.0 Asset Index Plan before implementation; do not activate it automatically.
+3. Complete a human review of the final repository diff and select the intended commit boundary when Git work is explicitly resumed.
+4. Stage, commit, push, tag, or update any Consumer repository integration pointer only after an explicit user request.
+5. Preserve the canonical v0.7.3, v0.8.0, v0.8.1 and v0.8.2 closure reports and process/report SHA evidence.
 ```
 
 The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
+
+### v1.28 - 2026-07-28
+
+- Recorded v0.8.2 Blueprint Search Index as Completed / Contract Accepted.
+- Linked the accepted Plan and `v0_8_2_BPSearchClose_v1.md` with BuildPlugin, Generic Host, 13/13 registry and focused JSON evidence.
+- Extended the protected public-contract range through v0.8.2 and moved v0.9.0 Asset Index to the next selectable candidate without activating it.
+
+### v1.27 - 2026-07-28
+
+- Recorded v0.8.1 Execution Path Preview as Completed / Contract Accepted.
+- Linked the accepted Plan and closure report and recorded Host build, fresh external closure, 13/13 traversal registry, actual 5/5 previews and focused option evidence.
+- Cleared the active feature slot and moved v0.8.2 Blueprint Symbol/Search Index to the next selectable candidate without activating it.
+- Extended the protected public-contract range through v0.8.1.
+
+### v1.26 - 2026-07-28
+
+- Activated `ADUMP-v0.8.1-EPP` Execution Path Preview.
+- Linked the active Plan and recorded the production-shared traversal, bounded preview and external closure requirements.
+- Kept v0.8.0 role metadata as the protected dependency.
+
+### v1.25 - 2026-07-28
+
+- Recorded v0.8.0 Graph Node Role Classification as Completed / Contract Accepted.
+- Linked the accepted Plan and closure report and recorded BuildPlugin/Generic Host, 15/15 registry and 11/11 actual role coverage.
+- Moved the next selectable roadmap candidate to v0.8.1 Execution Path Preview without activating it.
+- Extended the protected public-contract range through v0.8.0.
+
+### v1.24 - 2026-07-28
+
+- Recorded `ADUMP-ARCH-001` as Completed / Contract Accepted after current-document owner/path normalization.
+- Moved the next selectable feature path to v0.8.0 Blueprint Graph Node Role Classification without activating implementation prematurely.
+- Kept accepted v0.7.1-v0.7.3 contracts and Historical Consumer Host Evidence protected.
+
+### v1.23 - 2026-07-28
+
+- Classified the v0.7.1 CarFight build wrapper and Editor Target as Historical Consumer Host Evidence rather than the current standard execution path.
+- Updated the current execution responsibility to the repository-scoped Admin Process Runner and bounded local tools.
+- Removed the parent CarFight gitlink assumption from the current sequence while preserving historical acceptance evidence unchanged.
+- Clarified that standalone documentation closure is active while no Asset Intelligence feature implementation is active.
 
 ### v1.22 - 2026-07-27
 

@@ -2,17 +2,18 @@
 
 ## Metadata
 
-- document_version: v1.5
+- document_version: v1.6
 - created_at: 2026-07-24
-- updated_at: 2026-07-27
+- updated_at: 2026-07-28
 - task_id: `ADUMP-v0.7.3-CT`
 - target_assetdump_version: v0.7.3
 - target_section: `component_tree`
 - schema_version: `component_tree_v1`
 - status: Completed / Contract Accepted
-- owner_project: CarFight
+- owner_repository: assetdump_repo
+- historical_integration_host: CarFight
 - target_plugin: AssetDump
-- document_role: current_implementation_plan
+- document_role: accepted_implementation_contract
 - supersedes_draft: `v0_7_3_ComponentTree_TaskSource_Draft.md`
 
 ## Goal
@@ -339,7 +340,7 @@ Scripts/RunBPDumpRegression.ps1
 ### Static and Build
 
 ```text
-- C++ compile and link pass with the standard CarFight Editor build.
+- C++ compile and link pass with a valid Host Project Editor Target or BuildPlugin/Generic Host gate. The accepted CarFight build is Historical Consumer Host Evidence.
 - No new Build.cs dependency unless documented and required.
 - git diff --check passes.
 - New headers and generated-header requirements are complete.
@@ -378,9 +379,9 @@ Scripts/RunBPDumpRegression.ps1
 - Plugin fixture and validation reports contain zero required failures.
 ```
 
-### Project Smoke
+### Historical Consumer Integration Smoke
 
-Use the representative Actor Blueprint:
+The accepted v0.7.3 run used the following representative Consumer Actor Blueprint as additional integration evidence. This path is not a Plugin Contract default or prerequisite:
 
 ```text
 /Game/CarFight/Vehicles/Blueprints/BP_CFVehiclePawn.BP_CFVehiclePawn
@@ -420,12 +421,12 @@ After the committed new fixture is established, the validation run must leave al
 
 ```text
 1. PowerShell parser for every changed script, or N/A when no script changed.
-2. Standard Tools/BuildEditor.bat Editor build.
+2. Host Project Editor Target build or reused accepted BuildPlugin/Generic Host build evidence.
 3. Regression harness self-tests.
 4. Plugin makefixtures and validation.
 5. Focused component_tree section checks.
-6. Project-owned BP_CFVehiclePawn smoke.
-7. Full project batch appropriate to the existing harness.
+6. Historical Consumer BP_CFVehiclePawn smoke when available; not required for the Plugin Contract.
+7. Optional Consumer project batch when explicitly selected by the validation scope.
 8. Immediate ChangedOnly repeat.
 9. Repeated component_tree byte comparison.
 10. Content/Validation exact before/after comparison.
@@ -513,6 +514,13 @@ contract acceptance: accepted
 No schema weakening or protection-boundary exception was used.
 
 ## Changelog
+
+### v1.6
+
+- Reclassified the document as an accepted implementation contract rather than an active implementation Plan.
+- Replaced the standard CarFight build requirement with the generic Host Editor/BuildPlugin and Generic Host gate.
+- Classified BP_CFVehiclePawn and `/Game/CarFight/...` checks as Historical Consumer Integration Evidence rather than Plugin Contract defaults.
+- Preserved the actual accepted v0.7.3 evidence and public `component_tree_v1` contract unchanged.
 
 ### v1.5
 
