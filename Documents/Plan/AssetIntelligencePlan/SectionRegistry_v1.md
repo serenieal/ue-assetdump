@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.22
+- document_version: v1.37
 - created_at: 2026-07-10
-- updated_at: 2026-07-28
+- updated_at: 2026-07-29
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: shared_registry
@@ -49,10 +49,10 @@ Current Plan documents and implementations should reference this registry rather
 | `material_param_summary` | Material and MaterialInstance parameter summary | Draft v0.7.4 | `material_param_summary_v1` |
 | `blueprint_graph_digest` | AI-oriented Blueprint logic summary | Planned later v0.8.x; not activated by v0.8.0 | `bp_graph_digest_v1` |
 | `bp_search_index` | Blueprint symbol/function/variable search index | Completed v0.8.2; external closure passed, contract accepted | `bp_search_index_v1` |
-| `asset_index` | Project-wide asset index | Planned v0.9.0 | `asset_index_v1` |
-| `section_index` | Section and symbol lookup index | Planned v0.9.1 | `section_index_v1` |
-| `query_result` | Structured query output | Planned v1.0.1 | `query_result_v1` |
-| `ai_context_bundle` | Compact context package for AI | Planned v1.0.2 | `ai_context_bundle_v1` |
+| `asset_index` | Project-wide dump-root asset discovery index | Completed v0.9.0; external closure passed, contract accepted | `asset_index_v1` |
+| `section_index` | Dump-root section and Blueprint symbol location index | Completed v0.9.1; external closure passed, contract accepted | `section_index_v1` |
+| `query_result` | Structured query output | Completed v1.0.1; contract accepted | `query_result_v1` |
+| `ai_context_bundle` | Bounded single-query AI evidence export | Completed v1.0.2; contract accepted | `ai_context_bundle_v1` |
 
 ## Current Specialized Section State
 
@@ -216,6 +216,268 @@ closure_report: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md
 ```
 
 `symbol_id` is local to one generated search index. Stable cross-dump matching should use kind plus graph/node/member identity fields.
+
+Accepted v0.9.0 Asset Index contract:
+
+```text
+task_id: ADUMP-v0.9.0-AIDX
+output_file: asset_index.json
+schema_version: asset_index_v1
+status: completed / contract accepted
+legacy index.json: preserved
+legacy dependency_index.json: preserved
+identity: object_path
+local ID: asset_0000 sequential after object_path sort
+source: latest valid manifest per object_path plus actual dump/sidecar files
+paths: dump-root-relative and slash-normalized
+available_sections: actual emitted/retrievable sections in fixed registry order
+specialized section schemas: recorded from actual section objects
+file states: ready, missing_dump, malformed_dump
+duplicate and malformed manifests: counted and excluded from selected entries
+stale behavior: full reconstruction from currently present manifests
+BuildPlugin / Generic Host / focused file-state / P2B: passed
+Phase 1 parser/profile/cross-shell matrix: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexClosureReport_v1.md
+contract_acceptance: accepted
+```
+
+`asset_index_v1` is a dump-root catalog, not a live Asset Registry snapshot, query result, fuzzy search database or section-level symbol index.
+
+Accepted v0.9.1 Section Index contract:
+
+```text
+task_id: ADUMP-v0.9.1-SIDX
+output_file: section_index.json
+schema_version: section_index_v1
+status: completed / contract accepted
+dependency: asset_index_v1 and bp_search_index_v1
+shape: sections[] and symbols[]
+section identity: section_name + object_path
+symbol identity: object_path + source_symbol_id
+section local ID: section_00000 sequential after deterministic sort
+symbol local ID: symbol_000000 sequential after deterministic sort
+source_file: dump-root-relative and slash-normalized
+json_pointer: absolute RFC 6901-style location
+section source: actual asset_index available_sections only
+symbol source: supported bp_search_index_v1 symbols only
+actual section_count: 70
+actual symbol_count: 20
+pointer resolution: passed
+file-state and determinism evidence: passed
+asset_index.json: preserved
+index.json: preserved
+dependency_index.json: preserved
+BuildPlugin / Generic Host / P2B: passed
+Phase 1 parser/profile/cross-shell matrix: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexClose_v1.md
+contract_acceptance: accepted
+```
+
+`section_index_v1` is a location index. It does not define search ranking, natural-language query, lazy loading, dependency traversal or query-result semantics.
+
+Accepted v0.9.2 Lazy Section Dump retrieval contract:
+
+```text
+task_id: ADUMP-v0.9.2-LSD
+command_mode: sectiondump
+schema_version: lazy_section_dump_v1
+status: completed / contract accepted
+source_contract: indexed_stored_evidence
+asset selector: exact object_path or current index-local asset_id
+section selection: explicit canonical Sections only
+index dependencies: asset_index_v1 and section_index_v1
+pointer support: / and /<top-level-section>
+response shape: asset envelope plus ordered section results
+response section data: exact cloned indexed JSON value
+source paths: dump-root-relative and slash-normalized
+source dump/index mutation: prohibited
+output replacement: atomic after all sections resolve
+multi-source retrieval: 3 sections / 3 unique source files
+shared-source retrieval: 2 sections / 1 unique source file
+selector equivalence: passed
+exact indexed data: passed
+stable negative matrix: 19/19 passed
+source-root invariance: passed
+determinism: passed
+BuildPlugin / Generic Host / P2B: passed
+Phase 1 parser/profile/cross-shell matrix: passed
+git diff --check: passed
+live asset load: prohibited
+automatic regeneration: not activated
+freshness evaluation: not defined
+query_result_v1: not activated
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpClose_v1.md
+contract_acceptance: accepted
+```
+
+`lazy_section_dump_v1` is a retrieval response schema, not a normal per-asset dump section and not a query result. It must not be inserted into `available_sections` or `section_index_v1.sections`.
+
+Accepted v0.9.3 Dependency Trace Query contract:
+
+```text
+task_id: ADUMP-v0.9.3-DTQ
+command_mode: dependencyquery
+schema_version: dependency_trace_query_v1
+status: completed / contract accepted
+source_contract: indexed_dependency_evidence
+asset selector: exact object_path or current index-local asset_id
+index dependencies: asset_index_v1 and legacy dependency_index.json
+dependency index reader contract: legacy_dependency_index_v1
+directions: dependencies, referencers, both
+strength filter: all, hard, soft
+bounds: max_depth 1..8, max_nodes 1..256, max_edges 1..512
+traversal: deterministic breadth-first search
+cycle semantics: self or deterministic discovery-tree ancestor closure
+external unindexed endpoints: retained
+truncation: max_nodes and max_edges reported explicitly
+actual legacy-index compatibility: passed
+synthetic direct/transitive/referencer/both traversal: passed
+external/merge/cycle behavior: passed
+bounds and truncation: passed
+selector equivalence: passed
+determinism: passed
+stable negative matrix: 29/29 passed
+source-root invariance: passed
+BuildPlugin / Generic Host / P2B: passed
+Phase 1 parser/profile/cross-shell matrix: passed
+git diff --check: passed
+source dump/index mutation: prohibited
+output replacement: atomic after full response assembly
+live asset load: prohibited
+index rebuild: prohibited
+freshness evaluation: not defined
+query_result_v1: not activated
+ai_context_bundle_v1: not activated
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryClose_v1.md
+contract_acceptance: accepted
+```
+
+`dependency_trace_query_v1` is a specialized retrieval/query response, not a normal per-asset dump section. It must not be inserted into `available_sections` or `section_index_v1.sections`, and it does not activate generic `query_result_v1`.
+
+Accepted v1.0.0 Query Mode routing contract:
+
+```text
+task_id: ADUMP-v1.0.0-QMODE
+command_mode: query
+status: completed / contract accepted
+QueryKind registry: section, dependency
+section response owner: lazy_section_dump_v1
+dependency response owner: dependency_trace_query_v1
+generic output wrapper: none
+query_result_v1: not activated
+common selector: exact object_path or current index-local asset_id
+Output: explicit required
+DumpRoot: optional
+Intent/Profile: unsupported
+section route options: Sections required; dependency options rejected
+dependency route options: Direction/Strength/MaxDepth/MaxNodes/MaxEdges; Sections rejected
+direct sectiondump/dependencyquery modes: retained unchanged
+section/dependency route output: passed
+direct-vs-routed equivalence: passed
+object_path/AssetId equivalence: passed
+QueryKind normalization: passed
+native schema ownership: passed
+query_result_v1 absence: passed
+stable negative matrix: 23/23 passed
+source-root invariance and determinism: passed
+BuildPlugin / Generic Host / P2B: passed
+Phase 1 parser/profile/cross-shell matrix: passed
+git diff --check: passed
+source dump/index mutation: prohibited
+live asset loading: prohibited
+index rebuild: prohibited
+ranking/natural-language/context bundle: not activated
+current_plan: Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModeClose_v1.md
+contract_acceptance: accepted
+```
+
+`query` is a command router, not a normal dump section and not a response schema. It must not appear in `available_sections`, `section_index_v1.sections`, specialized section schema maps or response `schema_version` fields.
+
+Accepted v1.0.1 Query Result Schema contract:
+
+```text
+task_id: ADUMP-v1.0.1-QRES
+status: completed / contract accepted
+schema_version: query_result_v1
+activation: -Mode=query -ResultSchema=query_result_v1
+default ResultSchema: native
+status registry: succeeded only
+query_kind registry: section, dependency
+selector_kind registry: object_path, asset_id
+section native schema: lazy_section_dump_v1
+section native source contract: indexed_stored_evidence
+dependency native schema: dependency_trace_query_v1
+dependency native source contract: indexed_dependency_evidence
+payload ownership: complete native response under result.payload
+wrapper fields: schema_version, generated_time, status, query, result, all_resolved
+wrapper generated_time: exact payload generated_time
+root_object_path source: payload.asset.object_path or payload.root_asset.object_path
+native default preservation: passed
+complete payload equality: passed
+selector equivalence: passed
+case normalization: passed
+determinism: passed
+stable negative matrix: 31/31 passed
+source-root invariance: passed
+BuildPlugin / Generic Host / P2B: passed
+Phase 1 parser/profile/cross-shell matrix: passed
+git diff --check: passed
+failure envelopes: not activated
+native default and direct modes: unchanged
+current_plan: Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaClose_v1.md
+contract_acceptance: accepted
+```
+
+`query_result_v1` is a successful query response schema, not a per-asset dump section. It must not appear in `available_sections` or `section_index_v1.sections`. Its `result.payload` remains owned by the embedded specialized schema.
+
+Accepted v1.0.2 AI Context Bundle contract:
+
+```text
+task_id: ADUMP-v1.0.2-AICB
+status: completed / contract accepted
+command_mode: contextbundle
+input_schema: query_result_v1
+input_count: exactly one successful wrapper file
+output_schema: ai_context_bundle_v1
+status registry: succeeded only
+item_kind registry: section, asset, relation
+candidate order: section array OR dependency nodes then edges
+item_id registry: item_0000 sequential in final included prefix
+max_items: 1..256; default 64
+max_bytes: 4096..1048576; default 262144
+byte measurement: exact BOM-free UTF-8 output
+bundle truncation registry: source_truncated, max_items, max_bytes
+source truncation registry: dependency-native max_nodes, max_edges
+section item ownership: copied indexed section evidence plus native data
+section_schema_version: field required; empty accepted core-sidecar value preserved
+asset item ownership: copied dependency node contract
+relation item ownership: copied dependency edge contract
+generated_time: exact query_result_v1 generated_time
+source/input path exposure: prohibited
+source file reread: prohibited
+query execution/index rebuild/live loading: prohibited
+focused section/dependency contracts: passed
+native item equality: passed
+MaxItems and exact UTF-8 MaxBytes: passed
+source truncation and canonical reason ordering: passed
+stable negative matrix: 28/28 passed
+source/input invariance and determinism: passed
+BuildPlugin / Generic Host / P2B / Phase 1: passed
+multi-query assembly: deferred to v1.1.2
+current_plan: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundlePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md
+contract_acceptance: accepted
+```
+
+`ai_context_bundle_v1` is a bounded export schema, not a normal per-asset dump section and not a query response replacement. It must not appear in `available_sections`, `section_index_v1.sections` or native/query wrapper schema fields.
 
 ## Initial Section Set for v0.6.0
 
@@ -405,6 +667,112 @@ No runtime migration is required for this registry. New section work must update
 None.
 
 ## Changelog
+
+### v1.37
+
+- Promoted `ai_context_bundle_v1` to Completed / Contract Accepted.
+- Recorded section/asset/relation item ownership, empty core-sidecar schema preservation, MaxItems and exact UTF-8 MaxBytes contracts.
+- Recorded 28 stable failures, source/input invariance, determinism, Generic Host, P2B and Phase 1 evidence.
+- Removed the duplicate planned registry row and linked the canonical v1.0.2 closure report.
+- Kept multi-query assembly assigned to v1.1.2 and natural query inactive.
+
+### v1.36
+
+- Activated the v1.0.2 `ai_context_bundle_v1` export contract.
+- Registered one successful `query_result_v1` input, section/asset/relation items and deterministic prefix ordering.
+- Defined MaxItems, exact UTF-8 MaxBytes and canonical source/item/byte truncation registries.
+- Kept the bundle outside normal per-asset sections and preserved every accepted native and query wrapper schema.
+- Deferred multi-query assembly, summarization, ranking, natural-language interpretation and failure envelopes.
+
+### v1.35
+
+- Promoted `query_result_v1` to Completed / Contract Accepted.
+- Recorded preserved native defaults, complete specialized payload equality, shared generated-time identity, selector/case normalization and deterministic output.
+- Recorded 31 stable failures, source-root invariance, Generic Host, P2B, Phase 1 matrix and Git evidence.
+- Kept the success wrapper outside normal per-asset sections and left failure envelopes, normalization, ranking, multi-query and context bundles inactive.
+
+### v1.34
+
+- Activated the v1.0.1 `query_result_v1` success-envelope contract.
+- Defined native default preservation, complete specialized payload embedding and shared generated-time ownership.
+- Kept the wrapper outside normal per-asset sections and preserved specialized schema ownership.
+- Deferred failure envelopes, payload normalization, ranking, multi-query and context bundles.
+
+### v1.33
+
+- Promoted the v1.0.0 Query Mode routing contract to Completed / Contract Accepted.
+- Recorded native section/dependency response ownership, direct/selector equivalence, QueryKind normalization and strict option routing.
+- Recorded 23 stable failures, source-root invariance, Generic Host, P2B, Phase 1 matrix and Git evidence.
+- Kept `query` outside the section and response-schema registries and left `query_result_v1` deferred.
+
+### v1.32
+
+- Activated the v1.0.0 Query Mode routing contract.
+- Registered canonical `section` and `dependency` QueryKinds with native accepted response ownership.
+- Kept `query` outside the section and response-schema registries.
+- Deferred `query_result_v1`, ranking, natural-language interpretation and context bundles.
+
+### v1.31
+
+- Promoted `dependency_trace_query_v1` to Completed / Contract Accepted.
+- Recorded actual legacy-index compatibility, deterministic bounded BFS, direction/strength, external/merge/cycle behavior and explicit truncation.
+- Recorded 29 stable failures, atomic output preservation, source-root invariance, Generic Host, P2B, Phase 1 matrix and Git evidence.
+- Kept the response outside normal per-asset sections and generic `query_result_v1`.
+
+### v1.30
+
+- Activated the v0.9.3 `dependency_trace_query_v1` specialized response contract.
+- Defined exact root selection, direction and strength registries, bounded BFS, cycle semantics, external endpoints and truncation reasons.
+- Kept the response outside normal per-asset sections and generic `query_result_v1`.
+- Protected the existing schema-less dependency index and all accepted dump/index contracts.
+
+### v1.29
+
+- Replaced provisional v0.9.2 closure evidence with final shared-source and 19-case coverage.
+- Recorded exact two-section/one-file source deduplication alongside three-section/three-file retrieval.
+- Preserved the accepted response schema and all live-regeneration/query exclusions.
+
+### v1.28
+
+- Promoted `lazy_section_dump_v1` to Completed / Contract Accepted.
+- Recorded exact indexed data, selector equivalence, canonical ordering, source-file deduplication and deterministic response.
+- Recorded the provisional 16-case failure matrix before final Output and independent index-boundary coverage.
+- Kept live regeneration, freshness, dependency tracing and query-result contracts inactive.
+
+### v1.27
+
+- Activated the v0.9.2 `lazy_section_dump_v1` retrieval response contract.
+- Defined exact object-path/local-ID selection, explicit sections and bounded indexed pointer resolution.
+- Kept the response schema outside normal per-asset section and query-result registries.
+- Prohibited source mutation, live asset loading, regeneration and freshness claims.
+
+### v1.26
+
+- Promoted `section_index_v1` to Completed / Contract Accepted.
+- Recorded actual 70 section entries, 20 Blueprint symbols, relative locations and complete JSON Pointer resolution.
+- Recorded duplicate, malformed, missing, stale, determinism, Generic Host, P2B, Phase 1 matrix and Git closure evidence.
+- Kept lazy loading, dependency tracing and query contracts planned for later versions.
+
+### v1.25
+
+- Activated `section_index_v1` for v0.9.1.
+- Registered separated section and Blueprint symbol location arrays.
+- Defined stable identities, sequential local IDs, relative source paths and JSON Pointer contracts.
+- Protected the three accepted global index files and deferred query/ranking/lazy-loading behavior.
+
+### v1.24
+
+- Promoted `asset_index_v1` to Completed / Contract Accepted.
+- Recorded legacy index compatibility, actual sections, relative paths and duplicate/malformed/missing/stale semantics as accepted contracts.
+- Recorded BuildPlugin, Generic Host, P2B, Phase 1 matrix and Git closure evidence.
+- Kept `section_index_v1` and query contracts planned for later versions.
+
+### v1.23
+
+- Activated `asset_index_v1` for v0.9.0.
+- Chose additive `asset_index.json` while preserving the two existing global index files.
+- Registered actual section discovery, stable object-path identity, relative file paths and file-state semantics.
+- Kept `section_index_v1` and query contracts planned for later versions.
 
 ### v1.22
 

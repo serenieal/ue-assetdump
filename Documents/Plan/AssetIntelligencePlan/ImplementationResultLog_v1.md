@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.27
+- document_version: v1.37
 - created_at: 2026-07-10
-- updated_at: 2026-07-28
+- updated_at: 2026-07-29
 - document_role: implementation_result_log
 - codex_input: false
 
@@ -13,6 +13,820 @@
 Record implementation and verification results for Asset Intelligence planning tasks after Codex or manual implementation work is completed.
 
 ## Results
+
+## 2026-07-29 - AssetDump v1.0.2 AI Context Bundle Export
+
+### Status
+
+```text
+task_id: ADUMP-v1.0.2-AICB
+implementation: completed
+command_mode: contextbundle
+input_schema: query_result_v1
+output_schema: ai_context_bundle_v1
+commandlet_version: 0.21.1
+header_version: 0.4.2
+phase2_runner_version: 1.14.2
+fresh_buildplugin: passed
+canonical_phase2: passed
+phase1_matrix: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added single-input `query_result_v1` to bounded `ai_context_bundle_v1` export.
+- Added deterministic section, asset and relation item streams while preserving native evidence values and ordering.
+- Added `MaxItems` prefix bounds and exact BOM-free UTF-8 `MaxBytes` tail removal.
+- Added canonical `source_truncated`, `max_items`, `max_bytes` reason ordering.
+- Added strict option ownership, stable failures, source/input invariance and atomic save behavior.
+- Preserved empty `section_schema_version` for accepted schema-less summary/digest sidecars.
+- Kept query execution, source-file reread, multi-query assembly, summarization, ranking and natural-language interpretation inactive.
+
+### Canonical Verification Result
+
+```text
+PowerShell 5.1 self-test v1.14.2: PASS
+fresh BuildPlugin job: 5785c490d2a84a18bba5ca590196fbd7
+fresh BuildPlugin exit: 0
+fresh BuildPlugin duration_seconds: 170.686
+fresh BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260729_090219_153_494dbf74.json
+fresh BuildPlugin report SHA-256: 88a36933507ba687038865703112cef0d4c806bd4a354d945fd6ec93573a723c
+compile/package gate: PASS
+package inspection: PASS
+validation assets: 10
+forbidden package items: 0
+source Content/Validation invariance: PASS
+source package-contract invariance: PASS
+
+Phase 2 v1.14.0 diagnostic:
+  failed at section default because the new exporter incorrectly required non-empty section_schema_version
+  accepted summary/digest sidecars use an existing empty string field
+  product contract aligned in commandlet v0.21.1
+
+Phase 2 v1.14.1 diagnostic:
+  all positive section/dependency bundle outputs were generated
+  section/dependency structure: PASS
+  native item ordering/equality evidence available
+  MaxItems: PASS
+  exact UTF-8 MaxBytes: PASS
+  source truncation propagation: PASS
+  combined reason order: source_truncated|max_items|max_bytes
+  repeated/default/case-normalized byte equality: PASS
+  remaining failure: PowerShell duplicate ResultObject parameter binding in compatibility predicate
+
+Phase 2 v1.14.2 correction:
+  two Test-QueryResultResponseContract calls evaluated as independent parenthesized expressions
+  self-test job: cca75c7a82d64bdab9f92d5028a48c99
+  self-test: PASS
+  canonical source job: 19f5bed490554aeb88ac1532c7bdb0af
+  exact validator job: 6a94cab95f704ea2b1bfff7d5b94d236
+  canonical report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260729_102613_851_62fcd0e6\Reports\phase2_report.json
+  report SHA-256: b393c5eaddc1341ac9a414bbfd6a08264c227dbd5644c5e185a29659be7de5e9
+  all prior evidence: PASS
+  AI Context Bundle focused evidence: PASS
+  section/dependency bundle contracts: PASS
+  native item equality: PASS
+  MaxItems/MaxBytes: PASS
+  source truncation and canonical reason order: PASS
+  deterministic repeated bytes: PASS
+  stable negative matrix: 28/28 PASS
+  source/input invariance: PASS
+  P2B fallback: PASS
+  failure_count: 0
+
+Phase 1 canonical matrix:
+  self-test job: c00c0279f52d4299a90931452ffd7106
+  source job: e4215be097e943109bbdafe40c3df686
+  exit: 0
+  duration_seconds: 686.058
+  exact validator job: 4f82977a86e448d39b6a1799e2878ea4
+  report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260729_202532_108_a1cb864a\Reports\phase1_matrix_report.json
+  report SHA-256: 42c78338de114882d99c2ca90860d253b0f5c03fd06e62314f2dcd1e229d2410
+  parser/self-test: PASS
+  Plugin/Project/Both: PASS
+  PowerShell 5.1/7/cross-shell: PASS
+  Content/Validation invariance: PASS
+  legacy PluginRoot/Dumped absent: PASS
+  git diff --check: PASS
+  failure_count: 0
+```
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundlePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md
+contract_accepted: true
+next_candidate: v1.1.0 Natural Query Adapter Contract / selectable / not active
+Git writes: not performed
+```
+
+### Migration
+
+Existing query and direct specialized commands require no change. AI context export is additive and requires explicit `-Mode=contextbundle`, `-Input` and `-Output`.
+
+## 2026-07-29 - AssetDump v1.0.1 Query Result Schema
+
+### Status
+
+```text
+task_id: ADUMP-v1.0.1-QRES
+implementation: completed
+command_mode: query
+activation: ResultSchema=query_result_v1
+default_result_schema: native
+response_schema: query_result_v1
+status_domain: succeeded only
+section_payload_owner: lazy_section_dump_v1
+dependency_payload_owner: dependency_trace_query_v1
+commandlet_version: 0.20.0
+header_version: 0.4.1
+phase2_runner_version: 1.13.0
+extractor_version: unchanged 2.11.0
+buildplugin: passed
+generic_host_editor_build: passed
+generic_host_runtime: passed
+section_wrapper_contract: passed
+dependency_wrapper_contract: passed
+native_default_preservation: passed
+complete_native_payload_equality: passed
+generated_time_identity: passed
+selector_equivalence: passed
+result_schema_case_normalization: passed
+native_output_compatibility: passed
+direct_mode_compatibility: passed
+stable_negative_matrix: 31/31 passed
+source_root_invariance: passed
+determinism: passed
+accepted_prior_contracts: preserved
+p2b_fallback: passed
+phase1_profile_cross_shell_matrix: passed
+content_invariance: passed
+git_diff_check: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added case-insensitive `ResultSchema=native|query_result_v1` to generic Query Mode.
+- Preserved omitted and explicit `native` as the v1.0.0-compatible default.
+- Added one in-memory success-envelope builder over accepted section and dependency native responses.
+- Embedded the complete native response under `result.payload` without flattening, field removal, ordering changes or normalization.
+- Derived wrapper schema/source metadata and resolved root object path from the accepted native response.
+- Reused the native response `generated_time` exactly; no second clock read was introduced.
+- Used the existing atomic save helper once after complete wrapper construction.
+- Added `ADUMP_QUERY_RESULT_SCHEMA_INVALID` and `ADUMP_QUERY_RESULT_WRAP_FAILED` while preserving dispatcher and specialized failure ownership.
+- Rejected `ResultSchema` in direct `sectiondump` and `dependencyquery` modes.
+- Emitted no failure envelope and preserved existing Output on every pre-save failure.
+- Kept live loading, index rebuild, freshness, payload normalization, ranking, natural-language query, multi-query and context bundles inactive.
+
+### Canonical Verification Result
+
+```text
+fresh BuildPlugin job: 7ae137300650482fb1b9fff9d4f2a452
+BuildPlugin exit: 0
+BuildPlugin duration_seconds: 191.376
+BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260728_234356_628_68eb606f.json
+BuildPlugin report SHA-256: 3728dd0c390c4ac1b2eb308fadc2031e3a6abcce19b5703fa54fca3bdc1b1314
+compile/package gate: PASS
+package inspection: PASS
+packaged validation assets: 10
+forbidden package items: 0
+source Content/Validation invariance: PASS
+source package-contract invariance: PASS
+final Phase 2 self-test job: 4c0f1cd799744fcf9b9e797bc6c7f735
+canonical Phase 2 source job: bd0713c6269340d68230f8dd8c8c83c6
+canonical Phase 2 exit: 0
+canonical Phase 2 duration_seconds: 2544.672
+canonical Phase 2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260729_003014_415_67476a79\Reports\phase2_report.json
+Phase 2 report SHA-256: aecdacdbb6d040d1930b2bb1ea2ccda61d27ae00eee1f62eb7b55c39d3b70484
+exact report validator job: 396ae286b4b441c090d393a8b6f37d27
+BuildPlugin / Generic Host / Blueprint Search / Asset Index / Section Index / Lazy Section Dump / Dependency Query / Query Mode / Query Result / P2B: PASS
+query_result_phase2_evidence_v1: PASS
+phase2_implementation_gate_passed: true
+failure_count: 0
+actual stable Query Result negative cases: 31
+Phase 1 job: b2fe9f5cef0f46aa967f406b303114ce
+Phase 1 exit: 0
+Phase 1 duration_seconds: 705.294
+Phase 1 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260729_101320_832_b77ed6d6\Reports\phase1_matrix_report.json
+Phase 1 report SHA-256: 53cfd4f06be47368b5faa072f79d7ab460697dbb63cb64cec7ca961f60d9a618
+parser/self-test / Plugin / Project / Both / PS5.1 / PS7 / cross-shell: PASS
+Content/Validation exact invariance: PASS
+legacy PluginRoot/Dumped absent: PASS
+git diff --check: PASS
+```
+
+### Focused Evidence
+
+```text
+section query_result_v1 actual output: PASS
+dependency query_result_v1 synthetic output: PASS
+exact wrapper field set: PASS
+section native schema/source ownership: PASS
+dependency native schema/source ownership: PASS
+wrapper/payload generated_time identity: PASS
+resolved root object path from native payload: PASS
+omitted ResultSchema versus explicit native: PASS
+section complete payload semantic equality: PASS
+dependency complete payload semantic equality: PASS
+section object_path/AssetId equivalence: PASS
+dependency object_path/AssetId equivalence: PASS
+QUERY_RESULT_V1 and NATIVE normalization: PASS
+normalized repeated-output determinism: PASS
+native outputs contain no query_result_v1: PASS
+direct specialized modes unchanged: PASS
+Plugin/synthetic source-root manifests invariant: PASS
+stable negative cases: 31/31 PASS
+pre-save output preservation: PASS
+unwritable output classification: PASS
+```
+
+### Diagnostic Correction
+
+The first Phase 2 v1.13.0 diagnostic run proved correct product output but failed one harness aggregate because PowerShell normalized `result.payload.generated_time` in-place before checking wrapper/payload time identity. The script was corrected to evaluate identity before comparison normalization. This was a validation-object mutation/order defect, not a product or schema defect. Product source and the fresh BuildPlugin package were unchanged, so the accepted BuildPlugin report was reused. The corrected self-test and canonical Phase 2 run passed.
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaClose_v1.md
+contract_accepted: true
+next_candidate: v1.0.2 AI Context Bundle Export / selectable / not active
+```
+
+### Migration
+
+Existing Query Mode consumers require no changes and may continue parsing native specialized responses. New common-envelope consumers pass `ResultSchema=query_result_v1` and dispatch `result.payload` using `result.native_schema_version`. The wrapper is not a normalized cross-query data model and does not claim live freshness.
+
+## 2026-07-29 - AssetDump v1.0.0 Query Mode
+
+### Status
+
+```text
+task_id: ADUMP-v1.0.0-QMODE
+implementation: completed
+command_mode: query
+query_kinds: section | dependency
+output_contract: native accepted response passthrough
+section_response_owner: lazy_section_dump_v1
+dependency_response_owner: dependency_trace_query_v1
+commandlet_version: 0.19.0
+header_version: 0.4.0
+extractor_version: unchanged 2.11.0
+buildplugin: passed
+generic_host_editor_build: passed
+generic_host_runtime: passed
+section_route: passed
+dependency_route: passed
+direct_mode_equivalence: passed
+selector_equivalence: passed
+query_kind_normalization: passed
+native_schema_ownership: passed
+query_result_v1_absent: passed
+strict_option_ownership: passed
+stable_negative_matrix: 23/23 passed
+source_root_invariance: passed
+determinism: passed
+accepted_specialized_contracts: preserved
+p2b_fallback: passed
+phase1_profile_cross_shell_matrix: passed
+content_invariance: passed
+git_diff_check: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added `-Mode=query` with required canonical `QueryKind=section|dependency` routing.
+- Reused the accepted `BuildCommandletLazySectionDumpJson` and `BuildCommandletDependencyTraceQueryJson` builders directly.
+- Kept successful output ownership in `lazy_section_dump_v1` and `dependency_trace_query_v1`.
+- Added no generic wrapper, routing metadata or `query_result_v1` output.
+- Required exactly one exact `Asset` or current index-local `AssetId` and explicit `Output`.
+- Rejected `Intent` and `Profile` for generic query routing.
+- Required `Sections` for the section route and rejected dependency-only options.
+- Rejected `Sections` for the dependency route and retained accepted direction, strength and bound semantics.
+- Added eight dispatcher stable codes while preserving route-native specialized failure ownership.
+- Used the existing atomic JSON save helper and preserved output bytes on every pre-save failure.
+- Kept direct `sectiondump` and `dependencyquery` modes unchanged.
+- Kept the selected actual and synthetic dump roots byte-identical.
+- Kept live loading, index rebuild, freshness, ranking, fuzzy/natural selection, multi-query and context bundles inactive.
+
+### Canonical Verification Result
+
+```text
+canonical BuildPlugin job: e32768dfd36a4a2386ccaaecd808bb72
+BuildPlugin exit: 0
+BuildPlugin duration_seconds: 148.620
+BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260728_210228_088_f2b46c61.json
+BuildPlugin report SHA-256: a2ac70cd6cbcdbc4603feb7a33af4e9adeba386c3147284468262b51a117749b
+compile/package gate: PASS
+package inspection: PASS
+packaged validation assets: 10
+forbidden package items: 0
+source Content/Validation invariance: PASS
+source package-contract invariance: PASS
+final Phase 2 self-test job: b2dca39ec06848f2bfa762a637201672
+canonical Phase 2 source job: 2b4f9e603566426a8d6520130754b09b
+canonical Phase 2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_210607_632_20782a13\Reports\phase2_report.json
+Phase 2 report SHA-256: 072970c0d13a5742090cce5b3491c41e2b048af6824fa038cf2aa15f35e816d5
+exact recovery job: d579a10b788c443aa5ea7f41c22fe7dd
+BuildPlugin / Generic Host / Blueprint Search / Asset Index / Section Index / Lazy Section Dump / Dependency Query / Query Mode / P2B: PASS
+phase2_implementation_gate_passed: true
+failure_count: 0
+actual stable Query Mode negative cases: 23
+Phase 1 job: d517bac677cd4f969165964ca996d2be
+Phase 1 exit: 0
+Phase 1 duration_seconds: 754.288
+Phase 1 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260729_064129_661_0d92c827\Reports\phase1_matrix_report.json
+Phase 1 report SHA-256: 5d6b7ecd6e7c40fd1e019a431df16995fcc291a9054cd83a51632c2171980dc9
+exact report inspection job: 995b62bfb2f94aa38e8997ca5bac7c60
+parser/self-test / Plugin / Project / Both / PS5.1 / PS7 / cross-shell: PASS
+Content/Validation exact invariance: PASS
+legacy PluginRoot/Dumped absent: PASS
+git diff --check: PASS
+```
+
+### Focused Evidence
+
+```text
+actual Generic Host section route: PASS
+actual/synthetic dependency route: PASS
+section direct-vs-routed normalized equality: PASS
+dependency direct-vs-routed normalized equality: PASS
+section object_path/AssetId equivalence: PASS
+dependency object_path/AssetId equivalence: PASS
+SECTION/DEPENDENCY case normalization: PASS
+native specialized response schemas: PASS
+query_result_v1 absence: PASS
+strict route option ownership: PASS
+normalized repeated routed output: PASS
+Plugin/synthetic root complete invariance: PASS
+stable negative cases: 23/23 PASS
+pre-save output preservation: PASS
+unwritable output classification: PASS
+```
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModeClose_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing direct-mode consumers require no changes. New Query Mode consumers select a QueryKind and parse the corresponding native response schema. A generic query wrapper is not part of v1.0.0.
+
+## 2026-07-29 - AssetDump v0.9.3 Dependency Trace Query
+
+### Status
+
+```text
+task_id: ADUMP-v0.9.3-DTQ
+implementation: completed
+command_mode: dependencyquery
+response_schema: dependency_trace_query_v1
+commandlet_version: 0.18.0
+header_version: 0.3.9
+extractor_version: unchanged 2.11.0
+buildplugin: passed
+generic_host_editor_build: passed
+generic_host_runtime: passed
+actual_dependency_index_compatibility: passed
+synthetic_traversal_contract: passed
+directions_and_strength_filters: passed
+external_and_merge_edges: passed
+cycle_semantics: passed
+bounds_and_truncation: passed
+selector_equivalence: passed
+stable_negative_matrix: 29/29 passed
+source_root_invariance: passed
+determinism: passed
+accepted_index_compatibility: passed
+p2b_fallback: passed
+phase1_profile_cross_shell_matrix: passed
+content_invariance: passed
+git_diff_check: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added read-only `-Mode=dependencyquery` without changing existing dump, index or specialized retrieval modes.
+- Required exactly one exact `Asset` object path or current index-local `AssetId` and explicit `Output`.
+- Added dependencies, referencers and both traversal directions.
+- Added all, hard and soft relation-strength filters.
+- Added bounded deterministic breadth-first traversal with depth 1..8, nodes 1..256 and edges 1..512.
+- Preserved external unindexed relation endpoints with empty asset metadata.
+- Retained merge/revisit edges while queueing each discovered node once.
+- Marked self and deterministic discovery-tree ancestor closures as cycle edges.
+- Treated MaxDepth as a normal boundary and MaxNodes/MaxEdges as explicit successful truncation.
+- Sorted nodes and edges before assigning sequential local IDs.
+- Validated the accepted `asset_index_v1` and existing schema-less `dependency_index.json` reader contract without rebuilding either index.
+- Serialized the response in memory and used the existing atomic JSON save helper.
+- Preserved existing output bytes on every pre-save failure and kept source dump roots byte-identical.
+- Kept live asset loading, live package dependency queries, freshness, ranking, generic query schemas and context bundles inactive.
+
+### Canonical Verification Result
+
+```text
+canonical BuildPlugin job: 70fd49e659b54a1992a1e6d7cf50156f
+BuildPlugin exit: 0
+BuildPlugin duration_seconds: 206.104
+BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260728_142556_206_ebb7084c.json
+BuildPlugin report SHA-256: eea7a5f15b98f4897a2ac3c610dde868794a403a942d03ea8816b6a3a426549f
+compile/package gate: PASS
+package inspection: PASS
+packaged validation assets: 10
+forbidden package items: 0
+source Content/Validation invariance: PASS
+source package-contract invariance: PASS
+final Phase 2 self-test job: 603e1818725d45b186919aa3323c763f
+canonical Phase 2 source job: 7bdbd63907ff456e99d5a91a93def450
+canonical Phase 2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_143818_071_d2adda16\Reports\phase2_report.json
+Phase 2 report SHA-256: 5e0b4ac8e3c2b914d5bf2007c7bbf736c536610df39d0b0e75657cec26930f57
+exact report inspection job: 546e733debcc413d827960e44d3a84d5
+BuildPlugin / Generic Host / Blueprint Search / Asset Index / Section Index / Lazy Section Dump / Dependency Query / P2B: PASS
+phase2_implementation_gate_passed: true
+failure_count: 0
+actual legacy dependency-index compatibility: PASS
+synthetic traversal contract: PASS
+actual stable negative cases: 29
+Phase 1 job: 11eb30a54edc4262bbf663174f25b3c8
+Phase 1 exit: 0
+Phase 1 duration_seconds: 727.658
+Phase 1 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260729_000636_845_060e8e4d\Reports\phase1_matrix_report.json
+Phase 1 report SHA-256: 52f742d4253f01fc615e189ec04556d057f7820943e14f048d50a1bab3394f28
+exact report inspection job: 03616c9c441f43cc9dcfd586600eb055
+parser/self-test / Plugin / Project / Both / PS5.1 / PS7 / cross-shell: PASS
+Content/Validation exact invariance: PASS
+legacy PluginRoot/Dumped absent: PASS
+git diff --check: PASS
+```
+
+### Focused Evidence
+
+```text
+actual Generic Host legacy dependency index: compatible
+synthetic direct dependencies: PASS
+synthetic transitive dependencies: PASS
+synthetic referencers: PASS
+synthetic both direction: PASS
+hard-only and soft-only filters: PASS
+external unindexed endpoint: retained
+merge/revisit edge: retained without false cycle
+self and ancestor cycles: marked
+zero-relation root: one node / zero edges / success
+max_depth boundary: PASS without false truncation
+max_nodes truncation: PASS with max_nodes reason
+max_edges truncation: PASS with max_edges reason
+object_path and asset_id normalized equivalence: PASS
+normalized repeated-output determinism: PASS
+actual and synthetic source-root manifests: invariant
+stable negative cases: 29/29 PASS
+pre-save output preservation: PASS
+unwritable output classification: PASS
+```
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryClose_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing consumers require no changes. New consumers may use `dependencyquery` for bounded stored dependency evidence. `AssetId` is local to the current asset index, and the response does not claim live dependency or freshness truth.
+
+## 2026-07-28 - AssetDump v0.9.2 Lazy Section Dump
+
+### Status
+
+```text
+task_id: ADUMP-v0.9.2-LSD
+implementation: completed
+command_mode: sectiondump
+response_schema: lazy_section_dump_v1
+commandlet_version: 0.17.0
+header_version: 0.3.8
+extractor_version: unchanged 2.11.0
+buildplugin: passed
+generic_host_editor_build: passed
+generic_host_runtime: passed
+exact_indexed_data: passed
+shared_source_retrieval: 2 sections / 1 unique source file passed
+selector_equivalence: passed
+stable_negative_matrix: 19/19 passed
+source_root_invariance: passed
+determinism: passed
+accepted_index_compatibility: passed
+p2b_fallback: passed
+phase1_profile_cross_shell_matrix: passed
+content_invariance: passed
+git_diff_check: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added read-only `-Mode=sectiondump` without changing existing dump or index modes.
+- Required exactly one exact `Asset` object path or current index-local `AssetId`.
+- Required explicit canonical `Sections` and explicit `Output`.
+- Loaded accepted `asset_index_v1` and `section_index_v1` without implicit rebuild.
+- Resolved exactly one section-index entry per requested asset/section pair.
+- Opened only unique required source files and cached each source object once.
+- Supported accepted root `/` and one-level `/<top-level-field>` pointers.
+- Cloned exact indexed JSON values into ordered `lazy_section_dump_v1.sections[]` results.
+- Serialized the full response in memory and used the existing atomic JSON save helper.
+- Added stable non-zero failure codes and preserved existing output bytes on every pre-save failure.
+- Kept the selected dump root byte-for-byte invariant.
+- Kept live asset loading, automatic regeneration, freshness evaluation, dependency tracing and query schemas inactive.
+
+### Canonical Verification Result
+
+```text
+initial compile diagnostic job: 171ccc150d5e4fbd8a841ac99cdb7c44
+initial blocker: direct FString lookup against UE FJsonObject shared-string key map
+canonical BuildPlugin job: 24b10367ed3448e29a6d2612085544d4
+BuildPlugin exit: 0
+BuildPlugin duration_seconds: 170.255
+BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260728_125615_446_c8e400cb.json
+BuildPlugin report SHA-256: d255b4eb782f31d5648e87911a32e8581d65ecf41f8be7816816ea699ac85243
+compile/package gate: PASS
+package inspection: PASS
+packaged validation assets: 10
+forbidden package items: 0
+source Content/Validation invariance: PASS
+source package-contract invariance: PASS
+final Phase 2 self-test job: ff4f186f34884af9991a2a253bdea5d8
+canonical Phase 2 source job: 39b4db6624ba4c1aa57e7e904c2a6097
+canonical Phase 2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_125938_731_8d6a816e\Reports\phase2_report.json
+Phase 2 report SHA-256: 065b07411cb4bfa47fef9403c9297b7a8c183d1c6f22cb1508b653c30faacc1b
+fixed-path recovery job: 4287a45c26134eeab68a96841a61fc14
+BuildPlugin / Generic Host / Blueprint Search / Asset Index / Section Index / Lazy Section Dump / P2B: PASS
+phase2_implementation_gate_passed: true
+failure_count: 0
+actual multi-source section_count: 3
+actual multi-source source_file_count: 3
+actual shared-source section_count: 2
+actual shared-source source_file_count: 1
+actual stable negative cases: 19
+Phase 1 job: 64e858dd89b34bf1b575d1b8fc967050
+Phase 1 exit: 0
+Phase 1 duration_seconds: 706.552
+Phase 1 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260728_222543_432_6432a5c5\Reports\phase1_matrix_report.json
+Phase 1 report SHA-256: 0dc9c62b6854f98e51847faeb0bfafa5b64e16ee0b22976c755ea3c297d88480
+fixed-path recovery job: 25430b0300874064b33e714a946e836b
+parser/self-test / Plugin / Project / Both / PS5.1 / PS7 / cross-shell: PASS
+Content/Validation exact invariance: PASS
+legacy PluginRoot/Dumped absent: PASS
+git diff --check: PASS
+```
+
+### Focused Evidence
+
+```text
+asset: /AssetDump/Validation/DA_ADumpValues.DA_ADumpValues
+input sections: data_asset_values,digest,summary
+canonical output order: summary,digest,data_asset_values
+object_path selector: PASS
+asset_id selector: PASS
+normalized selector equivalence: PASS
+exact indexed data equality: PASS
+location metadata equality: PASS
+multi-source unique relative source files: 3
+shared-source sections: component_tree,bp_search_index
+shared-source unique relative source files: 1
+shared-source exact indexed data: PASS
+normalized repeated-output determinism: PASS
+selected dump-root complete manifest equality: PASS
+stable negative cases: 19/19 PASS
+pre-save output preservation: PASS
+unwritable output classification: PASS
+```
+
+### Diagnostic Corrections
+
+The first Phase 2 diagnostic run proved that product outputs were generated but the PowerShell 5.1 harness could not deserialize the graph-heavy complete main dump for exact-data comparison. The harness was corrected to extract only the indexed top-level object through balanced raw JSON slicing.
+
+The second diagnostic run passed positive retrieval and the first seven stable failures, then encountered Windows path-length limits while cloning mutation-only case roots. Those copies were moved to short workspace `LC/<case>` paths.
+
+A final contract-gap audit then identified missing shared-source, explicit Output and independent asset/section index boundary coverage. Phase 2 v1.10.1 added one shared-source positive case and expanded stable failures from 16 to 19. None of these harness corrections changed product JSON or accepted index contracts.
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpClose_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing consumers require no changes. New consumers may use `sectiondump` for stored indexed evidence. `AssetId` is local to the current index, and the response does not claim live-asset freshness.
+
+## 2026-07-28 - AssetDump v0.9.1 Section Index
+
+### Status
+
+```text
+task_id: ADUMP-v0.9.1-SIDX
+implementation: completed
+output_file: section_index.json
+schema: section_index_v1
+commandlet_version: 0.16.0
+header_version: 0.3.7
+extractor_version: unchanged 2.11.0
+buildplugin: passed
+generic_host_editor_build: passed
+generic_host_runtime: passed
+section_index_actual_evidence: passed
+symbol_pointer_resolution: passed
+legacy_and_asset_index_compatibility: passed
+file_state_matrix: passed
+determinism: passed
+p2b_fallback: passed
+phase1_profile_cross_shell_matrix: passed
+content_invariance: passed
+git_diff_check: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Added a fourth additive `section_index.json` output while preserving `index.json`, `dependency_index.json` and `asset_index.json`.
+- Added deterministic `sections[]` entries from accepted `asset_index_v1.available_sections` only.
+- Added section source-file, JSON Pointer, storage kind, schema and accepted asset identity metadata.
+- Added global `symbols[]` entries copied from supported `bp_search_index_v1.symbols[]`.
+- Added exact `/bp_search_index/symbols/<index>` source pointers and copied symbol metadata/search terms.
+- Added sequential `section_00000` and `symbol_000000` local IDs after deterministic ordering.
+- Added structural validation against `asset_index_v1` and actual main-dump Blueprint symbol data.
+- Defined missing-main-dump semantics that retain valid sidecar sections but emit no main-dump sections or Blueprint symbols.
+- Extended Phase 2 to v1.9.0 with actual section/symbol, pointer, duplicate, malformed, missing, stale and determinism evidence.
+- Kept extractor version `2.11.0` because v0.9.1 adds a global derived location index without changing per-asset dump or fingerprint contracts.
+
+### Canonical Verification Result
+
+```text
+BuildPlugin job: d5fd8ed86cdf464a8f16c5e6a5d07574
+BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260728_074528_724_eb2550c3.json
+BuildPlugin report SHA-256: 912fa0b2b0cd227ffcdd8a912fa4ceb93948ab6e59c10150180ab51c264a7134
+BuildPlugin exit: 0
+BuildPlugin duration_seconds: 188.851
+compile/package gate: PASS
+package inspection: PASS
+packaged module: Binaries/Win64/UnrealEditor-AssetDump.dll
+packaged validation assets: 10
+forbidden package items: 0
+source Content/Validation invariance: PASS
+source package-contract invariance: PASS
+Phase 2 self-test final job: 8724af8b7afb4f288993c27bc052a17f
+canonical Phase 2 job: d6348510460445f699246d9d81343ae1
+canonical Phase 2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_080450_895_7f2609c8\Reports\phase2_report.json
+Phase 2 report SHA-256: 19e078cdccbbbb4a4e3f922086705bf88428a49e53763418c0ee818bd5b6343a
+Phase 2 exit: 0
+Phase 2 duration_seconds: 631.136
+BuildPlugin / Generic Host / Blueprint Search / Asset Index / Section Index / P2B: PASS
+phase2_implementation_gate_passed: true
+failure_count: 0
+actual section_count: 70
+actual symbol_count: 20
+Phase 1 source job: dbfdf77c9f664073b55224ae019c2dbe
+Phase 1 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260728_171602_461_2c242da7\Reports\phase1_matrix_report.json
+Phase 1 report SHA-256: 884c1413c3e88390fb0db149aa6db1c6d3fe745fa7a5738f94090aef3f7fe492
+Phase 1 independent report-recovery job: d791b5ef42d342fb867c1fd1df730347
+parser/self-test / Plugin / Project / Both / PS5.1 / PS7 / cross-shell: PASS
+Content/Validation exact invariance: PASS
+legacy PluginRoot/Dumped absent: PASS
+git diff --check: PASS
+```
+
+### Focused Evidence
+
+```text
+root count contract: PASS
+relative section and symbol paths: PASS
+section IDs, ordering and uniqueness: PASS
+symbol IDs, ordering and uniqueness: PASS
+actual core and specialized section coverage: PASS
+actual representative Blueprint symbol-kind coverage: PASS
+20/20 symbol JSON Pointers resolve: PASS
+older duplicate manifest location: PASS
+newer duplicate manifest location: PASS
+malformed manifest handling: PASS
+missing-main-dump semantics: PASS
+stale manifest removal: PASS
+normalized repeated-output determinism: PASS
+empty-root contract: PASS
+```
+
+The first v1.9.0 diagnostic Phase 2 run failed only the PowerShell-side pointer reader because Windows PowerShell 5.1 cannot deserialize the graph-heavy full dump when case-insensitive property names collide. The product C++ validator had already passed. The final harness extracts the balanced raw `bp_search_index` object before parsing, and the canonical rerun passed every pointer without changing product JSON.
+
+Direct polling of the Phase 1 source job exhausted its bounded status budget while the process continued. A one-time self-deleting repository script located the completed report by the exact reused Phase 2 path, computed its SHA-256 and independently required every final matrix predicate. It did not rerun the matrix or synthesize evidence.
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexClose_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing users of `index.json`, `dependency_index.json` and `asset_index.json` require no changes. New consumers may use `section_index.json`; generated section and symbol entry IDs are local to one rebuild.
+
+## 2026-07-28 - AssetDump v0.9.0 Asset Index
+
+### Status
+
+```text
+task_id: ADUMP-v0.9.0-AIDX
+implementation: completed
+output_file: asset_index.json
+schema: asset_index_v1
+commandlet_version: 0.15.0
+header_version: 0.3.6
+extractor_version: unchanged 2.11.0
+buildplugin: passed
+generic_host_editor_build: passed
+generic_host_runtime: passed
+asset_index_focused_evidence: passed
+legacy_index_compatibility: passed
+full_changed_only_empty_root: passed
+p2b_fallback: passed
+phase1_profile_cross_shell_matrix: passed
+content_invariance: passed
+git_diff_check: passed
+contract_acceptance: accepted
+```
+
+### Implementation Summary
+
+- Preserved the existing `index.json` and `dependency_index.json` serialization and added a third additive `asset_index.json` output.
+- Selected the latest valid manifest per exact `object_path` using the existing generated-time rule.
+- Added sequential `asset_0000` IDs after case-sensitive object-path sorting.
+- Added actual section discovery from main dump keys and existing sidecars, including specialized section schema versions.
+- Added dump-root-relative slash-normalized output paths without serializing absolute Host, Engine, Plugin or Consumer paths.
+- Added ready, missing-dump and malformed-dump states plus duplicate/malformed manifest counts and current-root stale removal semantics.
+- Added graph/node/reference counts, run selection metadata, generated/missing file lists and fingerprint fields.
+- Added structural contract validation and additive batch/validation report fields.
+- Extended Phase 2 to v1.8.0 with Plugin/empty-root, legacy compatibility, duplicate older/newer, malformed, missing, stale and normalized determinism evidence.
+- Kept extractor version `2.11.0` because v0.9.0 adds a global derived index without changing per-asset dump or fingerprint contracts.
+
+### Canonical Verification Result
+
+```text
+BuildPlugin job: 231bdd9589ce4feaa9b1611aeb759274
+BuildPlugin report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260728_062502_171_0827a618.json
+BuildPlugin report SHA-256: 78ba5b0ab870c0df2a2895b7a0abb0d95c2f0e331c32b18e0733d8ab81755ce7
+BuildPlugin process exit: 0
+compile/package gate: PASS
+package inspection: PASS
+packaged module: Binaries/Win64/UnrealEditor-AssetDump.dll
+packaged validation assets: 10
+forbidden package items: 0
+source Content/Validation invariance: PASS
+source package-contract invariance: PASS
+Phase 2 self-test job: d72070a102034de593ada432832801af
+canonical Phase 2 job: 64e15a3665e54a5b86475c5925adf9e3
+canonical Phase 2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_064055_263_1b36e72c\Reports\phase2_report.json
+Phase 2 exit: 0
+Phase 2 duration_seconds: 657.935
+BuildPlugin / Generic Host / Asset Index evidence / P2B: PASS
+phase2_implementation_gate_passed: true
+Phase 1 matrix job: cb48908711fd4b96bd28fa2cc100b660
+Phase 1 matrix report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260728_155527_651_630bf44e\Reports\phase1_matrix_report.json
+Phase 1 exit: 0
+Phase 1 duration_seconds: 683.158
+parser/self-test / Plugin / Project / Both / PS5.1 / PS7 / full matrix: PASS
+Content/Validation exact invariance: PASS
+legacy PluginRoot/Dumped absent: PASS
+git diff --check: PASS, line-ending warnings only
+```
+
+The focused Asset Index evidence passed actual section coverage, relative paths, sequential IDs, object-path order, legacy index compatibility, duplicate older/newer selection, malformed manifest handling, missing dump state, stale removal and normalized determinism.
+
+The earlier Live Coding build refusal is preserved as diagnostic history only. The same Generic Host requirement passed after the Editor was closed.
+
+Successful Phase 2 and Phase 1 report SHA-256 values were not captured because the bounded process-status result-read budget was exhausted after polling. The canonical process jobs, exact report paths, terminal exit 0 results and runner-owned predicates are preserved.
+
+### Closure
+
+```text
+plan: Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexClosureReport_v1.md
+contract_accepted: true
+```
+
+### Migration
+
+Existing users of `index.json` and `dependency_index.json` require no changes. New consumers may use `asset_index.json`; `object_path` is stable identity and `asset_id` is local to one rebuild.
 
 ## 2026-07-28 - AssetDump v0.8.2 Blueprint Search Index
 
@@ -1648,6 +2462,83 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.37
+
+- Promoted `ADUMP-v1.0.2-AICB` to Completed / Contract Accepted.
+- Recorded canonical Phase 2 v1.14.2 report SHA, focused bundle predicates, 28 stable failures, P2B and source/input invariance PASS.
+- Recorded canonical Phase 1 Plugin/Project/Both and PowerShell 5.1/7 matrix PASS.
+- Linked `v1_0_2_AIContextBundleClose_v1.md` and selected v1.1.0 Natural Query Adapter Contract as inactive next candidate.
+- Performed no Git write operation.
+
+### v1.36
+
+- Added the in-progress v1.0.2 AI Context Bundle implementation and verification record.
+- Recorded commandlet v0.21.1, Phase 2 v1.14.2, fresh BuildPlugin PASS and report SHA-256.
+- Recorded the schema-less section alignment and PowerShell parameter-binding diagnostics without treating them as accepted closure.
+- Kept canonical Phase 2 terminal recovery, Phase 1 matrix and contract acceptance pending.
+
+### v1.35
+
+- Completed the v1.0.1 Query Result Schema implementation and canonical closure record.
+- Recorded additive `query_result_v1`, preserved native defaults, complete specialized payload equality, generated-time identity, selector/case normalization and deterministic output.
+- Recorded 31 stable failures, atomic output preservation, source-root invariance, fresh BuildPlugin, Generic Host, P2B, Phase 1 matrix and Git PASS.
+- Recorded the PowerShell shared-object normalization ordering issue as a harness-only diagnostic.
+- Preserved direct specialized modes and every accepted v0.7.1-v1.0.0 contract.
+- Promoted `ADUMP-v1.0.1-QRES` to Completed / Contract Accepted.
+
+### v1.34
+
+- Completed the v1.0.0 Query Mode implementation and canonical closure record.
+- Recorded native section/dependency routing, direct and selector equivalence, QueryKind normalization, response ownership and deterministic output.
+- Recorded 23 stable failures, atomic output preservation, source-root invariance, fresh BuildPlugin, Generic Host, P2B, Phase 1 matrix and Git PASS.
+- Preserved direct specialized modes and every accepted v0.7.1-v0.9.3 contract.
+- Promoted `ADUMP-v1.0.0-QMODE` to Completed / Contract Accepted.
+
+### v1.33
+
+- Completed the v0.9.3 Dependency Trace Query implementation and canonical closure record.
+- Recorded read-only bounded BFS, direction/strength filters, external/merge/cycle behavior, truncation, selector equivalence and deterministic response.
+- Recorded 29 stable failures, atomic output preservation, source-root invariance, fresh BuildPlugin, Generic Host, P2B, Phase 1 matrix and Git PASS.
+- Preserved the existing schema-less dependency index and every accepted v0.7.1-v0.9.2 contract.
+- Promoted `ADUMP-v0.9.3-DTQ` to Completed / Contract Accepted.
+
+### v1.32
+
+- Replaced provisional v0.9.2 reports with final BuildPlugin, Phase 2 v1.10.1 and Phase 1 matrix evidence.
+- Added shared-source two-section/one-file retrieval and expanded stable failures to 19/19.
+- Recorded final jobs, durations, report paths, recovery jobs and SHA-256 values.
+
+### v1.31
+
+- Completed the v0.9.2 Lazy Section Dump implementation and canonical closure record.
+- Recorded read-only `sectiondump`, exact indexed data, selector equivalence, three-section/three-source retrieval and deterministic response.
+- Recorded the provisional 16-case closure before final shared-source and independent index-boundary coverage.
+- Recorded the PowerShell 5.1 raw-object and Windows path-length corrections as harness-only diagnostics.
+- Promoted `ADUMP-v0.9.2-LSD` to Completed / Contract Accepted.
+
+### v1.30
+
+- Completed the v0.9.1 Section Index implementation and canonical closure record.
+- Recorded additive `section_index_v1`, actual 70-section/20-symbol output, exact pointer resolution and preserved prior index contracts.
+- Recorded fresh BuildPlugin, Generic Host, file-state, determinism, P2B, Phase 1 matrix, content invariance and `git diff --check` PASS.
+- Recorded the Windows PowerShell 5.1 raw-object extraction correction as a harness-only diagnostic.
+- Promoted `ADUMP-v0.9.1-SIDX` to Completed / Contract Accepted.
+
+### v1.29
+
+- Completed the v0.9.0 Asset Index implementation and canonical closure record.
+- Recorded additive `asset_index_v1`, preserved legacy indexes, actual-section discovery, relative paths and file-state semantics.
+- Recorded BuildPlugin, Generic Host, focused Asset Index, P2B, Phase 1 matrix, content invariance and `git diff --check` PASS.
+- Reclassified the earlier Live Coding refusal as diagnostic history only.
+- Promoted `ADUMP-v0.9.0-AIDX` to Completed / Contract Accepted.
+
+### v1.28
+
+- Added the v0.9.0 Asset Index implementation checkpoint.
+- Recorded additive `asset_index_v1`, preserved legacy indexes, actual-section discovery and file-state semantics.
+- Recorded commandlet v0.15.0, Phase 2 v1.8.0, fresh BuildPlugin and PowerShell 5.1 self-test PASS.
+- Kept Generic Host and contract acceptance open after the active Live Coding blocker.
 
 ### v1.27
 

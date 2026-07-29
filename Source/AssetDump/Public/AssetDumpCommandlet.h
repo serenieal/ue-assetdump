@@ -1,6 +1,14 @@
 // File: AssetDumpCommandlet.h
-// Version: v0.3.5
+// Version: v0.4.2
 // Changelog:
+// - v0.4.2: single-query ai_context_bundle_v1 export command mode 계약을 추가.
+// - v0.4.1: additive query_result_v1 success envelope과 native default 보존을 추가.
+// - v0.4.0: native-response section/dependency routing을 제공하는 generic query command mode를 추가.
+// - v0.3.9: bounded index-backed dependencyquery command mode 공개 계약을 추가.
+// - v0.3.8: index-backed sectiondump command mode 공개 계약을 추가.
+
+// - v0.3.7: additive section_index.json 출력 경로를 index build 계약에 추가.
+// - v0.3.6: additive asset_index.json 출력 경로를 index build 계약에 추가.
 // - v0.3.5: 공용 플러그인 검증 자산을 생성하는 makefixtures 모드용 내부 선언을 추가.
 // - v0.3.4: 골든 샘플 덤프와 기본 산출물 검증을 한 번에 실행하는 validate 모드를 추가.
 // - v0.3.3: 폴더 단위 batchdump 실행과 run_report.json 생성용 commandlet 모드를 추가.
@@ -57,8 +65,13 @@ private:
 	// BuildMapJson은 맵의 액터 이름과 트랜스폼을 직렬화한다.
 	bool BuildMapJson(const FString& MapAssetPath, FString& OutJsonText);
 
-	// BuildDumpIndexFiles는 저장된 BPDump 폴더를 스캔해 index.json / dependency_index.json 을 생성한다.
-	bool BuildDumpIndexFiles(const FString& DumpRootPath, FString& OutIndexFilePath, FString& OutDependencyIndexFilePath);
+			// BuildDumpIndexFiles는 저장된 BPDump 폴더를 스캔해 legacy index 두 파일과 asset/section index를 생성한다.
+	bool BuildDumpIndexFiles(
+		const FString& DumpRootPath,
+		FString& OutIndexFilePath,
+		FString& OutDependencyIndexFilePath,
+				FString& OutAssetIndexFilePath,
+		FString& OutSectionIndexFilePath);
 
 	// BuildValidationJson은 대표 샘플 자산을 덤프하고 산출물 기본 검증 결과를 JSON으로 직렬화한다.
 	bool BuildValidationJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount);

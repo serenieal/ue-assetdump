@@ -1,7 +1,7 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.30
-- 최근 갱신일: 2026-07-28
+- 문서 버전: v1.44
+- 최근 갱신일: 2026-07-29
 - 문서 상태: Current
 - 역할: `assetdump_repo`의 Plan 폴더와 대표 진입 문서를 연결하는 색인
 
@@ -28,7 +28,7 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 | `P1ARuntimeVerificationAudit.md` | `P1A Plugin Runtime Contract Accepted / Host Invariance Pending` | Codex strict 결과, v1.6.1 diff, regression blocker와 Host binary attribution 감사 | `P1ARuntimeVerificationAudit.md` |
 | `P1BRuntimeVerificationCodexWorkOrder.md` | `Executed / Browser Scoped Audit Accepted` | P1B parser·self-test·Plugin isolation·restoration과 Project routing 증거 실행 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | `P2ABuildPluginVerificationWorkOrder.md` | `Superseded / Historical P2A-1 Contract` | Phase 묶음 도입 전 P2A-1 단독 실행 계약 이력 | `P2ABuildPluginVerificationWorkOrder.md` |
-| `AssetIntelligencePlan/` | `ADUMP-v0.8.2-BSI Completed / Contract Accepted / Next Selection Ready` | AI 지향 Asset Intelligence Layer 로드맵, 공개 계약, 검증과 구현 결과 | `AssetIntelligencePlan/README.md` |
+| `AssetIntelligencePlan/` | `ADUMP-v1.0.2-AICB Completed / Contract Accepted / Next Selection Ready` | AI 지향 Asset Intelligence Layer 로드맵, 공개 계약, 검증과 구현 결과 | `AssetIntelligencePlan/README.md` |
 
 현재 작업 초점과 정확한 다음 단계는 다음 문서를 우선한다.
 
@@ -66,6 +66,20 @@ Asset Intelligence 기능·schema 작업이면 `AssetIntelligencePlan/README.md`
 | v0.8.1 closure 증거 | `v0_8_1_ExecutionPathPreviewClosureReport_v1.md`, `ImplementationResultLog_v1.md` |
 | v0.8.2 Blueprint Search Index 계약 | `v0_8_2_BPSearchIndexPlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
 | v0.8.2 closure 증거 | `v0_8_2_BPSearchClose_v1.md`, `ImplementationResultLog_v1.md` |
+| v0.9.0 Asset Index 계약 | `v0_9_0_AssetIndexPlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v0.9.0 closure 증거 | `v0_9_0_AssetIndexClosureReport_v1.md`, `ImplementationResultLog_v1.md` |
+| v0.9.1 Section Index 계약 | `v0_9_1_SecIndexPlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v0.9.1 closure 증거 | `v0_9_1_SecIndexClose_v1.md`, `ImplementationResultLog_v1.md` |
+| v0.9.2 Lazy Section Dump 계약 | `v0_9_2_LazySectionDumpPlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v0.9.2 closure 증거 | `v0_9_2_LazySectionDumpClose_v1.md`, `ImplementationResultLog_v1.md` |
+| v0.9.3 Dependency Trace Query 계약 | `v0_9_3_DependencyTraceQueryPlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v0.9.3 closure 증거 | `v0_9_3_DependencyTraceQueryClose_v1.md`, `ImplementationResultLog_v1.md` |
+| v1.0.0 Query Mode 계약 | `v1_0_0_QueryModePlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v1.0.0 closure 증거 | `v1_0_0_QueryModeClose_v1.md`, `ImplementationResultLog_v1.md` |
+| v1.0.1 Query Result Schema 계약 | `v1_0_1_QueryResultSchemaPlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v1.0.1 closure 증거 | `v1_0_1_QueryResultSchemaClose_v1.md`, `ImplementationResultLog_v1.md` |
+| v1.0.2 AI Context Bundle 계약 | `v1_0_2_AIContextBundlePlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
+| v1.0.2 closure 증거 | `v1_0_2_AIContextBundleClose_v1.md`, `ImplementationResultLog_v1.md` |
 | 완료 작업지시서 이력 | 필요한 `v0_7_1_*_TaskSource.md`와 대응 Codex YAML만 선택 |
 | 생성 결과와 증거 | 필요한 `Generated/` 결과만 선택 |
 
@@ -94,6 +108,91 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 6. Changelog
+
+### v1.44 - 2026-07-29
+
+- Recorded `ADUMP-v1.0.2-AICB` as Completed / Contract Accepted.
+- Added `v1_0_2_AIContextBundleClose_v1.md` to the selective reading index.
+- Changed the Asset Intelligence folder state to Next Selection Ready with v1.1.0 Natural Query Adapter Contract unactivated.
+- Preserved the explicit prohibition on Git writes.
+
+### v1.43 - 2026-07-29
+
+- Activated `ADUMP-v1.0.2-AICB` and registered `v1_0_2_AIContextBundlePlan_v1.md`.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation.
+- Registered single-query bounded context export while keeping multi-query assembly and Git writes inactive.
+
+### v1.42 - 2026-07-29
+
+- Recorded `ADUMP-v1.0.1-QRES` as Completed / Contract Accepted.
+- Added `v1_0_1_QueryResultSchemaClose_v1.md` to the selective reading index.
+- Changed the Asset Intelligence folder state to Next Selection Ready with v1.0.2 AI Context Bundle Export unactivated.
+
+### v1.41 - 2026-07-29
+
+- Activated `ADUMP-v1.0.1-QRES` and registered `v1_0_1_QueryResultSchemaPlan_v1.md`.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation.
+- Registered additive success-envelope semantics while preserving v1.0.0 native output defaults.
+
+### v1.40 - 2026-07-29
+
+- Recorded `ADUMP-v1.0.0-QMODE` as Completed / Contract Accepted.
+- Added `v1_0_0_QueryModeClose_v1.md` to the selective reading index.
+- Changed the Asset Intelligence folder state to Next Selection Ready with v1.0.1 Query Result Schema unactivated.
+
+### v1.39 - 2026-07-29
+
+- Activated `ADUMP-v1.0.0-QMODE` and registered `v1_0_0_QueryModePlan_v1.md`.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation.
+- Registered native-response query routing while preserving the accepted specialized modes and schemas.
+
+### v1.38 - 2026-07-29
+
+- Recorded `ADUMP-v0.9.3-DTQ` as Completed / Contract Accepted.
+- Added `v0_9_3_DependencyTraceQueryClose_v1.md` to the selective reading index.
+- Changed the Asset Intelligence folder state to Next Selection Ready with v1.0.0 Query Mode unactivated.
+
+### v1.37 - 2026-07-28
+
+- Activated `ADUMP-v0.9.3-DTQ` and registered `v0_9_3_DependencyTraceQueryPlan_v1.md` as the current implementation Plan.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation.
+- Registered bounded read-only dependency traversal while protecting every accepted v0.7.1-v0.9.2 contract.
+
+### v1.36 - 2026-07-28
+
+- Recorded `ADUMP-v0.9.2-LSD` as Completed / Contract Accepted.
+- Added `v0_9_2_LazySectionDumpClose_v1.md` to the selective reading index.
+- Changed the Asset Intelligence folder state to Next Selection Ready with v0.9.3 Dependency Trace Query unactivated.
+
+### v1.35 - 2026-07-28
+
+- Activated `ADUMP-v0.9.2-LSD` and registered `v0_9_2_LazySectionDumpPlan_v1.md` as the current implementation Plan.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation.
+- Registered indexed stored-evidence retrieval while protecting every accepted v0.9.0-v0.9.1 index contract.
+
+### v1.34 - 2026-07-28
+
+- Recorded `ADUMP-v0.9.1-SIDX` as Completed / Contract Accepted.
+- Added `v0_9_1_SecIndexClose_v1.md` to the selective reading index.
+- Changed the Asset Intelligence folder state to Next Selection Ready with v0.9.2 Lazy Section Dump unactivated.
+
+### v1.33 - 2026-07-28
+
+- Activated `ADUMP-v0.9.1-SIDX` and registered `v0_9_1_SecIndexPlan_v1.md` as the current implementation Plan.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation.
+- Recorded additive `section_index_v1` while protecting the three accepted global index files.
+
+### v1.32 - 2026-07-28
+
+- Recorded `ADUMP-v0.9.0-AIDX` as Completed / Contract Accepted.
+- Added `v0_9_0_AssetIndexClosureReport_v1.md` to the selective reading index.
+- Changed the Asset Intelligence folder state to Next Selection Ready with v0.9.1 Section Index unactivated.
+
+### v1.31 - 2026-07-28
+
+- Activated `ADUMP-v0.9.0-AIDX` and registered `v0_9_0_AssetIndexPlan_v1.md` as the current implementation Plan.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation.
+- Recorded the additive `asset_index_v1` contract while retaining both legacy global index files.
 
 ### v1.30 - 2026-07-28
 

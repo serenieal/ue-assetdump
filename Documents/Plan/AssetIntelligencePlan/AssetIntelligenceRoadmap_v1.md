@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.24
+- document_version: v1.39
 - created_at: 2026-07-10
-- updated_at: 2026-07-28
+- updated_at: 2026-07-29
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: master_roadmap
@@ -169,10 +169,10 @@ Goal: Move from dump-file reading to searchable asset intelligence.
 Planned scope:
 
 ```text
-v0.9.0 Asset index
-v0.9.1 Section index
-v0.9.2 Lazy section dump
-v0.9.3 Dependency trace query
+v0.9.0 Asset index - completed 2026-07-28; contract accepted
+v0.9.1 Section index - completed 2026-07-28; contract accepted
+v0.9.2 Lazy section dump - completed 2026-07-28; contract accepted
+v0.9.3 Dependency trace query - completed 2026-07-29; contract accepted
 ```
 
 ### v1.0.x Query API / Context Bundle
@@ -182,9 +182,9 @@ Goal: Provide structured query mode and compact AI context bundles.
 Planned scope:
 
 ```text
-v1.0.0 Query mode
-v1.0.1 Query result schema
-v1.0.2 AI context bundle export
+v1.0.0 Query mode - completed 2026-07-29; contract accepted
+v1.0.1 Query result schema - completed 2026-07-29; contract accepted
+v1.0.2 AI context bundle export - completed 2026-07-29; contract accepted
 ```
 
 ### v1.1.x Natural Query Bridge
@@ -456,6 +456,299 @@ git diff --check: passed with line-ending warnings only
 
 The v0.7.2 feature release-ready gate is complete. Tagging or publishing remains a human release decision. The separate v0.7.1 contract is accepted after the mandatory no-SkipBuild closure passed with the required top-level evidence fields and explicit final predicates.
 
+## v1.0.2 Final Closure
+
+v1.0.2 AI Context Bundle Export completed its single-query bounded export implementation, fresh package compile, external Generic Host runtime, focused section/dependency item evidence, stable failures, source/input invariance, P2B fallback and Phase 1 matrix on 2026-07-29 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v1.0.2-AICB
+status: completed / contract accepted
+command_mode: contextbundle
+input_schema: query_result_v1
+output_schema: ai_context_bundle_v1
+input_count: exactly one successful query result
+required_options: Input, Output
+max_items: 1..256; default 64
+max_bytes: 4096..1048576; default 262144
+byte_measure: exact BOM-free UTF-8 output bytes
+section_candidate_order: payload.sections
+dependency_candidate_order: payload.nodes then payload.edges
+item_kinds: section, asset, relation
+bundle_truncation_reasons: source_truncated, max_items, max_bytes
+section_schema_version_empty_core_sidecars: preserved
+focused section/dependency contracts: passed
+native item equality: passed
+MaxItems and exact UTF-8 MaxBytes: passed
+source truncation and canonical reason order: passed
+stable negative matrix: 28/28 passed
+source/input invariance: passed
+determinism: passed
+commandlet_version: 0.21.1
+header_version: 0.4.2
+phase2_runner_version: 1.14.2
+extractor_version: 2.11.0 unchanged
+BuildPlugin job: 5785c490d2a84a18bba5ca590196fbd7
+BuildPlugin report SHA-256: 88a36933507ba687038865703112cef0d4c806bd4a354d945fd6ec93573a723c
+Phase 2 source job: 19f5bed490554aeb88ac1532c7bdb0af
+Phase 2 report SHA-256: b393c5eaddc1341ac9a414bbfd6a08264c227dbd5644c5e185a29659be7de5e9
+Phase 1 job: e4215be097e943109bbdafe40c3df686
+Phase 1 report SHA-256: 42c78338de114882d99c2ca90860d253b0f5c03fd06e62314f2dcd1e229d2410
+BuildPlugin / Generic Host / AI Context Bundle / P2B: passed
+parser/profile/cross-shell matrix: passed
+Content/Validation invariance: passed
+git diff --check: passed
+source_file_reread: prohibited
+query_execution: prohibited
+multi_query_assembly: deferred to v1.1.2
+ranking/summarization/natural_query: not activated
+current_plan: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundlePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md
+contract_acceptance: accepted
+```
+
+The accepted bundle is an additive bounded evidence export. It does not run a new query, combine multiple results, summarize semantic content, rank assets, interpret natural language or change accepted native/query contracts. v1.1.0 Natural Query Adapter Contract is the next selectable candidate and is not active.
+
+## v1.0.1 Final Closure
+
+v1.0.1 Query Result Schema completed its additive wrapper implementation, fresh package compile, external Generic Host runtime, complete native-payload equivalence, generated-time identity, stable failures, source-root invariance, P2B fallback and Phase 1 matrix on 2026-07-29 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v1.0.1-QRES
+status: completed / contract accepted
+command_mode: query
+activation: ResultSchema=query_result_v1
+default_result_schema: native
+schema_version: query_result_v1
+status_domain: succeeded only
+section_payload_schema: lazy_section_dump_v1
+dependency_payload_schema: dependency_trace_query_v1
+payload_embedding: complete native object
+wrapper_generated_time: exact native generated_time
+native_default_compatibility: passed
+direct_specialized_modes: unchanged
+section/dependency wrapper contracts: passed
+complete native payload equality: passed
+object_path/AssetId equivalence: passed
+ResultSchema case normalization: passed
+normalized determinism: passed
+stable negative matrix: 31/31 passed
+source-root invariance: passed
+commandlet_version: 0.20.0
+header_version: 0.4.1
+extractor_version: 2.11.0 unchanged
+BuildPlugin job: 7ae137300650482fb1b9fff9d4f2a452
+BuildPlugin report SHA-256: 3728dd0c390c4ac1b2eb308fadc2031e3a6abcce19b5703fa54fca3bdc1b1314
+Phase 2 source job: bd0713c6269340d68230f8dd8c8c83c6
+Phase 2 report SHA-256: aecdacdbb6d040d1930b2bb1ea2ccda61d27ae00eee1f62eb7b55c39d3b70484
+Phase 1 job: b2fe9f5cef0f46aa967f406b303114ce
+Phase 1 report SHA-256: 53cfd4f06be47368b5faa072f79d7ab460697dbb63cb64cec7ca961f60d9a618
+BuildPlugin / Generic Host / Query Result / P2B: passed
+parser/profile/cross-shell matrix: passed
+Content/Validation invariance: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaClose_v1.md
+contract_acceptance: accepted
+```
+
+The accepted wrapper is opt-in and success-only. It does not change the native default, flatten specialized payloads, emit failure envelopes, rank results, interpret natural language, execute multiple queries or assemble context bundles. v1.0.2 AI Context Bundle Export is the next selectable candidate and is not active.
+
+## v1.0.0 Final Closure
+
+v1.0.0 Query Mode completed its native-response routing implementation, fresh package compile, external Generic Host runtime, actual section/dependency routing, direct and selector equivalence, stable failures, source-root invariance, P2B fallback and Phase 1 matrix on 2026-07-29 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v1.0.0-QMODE
+status: completed / contract accepted
+command_mode: query
+query_kinds: section | dependency
+section_response_owner: lazy_section_dump_v1
+dependency_response_owner: dependency_trace_query_v1
+output_wrapper: none
+query_result_v1: not activated
+direct_specialized_modes: retained unchanged
+selection: exact object_path or current index-local asset_id
+route_option_ownership: strict
+actual section route: passed
+actual/synthetic dependency route: passed
+direct section/dependency equivalence: passed
+object_path/AssetId equivalence: passed
+QueryKind case normalization: passed
+native response ownership: passed
+query_result_v1 absence: passed
+stable negative matrix: 23/23 passed
+source-root invariance: passed
+determinism: passed
+commandlet_version: 0.19.0
+header_version: 0.4.0
+extractor_version: 2.11.0 unchanged
+BuildPlugin job: e32768dfd36a4a2386ccaaecd808bb72
+BuildPlugin report SHA-256: a2ac70cd6cbcdbc4603feb7a33af4e9adeba386c3147284468262b51a117749b
+Phase 2 source job: 2b4f9e603566426a8d6520130754b09b
+Phase 2 report SHA-256: 072970c0d13a5742090cce5b3491c41e2b048af6824fa038cf2aa15f35e816d5
+Phase 1 job: d517bac677cd4f969165964ca996d2be
+Phase 1 report SHA-256: 5d6b7ecd6e7c40fd1e019a431df16995fcc291a9054cd83a51632c2171980dc9
+BuildPlugin / Generic Host / Query Mode / P2B: passed
+parser/profile/cross-shell matrix: passed
+Content/Validation invariance: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModePlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModeClose_v1.md
+contract_acceptance: accepted
+```
+
+The accepted router returns native specialized schemas only. It does not activate a generic wrapper, ranking, fuzzy selection, natural-language query, multi-query execution or context bundles. v1.0.1 remains a separate selectable candidate.
+
+## v0.9.3 Final Closure
+
+v0.9.3 Dependency Trace Query completed its bounded read-only traversal implementation, fresh package compile, external Generic Host runtime, actual legacy-index compatibility, synthetic topology matrix, stable failures, source-root invariance, P2B fallback and Phase 1 matrix on 2026-07-29 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v0.9.3-DTQ
+status: completed / contract accepted
+command_mode: dependencyquery
+response_schema: dependency_trace_query_v1
+source_contract: indexed_dependency_evidence
+index_dependencies: accepted asset_index_v1 plus existing legacy dependency_index.json
+directions: dependencies | referencers | both
+strength_filter: all | hard | soft
+bounds: max_depth 1..8, max_nodes 1..256, max_edges 1..512
+traversal: deterministic breadth-first search
+external_unindexed_endpoints: retained
+cycle_semantics: self and deterministic discovery-tree ancestor closure
+truncation_reasons: max_nodes, max_edges
+actual legacy-index compatibility: passed
+synthetic direct/transitive/referencer/both traversal: passed
+hard/soft filters: passed
+external/merge/cycle behavior: passed
+bounds and truncation: passed
+selector equivalence: passed
+determinism: passed
+stable negative matrix: 29/29 passed
+source-root invariance: passed
+commandlet_version: 0.18.0
+header_version: 0.3.9
+extractor_version: 2.11.0 unchanged
+BuildPlugin job: 70fd49e659b54a1992a1e6d7cf50156f
+BuildPlugin report SHA-256: eea7a5f15b98f4897a2ac3c610dde868794a403a942d03ea8816b6a3a426549f
+Phase 2 source job: 7bdbd63907ff456e99d5a91a93def450
+Phase 2 report SHA-256: 5e0b4ac8e3c2b914d5bf2007c7bbf736c536610df39d0b0e75657cec26930f57
+Phase 1 job: 11eb30a54edc4262bbf663174f25b3c8
+Phase 1 report SHA-256: 52f742d4253f01fc615e189ec04556d057f7820943e14f048d50a1bab3394f28
+BuildPlugin / Generic Host / Dependency Query / P2B: passed
+parser/profile/cross-shell matrix: passed
+Content/Validation invariance: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryClose_v1.md
+contract_acceptance: accepted
+```
+
+The accepted response describes stored dependency evidence only. It does not load live assets, query live package dependencies, claim freshness, rank results, or activate generic query/result/context-bundle contracts. v1.0.0 remains a separate selectable candidate.
+
+## v0.9.2 Final Closure
+
+v0.9.2 Lazy Section Dump completed its index-backed read-only retrieval implementation, fresh package compile, external Generic Host runtime, exact indexed-data evidence, stable-failure matrix, source-root invariance, P2B fallback and Phase 1 matrix on 2026-07-28 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v0.9.2-LSD
+status: completed / contract accepted
+command_mode: sectiondump
+response_schema: lazy_section_dump_v1
+dependencies: accepted asset_index_v1 and section_index_v1
+source_contract: indexed_stored_evidence
+selector: exact object_path or current index-local asset_id
+selection: explicit canonical Sections required
+pointer_scope: root or one-level top-level pointer
+multi-source retrieval: 3 sections / 3 unique source files
+shared-source retrieval: 2 sections / 1 unique source file
+selector equivalence: passed
+exact indexed data: passed
+stable negative matrix: 19/19 passed
+source-root invariance: passed
+determinism: passed
+commandlet_version: 0.17.0
+extractor_version: 2.11.0 unchanged
+BuildPlugin job: 24b10367ed3448e29a6d2612085544d4
+BuildPlugin report SHA-256: d255b4eb782f31d5648e87911a32e8581d65ecf41f8be7816816ea699ac85243
+Phase 2 source job: 39b4db6624ba4c1aa57e7e904c2a6097
+Phase 2 report SHA-256: 065b07411cb4bfa47fef9403c9297b7a8c183d1c6f22cb1508b653c30faacc1b
+Phase 1 job: 64e858dd89b34bf1b575d1b8fc967050
+Phase 1 report SHA-256: 0dc9c62b6854f98e51847faeb0bfafa5b64e16ee0b22976c755ea3c297d88480
+BuildPlugin / Generic Host / Lazy Section Dump / P2B: passed
+parser/profile/cross-shell matrix: passed
+Content/Validation invariance: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpClose_v1.md
+contract_acceptance: accepted
+```
+
+The accepted response describes stored indexed evidence only. It does not load the live asset, regenerate sections, claim freshness, traverse dependencies, or activate query mode. v0.9.3 remains a separate selectable candidate.
+
+## v0.9.1 Final Closure
+
+v0.9.1 Section Index completed its additive implementation, fresh package compile, external Generic Host runtime, actual section/symbol and JSON Pointer evidence, isolated file-state matrix, P2B fallback and Phase 1 matrix on 2026-07-28 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v0.9.1-SIDX
+status: completed / contract accepted
+output_file: section_index.json
+schema_version: section_index_v1
+dependency: accepted asset_index_v1 and bp_search_index_v1
+shape: deterministic sections[] plus symbols[]
+section_location: dump-root-relative source_file plus absolute JSON Pointer
+symbol_location: main dump /bp_search_index/symbols/<index>
+actual section_count: 70
+actual symbol_count: 20
+commandlet_version: 0.16.0
+extractor_version: 2.11.0 unchanged
+BuildPlugin job: d5fd8ed86cdf464a8f16c5e6a5d07574
+BuildPlugin report SHA-256: 912fa0b2b0cd227ffcdd8a912fa4ceb93948ab6e59c10150180ab51c264a7134
+Phase 2 job: d6348510460445f699246d9d81343ae1
+Phase 2 report SHA-256: 19e078cdccbbbb4a4e3f922086705bf88428a49e53763418c0ee818bd5b6343a
+Phase 1 report SHA-256: 884c1413c3e88390fb0db149aa6db1c6d3fe745fa7a5738f94090aef3f7fe492
+BuildPlugin / Generic Host / Section Index / P2B: passed
+pointer, file-state and determinism evidence: passed
+parser/profile/cross-shell matrix: passed
+Content/Validation invariance: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexClose_v1.md
+contract_acceptance: accepted
+```
+
+The accepted v0.9.1 contract does not activate lazy section dump, dependency trace queries, query mode, fuzzy ranking or natural-language search. v0.9.2 remains a separate selectable candidate.
+
+## v0.9.0 Final Closure
+
+v0.9.0 Asset Index completed its additive implementation, fresh package compile, external Generic Host runtime, focused file-state evidence, read-only output fallback and Phase 1 matrix on 2026-07-28 and is Contract Accepted.
+
+```text
+task_id: ADUMP-v0.9.0-AIDX
+status: completed / contract accepted
+output_file: asset_index.json
+schema_version: asset_index_v1
+compatibility: index.json and dependency_index.json preserved
+source_of_truth: latest valid manifest per object_path plus actual dump/sidecar files
+path_contract: dump-root-relative, slash-normalized
+state_contract: ready, missing_dump, malformed_dump; duplicate/malformed counts; stale removal
+commandlet_version: 0.15.0
+extractor_version: 2.11.0 unchanged
+BuildPlugin job: 231bdd9589ce4feaa9b1611aeb759274
+Phase 2 job: 64e15a3665e54a5b86475c5925adf9e3
+Phase 1 matrix job: cb48908711fd4b96bd28fa2cc100b660
+BuildPlugin / Generic Host / focused Asset Index / P2B: passed
+parser/profile/cross-shell matrix: passed
+Content/Validation invariance: passed
+git diff --check: passed
+current_plan: Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexPlan_v1.md
+closure_report: Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexClosureReport_v1.md
+contract_acceptance: accepted
+```
+
+The accepted v0.9.0 contract does not activate `section_index_v1`, lazy dump, dependency trace queries, query mode or natural-language ranking. v0.9.1 remains a separate selectable candidate.
+
 ## v0.8.2 Final Closure
 
 v0.8.2 Blueprint Search Index completed its fresh package compile, external Generic Host runtime, focused JSON evidence and read-only output fallback on 2026-07-28 and is Contract Accepted.
@@ -598,6 +891,112 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.39
+
+- Promoted v1.0.2 AI Context Bundle Export to Completed / Contract Accepted.
+- Recorded fresh BuildPlugin, canonical Phase 2 v1.14.2, focused bundle evidence, 28 stable failures, P2B and Phase 1 matrix PASS.
+- Linked the accepted Plan and `v1_0_2_AIContextBundleClose_v1.md`.
+- Moved v1.1.0 Natural Query Adapter Contract to Selectable / Not Active without activating it.
+- Preserved multi-query assembly for v1.1.2 and performed no Git write operation.
+
+### v1.38
+
+- Activated v1.0.2 AI Context Bundle Export.
+- Registered single successful `query_result_v1` input and bounded `ai_context_bundle_v1` output.
+- Defined section/asset/relation candidate order, MaxItems and exact UTF-8 MaxBytes bounds, and canonical truncation reasons.
+- Deferred multi-query assembly to v1.1.2 and kept ranking, summarization, natural-language interpretation and failure envelopes inactive.
+- Preserved the user instruction to skip Git writes.
+
+### v1.37
+
+- Completed v1.0.1 Query Result Schema and promoted `query_result_v1` to Contract Accepted.
+- Recorded native-default preservation, complete payload equality, generated-time identity, selector/case normalization, determinism, 31 stable failures and source-root invariance.
+- Recorded fresh BuildPlugin, Generic Host, P2B and standard Phase 1 matrix closure evidence.
+- Moved v1.0.2 AI Context Bundle Export to Next Candidate / Not Active.
+
+### v1.36
+
+- Activated v1.0.1 Query Result Schema.
+- Registered opt-in `query_result_v1` with preserved native defaults and complete native-payload embedding.
+- Defined shared generated-time, success-only ownership and stable wrapper failures.
+- Deferred failure envelopes, payload normalization, ranking, multi-query and context bundles.
+
+### v1.35
+
+- Completed v1.0.0 Query Mode and promoted its native-response routing contract to Contract Accepted.
+- Recorded actual section/dependency routes, direct/selector equivalence, QueryKind normalization, native schema ownership, 23 stable failures and source-root invariance.
+- Recorded fresh BuildPlugin, Generic Host, P2B and standard Phase 1 matrix closure evidence.
+- Moved v1.0.1 Query Result Schema to Next Candidate / Not Active.
+
+### v1.34
+
+- Activated v1.0.0 Query Mode.
+- Registered `-Mode=query -QueryKind=section|dependency` as a native-response router.
+- Preserved direct specialized modes and deferred `query_result_v1` to v1.0.1.
+- Required strict route option ownership, atomic output and standalone closure evidence.
+
+### v1.33
+
+- Completed v0.9.3 Dependency Trace Query and promoted `dependency_trace_query_v1` to Contract Accepted.
+- Recorded actual legacy-index compatibility, synthetic traversal, direction/strength, external/merge/cycle, bounds, determinism, 29 stable failures and source-root invariance.
+- Recorded fresh BuildPlugin, Generic Host, P2B and standard Phase 1 matrix closure evidence.
+- Moved v1.0.0 Query Mode to Next Candidate / Not Active.
+
+### v1.32
+
+- Activated v0.9.3 Dependency Trace Query.
+- Registered `dependencyquery` / `dependency_trace_query_v1` over accepted stored index evidence.
+- Defined bounded deterministic BFS, dependencies/referencers/both directions, strength filters, cycle closure and explicit truncation.
+- Kept the legacy dependency index shape, generic query API, ranking and context bundles unchanged.
+
+### v1.31
+
+- Replaced provisional v0.9.2 evidence with final Phase 2 v1.10.1 and Phase 1 matrix reports.
+- Added shared-source two-section/one-file retrieval and expanded stable failures to 19/19.
+- Recorded final BuildPlugin, Phase 2 and Phase 1 jobs and SHA-256 values.
+
+### v1.30
+
+- Completed v0.9.2 Lazy Section Dump and promoted `lazy_section_dump_v1` to Contract Accepted.
+- Recorded the provisional three-section/three-source retrieval and 16-case closure before final contract-gap coverage.
+- Recorded fresh BuildPlugin, Generic Host, P2B and standard Phase 1 matrix closure evidence.
+- Moved v0.9.3 Dependency Trace Query to Next Candidate / Not Active.
+
+### v1.29
+
+- Activated v0.9.2 Lazy Section Dump.
+- Registered `sectiondump` / `lazy_section_dump_v1` as an index-backed stored-evidence retrieval contract.
+- Defined exact selector, explicit section, bounded pointer, stable failure and atomic-output requirements.
+- Kept live loading, regeneration, freshness claims, dependency tracing and query mode deferred.
+
+### v1.28
+
+- Completed v0.9.1 Section and Blueprint Symbol Index and promoted `section_index_v1` to Contract Accepted.
+- Recorded actual 70-section/20-symbol output, complete pointer resolution, file-state, determinism, P2B and Phase 1 matrix evidence.
+- Preserved all three previously accepted index contracts and kept extractor 2.11.0 unchanged.
+- Moved v0.9.2 Lazy Section Dump to Next Candidate / Not Active.
+
+### v1.27
+
+- Activated v0.9.1 Section and Blueprint Symbol Index.
+- Registered additive `section_index.json` / `section_index_v1` with separated section and symbol arrays.
+- Defined relative source-file, JSON Pointer, deterministic ordering and accepted-index dependency contracts.
+- Kept lazy loading, dependency tracing, query mode and ranking deferred.
+
+### v1.26
+
+- Completed v0.9.0 Project-wide Asset Index and promoted `asset_index_v1` to Contract Accepted.
+- Recorded BuildPlugin, Generic Host, focused file-state, P2B and Phase 1 matrix closure evidence.
+- Preserved both legacy global index contracts and kept extractor 2.11.0 unchanged.
+- Moved v0.9.1 Section Index to Next Candidate / Not Active.
+
+### v1.25
+
+- Activated v0.9.0 Project-wide Asset Index.
+- Registered additive `asset_index.json` / `asset_index_v1` and retained both legacy global index contracts.
+- Defined current-manifest reconstruction, actual-section discovery, relative paths and file-state semantics.
+- Kept section index, lazy loading and query features deferred to later roadmap versions.
 
 ### v1.24
 

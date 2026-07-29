@@ -1,7 +1,7 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.44
-- 최근 갱신일: 2026-07-28
+- 문서 버전: v1.62
+- 최근 갱신일: 2026-07-30
 - 문서 상태: Current
 - 역할: AssetDump 독립 저장소의 현재 활성 작업과 최근 완료 체크포인트를 연결하는 세션 복원 색인
 
@@ -24,9 +24,249 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 
 ## 2. 현재 활성 작업
 
-현재 명시적으로 활성화된 Asset Intelligence 구현 작업은 없다. 마지막 완료 작업은 v0.8.2 Blueprint Search Index다.
+현재 명시적으로 활성화된 Asset Intelligence 구현 작업은 없다. 마지막 완료 작업은 v1.0.2 AI Context Bundle Export다.
 
-### 마지막 완료 작업: ADUMP-v0.8.2-BSI
+### 마지막 완료 작업: ADUMP-v1.0.2-AICB
+
+- 작업 ID: `ADUMP-v1.0.2-AICB`
+- 작업명: AI Context Bundle Export
+- 최종 상태: `Completed / Contract Accepted`
+- command mode: `contextbundle`
+- input schema: `query_result_v1`
+- output schema: `ai_context_bundle_v1`
+- source count: exactly one accepted successful query result
+- required options: explicit `Input`, explicit `Output`
+- bounds: `MaxItems=1..256` default 64, `MaxBytes=4096..1048576` default 262144
+- section itemization: native sections order
+- dependency itemization: native nodes then native edges
+- truncation reasons: `source_truncated`, `max_items`, `max_bytes`
+- byte contract: exact BOM-free UTF-8 output bytes
+- representative Plan: `Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundlePlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md`
+- multi-query assembly: deferred to v1.1.2
+- ranking / semantic deduplication / summarization / natural query: inactive
+- live asset loading / index rebuild / source-file reread / freshness claim: prohibited
+- Git write operations: explicitly skipped until user request
+- runtime validation: PowerShell 5.1 self-test, fresh BuildPlugin, canonical Phase 2 v1.14.2 and standard Phase 1 matrix PASS
+- fresh BuildPlugin job: `5785c490d2a84a18bba5ca590196fbd7`
+- fresh BuildPlugin report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260729_090219_153_494dbf74.json`
+- fresh BuildPlugin SHA-256: `88a36933507ba687038865703112cef0d4c806bd4a354d945fd6ec93573a723c`
+- canonical Phase 2 v1.14.2 job: `19f5bed490554aeb88ac1532c7bdb0af`
+- Phase 2 report SHA-256: `b393c5eaddc1341ac9a414bbfd6a08264c227dbd5644c5e185a29659be7de5e9`
+- section/dependency structure, item equality, MaxItems, exact UTF-8 MaxBytes, source truncation, determinism and source invariance: PASS
+- stable negative matrix: 28/28 PASS
+- P2B fallback: PASS
+- canonical Phase 1 job: `e4215be097e943109bbdafe40c3df686`
+- Phase 1 report SHA-256: `42c78338de114882d99c2ca90860d253b0f5c03fd06e62314f2dcd1e229d2410`
+- Plugin / Project / Both / PS5.1 / PS7 / cross-shell / git diff check: PASS
+- next candidate: v1.1.0 Natural Query Adapter Contract / Selectable / Not Active
+- contract acceptance: Accepted
+
+### 이전 완료 작업: ADUMP-v1.0.1-QRES
+
+- 작업 ID: `ADUMP-v1.0.1-QRES`
+- 작업명: Query Result Schema
+- 최종 상태: `Completed / Contract Accepted`
+- command mode: `query`
+- activation: `-ResultSchema=query_result_v1`
+- default: `ResultSchema=native` 유지
+- response schema: `query_result_v1`
+- wrapper scope: successful result only
+- native payload: complete embedded object, semantically unchanged
+- section payload owner: `lazy_section_dump_v1`
+- dependency payload owner: `dependency_trace_query_v1`
+- representative Plan: `Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaPlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v1_0_1_QueryResultSchemaClose_v1.md`
+- wrapper/payload generated_time identity: PASS
+- native default preservation: PASS
+- complete native payload equality: PASS
+- object_path/AssetId selector equivalence: PASS
+- ResultSchema case normalization: PASS
+- native outputs unchanged: PASS
+- direct specialized modes unchanged: PASS
+- stable negative matrix: 31/31 PASS
+- Plugin/synthetic source-root complete invariance: PASS
+- normalized determinism: PASS
+- commandlet version: `0.20.0`
+- header version: `0.4.1`
+- Phase 2 runner version: `1.13.0`
+- extractor version: `2.11.0` 유지
+- BuildPlugin: PASS, job `7ae137300650482fb1b9fff9d4f2a452`, report SHA-256 `3728dd0c390c4ac1b2eb308fadc2031e3a6abcce19b5703fa54fca3bdc1b1314`
+- canonical Phase 2 job: `bd0713c6269340d68230f8dd8c8c83c6`
+- canonical Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260729_003014_415_67476a79\Reports\phase2_report.json`
+- Phase 2 SHA-256: `aecdacdbb6d040d1930b2bb1ea2ccda61d27ae00eee1f62eb7b55c39d3b70484`
+- Phase 2 predicates: all prior evidence=true, QueryResult=true, P2B=true, failure_count=0
+- canonical Phase 1 job: `b2fe9f5cef0f46aa967f406b303114ce`
+- canonical Phase 1 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260729_101320_832_b77ed6d6\Reports\phase1_matrix_report.json`
+- Phase 1 SHA-256: `53cfd4f06be47368b5faa072f79d7ab460697dbb63cb64cec7ca961f60d9a618`
+- Phase 1 predicates: parser/self-test, Plugin, Project, Both, PS5.1, PS7, cross-shell, invariance와 Git 전체 PASS
+- failure envelopes / payload normalization / ranking / natural query / multi-query / context bundle: 미활성
+- 다음 후보: v1.0.2 AI Context Bundle Export — 선택 가능 / 미활성
+
+### 이전 완료 작업: ADUMP-v1.0.0-QMODE
+
+- 작업 ID: `ADUMP-v1.0.0-QMODE`
+- 작업명: Query Mode
+- 최종 상태: `Completed / Contract Accepted`
+- command mode: `query`
+- QueryKind registry: `section | dependency`
+- output contract: native accepted response passthrough
+- section response owner: `lazy_section_dump_v1`
+- dependency response owner: `dependency_trace_query_v1`
+- commandlet version: `0.19.0`
+- header version: `0.4.0`
+- extractor version: `2.11.0` 유지
+- representative Plan: `Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModePlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v1_0_0_QueryModeClose_v1.md`
+- direct sectiondump/dependencyquery compatibility: PASS
+- section/dependency route native schemas: PASS
+- direct-vs-routed normalized equivalence: PASS
+- object_path/AssetId selector equivalence: PASS
+- QueryKind case normalization: PASS
+- query_result_v1 absence: PASS
+- strict route option ownership: PASS
+- stable negative matrix: 23/23 PASS
+- Plugin/synthetic source-root complete invariance: PASS
+- normalized determinism: PASS
+- BuildPlugin: PASS, job `e32768dfd36a4a2386ccaaecd808bb72`, report SHA-256 `a2ac70cd6cbcdbc4603feb7a33af4e9adeba386c3147284468262b51a117749b`
+- canonical Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_210607_632_20782a13\Reports\phase2_report.json`
+- Phase 2 SHA-256: `072970c0d13a5742090cce5b3491c41e2b048af6824fa038cf2aa15f35e816d5`
+- Phase 2 predicates: all prior evidence=true, QueryMode=true, P2B=true, failure_count=0
+- Phase 1 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260729_064129_661_0d92c827\Reports\phase1_matrix_report.json`
+- Phase 1 SHA-256: `5d6b7ecd6e7c40fd1e019a431df16995fcc291a9054cd83a51632c2171980dc9`
+- Phase 1 predicates: parser/self-test, Plugin, Project, Both, PS5.1, PS7, cross-shell, invariance와 Git 전체 PASS
+- query_result_v1 / ranking / natural query / context bundle: 미활성
+- 다음 후보: v1.0.1 Query Result Schema — 선택 가능 / 미활성
+
+### 이전 완료 작업: ADUMP-v0.9.3-DTQ
+
+- 작업 ID: `ADUMP-v0.9.3-DTQ`
+- 작업명: Dependency Trace Query
+- 최종 상태: `Completed / Contract Accepted`
+- command mode: `dependencyquery`
+- response schema: `dependency_trace_query_v1`
+- commandlet version: `0.18.0`
+- header version: `0.3.9`
+- extractor version: `2.11.0` 유지
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryPlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v0_9_3_DependencyTraceQueryClose_v1.md`
+- dependencies: accepted `asset_index_v1` and existing schema-less `dependency_index.json`
+- source contract: `indexed_dependency_evidence`
+- directions: dependencies / referencers / both
+- strength filters: all / hard / soft
+- bounds: depth 1..8, nodes 1..256, edges 1..512
+- deterministic BFS and sequential node/edge IDs: PASS
+- actual legacy dependency-index compatibility: PASS
+- synthetic direct/transitive/referencer/both traversal: PASS
+- external endpoint and merge/revisit preservation: PASS
+- self and ancestor cycle closure: PASS
+- max-depth and node/edge truncation contracts: PASS
+- selector equivalence and normalized determinism: PASS
+- stable negative matrix: 29/29 PASS
+- actual and synthetic source-root complete invariance: PASS
+- BuildPlugin: PASS, job `70fd49e659b54a1992a1e6d7cf50156f`, report SHA-256 `eea7a5f15b98f4897a2ac3c610dde868794a403a942d03ea8816b6a3a426549f`
+- canonical Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_143818_071_d2adda16\Reports\phase2_report.json`
+- Phase 2 SHA-256: `5e0b4ac8e3c2b914d5bf2007c7bbf736c536610df39d0b0e75657cec26930f57`
+- Phase 2 predicates: GenericHost=true, AssetIndex=true, SectionIndex=true, LazySectionDump=true, DependencyQuery=true, P2B=true, failure_count=0
+- Phase 1 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260729_000636_845_060e8e4d\Reports\phase1_matrix_report.json`
+- Phase 1 SHA-256: `52f742d4253f01fc615e189ec04556d057f7820943e14f048d50a1bab3394f28`
+- Phase 1 predicates: parser/self-test, Plugin, Project, Both, PS5.1, PS7, cross-shell, invariance와 Git 전체 PASS
+- live asset loading / live dependency query / index rebuild / freshness claim: 미활성
+- generic query_result / ranking / context bundle / natural query: 미활성
+- 다음 후보: v1.0.0 Query Mode — 선택 가능 / 미활성
+
+### 이전 완료 작업: ADUMP-v0.9.2-LSD
+
+- 작업 ID: `ADUMP-v0.9.2-LSD`
+- 작업명: Lazy Section Dump
+- 최종 상태: `Completed / Contract Accepted`
+- command mode: `sectiondump`
+- response schema: `lazy_section_dump_v1`
+- commandlet version: `0.17.0`
+- header version: `0.3.8`
+- extractor version: `2.11.0` 유지
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpPlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v0_9_2_LazySectionDumpClose_v1.md`
+- dependencies: accepted `asset_index_v1` and `section_index_v1`
+- source contract: `indexed_stored_evidence`
+- selector: exact object path 또는 current index-local asset ID
+- explicit canonical Sections: required
+- pointer scope: `/`와 `/<top-level-field>`
+- actual positive retrieval: 3 sections / 3 unique source files
+- selector equivalence: PASS
+- exact indexed data: PASS
+- shared-source retrieval: `component_tree + bp_search_index`, 2 sections / 1 unique source file, PASS
+- stable negative matrix: 19/19 PASS
+- source dump-root complete invariance: PASS
+- normalized determinism: PASS
+- BuildPlugin: PASS, job `24b10367ed3448e29a6d2612085544d4`, report SHA-256 `d255b4eb782f31d5648e87911a32e8581d65ecf41f8be7816816ea699ac85243`
+- canonical Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_125938_731_8d6a816e\Reports\phase2_report.json`
+- Phase 2 SHA-256: `065b07411cb4bfa47fef9403c9297b7a8c183d1c6f22cb1508b653c30faacc1b`
+- Phase 2 predicates: GenericHost=true, AssetIndex=true, SectionIndex=true, LazySectionDump=true, P2B=true, failure_count=0
+- Phase 1 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260728_222543_432_6432a5c5\Reports\phase1_matrix_report.json`
+- Phase 1 SHA-256: `0dc9c62b6854f98e51847faeb0bfafa5b64e16ee0b22976c755ea3c297d88480`
+- Phase 1 predicates: parser/self-test, Plugin, Project, Both, PS5.1, PS7, cross-shell, invariance와 Git 전체 PASS
+- live asset loading / regeneration / freshness claim: 미활성
+- dependency/query/context-bundle behavior: 미활성
+- 다음 후보: v0.9.3 Dependency Trace Query — 선택 가능 / 미활성
+
+### 이전 완료 작업: ADUMP-v0.9.1-SIDX
+
+- 작업 ID: `ADUMP-v0.9.1-SIDX`
+- 작업명: Section and Blueprint Symbol Index
+- 최종 상태: `Completed / Contract Accepted`
+- output file: `section_index.json`
+- schema: `section_index_v1`
+- commandlet version: `0.16.0`
+- header version: `0.3.7`
+- extractor version: `2.11.0` 유지
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexPlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v0_9_1_SecIndexClose_v1.md`
+- dependencies: accepted `asset_index_v1` and `bp_search_index_v1`
+- 구조: deterministic `sections[]`와 `symbols[]`
+- 위치 계약: dump-root-relative `source_file` + absolute `json_pointer`
+- actual section count: `70`
+- actual symbol count: `20`
+- BuildPlugin: PASS, job `d5fd8ed86cdf464a8f16c5e6a5d07574`, report SHA-256 `912fa0b2b0cd227ffcdd8a912fa4ceb93948ab6e59c10150180ab51c264a7134`
+- canonical Phase 2: PASS, job `d6348510460445f699246d9d81343ae1`, report SHA-256 `19e078cdccbbbb4a4e3f922086705bf88428a49e53763418c0ee818bd5b6343a`
+- Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_080450_895_7f2609c8\Reports\phase2_report.json`
+- Phase 2 predicates: GenericHost=true, AssetIndex=true, SectionIndex=true, SymbolPointer=true, FileState=true, Determinism=true, P2B=true
+- Phase 1 matrix report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260728_171602_461_2c242da7\Reports\phase1_matrix_report.json`
+- Phase 1 report SHA-256: `884c1413c3e88390fb0db149aa6db1c6d3fe745fa7a5738f94090aef3f7fe492`
+- Phase 1 predicates: parser/self-test, Plugin, Project, Both, PS5.1, PS7, cross-shell, invariance와 Git 전체 PASS
+- 기존 `index.json`, `dependency_index.json`, `asset_index.json`: 계약 유지
+- query/ranking/lazy/dependency trace: 미활성
+- 다음 후보: v0.9.2 Lazy Section Dump — 선택 가능 / 미활성
+
+### 이전 완료 작업: ADUMP-v0.9.0-AIDX
+
+- 작업 ID: `ADUMP-v0.9.0-AIDX`
+- 작업명: Project-wide Asset Index
+- 최종 상태: `Completed / Contract Accepted`
+- output file: `asset_index.json`
+- schema: `asset_index_v1`
+- commandlet version: `0.15.0`
+- header version: `0.3.6`
+- extractor version: `2.11.0` 유지
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexPlan_v1.md`
+- closure report: `Documents/Plan/AssetIntelligencePlan/v0_9_0_AssetIndexClosureReport_v1.md`
+- 호환 결정: 기존 `index.json`과 `dependency_index.json`을 유지하고 신규 index를 병행 생성
+- 데이터 기준: 현재 dump root의 최신 valid `manifest.json`과 실제 dump/sidecar 파일
+- 핵심 계약: actual available sections, section schema, fingerprint, relative output paths, duplicate/malformed/missing/stale semantics
+- BuildPlugin: PASS, job `231bdd9589ce4feaa9b1611aeb759274`, report SHA-256 `78ba5b0ab870c0df2a2895b7a0abb0d95c2f0e331c32b18e0733d8ab81755ce7`
+- canonical Phase 2 job: `64e15a3665e54a5b86475c5925adf9e3`, exit 0, duration 657.935s
+- canonical Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_064055_263_1b36e72c\Reports\phase2_report.json`
+- Phase 2 predicates: BuildPlugin=true, GenericHost=true, AssetIndexEvidence=true, P2B=true, implementation gate=true
+- Phase 1 matrix job: `cb48908711fd4b96bd28fa2cc100b660`, exit 0, duration 683.158s
+- Phase 1 matrix report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260728_155527_651_630bf44e\Reports\phase1_matrix_report.json`
+- Phase 1 predicates: parser/self-test, Plugin, Project, Both, PS5.1 closure, PS7 closure와 full matrix 전체 PASS
+- git diff --check: PASS, line-ending warnings only
+- Content/Validation invariance와 legacy PluginRoot/Dumped 비생성: PASS
+- 성공 report SHA-256: bounded process-status 조회 한도 때문에 미수집; process job, report path와 terminal exit 0을 canonical evidence로 보존
+- 이전 Live Coding build refusal: diagnostic history only
+
+
+### 이전 완료 작업: ADUMP-v0.8.2-BSI
 
 - 작업 ID: `ADUMP-v0.8.2-BSI`
 - 작업명: Blueprint Search Index
@@ -47,7 +287,7 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 - Plugin full / ChangedOnly: 10/10 succeeded / 10/10 skipped
 - P2B fallback과 Content/Validation invariance: PASS
 - git diff --check: exit 0, line-ending 경고만 존재
-- 다음 후보: v0.9.0 Asset Index — 선택 가능 / 미활성
+
 
 ### 이전 완료 작업: ADUMP-v0.8.1-EPP
 
@@ -274,45 +514,13 @@ ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 
 ## 3. 마지막 완료 작업 초점
 
-- 작업 ID: `ADUMP-v0.8.2-BSI`
-- 작업명: Blueprint Search Index
-- 최종 상태: Completed / Contract Accepted
-- section: `bp_search_index`
-- schema: `bp_search_index_v1`
-- extractor version: `2.11.0`
-- commandlet version: `0.14.3`
-- symbol bounds: max_symbols=512, max_search_terms=8
-- BuildPlugin·Generic Host runtime·P2B: PASS
-- closure 상태: 모든 필수 predicate PASS
-- binary fixture 변경: 없음
-- PIE 상태: N/A
-- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchIndexPlan_v1.md`
-- 최종 보고서: `Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md`
+- 작업 ID: `ADUMP-v1.0.2-AICB`
+- 작업명: AI Context Bundle Export
+- 최종 상태: `Completed / Contract Accepted`
+- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundlePlan_v1.md`
+- 최종 보고서: `Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md`
 
-### 최종 acceptance 증거
-
-```text
-canonical process job: dc8443cabe1e4c3faf40468c3f65dc93
-phase2 report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260728_052145_921_9ce86530\Reports\phase2_report.json
-phase2 report SHA-256: 08fd774d22f4949eaca6c1bfbd72f8de9431d6ee64c9466250a3b5e1d3b454ed
-BuildPlugin report SHA-256: 17d9a4297e159fdec5c630e71005a449a3e431e18bf6ae4a760487afb196f03a
-validation report SHA-256: e1c2b0ec17acb64d6df5d16f0ede9214f1f60ce58990765381e8028e90a87b82
-BuildPlugin / Generic Host / P2B: PASS
-Plugin validate: 9/9, required_failed_count 0
-Actor/Widget search-index contracts: PASS
-production-shared registry: passed=13 total=13
-focused inclusion/omission and unsupported semantics: PASS
-symbol bounds / sequential IDs / search-term bounds: PASS
-repeated search-index determinism: PASS
-representative Actor symbol_count: 7
-Plugin full / ChangedOnly: 10/10 succeeded / 10/10 skipped
-Content/Validation exact invariance: PASS
-git diff --check: PASS
-failure_count: 0
-contract_accepted: true
-```
-
-이전 `ADUMP-v0.7.1-RC`, v0.7.2 release-ready, `ADUMP-v0.7.3-CT`, `ADUMP-v0.8.0-GNR`와 `ADUMP-v0.8.1-EPP` acceptance 기록은 `ImplementationResultLog_v1.md`와 각 closure report에 보존되며 후속 작업의 보호 계약으로 유지한다.
+상세 공개 계약과 canonical 검증 증거는 2절과 4절을 따른다.
 
 ---
 
@@ -322,27 +530,36 @@ contract_accepted: true
 
 ```text
 status: Completed / Contract Accepted
-section: bp_search_index
-schema: bp_search_index_v1
+command_mode: contextbundle
+input_schema: query_result_v1
+output_schema: ai_context_bundle_v1
+source_count: exactly one successful query result
+item_kinds: section, asset, relation
+bounds: MaxItems 1..256; MaxBytes 4096..1048576
+truncation_reasons: source_truncated, max_items, max_bytes
 extractor_version: 2.11.0
-commandlet_version: 0.14.3
-canonical process job: dc8443cabe1e4c3faf40468c3f65dc93
-canonical report SHA-256: 08fd774d22f4949eaca6c1bfbd72f8de9431d6ee64c9466250a3b5e1d3b454ed
-BuildPlugin / Generic Host / P2B: PASS
-Plugin validate: 9/9, required_failed_count 0
-Actor/Widget contracts: PASS
-production search registry: 13/13 PASS
-focused full/explicit/omission/unsupported/LinksOnly: PASS
-bounds and sequential IDs: PASS
-search-index determinism: PASS
-Plugin full / ChangedOnly: 10/10 succeeded / 10/10 skipped
+commandlet_version: 0.21.1
+header_version: 0.4.2
+phase2_runner_version: 1.14.2
+canonical BuildPlugin job: 5785c490d2a84a18bba5ca590196fbd7
+canonical Phase 2 job: 19f5bed490554aeb88ac1532c7bdb0af
+canonical Phase 1 matrix job: e4215be097e943109bbdafe40c3df686
+section/dependency bundle contracts: PASS
+native item equality and provenance: PASS
+MaxItems and exact UTF-8 MaxBytes: PASS
+source truncation and canonical reason order: PASS
+stable negative matrix: 28/28 PASS
+source/input invariance and determinism: PASS
+BuildPlugin / Generic Host / AI Context Bundle / P2B: PASS
+Plugin / Project / Both and PS5.1 / PS7 matrix: PASS
 validation exact invariance: PASS
 git diff --check: PASS
 binary fixture changes: none
-closure report: Documents/Plan/AssetIntelligencePlan/v0_8_2_BPSearchClose_v1.md
+closure report: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md
+next_candidate: v1.1.0 Natural Query Adapter Contract / Selectable / Not Active
 ```
 
-v0.7.2 Enhanced Input Summary human release review와 이전 v0.7.3·v0.8.0·v0.8.1 closure는 별도 완료 이력으로 유지한다.
+v0.7.2 Enhanced Input Summary human release review와 이전 accepted closures는 별도 완료 이력으로 유지한다.
 
 ---
 
@@ -381,6 +598,139 @@ validation-content exact restoration 계약
 ---
 
 ## 7. Changelog
+
+### v1.62 - 2026-07-30
+
+- Replaced the stale v0.9.0 last-completed-work focus with the accepted v1.0.2 AI Context Bundle checkpoint.
+- Kept detailed canonical contract and validation evidence in sections 2 and 4 without duplicating the full closure block.
+- Changed documentation state only; product source, runner behavior and acceptance evidence remain unchanged.
+
+### v1.61 - 2026-07-29
+
+- Completed `ADUMP-v1.0.2-AICB` and promoted `ai_context_bundle_v1` to Contract Accepted.
+- Recorded fresh BuildPlugin, canonical Phase 2 v1.14.2, 28 stable failures, P2B and Phase 1 matrix PASS.
+- Added `v1_0_2_AIContextBundleClose_v1.md` as the canonical closure report.
+- Cleared the active implementation slot and selected v1.1.0 Natural Query Adapter Contract as Selectable / Not Active.
+- Performed no Git write operation.
+
+### v1.60 - 2026-07-29
+
+- Marked v1.0.2 product implementation complete with final validation still in progress.
+- Recorded the fresh BuildPlugin job/report/SHA and confirmed v1.14.1 positive bundle outputs.
+- Classified the remaining v1.14.1 failure as a Phase 2 PowerShell parameter-binding defect and recorded the v1.14.2 harness correction.
+- Registered canonical Phase 2 v1.14.2 job `19f5bed490554aeb88ac1532c7bdb0af` without claiming terminal success.
+- Kept contract acceptance and every Git write operation inactive.
+
+### v1.59 - 2026-07-29
+
+- Activated `ADUMP-v1.0.2-AICB` AI Context Bundle Export.
+- Registered single-input `query_result_v1` to bounded `ai_context_bundle_v1` export.
+- Defined section/asset/relation item ordering, MaxItems/UTF-8 MaxBytes bounds and canonical truncation reasons.
+- Deferred multi-query assembly, semantic summarization, ranking, natural-language interpretation and failure envelopes.
+- Preserved the explicit user instruction to skip all Git writes.
+
+### v1.58 - 2026-07-29
+
+- Completed `ADUMP-v1.0.1-QRES` and promoted `query_result_v1` to Contract Accepted.
+- Recorded fresh BuildPlugin, canonical Phase 2 v1.13.0, 31 stable failures, native/payload equivalence, generated-time identity, invariance, P2B and Phase 1 matrix PASS.
+- Preserved the v1.0.0 native default, direct specialized modes and all accepted v0.7.1-v1.0.0 contracts.
+- Cleared the active feature slot and moved v1.0.2 AI Context Bundle Export to Next Candidate / Not Active.
+- Added `v1_0_1_QueryResultSchemaClose_v1.md` as the canonical closure report.
+
+### v1.57 - 2026-07-29
+
+- Activated `ADUMP-v1.0.1-QRES` Query Result Schema.
+- Registered additive `-ResultSchema=query_result_v1` while preserving the native default.
+- Defined complete native-payload embedding, common success metadata and shared generated time.
+- Kept failure envelopes, payload normalization, ranking, multi-query and context bundles deferred.
+
+### v1.56 - 2026-07-29
+
+- Completed `ADUMP-v1.0.0-QMODE` and promoted the native-response Query Mode routing contract to Contract Accepted.
+- Recorded fresh BuildPlugin, actual section/dependency routes, direct/selector equivalence, QueryKind normalization, 23 stable failures, invariance, P2B and Phase 1 matrix PASS.
+- Preserved direct specialized modes and all accepted v0.7.1-v0.9.3 contracts.
+- Cleared the active feature slot and moved v1.0.1 Query Result Schema to Next Candidate / Not Active.
+- Added `v1_0_0_QueryModeClose_v1.md` as the canonical closure report.
+
+### v1.55 - 2026-07-29
+
+- Activated `ADUMP-v1.0.0-QMODE` Query Mode.
+- Registered `-Mode=query -QueryKind=section|dependency` as a strict native-response router.
+- Kept `lazy_section_dump_v1` and `dependency_trace_query_v1` as response owners.
+- Deferred `query_result_v1`, ranking, natural-language query and context bundles.
+
+### v1.54 - 2026-07-29
+
+- Completed `ADUMP-v0.9.3-DTQ` and promoted `dependency_trace_query_v1` to Contract Accepted.
+- Recorded fresh BuildPlugin, actual/synthetic dependency traversal, 29 stable failures, invariance, P2B and Phase 1 matrix PASS.
+- Preserved the existing dependency-index shape and all accepted v0.7.1-v0.9.2 contracts.
+- Cleared the active feature slot and moved v1.0.0 Query Mode to Next Candidate / Not Active.
+- Added `v0_9_3_DependencyTraceQueryClose_v1.md` as the canonical closure report.
+
+### v1.53 - 2026-07-28
+
+- Activated `ADUMP-v0.9.3-DTQ` Dependency Trace Query.
+- Registered bounded read-only `dependencyquery` / `dependency_trace_query_v1`.
+- Defined exact selector, direction, strength, traversal bounds, cycle closure, external endpoints, truncation and atomic output.
+- Protected the accepted v0.7.1-v0.9.2 contracts and the existing dependency-index shape.
+
+### v1.52 - 2026-07-28
+
+- Replaced provisional v0.9.2 closure evidence with final Phase 2 v1.10.1 and Phase 1 matrix reports.
+- Added shared-source two-section/one-file retrieval evidence and expanded the stable negative matrix to 19/19.
+- Recorded final BuildPlugin, Phase 2 and Phase 1 jobs, paths and SHA-256 values.
+
+### v1.51 - 2026-07-28
+
+- Completed `ADUMP-v0.9.2-LSD` and promoted `lazy_section_dump_v1` to Contract Accepted.
+- Recorded fresh BuildPlugin, exact indexed retrieval, 16 stable failures, source-root invariance, P2B and Phase 1 matrix PASS.
+- Preserved all accepted indexes and per-asset dump schemas and kept live regeneration/freshness/query behavior inactive.
+- Cleared the active feature slot and moved v0.9.3 Dependency Trace Query to Next Candidate / Not Active.
+- Added `v0_9_2_LazySectionDumpClose_v1.md` as the canonical closure report.
+
+### v1.50 - 2026-07-28
+
+- Activated `ADUMP-v0.9.2-LSD` Lazy Section Dump.
+- Registered `sectiondump` and `lazy_section_dump_v1` as an index-backed stored-evidence retrieval contract.
+- Required exact Asset/AssetId selection, explicit Sections, bounded pointer resolution and atomic output.
+- Prohibited source-root mutation, live asset loading, regeneration, stale claims and query-contract activation.
+
+### v1.49 - 2026-07-28
+
+- Completed `ADUMP-v0.9.1-SIDX` and promoted `section_index_v1` to Contract Accepted.
+- Recorded fresh BuildPlugin, canonical Phase 2, actual 70-section/20-symbol evidence, pointer resolution, file-state, P2B and Phase 1 matrix PASS.
+- Preserved all three accepted prior index files and public contracts.
+- Cleared the active feature slot and moved v0.9.2 Lazy Section Dump to Next Candidate / Not Active.
+- Added `v0_9_1_SecIndexClose_v1.md` as the canonical closure report.
+
+### v1.48 - 2026-07-28
+
+- Activated `ADUMP-v0.9.1-SIDX` Section and Blueprint Symbol Index.
+- Registered additive `section_index.json` / `section_index_v1` with separated section and symbol arrays.
+- Defined dump-root-relative source-file and JSON Pointer location contracts.
+- Protected all accepted v0.7.1-v0.9.0 schemas and deferred query, ranking, lazy loading and dependency traversal.
+
+### v1.47 - 2026-07-28
+
+- Completed `ADUMP-v0.9.0-AIDX` and promoted `asset_index_v1` to Contract Accepted.
+- Recorded canonical Phase 2 and Phase 1 matrix jobs with Generic Host, focused Asset Index, P2B, profile, cross-shell and Git checks all passing.
+- Reclassified the earlier Live Coding refusal as diagnostic history only.
+- Cleared the active feature slot and moved v0.9.1 Section Index to Next Candidate / Not Active.
+- Added `v0_9_0_AssetIndexClosureReport_v1.md` as the canonical closure report.
+
+### v1.46 - 2026-07-28
+
+- Marked `ADUMP-v0.9.0-AIDX` implementation complete while retaining active closure status.
+- Recorded commandlet v0.15.0, header v0.3.6 and Phase 2 v1.8.0 focused evidence wiring.
+- Recorded fresh BuildPlugin and PowerShell 5.1 self-test PASS.
+- Classified the current Generic Host blocker as active Live Coding and kept all downstream runtime predicates Not Run.
+
+### v1.45 - 2026-07-28
+
+- Activated `ADUMP-v0.9.0-AIDX` Project-wide Asset Index.
+- Registered additive `asset_index.json` / `asset_index_v1` while protecting legacy `index.json` and `dependency_index.json`.
+- Defined manifest selection, actual section discovery, relative paths and duplicate/malformed/missing/stale acceptance semantics.
+- Kept runtime evidence and contract acceptance open until implementation and integrated closure pass.
 
 ### v1.44 - 2026-07-28
 

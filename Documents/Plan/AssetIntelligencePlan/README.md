@@ -1,7 +1,7 @@
 # AssetIntelligencePlan
 
-- Document version: v1.28
-- Last updated: 2026-07-28
+- Document version: v1.42
+- Last updated: 2026-07-29
 - Status: Current
 
 This folder contains the planning documents and preserved implementation-contract history for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
@@ -17,6 +17,13 @@ v0.7.3 Component Tree: completed; release-grade closure passed; contract accepte
 v0.8.0 Graph Node Role Classification: completed; external Generic Host closure passed; contract accepted
 v0.8.1 Execution Path Preview: completed; Host build and external Generic Host closure passed; contract accepted
 v0.8.2 Blueprint Search Index: completed; BuildPlugin, Generic Host, focused JSON and P2B closure passed; contract accepted
+v0.9.0 Asset Index: completed; additive asset_index_v1, Generic Host, focused file-state, P2B and Phase 1 matrix passed; contract accepted
+v0.9.1 Section Index: completed; section_index_v1, actual 70-section/20-symbol evidence, pointer resolution, file-state, P2B and Phase 1 matrix passed; contract accepted
+v0.9.2 Lazy Section Dump: completed; sectiondump, exact indexed data, selector equivalence, shared-source retrieval, 19 stable failures, source-root invariance, P2B and Phase 1 matrix passed; contract accepted
+v0.9.3 Dependency Trace Query: completed; actual and synthetic bounded traversal, directions/strength, cycle/bounds, 29 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
+v1.0.0 Query Mode: completed; native section/dependency routing, direct/selector equivalence, QueryKind normalization, 23 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
+v1.0.1 Query Result Schema: completed; additive query_result_v1, native-default preservation, complete payload equality, 31 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
+v1.0.2 AI Context Bundle Export: completed; single-query bounded export, 28 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
 ```
 
 ## v0.7.1 Contract Acceptance
@@ -132,7 +139,7 @@ The restore loop remains hardened for an open Unreal Editor: files already ident
 
 ## Current Status
 
-There is no active Asset Intelligence feature implementation task. `ADUMP-v0.8.2-BSI` Blueprint Search Index is Completed / Contract Accepted. The next roadmap candidate is v0.9.0 Asset Index; it is selectable but not active until a separate Plan, schema, scope and protection boundary are registered in ActiveWork.
+There is no active Asset Intelligence feature implementation task. `ADUMP-v1.0.2-AICB` AI Context Bundle Export is Completed / Contract Accepted. It accepts exactly one successful `query_result_v1` file and exports one bounded deterministic `ai_context_bundle_v1` without rerunning queries or rereading underlying dump/index files. The next selectable candidate is v1.1.0 Natural Query Adapter Contract and it is not active.
 
 ```text
 ADUMP-v0.7.1-RC: Completed / Contract Accepted
@@ -140,6 +147,13 @@ ADUMP-v0.7.3-CT: Completed / Contract Accepted
 ADUMP-v0.8.0-GNR: Completed / Contract Accepted
 ADUMP-v0.8.1-EPP: Completed / Contract Accepted
 ADUMP-v0.8.2-BSI: Completed / Contract Accepted
+ADUMP-v0.9.0-AIDX: Completed / Contract Accepted
+ADUMP-v0.9.1-SIDX: Completed / Contract Accepted
+ADUMP-v0.9.2-LSD: Completed / Contract Accepted
+ADUMP-v0.9.3-DTQ: Completed / Contract Accepted
+ADUMP-v1.0.0-QMODE: Completed / Contract Accepted
+ADUMP-v1.0.1-QRES: Completed / Contract Accepted
+ADUMP-v1.0.2-AICB: Completed / Contract Accepted
 ```
 
 Current implementation and closure documents:
@@ -153,6 +167,20 @@ v0_8_1_ExecutionPathPreviewPlan_v1.md
 v0_8_1_ExecutionPathPreviewClosureReport_v1.md
 v0_8_2_BPSearchIndexPlan_v1.md
 v0_8_2_BPSearchClose_v1.md
+v0_9_0_AssetIndexPlan_v1.md
+v0_9_0_AssetIndexClosureReport_v1.md
+v0_9_1_SecIndexPlan_v1.md
+v0_9_1_SecIndexClose_v1.md
+v0_9_2_LazySectionDumpPlan_v1.md
+v0_9_2_LazySectionDumpClose_v1.md
+v0_9_3_DependencyTraceQueryPlan_v1.md
+v0_9_3_DependencyTraceQueryClose_v1.md
+v1_0_0_QueryModePlan_v1.md
+v1_0_0_QueryModeClose_v1.md
+v1_0_1_QueryResultSchemaPlan_v1.md
+v1_0_1_QueryResultSchemaClose_v1.md
+v1_0_2_AIContextBundlePlan_v1.md
+v1_0_2_AIContextBundleClose_v1.md
 ```
 
 The accepted v0.7.1 commandlet, stable codes, report contract and validation restoration behavior remain protected. The historical v0.7.1 TaskSource and generated Codex contracts remain completed contract evidence and are not the execution source for v0.7.3.
@@ -220,16 +248,117 @@ Blocked — Browser Work-Order Surface Not Exposed
 ## Next Sequence
 
 ```text
-1. Keep the accepted v0.7.1-v0.8.2 public contracts protected.
-2. Select and register a separate v0.9.0 Asset Index Plan before implementation; do not activate it automatically.
-3. Complete a human review of the final repository diff and select the intended commit boundary when Git work is explicitly resumed.
-4. Stage, commit, push, tag, or update any Consumer repository integration pointer only after an explicit user request.
-5. Preserve the canonical v0.7.3, v0.8.0, v0.8.1 and v0.8.2 closure reports and process/report SHA evidence.
+1. Keep the accepted v0.7.1-v1.0.2 public contracts protected.
+2. Preserve the canonical v1.0.2 BuildPlugin, Phase 2 and Phase 1 reports and SHA evidence.
+3. Select and register a separate v1.1.0 Natural Query Adapter Contract Plan before implementation; do not activate it automatically.
+4. Define adapter ownership, accepted structured input/output, deterministic normalization, ambiguity boundaries, unsupported language behavior, stable failures and compatibility.
+5. Keep ambiguous candidate flow assigned to v1.1.1 and multi-query context bundle assembly assigned to v1.1.2.
+6. Keep ranking, semantic summarization, live loading, index rebuild, freshness claims and failure envelopes inactive unless a future Plan explicitly owns them.
+7. Skip all Git write operations until the user explicitly requests them.
 ```
 
 The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
+
+### v1.42 - 2026-07-29
+
+- Recorded `ADUMP-v1.0.2-AICB` as Completed / Contract Accepted.
+- Linked the accepted Plan and `v1_0_2_AIContextBundleClose_v1.md` with fresh BuildPlugin, canonical Phase 2 v1.14.2, 28 stable failures, source/input invariance, P2B and Phase 1 matrix evidence.
+- Extended the protected public-contract range through v1.0.2.
+- Cleared the active feature slot and moved v1.1.0 Natural Query Adapter Contract to the next selectable candidate without activating it.
+- Performed no Git write operation.
+
+### v1.41 - 2026-07-29
+
+- Activated `ADUMP-v1.0.2-AICB` AI Context Bundle Export.
+- Registered one accepted `query_result_v1` input and bounded `ai_context_bundle_v1` output ownership.
+- Defined section/asset/relation ordering, exact UTF-8 byte bounds, canonical truncation and stable-failure requirements.
+- Kept multi-query assembly, semantic summarization, ranking, natural-language interpretation and failure envelopes deferred.
+- Preserved the user instruction to skip all Git writes.
+
+### v1.40 - 2026-07-29
+
+- Recorded `ADUMP-v1.0.1-QRES` as Completed / Contract Accepted.
+- Linked the accepted Plan and `v1_0_1_QueryResultSchemaClose_v1.md` with fresh BuildPlugin, complete native-payload equality, generated-time identity, 31 stable failures, invariance, P2B and Phase 1 matrix evidence.
+- Extended the protected public-contract range through v1.0.1.
+- Cleared the active feature slot and moved v1.0.2 AI Context Bundle Export to the next selectable candidate without activating it.
+
+### v1.39 - 2026-07-29
+
+- Activated `ADUMP-v1.0.1-QRES` Query Result Schema.
+- Registered additive `query_result_v1` success-envelope semantics with native default preservation.
+- Required complete native-payload embedding and shared generated-time ownership.
+- Kept failure envelopes, payload normalization, ranking, multi-query and context bundles deferred.
+
+### v1.38 - 2026-07-29
+
+- Recorded `ADUMP-v1.0.0-QMODE` as Completed / Contract Accepted.
+- Linked the accepted Plan and `v1_0_0_QueryModeClose_v1.md` with native routing, equivalence, stable-failure, invariance, P2B and Phase 1 matrix evidence.
+- Extended the protected public-contract range through v1.0.0.
+- Cleared the active feature slot and moved v1.0.1 Query Result Schema to the next selectable candidate without activating it.
+
+### v1.37 - 2026-07-29
+
+- Activated `ADUMP-v1.0.0-QMODE` Query Mode.
+- Registered strict `section|dependency` routing with native accepted response ownership.
+- Required direct-mode equivalence and preserved all v0.7.1-v0.9.3 contracts.
+- Kept `query_result_v1`, ranking, natural-language query and context bundles deferred.
+
+### v1.36 - 2026-07-29
+
+- Recorded `ADUMP-v0.9.3-DTQ` as Completed / Contract Accepted.
+- Linked the accepted Plan and `v0_9_3_DependencyTraceQueryClose_v1.md` with fresh BuildPlugin, actual/synthetic traversal, stable-failure, invariance, P2B and Phase 1 matrix evidence.
+- Extended the protected public-contract range through v0.9.3.
+- Cleared the active feature slot and moved v1.0.0 Query Mode to the next selectable candidate without activating it.
+
+### v1.35 - 2026-07-28
+
+- Corrected the final v0.9.2 summary to shared-source retrieval and 19 stable failures.
+- Activated `ADUMP-v0.9.3-DTQ` Dependency Trace Query.
+- Registered `dependencyquery` / `dependency_trace_query_v1` with bounded BFS, direction, strength, cycle and truncation semantics.
+- Protected the existing dependency index shape and every accepted v0.7.1-v0.9.2 contract.
+
+### v1.34 - 2026-07-28
+
+- Recorded `ADUMP-v0.9.2-LSD` as Completed / Contract Accepted.
+- Linked the accepted Plan and `v0_9_2_LazySectionDumpClose_v1.md` with fresh BuildPlugin, exact indexed retrieval, stable-failure, source-root invariance, P2B and Phase 1 matrix evidence.
+- Extended the protected public-contract range through v0.9.2.
+- Cleared the active feature slot and moved v0.9.3 Dependency Trace Query to the next selectable candidate without activating it.
+
+### v1.33 - 2026-07-28
+
+- Activated `ADUMP-v0.9.2-LSD` Lazy Section Dump.
+- Registered `sectiondump` / `lazy_section_dump_v1` and the indexed stored-evidence source boundary.
+- Required exact selector, explicit Sections, bounded pointer resolution, stable failures and atomic output.
+- Protected all accepted index and per-asset dump contracts and excluded live regeneration, stale claims and query behavior.
+
+### v1.32 - 2026-07-28
+
+- Recorded `ADUMP-v0.9.1-SIDX` as Completed / Contract Accepted.
+- Linked the accepted Plan and `v0_9_1_SecIndexClose_v1.md` with fresh BuildPlugin, actual section/symbol, pointer, file-state, P2B and Phase 1 matrix evidence.
+- Extended the protected public-contract range through v0.9.1.
+- Cleared the active feature slot and moved v0.9.2 Lazy Section Dump to the next selectable candidate without activating it.
+
+### v1.31 - 2026-07-28
+
+- Activated `ADUMP-v0.9.1-SIDX` Section and Blueprint Symbol Index.
+- Registered additive `section_index_v1` with relative source-file and JSON Pointer location contracts.
+- Protected accepted `asset_index_v1`, `bp_search_index_v1` and all three existing index files.
+- Defined integrated implementation and closure sequence before contract acceptance.
+
+### v1.30 - 2026-07-28
+
+- Recorded `ADUMP-v0.9.0-AIDX` as Completed / Contract Accepted.
+- Linked the accepted Plan and `v0_9_0_AssetIndexClosureReport_v1.md` with BuildPlugin, Generic Host, focused file-state, P2B and Phase 1 matrix evidence.
+- Extended the protected public-contract range through v0.9.0.
+- Cleared the active feature slot and moved v0.9.1 Section Index to the next selectable candidate without activating it.
+
+### v1.29 - 2026-07-28
+
+- Activated `ADUMP-v0.9.0-AIDX` Project-wide Asset Index.
+- Registered the additive `asset_index_v1` Plan and protected the existing `index.json` and `dependency_index.json` contracts.
+- Defined the implementation and integrated closure sequence before v0.9.0 contract acceptance.
 
 ### v1.28 - 2026-07-28
 

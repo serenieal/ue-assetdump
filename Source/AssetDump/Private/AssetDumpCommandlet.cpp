@@ -1,6 +1,14 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.14.3
+// Version: v0.21.1
 // Changelog:
+// - v0.21.1: accepted schema-less core section의 빈 section_schema_version 보존을 허용.
+// - v0.21.0: single-query ai_context_bundle_v1 export, item/UTF-8 byte bounds와 stable failures를 추가.
+// - v0.20.0: additive query_result_v1 success envelope과 native default 보존을 추가.
+// - v0.19.0: native-response section/dependency routing을 제공하는 generic query mode를 추가.
+// - v0.18.0: bounded index-backed dependencyquery / dependency_trace_query_v1 traversal을 추가.
+// - v0.17.0: index-backed sectiondump / lazy_section_dump_v1 read-only retrieval을 추가.
+// - v0.16.0: additive section_index_v1 section/symbol location 생성·구조 검증을 추가.
+// - v0.15.0: 기존 global index 두 파일을 유지하면서 additive asset_index_v1 생성·검증 기반을 추가.
 // - v0.14.3: full Profile builder 기대 목록에 bp_search_index를 추가하고 graph prerequisite 중복 제거 계약을 반영.
 // - v0.14.2: 실제 13개 Require 항목과 어긋난 bp_search_index registry 총계·validation 기대값을 13으로 교정.
 // - v0.14.1: bp_search_index actual contract와 production-shared 12-case registry validation을 추가.
@@ -234,6 +242,2445 @@ namespace
 		FPaths::MakePathRelativeTo(RelativePathText, *ProjectRootPath);
 		RelativePathText.ReplaceInline(TEXT("\\"), TEXT("/"));
 		return RelativePathText;
+	}
+
+		// GetCommandletBoolFieldOrDefault는 bool field가 없으면 기본값을 반환한다.
+	bool GetCommandletBoolFieldOrDefault(const TSharedPtr<FJsonObject>& InRootObject, const TCHAR* InFieldName, bool bDefaultValue = false)
+	{
+		if (!InRootObject.IsValid())
+		{
+			return bDefaultValue;
+		}
+
+		bool bFieldValue = bDefaultValue;
+		InRootObject->TryGetBoolField(InFieldName, bFieldValue);
+		return bFieldValue;
+	}
+
+	// GetCommandletIntegerFieldOrDefault는 number field가 없으면 기본 정수를 반환한다.
+	int32 GetCommandletIntegerFieldOrDefault(const TSharedPtr<FJsonObject>& InRootObject, const TCHAR* InFieldName, int32 DefaultValue = 0)
+	{
+		if (!InRootObject.IsValid())
+		{
+			return DefaultValue;
+		}
+
+		double FieldValue = static_cast<double>(DefaultValue);
+		if (!InRootObject->TryGetNumberField(InFieldName, FieldValue))
+		{
+			return DefaultValue;
+		}
+
+		return FMath::RoundToInt(FieldValue);
+	}
+
+	// GetCommandletStringArrayField는 string array field를 원래 순서대로 읽는다.
+	TArray<FString> GetCommandletStringArrayField(const TSharedPtr<FJsonObject>& InRootObject, const TCHAR* InFieldName)
+	{
+		TArray<FString> ResultArray;
+		if (!InRootObject.IsValid())
+		{
+			return ResultArray;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* JsonValueArray = nullptr;
+		if (!InRootObject->TryGetArrayField(InFieldName, JsonValueArray) || !JsonValueArray)
+		{
+			return ResultArray;
+		}
+
+		for (const TSharedPtr<FJsonValue>& JsonValue : *JsonValueArray)
+		{
+			FString StringValue;
+			if (JsonValue.IsValid() && JsonValue->TryGetString(StringValue) && !StringValue.IsEmpty())
+			{
+				ResultArray.Add(StringValue);
+			}
+		}
+
+		return ResultArray;
+	}
+
+	// TryGetCommandletArrayCount는 array field 존재 여부와 원소 수를 함께 반환한다.
+	bool TryGetCommandletArrayCount(const TSharedPtr<FJsonObject>& InRootObject, const TCHAR* InFieldName, int32& OutCount)
+	{
+		OutCount = 0;
+		if (!InRootObject.IsValid())
+		{
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* JsonValueArray = nullptr;
+		if (!InRootObject->TryGetArrayField(InFieldName, JsonValueArray) || !JsonValueArray)
+		{
+			return false;
+		}
+
+		OutCount = JsonValueArray->Num();
+		return true;
+	}
+
+	// MakeCommandletDumpRootRelativePath는 파일 경로를 dump root 내부 상대 경로로 정규화한다.
+	FString MakeCommandletDumpRootRelativePath(const FString& InFilePath, const FString& InDumpRootPath)
+	{
+		if (InFilePath.IsEmpty())
+		{
+			return FString();
+		}
+
+		FString FullFilePath = FPaths::ConvertRelativePathToFull(InFilePath);
+		FPaths::NormalizeFilename(FullFilePath);
+
+		FString FullDumpRootPath = FPaths::ConvertRelativePathToFull(InDumpRootPath);
+		FPaths::NormalizeDirectoryName(FullDumpRootPath);
+		if (!FullDumpRootPath.EndsWith(TEXT("/")))
+		{
+			FullDumpRootPath += TEXT("/");
+		}
+
+		if (!FullFilePath.StartsWith(FullDumpRootPath, ESearchCase::IgnoreCase))
+		{
+			return FString();
+		}
+
+		FString RelativePathText = FullFilePath;
+		if (!FPaths::MakePathRelativeTo(RelativePathText, *FullDumpRootPath))
+		{
+			return FString();
+		}
+
+		RelativePathText.ReplaceInline(TEXT("\\"), TEXT("/"));
+		return RelativePathText;
+	}
+
+	// IsCommandletIndexSidecarFileName은 manifest가 아닌 기존 sidecar 파일명을 판별한다.
+	bool IsCommandletIndexSidecarFileName(const FString& InFileName)
+	{
+		return InFileName.Equals(TEXT("manifest.json"), ESearchCase::IgnoreCase)
+			|| InFileName.Equals(TEXT("digest.json"), ESearchCase::IgnoreCase)
+			|| InFileName.Equals(TEXT("summary.json"), ESearchCase::IgnoreCase)
+			|| InFileName.Equals(TEXT("details.json"), ESearchCase::IgnoreCase)
+			|| InFileName.Equals(TEXT("graphs.json"), ESearchCase::IgnoreCase)
+			|| InFileName.Equals(TEXT("references.json"), ESearchCase::IgnoreCase);
+	}
+
+	// ResolveCommandletMainDumpFileName은 manifest run/generated_files에서 main dump 파일명을 찾는다.
+	FString ResolveCommandletMainDumpFileName(const TSharedPtr<FJsonObject>& InRunObject, const TArray<FString>& InGeneratedFiles)
+	{
+		FString MainDumpFileName = FPaths::GetCleanFilename(GetCommandletStringFieldOrEmpty(InRunObject, TEXT("output_file_path")));
+		if (!MainDumpFileName.IsEmpty() && !IsCommandletIndexSidecarFileName(MainDumpFileName))
+		{
+			return MainDumpFileName;
+		}
+
+		for (const FString& GeneratedFileName : InGeneratedFiles)
+		{
+			const FString CleanFileName = FPaths::GetCleanFilename(GeneratedFileName);
+			if (!CleanFileName.IsEmpty() && !IsCommandletIndexSidecarFileName(CleanFileName))
+			{
+				return CleanFileName;
+			}
+		}
+
+		return FString();
+	}
+
+		// AddCommandletStringArrayField는 FString 배열을 JSON string array로 기록한다.
+	void AddCommandletStringArrayField(const TSharedRef<FJsonObject>& InOutObject, const TCHAR* InFieldName, const TArray<FString>& InValues)
+	{
+		TArray<TSharedPtr<FJsonValue>> JsonValueArray;
+		JsonValueArray.Reserve(InValues.Num());
+		for (const FString& ValueText : InValues)
+		{
+			JsonValueArray.Add(MakeShared<FJsonValueString>(ValueText));
+		}
+		InOutObject->SetArrayField(InFieldName, JsonValueArray);
+	}
+
+	// IsCommandletSectionSidecarEligible는 독립 sidecar를 가질 수 있는 core section을 판별한다.
+	bool IsCommandletSectionSidecarEligible(const FString& InSectionName)
+	{
+		return InSectionName == TEXT("summary")
+			|| InSectionName == TEXT("digest")
+			|| InSectionName == TEXT("details")
+			|| InSectionName == TEXT("graphs")
+			|| InSectionName == TEXT("references");
+	}
+
+	// ResolveCommandletSectionLocation은 asset_index entry에서 section source file과 JSON Pointer를 결정한다.
+	bool ResolveCommandletSectionLocation(
+		const TSharedPtr<FJsonObject>& InAssetIndexEntryObject,
+		const FString& InSectionName,
+		FString& OutSourceFile,
+		FString& OutJsonPointer,
+		FString& OutStorageKind)
+	{
+		OutSourceFile.Reset();
+		OutJsonPointer.Reset();
+		OutStorageKind.Reset();
+		if (!InAssetIndexEntryObject.IsValid() || InSectionName.IsEmpty())
+		{
+			return false;
+		}
+
+		const TSharedPtr<FJsonObject> OutputFilesObject = GetCommandletNestedObjectField(InAssetIndexEntryObject, TEXT("output_files"));
+		if (!OutputFilesObject.IsValid())
+		{
+			return false;
+		}
+
+		if (IsCommandletSectionSidecarEligible(InSectionName))
+		{
+			const FString SidecarPathText = GetCommandletStringFieldOrEmpty(OutputFilesObject, *InSectionName);
+			if (!SidecarPathText.IsEmpty())
+			{
+				OutSourceFile = SidecarPathText;
+				OutJsonPointer = InSectionName == TEXT("digest") ? TEXT("/") : FString::Printf(TEXT("/%s"), *InSectionName);
+				OutStorageKind = TEXT("sidecar");
+				return true;
+			}
+		}
+
+		const FString MainDumpPathText = GetCommandletStringFieldOrEmpty(OutputFilesObject, TEXT("dump"));
+		if (MainDumpPathText.IsEmpty())
+		{
+			return false;
+		}
+
+		OutSourceFile = MainDumpPathText;
+		OutJsonPointer = FString::Printf(TEXT("/%s"), *InSectionName);
+		OutStorageKind = TEXT("main_dump");
+		return true;
+	}
+
+	// MakeCommandletSectionSortKey는 section_index_v1 section ordering key를 만든다.
+	FString MakeCommandletSectionSortKey(const TSharedPtr<FJsonObject>& InSectionObject)
+	{
+		return FString::Printf(
+			TEXT("%s|%s|%s|%s"),
+			*GetCommandletStringFieldOrEmpty(InSectionObject, TEXT("section_name")),
+			*GetCommandletStringFieldOrEmpty(InSectionObject, TEXT("object_path")),
+			*GetCommandletStringFieldOrEmpty(InSectionObject, TEXT("source_file")),
+			*GetCommandletStringFieldOrEmpty(InSectionObject, TEXT("json_pointer")));
+	}
+
+	// MakeCommandletSymbolSortKey는 section_index_v1 symbol ordering key를 만든다.
+	FString MakeCommandletSymbolSortKey(const TSharedPtr<FJsonObject>& InSymbolObject)
+	{
+		return FString::Printf(
+			TEXT("%s|%s|%s|%s|%s|%s|%s"),
+			*GetCommandletStringFieldOrEmpty(InSymbolObject, TEXT("normalized_name")),
+			*GetCommandletStringFieldOrEmpty(InSymbolObject, TEXT("kind")),
+			*GetCommandletStringFieldOrEmpty(InSymbolObject, TEXT("name")),
+			*GetCommandletStringFieldOrEmpty(InSymbolObject, TEXT("object_path")),
+			*GetCommandletStringFieldOrEmpty(InSymbolObject, TEXT("graph_name")),
+			*GetCommandletStringFieldOrEmpty(InSymbolObject, TEXT("node_id")),
+			*GetCommandletStringFieldOrEmpty(InSymbolObject, TEXT("source_symbol_id")));
+	}
+
+	// BuildCommandletSectionIndexEntries는 ready asset index entry에서 section 및 Blueprint symbol 위치를 만든다.
+	bool BuildCommandletSectionIndexEntries(
+		const TSharedPtr<FJsonObject>& InAssetIndexEntryObject,
+		const FString& InDumpRootPath,
+		TArray<TSharedPtr<FJsonObject>>& OutSectionEntryObjectArray,
+		TArray<TSharedPtr<FJsonObject>>& OutSymbolEntryObjectArray)
+	{
+		if (!InAssetIndexEntryObject.IsValid())
+		{
+			return false;
+		}
+
+		const FString ObjectPathText = GetCommandletStringFieldOrEmpty(InAssetIndexEntryObject, TEXT("object_path"));
+		const FString AssetKeyText = GetCommandletStringFieldOrEmpty(InAssetIndexEntryObject, TEXT("asset_key"));
+		const FString AssetClassText = GetCommandletStringFieldOrEmpty(InAssetIndexEntryObject, TEXT("asset_class"));
+		const FString AssetFamilyText = GetCommandletStringFieldOrEmpty(InAssetIndexEntryObject, TEXT("asset_family"));
+		const TArray<FString> AvailableSectionArray = GetCommandletStringArrayField(InAssetIndexEntryObject, TEXT("available_sections"));
+		const TSharedPtr<FJsonObject> SectionSchemaObject = GetCommandletNestedObjectField(InAssetIndexEntryObject, TEXT("section_schema_versions"));
+		const TSharedPtr<FJsonObject> OutputFilesObject = GetCommandletNestedObjectField(InAssetIndexEntryObject, TEXT("output_files"));
+		if (ObjectPathText.IsEmpty() || !OutputFilesObject.IsValid())
+		{
+			return false;
+		}
+
+		for (const FString& SectionName : AvailableSectionArray)
+		{
+			FString SourceFileText;
+			FString JsonPointerText;
+			FString StorageKindText;
+			if (!ResolveCommandletSectionLocation(
+				InAssetIndexEntryObject,
+				SectionName,
+				SourceFileText,
+				JsonPointerText,
+				StorageKindText))
+			{
+				return false;
+			}
+
+			FString SectionSchemaText;
+			if (SectionSchemaObject.IsValid())
+			{
+				SectionSchemaObject->TryGetStringField(*SectionName, SectionSchemaText);
+			}
+
+			TSharedRef<FJsonObject> SectionEntryObject = MakeShared<FJsonObject>();
+			SectionEntryObject->SetStringField(TEXT("section_id"), FString());
+			SectionEntryObject->SetStringField(TEXT("section_name"), SectionName);
+			SectionEntryObject->SetStringField(TEXT("section_schema_version"), SectionSchemaText);
+			SectionEntryObject->SetStringField(TEXT("asset_id"), FString());
+			SectionEntryObject->SetStringField(TEXT("asset_key"), AssetKeyText);
+			SectionEntryObject->SetStringField(TEXT("object_path"), ObjectPathText);
+			SectionEntryObject->SetStringField(TEXT("asset_class"), AssetClassText);
+			SectionEntryObject->SetStringField(TEXT("asset_family"), AssetFamilyText);
+			SectionEntryObject->SetStringField(TEXT("source_file"), SourceFileText);
+			SectionEntryObject->SetStringField(TEXT("json_pointer"), JsonPointerText);
+			SectionEntryObject->SetStringField(TEXT("storage_kind"), StorageKindText);
+			OutSectionEntryObjectArray.Add(SectionEntryObject);
+		}
+
+		if (!AvailableSectionArray.Contains(TEXT("bp_search_index")))
+		{
+			return true;
+		}
+
+		const FString MainDumpRelativePath = GetCommandletStringFieldOrEmpty(OutputFilesObject, TEXT("dump"));
+		if (MainDumpRelativePath.IsEmpty())
+		{
+			return false;
+		}
+
+		const FString MainDumpFilePath = FPaths::Combine(InDumpRootPath, MainDumpRelativePath);
+		TSharedPtr<FJsonObject> MainDumpRootObject;
+		if (!LoadCommandletJsonObjectFromFile(MainDumpFilePath, MainDumpRootObject))
+		{
+			return false;
+		}
+
+		const TSharedPtr<FJsonObject> BPSearchIndexObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("bp_search_index"));
+		if (!BPSearchIndexObject.IsValid()
+			|| GetCommandletStringFieldOrEmpty(BPSearchIndexObject, TEXT("schema_version")) != TEXT("bp_search_index_v1"))
+		{
+			return false;
+		}
+
+		if (!GetCommandletBoolFieldOrDefault(BPSearchIndexObject, TEXT("supported")))
+		{
+			return true;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* SymbolValueArray = nullptr;
+		if (!BPSearchIndexObject->TryGetArrayField(TEXT("symbols"), SymbolValueArray) || !SymbolValueArray)
+		{
+			return false;
+		}
+		if (GetCommandletIntegerFieldOrDefault(BPSearchIndexObject, TEXT("symbol_count"), -1) != SymbolValueArray->Num())
+		{
+			return false;
+		}
+
+		for (int32 SymbolIndex = 0; SymbolIndex < SymbolValueArray->Num(); ++SymbolIndex)
+		{
+			const TSharedPtr<FJsonObject> SourceSymbolObject = (*SymbolValueArray)[SymbolIndex].IsValid()
+				? (*SymbolValueArray)[SymbolIndex]->AsObject()
+				: nullptr;
+			if (!SourceSymbolObject.IsValid())
+			{
+				return false;
+			}
+
+			TSharedRef<FJsonObject> SymbolEntryObject = MakeShared<FJsonObject>();
+			SymbolEntryObject->SetStringField(TEXT("symbol_entry_id"), FString());
+			SymbolEntryObject->SetStringField(TEXT("source_symbol_id"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("symbol_id")));
+			SymbolEntryObject->SetStringField(TEXT("kind"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("kind")));
+			SymbolEntryObject->SetStringField(TEXT("name"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("name")));
+			SymbolEntryObject->SetStringField(TEXT("normalized_name"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("normalized_name")));
+			SymbolEntryObject->SetStringField(TEXT("asset_id"), FString());
+			SymbolEntryObject->SetStringField(TEXT("asset_key"), AssetKeyText);
+			SymbolEntryObject->SetStringField(TEXT("object_path"), ObjectPathText);
+			SymbolEntryObject->SetStringField(TEXT("asset_class"), AssetClassText);
+			SymbolEntryObject->SetStringField(TEXT("source_section"), TEXT("bp_search_index"));
+			SymbolEntryObject->SetStringField(TEXT("source_file"), MainDumpRelativePath);
+			SymbolEntryObject->SetStringField(TEXT("json_pointer"), FString::Printf(TEXT("/bp_search_index/symbols/%d"), SymbolIndex));
+			SymbolEntryObject->SetStringField(TEXT("graph_name"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("graph_name")));
+			SymbolEntryObject->SetStringField(TEXT("graph_type"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("graph_type")));
+			SymbolEntryObject->SetStringField(TEXT("node_id"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("node_id")));
+			SymbolEntryObject->SetStringField(TEXT("primary_role"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("primary_role")));
+			SymbolEntryObject->SetStringField(TEXT("member_parent"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("member_parent")));
+			SymbolEntryObject->SetStringField(TEXT("member_name"), GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("member_name")));
+			AddCommandletStringArrayField(SymbolEntryObject, TEXT("search_terms"), GetCommandletStringArrayField(SourceSymbolObject, TEXT("search_terms")));
+			OutSymbolEntryObjectArray.Add(SymbolEntryObject);
+		}
+
+		return true;
+	}
+
+	// BuildCommandletAssetIndexEntry는 selected manifest와 실제 output 파일에서 asset_index_v1 entry를 만든다.
+	bool BuildCommandletAssetIndexEntry(
+		const FString& InManifestFilePath,
+		const FString& InDumpRootPath,
+		TSharedPtr<FJsonObject>& OutEntryObject,
+		bool& bOutReady)
+	{
+		OutEntryObject.Reset();
+		bOutReady = false;
+
+		TSharedPtr<FJsonObject> ManifestRootObject;
+		if (!LoadCommandletJsonObjectFromFile(InManifestFilePath, ManifestRootObject))
+		{
+			return false;
+		}
+
+		const TSharedPtr<FJsonObject> AssetObject = GetCommandletNestedObjectField(ManifestRootObject, TEXT("asset"));
+		const TSharedPtr<FJsonObject> RunObject = GetCommandletNestedObjectField(ManifestRootObject, TEXT("run"));
+		const FString ObjectPathText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("object_path"));
+		if (ObjectPathText.IsEmpty())
+		{
+			return false;
+		}
+
+		const FString DumpDirectoryPath = FPaths::GetPath(InManifestFilePath);
+		const TArray<FString> RawGeneratedFileArray = GetCommandletStringArrayField(ManifestRootObject, TEXT("generated_files"));
+		TArray<FString> GeneratedFileArray;
+		GeneratedFileArray.Reserve(RawGeneratedFileArray.Num());
+		TSet<FString> GeneratedFileLowerSet;
+		for (const FString& RawGeneratedFileName : RawGeneratedFileArray)
+		{
+			const FString CleanFileName = FPaths::GetCleanFilename(RawGeneratedFileName);
+			if (!CleanFileName.IsEmpty())
+			{
+				GeneratedFileArray.Add(CleanFileName);
+				GeneratedFileLowerSet.Add(CleanFileName.ToLower());
+			}
+		}
+
+		const FString MainDumpFileName = ResolveCommandletMainDumpFileName(RunObject, GeneratedFileArray);
+		const FString MainDumpFilePath = MainDumpFileName.IsEmpty()
+			? FString()
+			: FPaths::Combine(DumpDirectoryPath, MainDumpFileName);
+		const bool bMainDumpExists = !MainDumpFilePath.IsEmpty() && IFileManager::Get().FileExists(*MainDumpFilePath);
+
+		TSharedPtr<FJsonObject> MainDumpRootObject;
+		const bool bMainDumpParsed = bMainDumpExists && LoadCommandletJsonObjectFromFile(MainDumpFilePath, MainDumpRootObject);
+		const FString IndexStatusText = bMainDumpParsed
+			? TEXT("ready")
+			: (bMainDumpExists ? TEXT("malformed_dump") : TEXT("missing_dump"));
+		bOutReady = bMainDumpParsed;
+
+		const FString DigestFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("digest.json"));
+		const FString SummaryFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("summary.json"));
+		const FString DetailsFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("details.json"));
+		const FString GraphsFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("graphs.json"));
+		const FString ReferencesFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("references.json"));
+
+		const bool bDigestFileExists = IFileManager::Get().FileExists(*DigestFilePath);
+		const bool bSummaryFileExists = IFileManager::Get().FileExists(*SummaryFilePath);
+		const bool bDetailsFileExists = IFileManager::Get().FileExists(*DetailsFilePath);
+		const bool bGraphsFileExists = IFileManager::Get().FileExists(*GraphsFilePath);
+		const bool bReferencesFileExists = IFileManager::Get().FileExists(*ReferencesFilePath);
+
+		TArray<FString> AvailableSectionArray;
+		TSharedRef<FJsonObject> SectionSchemaObject = MakeShared<FJsonObject>();
+		auto HasMainDumpField = [&MainDumpRootObject](const TCHAR* FieldName)
+		{
+			return MainDumpRootObject.IsValid() && MainDumpRootObject->HasField(FieldName);
+		};
+		auto AddAvailableSection = [&AvailableSectionArray](const TCHAR* SectionName, bool bAvailable)
+		{
+			if (bAvailable)
+			{
+				AvailableSectionArray.Add(SectionName);
+			}
+		};
+		auto AddSpecializedSection = [&MainDumpRootObject, &AvailableSectionArray, &SectionSchemaObject](const TCHAR* SectionName)
+		{
+			const TSharedPtr<FJsonObject> SectionObject = GetCommandletNestedObjectField(MainDumpRootObject, SectionName);
+			if (!SectionObject.IsValid())
+			{
+				return;
+			}
+
+			AvailableSectionArray.Add(SectionName);
+			const FString SectionSchemaText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("schema_version"));
+			if (!SectionSchemaText.IsEmpty())
+			{
+				SectionSchemaObject->SetStringField(SectionName, SectionSchemaText);
+			}
+		};
+
+		AddAvailableSection(TEXT("summary"), bSummaryFileExists || HasMainDumpField(TEXT("summary")));
+		AddAvailableSection(TEXT("digest"), bDigestFileExists || HasMainDumpField(TEXT("digest")));
+		AddAvailableSection(TEXT("details"), bDetailsFileExists || HasMainDumpField(TEXT("details")));
+		AddSpecializedSection(TEXT("data_asset_values"));
+		AddSpecializedSection(TEXT("data_asset_diff"));
+		AddSpecializedSection(TEXT("input_summary"));
+		AddSpecializedSection(TEXT("component_tree"));
+		AddAvailableSection(TEXT("graphs"), bGraphsFileExists || HasMainDumpField(TEXT("graphs")));
+		AddSpecializedSection(TEXT("bp_search_index"));
+		AddAvailableSection(TEXT("references"), bReferencesFileExists || HasMainDumpField(TEXT("references")));
+		AddSpecializedSection(TEXT("widget_designer"));
+
+		const TSharedPtr<FJsonObject> PerfObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("perf"));
+		const int32 GraphCount = GetCommandletIntegerFieldOrDefault(PerfObject, TEXT("graph_count"));
+		const int32 NodeCount = GetCommandletIntegerFieldOrDefault(PerfObject, TEXT("node_count"));
+
+		TSharedPtr<FJsonObject> ReferencesRootObject;
+		TSharedPtr<FJsonObject> ReferencesObject;
+		if (bReferencesFileExists && LoadCommandletJsonObjectFromFile(ReferencesFilePath, ReferencesRootObject))
+		{
+			ReferencesObject = GetCommandletNestedObjectField(ReferencesRootObject, TEXT("references"));
+		}
+		if (!ReferencesObject.IsValid())
+		{
+			ReferencesObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("references"));
+		}
+
+		int32 HardReferenceCount = 0;
+		int32 SoftReferenceCount = 0;
+		const bool bHasHardReferences = TryGetCommandletArrayCount(ReferencesObject, TEXT("hard"), HardReferenceCount);
+		const bool bHasSoftReferences = TryGetCommandletArrayCount(ReferencesObject, TEXT("soft"), SoftReferenceCount);
+		const int32 ReferenceCount = (bHasHardReferences || bHasSoftReferences)
+			? HardReferenceCount + SoftReferenceCount
+			: GetCommandletIntegerFieldOrDefault(PerfObject, TEXT("reference_count"));
+
+		TArray<FString> MissingFileArray;
+		for (const FString& GeneratedFileName : GeneratedFileArray)
+		{
+			const FString GeneratedFilePath = FPaths::Combine(DumpDirectoryPath, GeneratedFileName);
+			if (!IFileManager::Get().FileExists(*GeneratedFilePath))
+			{
+				MissingFileArray.Add(GeneratedFileName);
+			}
+		}
+
+		TSharedRef<FJsonObject> OutputFilesObject = MakeShared<FJsonObject>();
+		auto AddOutputFile = [&OutputFilesObject, &GeneratedFileLowerSet, &InDumpRootPath](
+			const TCHAR* OutputKey,
+			const FString& OutputFilePath,
+			const FString& DeclaredFileName,
+			bool bAlwaysDeclare = false)
+		{
+			const bool bDeclared = bAlwaysDeclare
+				|| (!DeclaredFileName.IsEmpty() && GeneratedFileLowerSet.Contains(DeclaredFileName.ToLower()))
+				|| (!OutputFilePath.IsEmpty() && IFileManager::Get().FileExists(*OutputFilePath));
+			if (!bDeclared)
+			{
+				return;
+			}
+
+			const FString RelativeOutputPath = MakeCommandletDumpRootRelativePath(OutputFilePath, InDumpRootPath);
+			if (!RelativeOutputPath.IsEmpty())
+			{
+				OutputFilesObject->SetStringField(OutputKey, RelativeOutputPath);
+			}
+		};
+
+		AddOutputFile(TEXT("dump"), MainDumpFilePath, MainDumpFileName, !MainDumpFileName.IsEmpty());
+		AddOutputFile(TEXT("manifest"), InManifestFilePath, TEXT("manifest.json"), true);
+		AddOutputFile(TEXT("digest"), DigestFilePath, TEXT("digest.json"));
+		AddOutputFile(TEXT("summary"), SummaryFilePath, TEXT("summary.json"));
+		AddOutputFile(TEXT("details"), DetailsFilePath, TEXT("details.json"));
+		AddOutputFile(TEXT("graphs"), GraphsFilePath, TEXT("graphs.json"));
+		AddOutputFile(TEXT("references"), ReferencesFilePath, TEXT("references.json"));
+
+		const FString PackageNameText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("package_name"));
+		FString SectionModeText = GetCommandletStringFieldOrEmpty(RunObject, TEXT("section_mode"));
+		if (SectionModeText.IsEmpty())
+		{
+			SectionModeText = TEXT("full");
+		}
+
+		const FString DumpSchemaVersionText = bMainDumpParsed
+			? GetCommandletStringFieldOrEmpty(MainDumpRootObject, TEXT("schema_version"))
+			: GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("schema_version"));
+
+		TSharedRef<FJsonObject> EntryObject = MakeShared<FJsonObject>();
+		EntryObject->SetStringField(TEXT("asset_id"), FString());
+		EntryObject->SetStringField(TEXT("asset_key"), GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_key")));
+		EntryObject->SetStringField(TEXT("object_path"), ObjectPathText);
+		EntryObject->SetStringField(TEXT("package_name"), PackageNameText);
+		EntryObject->SetStringField(TEXT("package_path"), PackageNameText.IsEmpty() ? FString() : FPackageName::GetLongPackagePath(PackageNameText));
+		EntryObject->SetStringField(TEXT("asset_name"), GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_name")));
+		EntryObject->SetStringField(TEXT("asset_class"), GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_class")));
+		EntryObject->SetStringField(TEXT("asset_family"), GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_family")));
+		EntryObject->SetStringField(TEXT("generated_class"), GetCommandletStringFieldOrEmpty(AssetObject, TEXT("generated_class")));
+		EntryObject->SetStringField(TEXT("parent_class"), GetCommandletStringFieldOrEmpty(AssetObject, TEXT("parent_class")));
+		EntryObject->SetStringField(TEXT("asset_guid"), GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_guid")));
+		EntryObject->SetBoolField(TEXT("is_data_only"), GetCommandletBoolFieldOrDefault(AssetObject, TEXT("is_data_only")));
+		EntryObject->SetStringField(TEXT("index_status"), IndexStatusText);
+		EntryObject->SetStringField(TEXT("dump_status"), GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("dump_status")));
+		EntryObject->SetStringField(TEXT("dump_schema_version"), DumpSchemaVersionText);
+		EntryObject->SetStringField(TEXT("extractor_version"), GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("extractor_version")));
+		EntryObject->SetStringField(TEXT("engine_version"), GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("engine_version")));
+		EntryObject->SetStringField(TEXT("generated_time"), GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("generated_time")));
+		EntryObject->SetStringField(TEXT("options_hash"), GetCommandletStringFieldOrEmpty(RunObject, TEXT("options_hash")));
+		EntryObject->SetStringField(TEXT("fingerprint"), GetCommandletStringFieldOrEmpty(RunObject, TEXT("fingerprint")));
+		EntryObject->SetStringField(TEXT("section_source"), GetCommandletStringFieldOrEmpty(RunObject, TEXT("section_source")));
+		EntryObject->SetStringField(TEXT("section_mode"), SectionModeText);
+		AddCommandletStringArrayField(EntryObject, TEXT("requested_sections"), GetCommandletStringArrayField(RunObject, TEXT("sections")));
+		AddCommandletStringArrayField(EntryObject, TEXT("builder_sections"), GetCommandletStringArrayField(RunObject, TEXT("builder_sections")));
+		AddCommandletStringArrayField(EntryObject, TEXT("available_sections"), AvailableSectionArray);
+		EntryObject->SetObjectField(TEXT("section_schema_versions"), SectionSchemaObject);
+		EntryObject->SetNumberField(TEXT("graph_count"), GraphCount);
+		EntryObject->SetNumberField(TEXT("node_count"), NodeCount);
+		EntryObject->SetNumberField(TEXT("reference_count"), ReferenceCount);
+		EntryObject->SetNumberField(TEXT("hard_reference_count"), HardReferenceCount);
+		EntryObject->SetNumberField(TEXT("soft_reference_count"), SoftReferenceCount);
+		AddCommandletStringArrayField(EntryObject, TEXT("generated_files"), GeneratedFileArray);
+		AddCommandletStringArrayField(EntryObject, TEXT("missing_files"), MissingFileArray);
+		EntryObject->SetObjectField(TEXT("output_files"), OutputFilesObject);
+
+		OutEntryObject = EntryObject;
+		return true;
+	}
+
+		// ValidateCommandletAssetIndexContract는 저장된 asset_index_v1의 핵심 구조 계약을 다시 검사한다.
+	bool ValidateCommandletAssetIndexContract(const FString& InAssetIndexFilePath, int32& OutAssetCount, FString& OutDetail)
+	{
+		OutAssetCount = 0;
+		OutDetail.Reset();
+
+		TSharedPtr<FJsonObject> RootObject;
+		if (!LoadCommandletJsonObjectFromFile(InAssetIndexFilePath, RootObject))
+		{
+			OutDetail = TEXT("asset_index_unreadable");
+			return false;
+		}
+
+		if (GetCommandletStringFieldOrEmpty(RootObject, TEXT("schema_version")) != TEXT("asset_index_v1"))
+		{
+			OutDetail = TEXT("schema_version_mismatch");
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* AssetValueArray = nullptr;
+		if (!RootObject->TryGetArrayField(TEXT("assets"), AssetValueArray) || !AssetValueArray)
+		{
+			OutDetail = TEXT("assets_missing");
+			return false;
+		}
+
+		OutAssetCount = AssetValueArray->Num();
+		const int32 DeclaredAssetCount = GetCommandletIntegerFieldOrDefault(RootObject, TEXT("asset_count"), -1);
+		const int32 ReadyAssetCount = GetCommandletIntegerFieldOrDefault(RootObject, TEXT("ready_asset_count"), -1);
+		const int32 IncompleteAssetCount = GetCommandletIntegerFieldOrDefault(RootObject, TEXT("incomplete_asset_count"), -1);
+		if (DeclaredAssetCount != OutAssetCount || ReadyAssetCount < 0 || IncompleteAssetCount < 0
+			|| ReadyAssetCount + IncompleteAssetCount != OutAssetCount)
+		{
+			OutDetail = TEXT("root_count_mismatch");
+			return false;
+		}
+
+		const TArray<FString> SectionRegistryOrder = {
+			TEXT("summary"),
+			TEXT("digest"),
+			TEXT("details"),
+			TEXT("data_asset_values"),
+			TEXT("data_asset_diff"),
+			TEXT("input_summary"),
+			TEXT("component_tree"),
+			TEXT("graphs"),
+			TEXT("bp_search_index"),
+			TEXT("references"),
+			TEXT("widget_designer")
+		};
+		TMap<FString, int32> SectionRankByName;
+		for (int32 SectionIndex = 0; SectionIndex < SectionRegistryOrder.Num(); ++SectionIndex)
+		{
+			SectionRankByName.Add(SectionRegistryOrder[SectionIndex], SectionIndex);
+		}
+
+		TSet<FString> UniqueObjectPaths;
+		FString PreviousObjectPath;
+		for (int32 AssetIndex = 0; AssetIndex < AssetValueArray->Num(); ++AssetIndex)
+		{
+			const TSharedPtr<FJsonObject> EntryObject = (*AssetValueArray)[AssetIndex].IsValid()
+				? (*AssetValueArray)[AssetIndex]->AsObject()
+				: nullptr;
+			if (!EntryObject.IsValid())
+			{
+				OutDetail = TEXT("entry_not_object");
+				return false;
+			}
+
+			const FString ExpectedAssetId = FString::Printf(TEXT("asset_%04d"), AssetIndex);
+			if (GetCommandletStringFieldOrEmpty(EntryObject, TEXT("asset_id")) != ExpectedAssetId)
+			{
+				OutDetail = TEXT("asset_id_sequence_mismatch");
+				return false;
+			}
+
+			const FString ObjectPathText = GetCommandletStringFieldOrEmpty(EntryObject, TEXT("object_path"));
+			if (ObjectPathText.IsEmpty() || UniqueObjectPaths.Contains(ObjectPathText)
+				|| (!PreviousObjectPath.IsEmpty() && ObjectPathText < PreviousObjectPath))
+			{
+				OutDetail = TEXT("object_path_identity_or_order_mismatch");
+				return false;
+			}
+			UniqueObjectPaths.Add(ObjectPathText);
+			PreviousObjectPath = ObjectPathText;
+
+			const FString IndexStatusText = GetCommandletStringFieldOrEmpty(EntryObject, TEXT("index_status"));
+			if (IndexStatusText != TEXT("ready")
+				&& IndexStatusText != TEXT("missing_dump")
+				&& IndexStatusText != TEXT("malformed_dump"))
+			{
+				OutDetail = TEXT("index_status_invalid");
+				return false;
+			}
+
+			const TSharedPtr<FJsonObject> OutputFilesObject = GetCommandletNestedObjectField(EntryObject, TEXT("output_files"));
+			if (!OutputFilesObject.IsValid())
+			{
+				OutDetail = TEXT("output_files_missing");
+				return false;
+			}
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& OutputFilePair : OutputFilesObject->Values)
+			{
+				FString RelativePathText;
+				if (!OutputFilePair.Value.IsValid() || !OutputFilePair.Value->TryGetString(RelativePathText)
+					|| RelativePathText.IsEmpty() || !FPaths::IsRelative(RelativePathText)
+					|| RelativePathText.Contains(TEXT("\\")) || RelativePathText.StartsWith(TEXT("../")))
+				{
+					OutDetail = TEXT("output_path_not_relative_normalized");
+					return false;
+				}
+			}
+
+			const TArray<FString> AvailableSectionArray = GetCommandletStringArrayField(EntryObject, TEXT("available_sections"));
+			TSet<FString> UniqueSections;
+			int32 PreviousSectionRank = -1;
+			for (const FString& SectionName : AvailableSectionArray)
+			{
+				const int32* SectionRank = SectionRankByName.Find(SectionName);
+				if (!SectionRank || UniqueSections.Contains(SectionName) || *SectionRank <= PreviousSectionRank)
+				{
+					OutDetail = TEXT("available_section_order_mismatch");
+					return false;
+				}
+				UniqueSections.Add(SectionName);
+				PreviousSectionRank = *SectionRank;
+			}
+
+						const TArray<FString> GeneratedFileArray = GetCommandletStringArrayField(EntryObject, TEXT("generated_files"));
+			const TArray<FString> MissingFileArray = GetCommandletStringArrayField(EntryObject, TEXT("missing_files"));
+			TSet<FString> GeneratedFileSet;
+			for (const FString& GeneratedFileName : GeneratedFileArray)
+			{
+				GeneratedFileSet.Add(GeneratedFileName);
+			}
+			for (const FString& MissingFileName : MissingFileArray)
+			{
+				if (!GeneratedFileSet.Contains(MissingFileName))
+				{
+					OutDetail = TEXT("missing_file_not_declared");
+					return false;
+				}
+			}
+		}
+
+				OutDetail = FString::Printf(TEXT("assets=%d ready=%d incomplete=%d"), OutAssetCount, ReadyAssetCount, IncompleteAssetCount);
+		return true;
+	}
+
+	// ValidateCommandletSectionIndexContract는 section_index_v1을 asset index와 실제 bp_search_index source에 대조한다.
+	bool ValidateCommandletSectionIndexContract(
+		const FString& InSectionIndexFilePath,
+		const FString& InAssetIndexFilePath,
+		const FString& InDumpRootPath,
+		int32& OutSectionCount,
+		int32& OutSymbolCount,
+		FString& OutDetail)
+	{
+		OutSectionCount = 0;
+		OutSymbolCount = 0;
+		OutDetail.Reset();
+
+		TSharedPtr<FJsonObject> SectionIndexRootObject;
+		TSharedPtr<FJsonObject> AssetIndexRootObject;
+		if (!LoadCommandletJsonObjectFromFile(InSectionIndexFilePath, SectionIndexRootObject)
+			|| !LoadCommandletJsonObjectFromFile(InAssetIndexFilePath, AssetIndexRootObject))
+		{
+			OutDetail = TEXT("index_unreadable");
+			return false;
+		}
+
+		if (GetCommandletStringFieldOrEmpty(SectionIndexRootObject, TEXT("schema_version")) != TEXT("section_index_v1")
+			|| GetCommandletStringFieldOrEmpty(SectionIndexRootObject, TEXT("asset_index_schema_version")) != TEXT("asset_index_v1")
+			|| GetCommandletStringFieldOrEmpty(AssetIndexRootObject, TEXT("schema_version")) != TEXT("asset_index_v1"))
+		{
+			OutDetail = TEXT("schema_version_mismatch");
+			return false;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* AssetValueArray = nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* SectionValueArray = nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* SymbolValueArray = nullptr;
+		if (!AssetIndexRootObject->TryGetArrayField(TEXT("assets"), AssetValueArray) || !AssetValueArray
+			|| !SectionIndexRootObject->TryGetArrayField(TEXT("sections"), SectionValueArray) || !SectionValueArray
+			|| !SectionIndexRootObject->TryGetArrayField(TEXT("symbols"), SymbolValueArray) || !SymbolValueArray)
+		{
+			OutDetail = TEXT("required_array_missing");
+			return false;
+		}
+
+		OutSectionCount = SectionValueArray->Num();
+		OutSymbolCount = SymbolValueArray->Num();
+		const int32 DeclaredAssetCount = GetCommandletIntegerFieldOrDefault(SectionIndexRootObject, TEXT("asset_count"), -1);
+		const int32 DeclaredIndexedAssetCount = GetCommandletIntegerFieldOrDefault(SectionIndexRootObject, TEXT("indexed_asset_count"), -1);
+		const int32 DeclaredSectionCount = GetCommandletIntegerFieldOrDefault(SectionIndexRootObject, TEXT("section_count"), -1);
+		const int32 DeclaredSymbolCount = GetCommandletIntegerFieldOrDefault(SectionIndexRootObject, TEXT("symbol_count"), -1);
+		if (DeclaredAssetCount != AssetValueArray->Num()
+			|| DeclaredSectionCount != OutSectionCount
+			|| DeclaredSymbolCount != OutSymbolCount)
+		{
+			OutDetail = TEXT("root_count_mismatch");
+			return false;
+		}
+
+		TMap<FString, TSharedPtr<FJsonObject>> AssetByObjectPath;
+		TMap<FString, FString> AssetIdByObjectPath;
+		TSet<FString> ExpectedSectionKeySet;
+		TMap<FString, FString> ExpectedSectionSourceByKey;
+		TMap<FString, FString> ExpectedSectionPointerByKey;
+		TMap<FString, FString> ExpectedSectionStorageByKey;
+		TMap<FString, FString> ExpectedSectionSchemaByKey;
+		TMap<FString, TSharedPtr<FJsonObject>> SourceDumpByRelativePath;
+		int32 ExpectedSymbolCount = 0;
+
+		auto LoadSourceDump = [&SourceDumpByRelativePath, &InDumpRootPath](
+			const FString& RelativePathText,
+			TSharedPtr<FJsonObject>& OutSourceRootObject)
+		{
+			OutSourceRootObject.Reset();
+			if (RelativePathText.IsEmpty())
+			{
+				return false;
+			}
+
+			if (const TSharedPtr<FJsonObject>* ExistingObject = SourceDumpByRelativePath.Find(RelativePathText))
+			{
+				OutSourceRootObject = *ExistingObject;
+				return OutSourceRootObject.IsValid();
+			}
+
+			TSharedPtr<FJsonObject> LoadedObject;
+			if (!LoadCommandletJsonObjectFromFile(FPaths::Combine(InDumpRootPath, RelativePathText), LoadedObject))
+			{
+				SourceDumpByRelativePath.Add(RelativePathText, nullptr);
+				return false;
+			}
+
+			SourceDumpByRelativePath.Add(RelativePathText, LoadedObject);
+			OutSourceRootObject = LoadedObject;
+			return true;
+		};
+
+		for (const TSharedPtr<FJsonValue>& AssetValue : *AssetValueArray)
+		{
+			const TSharedPtr<FJsonObject> AssetObject = AssetValue.IsValid() ? AssetValue->AsObject() : nullptr;
+			if (!AssetObject.IsValid())
+			{
+				OutDetail = TEXT("asset_entry_not_object");
+				return false;
+			}
+
+			const FString ObjectPathText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("object_path"));
+			const FString AssetIdText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_id"));
+			if (ObjectPathText.IsEmpty() || AssetIdText.IsEmpty() || AssetByObjectPath.Contains(ObjectPathText))
+			{
+				OutDetail = TEXT("asset_identity_invalid");
+				return false;
+			}
+			AssetByObjectPath.Add(ObjectPathText, AssetObject);
+			AssetIdByObjectPath.Add(ObjectPathText, AssetIdText);
+
+			const TSharedPtr<FJsonObject> SchemaObject = GetCommandletNestedObjectField(AssetObject, TEXT("section_schema_versions"));
+			for (const FString& SectionName : GetCommandletStringArrayField(AssetObject, TEXT("available_sections")))
+			{
+				FString SourceFileText;
+				FString JsonPointerText;
+				FString StorageKindText;
+				if (!ResolveCommandletSectionLocation(
+					AssetObject,
+					SectionName,
+					SourceFileText,
+					JsonPointerText,
+					StorageKindText))
+				{
+					OutDetail = TEXT("expected_section_location_invalid");
+					return false;
+				}
+
+				const FString SectionKeyText = SectionName + TEXT("|") + ObjectPathText;
+				if (ExpectedSectionKeySet.Contains(SectionKeyText))
+				{
+					OutDetail = TEXT("duplicate_expected_section");
+					return false;
+				}
+				ExpectedSectionKeySet.Add(SectionKeyText);
+				ExpectedSectionSourceByKey.Add(SectionKeyText, SourceFileText);
+				ExpectedSectionPointerByKey.Add(SectionKeyText, JsonPointerText);
+				ExpectedSectionStorageByKey.Add(SectionKeyText, StorageKindText);
+
+				FString SchemaText;
+				if (SchemaObject.IsValid())
+				{
+					SchemaObject->TryGetStringField(*SectionName, SchemaText);
+				}
+				ExpectedSectionSchemaByKey.Add(SectionKeyText, SchemaText);
+			}
+
+			if (!GetCommandletStringArrayField(AssetObject, TEXT("available_sections")).Contains(TEXT("bp_search_index")))
+			{
+				continue;
+			}
+
+			const TSharedPtr<FJsonObject> OutputFilesObject = GetCommandletNestedObjectField(AssetObject, TEXT("output_files"));
+			const FString MainDumpRelativePath = GetCommandletStringFieldOrEmpty(OutputFilesObject, TEXT("dump"));
+			TSharedPtr<FJsonObject> MainDumpRootObject;
+			if (!LoadSourceDump(MainDumpRelativePath, MainDumpRootObject))
+			{
+				OutDetail = TEXT("bp_search_source_unreadable");
+				return false;
+			}
+
+			const TSharedPtr<FJsonObject> BPSearchIndexObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("bp_search_index"));
+			if (!BPSearchIndexObject.IsValid()
+				|| GetCommandletStringFieldOrEmpty(BPSearchIndexObject, TEXT("schema_version")) != TEXT("bp_search_index_v1"))
+			{
+				OutDetail = TEXT("bp_search_source_schema_mismatch");
+				return false;
+			}
+			if (!GetCommandletBoolFieldOrDefault(BPSearchIndexObject, TEXT("supported")))
+			{
+				continue;
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* SourceSymbolValueArray = nullptr;
+			if (!BPSearchIndexObject->TryGetArrayField(TEXT("symbols"), SourceSymbolValueArray) || !SourceSymbolValueArray)
+			{
+				OutDetail = TEXT("bp_search_source_symbols_missing");
+				return false;
+			}
+			ExpectedSymbolCount += SourceSymbolValueArray->Num();
+		}
+
+		TSet<FString> SeenSectionKeySet;
+		TSet<FString> IndexedObjectPathSet;
+		FString PreviousSectionSortKey;
+		for (int32 SectionIndex = 0; SectionIndex < SectionValueArray->Num(); ++SectionIndex)
+		{
+			const TSharedPtr<FJsonObject> SectionObject = (*SectionValueArray)[SectionIndex].IsValid()
+				? (*SectionValueArray)[SectionIndex]->AsObject()
+				: nullptr;
+			if (!SectionObject.IsValid())
+			{
+				OutDetail = TEXT("section_entry_not_object");
+				return false;
+			}
+
+			if (GetCommandletStringFieldOrEmpty(SectionObject, TEXT("section_id"))
+				!= FString::Printf(TEXT("section_%05d"), SectionIndex))
+			{
+				OutDetail = TEXT("section_id_sequence_mismatch");
+				return false;
+			}
+
+			const FString SectionSortKey = MakeCommandletSectionSortKey(SectionObject);
+			if (!PreviousSectionSortKey.IsEmpty() && SectionSortKey < PreviousSectionSortKey)
+			{
+				OutDetail = TEXT("section_order_mismatch");
+				return false;
+			}
+			PreviousSectionSortKey = SectionSortKey;
+
+			const FString SectionName = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("section_name"));
+			const FString ObjectPathText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("object_path"));
+			const FString SectionKeyText = SectionName + TEXT("|") + ObjectPathText;
+			if (!ExpectedSectionKeySet.Contains(SectionKeyText) || SeenSectionKeySet.Contains(SectionKeyText))
+			{
+				OutDetail = TEXT("section_identity_mismatch");
+				return false;
+			}
+			SeenSectionKeySet.Add(SectionKeyText);
+			IndexedObjectPathSet.Add(ObjectPathText);
+
+			const TSharedPtr<FJsonObject>* AssetObject = AssetByObjectPath.Find(ObjectPathText);
+			if (!AssetObject || !AssetObject->IsValid()
+				|| GetCommandletStringFieldOrEmpty(SectionObject, TEXT("asset_id")) != AssetIdByObjectPath.FindRef(ObjectPathText)
+				|| GetCommandletStringFieldOrEmpty(SectionObject, TEXT("asset_key")) != GetCommandletStringFieldOrEmpty(*AssetObject, TEXT("asset_key"))
+				|| GetCommandletStringFieldOrEmpty(SectionObject, TEXT("asset_class")) != GetCommandletStringFieldOrEmpty(*AssetObject, TEXT("asset_class"))
+				|| GetCommandletStringFieldOrEmpty(SectionObject, TEXT("asset_family")) != GetCommandletStringFieldOrEmpty(*AssetObject, TEXT("asset_family")))
+			{
+				OutDetail = TEXT("section_asset_metadata_mismatch");
+				return false;
+			}
+
+			const FString SourceFileText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("source_file"));
+			const FString JsonPointerText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("json_pointer"));
+			if (SourceFileText != ExpectedSectionSourceByKey.FindRef(SectionKeyText)
+				|| JsonPointerText != ExpectedSectionPointerByKey.FindRef(SectionKeyText)
+				|| GetCommandletStringFieldOrEmpty(SectionObject, TEXT("storage_kind")) != ExpectedSectionStorageByKey.FindRef(SectionKeyText)
+				|| GetCommandletStringFieldOrEmpty(SectionObject, TEXT("section_schema_version")) != ExpectedSectionSchemaByKey.FindRef(SectionKeyText)
+				|| SourceFileText.IsEmpty()
+				|| !FPaths::IsRelative(SourceFileText)
+				|| SourceFileText.Contains(TEXT("\\"))
+				|| SourceFileText.StartsWith(TEXT("../"))
+				|| !JsonPointerText.StartsWith(TEXT("/")))
+			{
+				OutDetail = TEXT("section_location_or_schema_mismatch");
+				return false;
+			}
+		}
+
+		if (SeenSectionKeySet.Num() != ExpectedSectionKeySet.Num()
+			|| DeclaredIndexedAssetCount != IndexedObjectPathSet.Num())
+		{
+			OutDetail = TEXT("section_coverage_mismatch");
+			return false;
+		}
+
+		TSet<FString> SeenSymbolKeySet;
+		FString PreviousSymbolSortKey;
+		for (int32 SymbolIndex = 0; SymbolIndex < SymbolValueArray->Num(); ++SymbolIndex)
+		{
+			const TSharedPtr<FJsonObject> SymbolObject = (*SymbolValueArray)[SymbolIndex].IsValid()
+				? (*SymbolValueArray)[SymbolIndex]->AsObject()
+				: nullptr;
+			if (!SymbolObject.IsValid())
+			{
+				OutDetail = TEXT("symbol_entry_not_object");
+				return false;
+			}
+
+			if (GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("symbol_entry_id"))
+				!= FString::Printf(TEXT("symbol_%06d"), SymbolIndex))
+			{
+				OutDetail = TEXT("symbol_id_sequence_mismatch");
+				return false;
+			}
+
+			const FString SymbolSortKey = MakeCommandletSymbolSortKey(SymbolObject);
+			if (!PreviousSymbolSortKey.IsEmpty() && SymbolSortKey < PreviousSymbolSortKey)
+			{
+				OutDetail = TEXT("symbol_order_mismatch");
+				return false;
+			}
+			PreviousSymbolSortKey = SymbolSortKey;
+
+			const FString ObjectPathText = GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("object_path"));
+			const FString SourceSymbolIdText = GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("source_symbol_id"));
+			const FString SymbolKeyText = ObjectPathText + TEXT("|") + SourceSymbolIdText;
+			if (ObjectPathText.IsEmpty() || SourceSymbolIdText.IsEmpty() || SeenSymbolKeySet.Contains(SymbolKeyText))
+			{
+				OutDetail = TEXT("symbol_identity_mismatch");
+				return false;
+			}
+			SeenSymbolKeySet.Add(SymbolKeyText);
+
+			const TSharedPtr<FJsonObject>* AssetObject = AssetByObjectPath.Find(ObjectPathText);
+			if (!AssetObject || !AssetObject->IsValid()
+				|| GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("asset_id")) != AssetIdByObjectPath.FindRef(ObjectPathText)
+				|| GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("asset_key")) != GetCommandletStringFieldOrEmpty(*AssetObject, TEXT("asset_key"))
+				|| GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("asset_class")) != GetCommandletStringFieldOrEmpty(*AssetObject, TEXT("asset_class"))
+				|| GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("source_section")) != TEXT("bp_search_index"))
+			{
+				OutDetail = TEXT("symbol_asset_metadata_mismatch");
+				return false;
+			}
+
+			const TSharedPtr<FJsonObject> OutputFilesObject = GetCommandletNestedObjectField(*AssetObject, TEXT("output_files"));
+			const FString SourceFileText = GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("source_file"));
+			if (SourceFileText != GetCommandletStringFieldOrEmpty(OutputFilesObject, TEXT("dump"))
+				|| SourceFileText.IsEmpty()
+				|| !FPaths::IsRelative(SourceFileText)
+				|| SourceFileText.Contains(TEXT("\\"))
+				|| SourceFileText.StartsWith(TEXT("../")))
+			{
+				OutDetail = TEXT("symbol_source_file_mismatch");
+				return false;
+			}
+
+			const FString PointerPrefix = TEXT("/bp_search_index/symbols/");
+			const FString JsonPointerText = GetCommandletStringFieldOrEmpty(SymbolObject, TEXT("json_pointer"));
+			if (!JsonPointerText.StartsWith(PointerPrefix))
+			{
+				OutDetail = TEXT("symbol_pointer_invalid");
+				return false;
+			}
+
+			const FString SourceIndexText = JsonPointerText.RightChop(PointerPrefix.Len());
+			if (SourceIndexText.IsEmpty() || !SourceIndexText.IsNumeric())
+			{
+				OutDetail = TEXT("symbol_pointer_index_invalid");
+				return false;
+			}
+			const int32 SourceIndex = FCString::Atoi(*SourceIndexText);
+
+			TSharedPtr<FJsonObject> MainDumpRootObject;
+			if (!LoadSourceDump(SourceFileText, MainDumpRootObject))
+			{
+				OutDetail = TEXT("symbol_source_unreadable");
+				return false;
+			}
+			const TSharedPtr<FJsonObject> BPSearchIndexObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("bp_search_index"));
+			const TArray<TSharedPtr<FJsonValue>>* SourceSymbolValueArray = nullptr;
+			if (!BPSearchIndexObject.IsValid()
+				|| !BPSearchIndexObject->TryGetArrayField(TEXT("symbols"), SourceSymbolValueArray)
+				|| !SourceSymbolValueArray
+				|| !SourceSymbolValueArray->IsValidIndex(SourceIndex))
+			{
+				OutDetail = TEXT("symbol_pointer_unresolved");
+				return false;
+			}
+
+			const TSharedPtr<FJsonObject> SourceSymbolObject = (*SourceSymbolValueArray)[SourceIndex].IsValid()
+				? (*SourceSymbolValueArray)[SourceIndex]->AsObject()
+				: nullptr;
+			if (!SourceSymbolObject.IsValid()
+				|| GetCommandletStringFieldOrEmpty(SourceSymbolObject, TEXT("symbol_id")) != SourceSymbolIdText)
+			{
+				OutDetail = TEXT("symbol_pointer_identity_mismatch");
+				return false;
+			}
+
+			for (const TCHAR* FieldName : {
+				TEXT("kind"),
+				TEXT("name"),
+				TEXT("normalized_name"),
+				TEXT("graph_name"),
+				TEXT("graph_type"),
+				TEXT("node_id"),
+				TEXT("primary_role"),
+				TEXT("member_parent"),
+				TEXT("member_name") })
+			{
+				if (GetCommandletStringFieldOrEmpty(SymbolObject, FieldName)
+					!= GetCommandletStringFieldOrEmpty(SourceSymbolObject, FieldName))
+				{
+					OutDetail = TEXT("symbol_field_mismatch");
+					return false;
+				}
+			}
+
+			if (GetCommandletStringArrayField(SymbolObject, TEXT("search_terms"))
+				!= GetCommandletStringArrayField(SourceSymbolObject, TEXT("search_terms")))
+			{
+				OutDetail = TEXT("symbol_search_terms_mismatch");
+				return false;
+			}
+		}
+
+		if (OutSymbolCount != ExpectedSymbolCount)
+		{
+			OutDetail = TEXT("symbol_coverage_mismatch");
+			return false;
+		}
+
+		OutDetail = FString::Printf(
+			TEXT("assets=%d indexed_assets=%d sections=%d symbols=%d"),
+			AssetValueArray->Num(),
+			IndexedObjectPathSet.Num(),
+			OutSectionCount,
+			OutSymbolCount);
+		return true;
+	}
+
+		// BuildCommandletLazySectionDumpJson은 accepted index에서 요청 section만 읽어 compact response를 만든다.
+	bool BuildCommandletLazySectionDumpJson(
+		const FString& InDumpRootPath,
+		const FString& InAssetObjectPathSelector,
+		const FString& InAssetIdSelector,
+		const FADumpSectionSelection& InSectionSelection,
+		FString& OutJsonText,
+		FString& OutErrorCode,
+		FString& OutErrorDetail)
+	{
+		OutJsonText.Reset();
+		OutErrorCode.Reset();
+		OutErrorDetail.Reset();
+
+		auto Fail = [&OutErrorCode, &OutErrorDetail](const TCHAR* InCode, const FString& InDetail)
+		{
+			OutErrorCode = InCode;
+			OutErrorDetail = InDetail;
+			return false;
+		};
+
+		const FString AssetIndexFilePath = FPaths::Combine(InDumpRootPath, TEXT("asset_index.json"));
+		const FString SectionIndexFilePath = FPaths::Combine(InDumpRootPath, TEXT("section_index.json"));
+		if (!IFileManager::Get().FileExists(*AssetIndexFilePath)
+			|| !IFileManager::Get().FileExists(*SectionIndexFilePath))
+		{
+			return Fail(
+				TEXT("ADUMP_LAZY_DUMP_INDEX_NOT_FOUND"),
+				FString::Printf(TEXT("Required indexes are missing under dump root: %s"), *InDumpRootPath));
+		}
+
+		TSharedPtr<FJsonObject> AssetIndexRootObject;
+		TSharedPtr<FJsonObject> SectionIndexRootObject;
+		if (!LoadCommandletJsonObjectFromFile(AssetIndexFilePath, AssetIndexRootObject)
+			|| !LoadCommandletJsonObjectFromFile(SectionIndexFilePath, SectionIndexRootObject))
+		{
+			return Fail(
+				TEXT("ADUMP_LAZY_DUMP_INDEX_JSON_INVALID"),
+				TEXT("asset_index.json or section_index.json is not a readable JSON object."));
+		}
+
+		if (GetCommandletStringFieldOrEmpty(AssetIndexRootObject, TEXT("schema_version")) != TEXT("asset_index_v1")
+			|| GetCommandletStringFieldOrEmpty(SectionIndexRootObject, TEXT("schema_version")) != TEXT("section_index_v1")
+			|| GetCommandletStringFieldOrEmpty(SectionIndexRootObject, TEXT("asset_index_schema_version")) != TEXT("asset_index_v1"))
+		{
+			return Fail(
+				TEXT("ADUMP_LAZY_DUMP_INDEX_SCHEMA_UNSUPPORTED"),
+				TEXT("The selected indexes do not satisfy asset_index_v1 + section_index_v1."));
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* AssetValueArray = nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* SectionValueArray = nullptr;
+		if (!AssetIndexRootObject->TryGetArrayField(TEXT("assets"), AssetValueArray) || !AssetValueArray
+			|| !SectionIndexRootObject->TryGetArrayField(TEXT("sections"), SectionValueArray) || !SectionValueArray)
+		{
+			return Fail(
+				TEXT("ADUMP_LAZY_DUMP_INDEX_SCHEMA_UNSUPPORTED"),
+				TEXT("Required assets or sections array is missing from the selected indexes."));
+		}
+
+		TSharedPtr<FJsonObject> ResolvedAssetObject;
+		int32 AssetMatchCount = 0;
+		for (const TSharedPtr<FJsonValue>& AssetValue : *AssetValueArray)
+		{
+			const TSharedPtr<FJsonObject> AssetObject = AssetValue.IsValid() ? AssetValue->AsObject() : nullptr;
+			if (!AssetObject.IsValid())
+			{
+				return Fail(
+					TEXT("ADUMP_LAZY_DUMP_INDEX_SCHEMA_UNSUPPORTED"),
+					TEXT("asset_index_v1 contains a non-object asset entry."));
+			}
+
+			const bool bMatchesObjectPath = !InAssetObjectPathSelector.IsEmpty()
+				&& GetCommandletStringFieldOrEmpty(AssetObject, TEXT("object_path")) == InAssetObjectPathSelector;
+			const bool bMatchesAssetId = !InAssetIdSelector.IsEmpty()
+				&& GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_id")) == InAssetIdSelector;
+			if (bMatchesObjectPath || bMatchesAssetId)
+			{
+				ResolvedAssetObject = AssetObject;
+				++AssetMatchCount;
+			}
+		}
+
+		if (AssetMatchCount != 1 || !ResolvedAssetObject.IsValid())
+		{
+			const FString SelectorText = !InAssetObjectPathSelector.IsEmpty()
+				? InAssetObjectPathSelector
+				: InAssetIdSelector;
+			return Fail(
+				TEXT("ADUMP_LAZY_DUMP_ASSET_NOT_FOUND"),
+				FString::Printf(TEXT("Expected one indexed asset match for selector: %s"), *SelectorText));
+		}
+
+		const FString ResolvedObjectPath = GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("object_path"));
+		const TArray<FString> RequestedSectionArray = InSectionSelection.GetEnabledNames();
+		if (RequestedSectionArray.Num() == 0)
+		{
+			return Fail(
+				TEXT("ADUMP_LAZY_DUMP_SECTIONS_REQUIRED"),
+				TEXT("sectiondump requires at least one explicit canonical section."));
+		}
+
+		TMap<FString, TSharedPtr<FJsonObject>> SourceObjectByRelativePath;
+		TSet<FString> UniqueSourceFileSet;
+		TArray<TSharedPtr<FJsonValue>> SectionResultValueArray;
+		SectionResultValueArray.Reserve(RequestedSectionArray.Num());
+
+		FString NormalizedDumpRootPath = FPaths::ConvertRelativePathToFull(InDumpRootPath);
+		FPaths::NormalizeDirectoryName(NormalizedDumpRootPath);
+		FString DumpRootPrefix = NormalizedDumpRootPath;
+		if (!DumpRootPrefix.EndsWith(TEXT("/")))
+		{
+			DumpRootPrefix += TEXT("/");
+		}
+
+		for (const FString& RequestedSectionName : RequestedSectionArray)
+		{
+			TSharedPtr<FJsonObject> ResolvedSectionEntryObject;
+			int32 SectionMatchCount = 0;
+			for (const TSharedPtr<FJsonValue>& SectionValue : *SectionValueArray)
+			{
+				const TSharedPtr<FJsonObject> SectionObject = SectionValue.IsValid() ? SectionValue->AsObject() : nullptr;
+				if (!SectionObject.IsValid())
+				{
+					return Fail(
+						TEXT("ADUMP_LAZY_DUMP_INDEX_SCHEMA_UNSUPPORTED"),
+						TEXT("section_index_v1 contains a non-object section entry."));
+				}
+
+				if (GetCommandletStringFieldOrEmpty(SectionObject, TEXT("object_path")) == ResolvedObjectPath
+					&& GetCommandletStringFieldOrEmpty(SectionObject, TEXT("section_name")) == RequestedSectionName)
+				{
+					ResolvedSectionEntryObject = SectionObject;
+					++SectionMatchCount;
+				}
+			}
+
+			if (SectionMatchCount == 0)
+			{
+				return Fail(
+					TEXT("ADUMP_LAZY_DUMP_SECTION_NOT_AVAILABLE"),
+					FString::Printf(TEXT("Section '%s' is not indexed for asset: %s"), *RequestedSectionName, *ResolvedObjectPath));
+			}
+			if (SectionMatchCount != 1 || !ResolvedSectionEntryObject.IsValid())
+			{
+				return Fail(
+					TEXT("ADUMP_LAZY_DUMP_SECTION_DUPLICATE"),
+					FString::Printf(TEXT("Section '%s' has %d matching index entries for asset: %s"), *RequestedSectionName, SectionMatchCount, *ResolvedObjectPath));
+			}
+
+			const FString SourceFileText = GetCommandletStringFieldOrEmpty(ResolvedSectionEntryObject, TEXT("source_file"));
+			const FString JsonPointerText = GetCommandletStringFieldOrEmpty(ResolvedSectionEntryObject, TEXT("json_pointer"));
+			if (SourceFileText.IsEmpty()
+				|| !FPaths::IsRelative(SourceFileText)
+				|| SourceFileText.Contains(TEXT("\\"))
+				|| SourceFileText.StartsWith(TEXT("../")))
+			{
+				return Fail(
+					TEXT("ADUMP_LAZY_DUMP_INDEX_SCHEMA_UNSUPPORTED"),
+					FString::Printf(TEXT("Invalid indexed source path for section '%s': %s"), *RequestedSectionName, *SourceFileText));
+			}
+
+			FString SourceFilePath = FPaths::ConvertRelativePathToFull(FPaths::Combine(NormalizedDumpRootPath, SourceFileText));
+			FPaths::NormalizeFilename(SourceFilePath);
+			if (!SourceFilePath.StartsWith(DumpRootPrefix, ESearchCase::IgnoreCase))
+			{
+				return Fail(
+					TEXT("ADUMP_LAZY_DUMP_INDEX_SCHEMA_UNSUPPORTED"),
+					FString::Printf(TEXT("Indexed source escapes dump root for section '%s': %s"), *RequestedSectionName, *SourceFileText));
+			}
+			if (!IFileManager::Get().FileExists(*SourceFilePath))
+			{
+				return Fail(
+					TEXT("ADUMP_LAZY_DUMP_SOURCE_FILE_NOT_FOUND"),
+					FString::Printf(TEXT("Indexed source file does not exist for section '%s': %s"), *RequestedSectionName, *SourceFileText));
+			}
+
+			TSharedPtr<FJsonObject> SourceRootObject = SourceObjectByRelativePath.FindRef(SourceFileText);
+			if (!SourceRootObject.IsValid())
+			{
+				if (!LoadCommandletJsonObjectFromFile(SourceFilePath, SourceRootObject))
+				{
+					return Fail(
+						TEXT("ADUMP_LAZY_DUMP_SOURCE_JSON_INVALID"),
+						FString::Printf(TEXT("Indexed source is not a readable JSON object: %s"), *SourceFileText));
+				}
+				SourceObjectByRelativePath.Add(SourceFileText, SourceRootObject);
+			}
+
+			TSharedPtr<FJsonValue> ResolvedDataValue;
+			if (JsonPointerText == TEXT("/"))
+			{
+				ResolvedDataValue = MakeShared<FJsonValueObject>(SourceRootObject.ToSharedRef());
+			}
+			else if (JsonPointerText.StartsWith(TEXT("/"))
+				&& JsonPointerText.Len() > 1
+				&& !JsonPointerText.Mid(1).Contains(TEXT("/")))
+			{
+								const FString TopLevelFieldName = JsonPointerText.Mid(1);
+				const TSharedPtr<FJsonValue> IndexedValue = SourceRootObject->TryGetField(*TopLevelFieldName);
+				if (!IndexedValue.IsValid())
+				{
+					return Fail(
+						TEXT("ADUMP_LAZY_DUMP_POINTER_NOT_FOUND"),
+						FString::Printf(TEXT("Indexed pointer does not resolve for section '%s': %s"), *RequestedSectionName, *JsonPointerText));
+				}
+				ResolvedDataValue = IndexedValue;
+			}
+			else
+			{
+				return Fail(
+					TEXT("ADUMP_LAZY_DUMP_POINTER_UNSUPPORTED"),
+					FString::Printf(TEXT("Nested or malformed pointer is outside v0.9.2 scope for section '%s': %s"), *RequestedSectionName, *JsonPointerText));
+			}
+
+			TSharedRef<FJsonObject> SectionResultObject = MakeShared<FJsonObject>();
+			SectionResultObject->SetStringField(TEXT("section_name"), RequestedSectionName);
+			SectionResultObject->SetStringField(TEXT("section_schema_version"), GetCommandletStringFieldOrEmpty(ResolvedSectionEntryObject, TEXT("section_schema_version")));
+			SectionResultObject->SetStringField(TEXT("source_file"), SourceFileText);
+			SectionResultObject->SetStringField(TEXT("json_pointer"), JsonPointerText);
+			SectionResultObject->SetStringField(TEXT("storage_kind"), GetCommandletStringFieldOrEmpty(ResolvedSectionEntryObject, TEXT("storage_kind")));
+			SectionResultObject->SetField(TEXT("data"), ResolvedDataValue);
+			SectionResultValueArray.Add(MakeShared<FJsonValueObject>(SectionResultObject));
+			UniqueSourceFileSet.Add(SourceFileText);
+		}
+
+		TArray<FString> SourceFileArray = UniqueSourceFileSet.Array();
+		SourceFileArray.Sort([](const FString& InLeft, const FString& InRight)
+		{
+			return InLeft < InRight;
+		});
+
+		TSharedRef<FJsonObject> AssetEnvelopeObject = MakeShared<FJsonObject>();
+		AssetEnvelopeObject->SetStringField(TEXT("asset_id"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_id")));
+		AssetEnvelopeObject->SetStringField(TEXT("asset_key"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_key")));
+		AssetEnvelopeObject->SetStringField(TEXT("object_path"), ResolvedObjectPath);
+		AssetEnvelopeObject->SetStringField(TEXT("asset_class"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_class")));
+		AssetEnvelopeObject->SetStringField(TEXT("asset_family"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_family")));
+		AssetEnvelopeObject->SetStringField(TEXT("fingerprint"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("fingerprint")));
+
+		TSharedRef<FJsonObject> ResponseRootObject = MakeShared<FJsonObject>();
+		ResponseRootObject->SetStringField(TEXT("schema_version"), TEXT("lazy_section_dump_v1"));
+		ResponseRootObject->SetStringField(TEXT("generated_time"), FDateTime::UtcNow().ToIso8601());
+		ResponseRootObject->SetStringField(TEXT("source_contract"), TEXT("indexed_stored_evidence"));
+		ResponseRootObject->SetStringField(TEXT("asset_index_schema_version"), TEXT("asset_index_v1"));
+		ResponseRootObject->SetStringField(TEXT("section_index_schema_version"), TEXT("section_index_v1"));
+		ResponseRootObject->SetObjectField(TEXT("asset"), AssetEnvelopeObject);
+		AddCommandletStringArrayField(ResponseRootObject, TEXT("requested_sections"), RequestedSectionArray);
+		ResponseRootObject->SetNumberField(TEXT("section_count"), SectionResultValueArray.Num());
+		ResponseRootObject->SetNumberField(TEXT("source_file_count"), SourceFileArray.Num());
+		AddCommandletStringArrayField(ResponseRootObject, TEXT("source_files"), SourceFileArray);
+		ResponseRootObject->SetArrayField(TEXT("sections"), SectionResultValueArray);
+		ResponseRootObject->SetBoolField(TEXT("all_resolved"), true);
+
+		if (!SerializeJsonObjectText(ResponseRootObject, OutJsonText))
+		{
+			return Fail(
+				TEXT("ADUMP_LAZY_DUMP_SOURCE_JSON_INVALID"),
+				TEXT("Failed to serialize lazy_section_dump_v1 response."));
+		}
+		return true;
+	}
+
+		struct FCommandletDependencyQueryRelation
+	{
+		FString From;
+		FString To;
+		FString Reason;
+		FString Strength;
+		FString SourceKind;
+		FString SourcePath;
+	};
+
+	struct FCommandletDependencyQueryCandidate
+	{
+		int32 RelationIndex = INDEX_NONE;
+		FString TraversalDirection;
+		FString TraversalFrom;
+		FString TraversalTo;
+	};
+
+	struct FCommandletDependencyQueryNode
+	{
+		FString ObjectPath;
+		FString AssetId;
+		FString AssetKey;
+		FString AssetClass;
+		FString AssetFamily;
+		bool bIndexed = false;
+		int32 MinDepth = 0;
+		bool bRootRole = false;
+		bool bDependencyRole = false;
+		bool bReferencerRole = false;
+	};
+
+	struct FCommandletDependencyQueryEdge
+	{
+		FString RelationFrom;
+		FString RelationTo;
+		FString TraversalFrom;
+		FString TraversalTo;
+		FString TraversalDirection;
+		int32 Depth = 0;
+		FString Reason;
+		FString Strength;
+		FString SourceKind;
+		FString SourcePath;
+		bool bClosesCycle = false;
+	};
+
+	int32 GetCommandletDependencyDirectionRank(const FString& InDirection)
+	{
+		return InDirection == TEXT("dependencies") ? 0 : 1;
+	}
+
+	// BuildCommandletDependencyTraceQueryJson은 accepted stored indexes 위에서 bounded dependency traversal을 수행한다.
+	bool BuildCommandletDependencyTraceQueryJson(
+		const FString& InDumpRootPath,
+		const FString& InAssetObjectPathSelector,
+		const FString& InAssetIdSelector,
+		const FString& InDirection,
+		const FString& InStrength,
+		int32 InMaxDepth,
+		int32 InMaxNodes,
+		int32 InMaxEdges,
+		FString& OutJsonText,
+		FString& OutErrorCode,
+		FString& OutErrorDetail)
+	{
+		OutJsonText.Reset();
+		OutErrorCode.Reset();
+		OutErrorDetail.Reset();
+
+		auto Fail = [&OutErrorCode, &OutErrorDetail](const TCHAR* InCode, const FString& InDetail)
+		{
+			OutErrorCode = InCode;
+			OutErrorDetail = InDetail;
+			return false;
+		};
+
+		const FString AssetIndexFilePath = FPaths::Combine(InDumpRootPath, TEXT("asset_index.json"));
+		const FString DependencyIndexFilePath = FPaths::Combine(InDumpRootPath, TEXT("dependency_index.json"));
+		if (!IFileManager::Get().FileExists(*AssetIndexFilePath)
+			|| !IFileManager::Get().FileExists(*DependencyIndexFilePath))
+		{
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_INDEX_NOT_FOUND"),
+				FString::Printf(TEXT("Required asset/dependency indexes are missing under dump root: %s"), *InDumpRootPath));
+		}
+
+		TSharedPtr<FJsonObject> AssetIndexRootObject;
+		TSharedPtr<FJsonObject> DependencyIndexRootObject;
+		if (!LoadCommandletJsonObjectFromFile(AssetIndexFilePath, AssetIndexRootObject)
+			|| !LoadCommandletJsonObjectFromFile(DependencyIndexFilePath, DependencyIndexRootObject))
+		{
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_INDEX_JSON_INVALID"),
+				TEXT("asset_index.json or dependency_index.json is not a readable JSON object."));
+		}
+
+		if (GetCommandletStringFieldOrEmpty(AssetIndexRootObject, TEXT("schema_version")) != TEXT("asset_index_v1"))
+		{
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+				TEXT("The selected asset index is not asset_index_v1."));
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* AssetValueArray = nullptr;
+		if (!AssetIndexRootObject->TryGetArrayField(TEXT("assets"), AssetValueArray) || !AssetValueArray)
+		{
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+				TEXT("asset_index_v1 assets array is missing."));
+		}
+
+		double AssetCountValue = -1.0;
+		if (!AssetIndexRootObject->TryGetNumberField(TEXT("asset_count"), AssetCountValue)
+			|| !FMath::IsNearlyEqual(AssetCountValue, static_cast<double>(AssetValueArray->Num())))
+		{
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+				TEXT("asset_index_v1 asset_count does not agree with assets[]."));
+		}
+
+		TMap<FString, TSharedPtr<FJsonObject>> AssetObjectByPath;
+		TMap<FString, TSharedPtr<FJsonObject>> AssetObjectById;
+		for (const TSharedPtr<FJsonValue>& AssetValue : *AssetValueArray)
+		{
+			if (!AssetValue.IsValid() || AssetValue->Type != EJson::Object)
+			{
+				return Fail(
+					TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+					TEXT("asset_index_v1 contains a non-object asset entry."));
+			}
+
+			const TSharedPtr<FJsonObject> AssetObject = AssetValue->AsObject();
+			const FString AssetIdText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("asset_id"));
+			const FString ObjectPathText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("object_path"));
+			if (AssetIdText.IsEmpty()
+				|| ObjectPathText.IsEmpty()
+				|| !ObjectPathText.StartsWith(TEXT("/"))
+				|| AssetObjectById.Contains(AssetIdText)
+				|| AssetObjectByPath.Contains(ObjectPathText))
+			{
+				return Fail(
+					TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+					TEXT("asset_index_v1 contains an invalid or duplicate asset identity."));
+			}
+			AssetObjectById.Add(AssetIdText, AssetObject);
+			AssetObjectByPath.Add(ObjectPathText, AssetObject);
+		}
+
+		TSharedPtr<FJsonObject> ResolvedAssetObject;
+		if (!InAssetObjectPathSelector.IsEmpty())
+		{
+			ResolvedAssetObject = AssetObjectByPath.FindRef(InAssetObjectPathSelector);
+		}
+		else if (!InAssetIdSelector.IsEmpty())
+		{
+			ResolvedAssetObject = AssetObjectById.FindRef(InAssetIdSelector);
+		}
+		if (!ResolvedAssetObject.IsValid())
+		{
+			const FString SelectorText = !InAssetObjectPathSelector.IsEmpty()
+				? InAssetObjectPathSelector
+				: InAssetIdSelector;
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_ASSET_NOT_FOUND"),
+				FString::Printf(TEXT("No indexed asset matches selector: %s"), *SelectorText));
+		}
+
+		FString DependencyGeneratedTime;
+		const TArray<TSharedPtr<FJsonValue>>* RelationValueArray = nullptr;
+		double RelationCountValue = -1.0;
+		if (!DependencyIndexRootObject->TryGetStringField(TEXT("generated_time"), DependencyGeneratedTime)
+			|| DependencyGeneratedTime.IsEmpty()
+			|| !DependencyIndexRootObject->TryGetArrayField(TEXT("relations"), RelationValueArray)
+			|| !RelationValueArray
+			|| !DependencyIndexRootObject->TryGetNumberField(TEXT("relation_count"), RelationCountValue)
+			|| !FMath::IsNearlyEqual(RelationCountValue, static_cast<double>(RelationValueArray ? RelationValueArray->Num() : 0)))
+		{
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+				TEXT("dependency_index.json root contract is unsupported."));
+		}
+
+		TArray<FCommandletDependencyQueryRelation> RelationArray;
+		RelationArray.Reserve(RelationValueArray->Num());
+		for (const TSharedPtr<FJsonValue>& RelationValue : *RelationValueArray)
+		{
+			if (!RelationValue.IsValid() || RelationValue->Type != EJson::Object)
+			{
+				return Fail(
+					TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+					TEXT("dependency_index.json contains a non-object relation."));
+			}
+
+			const TSharedPtr<FJsonObject> RelationObject = RelationValue->AsObject();
+			FCommandletDependencyQueryRelation Relation;
+			if (!RelationObject->TryGetStringField(TEXT("from"), Relation.From)
+				|| !RelationObject->TryGetStringField(TEXT("to"), Relation.To)
+				|| !RelationObject->TryGetStringField(TEXT("reason"), Relation.Reason)
+				|| !RelationObject->TryGetStringField(TEXT("strength"), Relation.Strength)
+				|| !RelationObject->TryGetStringField(TEXT("source_kind"), Relation.SourceKind)
+				|| !RelationObject->TryGetStringField(TEXT("source_path"), Relation.SourcePath)
+				|| Relation.From.IsEmpty()
+				|| Relation.To.IsEmpty()
+				|| !Relation.From.StartsWith(TEXT("/"))
+				|| !Relation.To.StartsWith(TEXT("/"))
+				|| (Relation.Strength != TEXT("hard") && Relation.Strength != TEXT("soft")))
+			{
+				return Fail(
+					TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+					TEXT("dependency_index.json contains an invalid relation contract."));
+			}
+			RelationArray.Add(MoveTemp(Relation));
+		}
+
+		const FString RootObjectPath = GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("object_path"));
+		TArray<FCommandletDependencyQueryNode> NodeArray;
+		TMap<FString, int32> NodeIndexByPath;
+		TMap<FString, FString> ParentPathByPath;
+		TArray<FString> QueuePathArray;
+		int32 QueueReadIndex = 0;
+
+		auto MakeNode = [&AssetObjectByPath](const FString& InObjectPath, int32 InDepth)
+		{
+			FCommandletDependencyQueryNode Node;
+			Node.ObjectPath = InObjectPath;
+			Node.MinDepth = InDepth;
+			const TSharedPtr<FJsonObject> IndexedAssetObject = AssetObjectByPath.FindRef(InObjectPath);
+			if (IndexedAssetObject.IsValid())
+			{
+				Node.bIndexed = true;
+				Node.AssetId = GetCommandletStringFieldOrEmpty(IndexedAssetObject, TEXT("asset_id"));
+				Node.AssetKey = GetCommandletStringFieldOrEmpty(IndexedAssetObject, TEXT("asset_key"));
+				Node.AssetClass = GetCommandletStringFieldOrEmpty(IndexedAssetObject, TEXT("asset_class"));
+				Node.AssetFamily = GetCommandletStringFieldOrEmpty(IndexedAssetObject, TEXT("asset_family"));
+			}
+			return Node;
+		};
+
+		FCommandletDependencyQueryNode RootNode = MakeNode(RootObjectPath, 0);
+		RootNode.bRootRole = true;
+		NodeIndexByPath.Add(RootObjectPath, NodeArray.Add(MoveTemp(RootNode)));
+		ParentPathByPath.Add(RootObjectPath, FString());
+		QueuePathArray.Add(RootObjectPath);
+
+		TArray<FCommandletDependencyQueryEdge> EdgeArray;
+		TSet<FString> TruncationReasonSet;
+		bool bStopForEdgeLimit = false;
+
+		while (QueueReadIndex < QueuePathArray.Num() && !bStopForEdgeLimit)
+		{
+			const FString CurrentPath = QueuePathArray[QueueReadIndex++];
+			const int32* CurrentNodeIndexPtr = NodeIndexByPath.Find(CurrentPath);
+			if (!CurrentNodeIndexPtr)
+			{
+				continue;
+			}
+			const int32 CurrentDepth = NodeArray[*CurrentNodeIndexPtr].MinDepth;
+			if (CurrentDepth >= InMaxDepth)
+			{
+				continue;
+			}
+
+			TArray<FCommandletDependencyQueryCandidate> CandidateArray;
+			for (int32 RelationIndex = 0; RelationIndex < RelationArray.Num(); ++RelationIndex)
+			{
+				const FCommandletDependencyQueryRelation& Relation = RelationArray[RelationIndex];
+				if (InStrength != TEXT("all") && Relation.Strength != InStrength)
+				{
+					continue;
+				}
+
+				if ((InDirection == TEXT("dependencies") || InDirection == TEXT("both"))
+					&& Relation.From == CurrentPath)
+				{
+					FCommandletDependencyQueryCandidate Candidate;
+					Candidate.RelationIndex = RelationIndex;
+					Candidate.TraversalDirection = TEXT("dependencies");
+					Candidate.TraversalFrom = CurrentPath;
+					Candidate.TraversalTo = Relation.To;
+					CandidateArray.Add(MoveTemp(Candidate));
+				}
+
+				if ((InDirection == TEXT("referencers") || InDirection == TEXT("both"))
+					&& Relation.To == CurrentPath
+					&& !(InDirection == TEXT("both") && Relation.From == Relation.To))
+				{
+					FCommandletDependencyQueryCandidate Candidate;
+					Candidate.RelationIndex = RelationIndex;
+					Candidate.TraversalDirection = TEXT("referencers");
+					Candidate.TraversalFrom = CurrentPath;
+					Candidate.TraversalTo = Relation.From;
+					CandidateArray.Add(MoveTemp(Candidate));
+				}
+			}
+
+			CandidateArray.Sort([&RelationArray](const FCommandletDependencyQueryCandidate& InLeft, const FCommandletDependencyQueryCandidate& InRight)
+			{
+				const int32 LeftDirectionRank = GetCommandletDependencyDirectionRank(InLeft.TraversalDirection);
+				const int32 RightDirectionRank = GetCommandletDependencyDirectionRank(InRight.TraversalDirection);
+				if (LeftDirectionRank != RightDirectionRank)
+				{
+					return LeftDirectionRank < RightDirectionRank;
+				}
+
+								auto CompareText = [](const FString& InA, const FString& InB)
+				{
+					return InA.Compare(InB, ESearchCase::CaseSensitive);
+				};
+
+				int32 CompareResult = CompareText(InLeft.TraversalTo, InRight.TraversalTo);
+				if (CompareResult != 0) return CompareResult < 0;
+				const FCommandletDependencyQueryRelation& LeftRelation = RelationArray[InLeft.RelationIndex];
+				const FCommandletDependencyQueryRelation& RightRelation = RelationArray[InRight.RelationIndex];
+				CompareResult = CompareText(LeftRelation.From, RightRelation.From);
+				if (CompareResult != 0) return CompareResult < 0;
+				CompareResult = CompareText(LeftRelation.To, RightRelation.To);
+				if (CompareResult != 0) return CompareResult < 0;
+				CompareResult = CompareText(LeftRelation.Strength, RightRelation.Strength);
+				if (CompareResult != 0) return CompareResult < 0;
+				CompareResult = CompareText(LeftRelation.Reason, RightRelation.Reason);
+				if (CompareResult != 0) return CompareResult < 0;
+				CompareResult = CompareText(LeftRelation.SourceKind, RightRelation.SourceKind);
+				if (CompareResult != 0) return CompareResult < 0;
+				return CompareText(LeftRelation.SourcePath, RightRelation.SourcePath) < 0;
+			});
+
+			for (const FCommandletDependencyQueryCandidate& Candidate : CandidateArray)
+			{
+				if (EdgeArray.Num() >= InMaxEdges)
+				{
+					TruncationReasonSet.Add(TEXT("max_edges"));
+					bStopForEdgeLimit = true;
+					break;
+				}
+
+				const bool bNodeAlreadyExists = NodeIndexByPath.Contains(Candidate.TraversalTo);
+				if (!bNodeAlreadyExists && NodeArray.Num() >= InMaxNodes)
+				{
+					TruncationReasonSet.Add(TEXT("max_nodes"));
+					continue;
+				}
+
+				bool bClosesCycle = false;
+				FString AncestorPath = CurrentPath;
+				while (!AncestorPath.IsEmpty())
+				{
+					if (Candidate.TraversalTo == AncestorPath)
+					{
+						bClosesCycle = true;
+						break;
+					}
+					const FString* ParentPath = ParentPathByPath.Find(AncestorPath);
+					if (!ParentPath)
+					{
+						break;
+					}
+					AncestorPath = *ParentPath;
+				}
+
+				int32 TargetNodeIndex = INDEX_NONE;
+				if (const int32* ExistingNodeIndex = NodeIndexByPath.Find(Candidate.TraversalTo))
+				{
+					TargetNodeIndex = *ExistingNodeIndex;
+				}
+				else
+				{
+					FCommandletDependencyQueryNode NewNode = MakeNode(Candidate.TraversalTo, CurrentDepth + 1);
+					TargetNodeIndex = NodeArray.Add(MoveTemp(NewNode));
+					NodeIndexByPath.Add(Candidate.TraversalTo, TargetNodeIndex);
+					ParentPathByPath.Add(Candidate.TraversalTo, CurrentPath);
+					QueuePathArray.Add(Candidate.TraversalTo);
+				}
+
+				if (Candidate.TraversalDirection == TEXT("dependencies"))
+				{
+					NodeArray[TargetNodeIndex].bDependencyRole = true;
+				}
+				else
+				{
+					NodeArray[TargetNodeIndex].bReferencerRole = true;
+				}
+
+				const FCommandletDependencyQueryRelation& Relation = RelationArray[Candidate.RelationIndex];
+				FCommandletDependencyQueryEdge Edge;
+				Edge.RelationFrom = Relation.From;
+				Edge.RelationTo = Relation.To;
+				Edge.TraversalFrom = Candidate.TraversalFrom;
+				Edge.TraversalTo = Candidate.TraversalTo;
+				Edge.TraversalDirection = Candidate.TraversalDirection;
+				Edge.Depth = CurrentDepth + 1;
+				Edge.Reason = Relation.Reason;
+				Edge.Strength = Relation.Strength;
+				Edge.SourceKind = Relation.SourceKind;
+				Edge.SourcePath = Relation.SourcePath;
+				Edge.bClosesCycle = bClosesCycle;
+				EdgeArray.Add(MoveTemp(Edge));
+			}
+		}
+
+		NodeArray.Sort([](const FCommandletDependencyQueryNode& InLeft, const FCommandletDependencyQueryNode& InRight)
+		{
+			if (InLeft.MinDepth != InRight.MinDepth)
+			{
+				return InLeft.MinDepth < InRight.MinDepth;
+			}
+						return InLeft.ObjectPath.Compare(InRight.ObjectPath, ESearchCase::CaseSensitive) < 0;
+		});
+
+		EdgeArray.Sort([](const FCommandletDependencyQueryEdge& InLeft, const FCommandletDependencyQueryEdge& InRight)
+		{
+			if (InLeft.Depth != InRight.Depth) return InLeft.Depth < InRight.Depth;
+			const int32 LeftDirectionRank = GetCommandletDependencyDirectionRank(InLeft.TraversalDirection);
+			const int32 RightDirectionRank = GetCommandletDependencyDirectionRank(InRight.TraversalDirection);
+			if (LeftDirectionRank != RightDirectionRank) return LeftDirectionRank < RightDirectionRank;
+
+						auto CompareText = [](const FString& InA, const FString& InB)
+			{
+				return InA.Compare(InB, ESearchCase::CaseSensitive);
+			};
+			int32 CompareResult = CompareText(InLeft.TraversalFrom, InRight.TraversalFrom);
+			if (CompareResult != 0) return CompareResult < 0;
+			CompareResult = CompareText(InLeft.TraversalTo, InRight.TraversalTo);
+			if (CompareResult != 0) return CompareResult < 0;
+			CompareResult = CompareText(InLeft.RelationFrom, InRight.RelationFrom);
+			if (CompareResult != 0) return CompareResult < 0;
+			CompareResult = CompareText(InLeft.RelationTo, InRight.RelationTo);
+			if (CompareResult != 0) return CompareResult < 0;
+			CompareResult = CompareText(InLeft.Strength, InRight.Strength);
+			if (CompareResult != 0) return CompareResult < 0;
+			CompareResult = CompareText(InLeft.Reason, InRight.Reason);
+			if (CompareResult != 0) return CompareResult < 0;
+			CompareResult = CompareText(InLeft.SourceKind, InRight.SourceKind);
+			if (CompareResult != 0) return CompareResult < 0;
+			return CompareText(InLeft.SourcePath, InRight.SourcePath) < 0;
+		});
+
+		TArray<TSharedPtr<FJsonValue>> NodeValueArray;
+		NodeValueArray.Reserve(NodeArray.Num());
+		int32 MaxObservedDepth = 0;
+		for (int32 NodeIndex = 0; NodeIndex < NodeArray.Num(); ++NodeIndex)
+		{
+			const FCommandletDependencyQueryNode& Node = NodeArray[NodeIndex];
+			MaxObservedDepth = FMath::Max(MaxObservedDepth, Node.MinDepth);
+			TSharedRef<FJsonObject> NodeObject = MakeShared<FJsonObject>();
+			NodeObject->SetStringField(TEXT("node_id"), FString::Printf(TEXT("node_%04d"), NodeIndex));
+			NodeObject->SetStringField(TEXT("object_path"), Node.ObjectPath);
+			NodeObject->SetStringField(TEXT("asset_id"), Node.AssetId);
+			NodeObject->SetStringField(TEXT("asset_key"), Node.AssetKey);
+			NodeObject->SetStringField(TEXT("asset_class"), Node.AssetClass);
+			NodeObject->SetStringField(TEXT("asset_family"), Node.AssetFamily);
+			NodeObject->SetBoolField(TEXT("indexed"), Node.bIndexed);
+			NodeObject->SetNumberField(TEXT("min_depth"), Node.MinDepth);
+			TArray<FString> RoleArray;
+			if (Node.bRootRole) RoleArray.Add(TEXT("root"));
+			if (Node.bDependencyRole) RoleArray.Add(TEXT("dependency"));
+			if (Node.bReferencerRole) RoleArray.Add(TEXT("referencer"));
+			AddCommandletStringArrayField(NodeObject, TEXT("roles"), RoleArray);
+			NodeValueArray.Add(MakeShared<FJsonValueObject>(NodeObject));
+		}
+
+		TArray<TSharedPtr<FJsonValue>> EdgeValueArray;
+		EdgeValueArray.Reserve(EdgeArray.Num());
+		int32 CycleEdgeCount = 0;
+		for (int32 EdgeIndex = 0; EdgeIndex < EdgeArray.Num(); ++EdgeIndex)
+		{
+			const FCommandletDependencyQueryEdge& Edge = EdgeArray[EdgeIndex];
+			if (Edge.bClosesCycle) ++CycleEdgeCount;
+			TSharedRef<FJsonObject> EdgeObject = MakeShared<FJsonObject>();
+			EdgeObject->SetStringField(TEXT("edge_id"), FString::Printf(TEXT("edge_%06d"), EdgeIndex));
+			EdgeObject->SetStringField(TEXT("relation_from"), Edge.RelationFrom);
+			EdgeObject->SetStringField(TEXT("relation_to"), Edge.RelationTo);
+			EdgeObject->SetStringField(TEXT("traversal_from"), Edge.TraversalFrom);
+			EdgeObject->SetStringField(TEXT("traversal_to"), Edge.TraversalTo);
+			EdgeObject->SetStringField(TEXT("traversal_direction"), Edge.TraversalDirection);
+			EdgeObject->SetNumberField(TEXT("depth"), Edge.Depth);
+			EdgeObject->SetStringField(TEXT("reason"), Edge.Reason);
+			EdgeObject->SetStringField(TEXT("strength"), Edge.Strength);
+			EdgeObject->SetStringField(TEXT("source_kind"), Edge.SourceKind);
+			EdgeObject->SetStringField(TEXT("source_path"), Edge.SourcePath);
+			EdgeObject->SetBoolField(TEXT("closes_cycle"), Edge.bClosesCycle);
+			EdgeValueArray.Add(MakeShared<FJsonValueObject>(EdgeObject));
+		}
+
+		TArray<FString> TruncationReasonArray;
+		if (TruncationReasonSet.Contains(TEXT("max_nodes"))) TruncationReasonArray.Add(TEXT("max_nodes"));
+		if (TruncationReasonSet.Contains(TEXT("max_edges"))) TruncationReasonArray.Add(TEXT("max_edges"));
+
+		TSharedRef<FJsonObject> QueryObject = MakeShared<FJsonObject>();
+		QueryObject->SetStringField(TEXT("selector_kind"), !InAssetObjectPathSelector.IsEmpty() ? TEXT("object_path") : TEXT("asset_id"));
+		QueryObject->SetStringField(TEXT("root_object_path"), RootObjectPath);
+		QueryObject->SetStringField(TEXT("direction"), InDirection);
+		QueryObject->SetStringField(TEXT("strength"), InStrength);
+		QueryObject->SetNumberField(TEXT("max_depth"), InMaxDepth);
+		QueryObject->SetNumberField(TEXT("max_nodes"), InMaxNodes);
+		QueryObject->SetNumberField(TEXT("max_edges"), InMaxEdges);
+
+		TSharedRef<FJsonObject> RootAssetObject = MakeShared<FJsonObject>();
+		RootAssetObject->SetStringField(TEXT("asset_id"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_id")));
+		RootAssetObject->SetStringField(TEXT("asset_key"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_key")));
+		RootAssetObject->SetStringField(TEXT("object_path"), RootObjectPath);
+		RootAssetObject->SetStringField(TEXT("asset_class"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_class")));
+		RootAssetObject->SetStringField(TEXT("asset_family"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("asset_family")));
+		RootAssetObject->SetStringField(TEXT("fingerprint"), GetCommandletStringFieldOrEmpty(ResolvedAssetObject, TEXT("fingerprint")));
+
+		TSharedRef<FJsonObject> ResponseRootObject = MakeShared<FJsonObject>();
+		ResponseRootObject->SetStringField(TEXT("schema_version"), TEXT("dependency_trace_query_v1"));
+		ResponseRootObject->SetStringField(TEXT("generated_time"), FDateTime::UtcNow().ToIso8601());
+		ResponseRootObject->SetStringField(TEXT("source_contract"), TEXT("indexed_dependency_evidence"));
+		ResponseRootObject->SetStringField(TEXT("asset_index_schema_version"), TEXT("asset_index_v1"));
+		ResponseRootObject->SetStringField(TEXT("dependency_index_contract_version"), TEXT("legacy_dependency_index_v1"));
+		ResponseRootObject->SetObjectField(TEXT("query"), QueryObject);
+		ResponseRootObject->SetObjectField(TEXT("root_asset"), RootAssetObject);
+		ResponseRootObject->SetNumberField(TEXT("node_count"), NodeValueArray.Num());
+		ResponseRootObject->SetNumberField(TEXT("edge_count"), EdgeValueArray.Num());
+		ResponseRootObject->SetNumberField(TEXT("max_observed_depth"), MaxObservedDepth);
+		ResponseRootObject->SetNumberField(TEXT("cycle_edge_count"), CycleEdgeCount);
+		ResponseRootObject->SetBoolField(TEXT("truncated"), TruncationReasonArray.Num() > 0);
+		AddCommandletStringArrayField(ResponseRootObject, TEXT("truncation_reasons"), TruncationReasonArray);
+		ResponseRootObject->SetArrayField(TEXT("nodes"), NodeValueArray);
+		ResponseRootObject->SetArrayField(TEXT("edges"), EdgeValueArray);
+		ResponseRootObject->SetBoolField(TEXT("all_resolved"), true);
+
+		if (!SerializeJsonObjectText(ResponseRootObject, OutJsonText))
+		{
+			return Fail(
+				TEXT("ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED"),
+				TEXT("Failed to serialize dependency_trace_query_v1 response."));
+		}
+		return true;
+	}
+
+		// BuildCommandletQueryResultJson은 accepted native query response를 query_result_v1 success envelope으로 감싼다.
+	bool BuildCommandletQueryResultJson(
+		const FString& InQueryKind,
+		const FString& InSelectorKind,
+		const FString& InNativeJsonText,
+		FString& OutJsonText,
+		FString& OutErrorDetail)
+	{
+		OutJsonText.Reset();
+		OutErrorDetail.Reset();
+
+		TSharedPtr<FJsonObject> NativeRootObject;
+		TSharedRef<TJsonReader<>> NativeReader = TJsonReaderFactory<>::Create(InNativeJsonText);
+		if (!FJsonSerializer::Deserialize(NativeReader, NativeRootObject) || !NativeRootObject.IsValid())
+		{
+			OutErrorDetail = TEXT("Native query response is not a readable JSON object.");
+			return false;
+		}
+
+		const FString ExpectedNativeSchema = InQueryKind == TEXT("section")
+			? TEXT("lazy_section_dump_v1")
+			: TEXT("dependency_trace_query_v1");
+		const FString ExpectedSourceContract = InQueryKind == TEXT("section")
+			? TEXT("indexed_stored_evidence")
+			: TEXT("indexed_dependency_evidence");
+		const FString NativeSchema = GetCommandletStringFieldOrEmpty(NativeRootObject, TEXT("schema_version"));
+		const FString NativeSourceContract = GetCommandletStringFieldOrEmpty(NativeRootObject, TEXT("source_contract"));
+		const FString GeneratedTime = GetCommandletStringFieldOrEmpty(NativeRootObject, TEXT("generated_time"));
+		if (NativeSchema != ExpectedNativeSchema
+			|| NativeSourceContract != ExpectedSourceContract
+			|| GeneratedTime.IsEmpty()
+			|| !GetCommandletBoolFieldOrDefault(NativeRootObject, TEXT("all_resolved"), false))
+		{
+			OutErrorDetail = FString::Printf(
+				TEXT("Native response contract mismatch: kind=%s schema=%s source_contract=%s"),
+				*InQueryKind,
+				*NativeSchema,
+				*NativeSourceContract);
+			return false;
+		}
+
+		const TSharedPtr<FJsonObject> NativeAssetObject = InQueryKind == TEXT("section")
+			? GetCommandletNestedObjectField(NativeRootObject, TEXT("asset"))
+			: GetCommandletNestedObjectField(NativeRootObject, TEXT("root_asset"));
+		const FString RootObjectPath = GetCommandletStringFieldOrEmpty(NativeAssetObject, TEXT("object_path"));
+		if (RootObjectPath.IsEmpty() || !RootObjectPath.StartsWith(TEXT("/")))
+		{
+			OutErrorDetail = TEXT("Native response does not contain a valid resolved root object path.");
+			return false;
+		}
+
+		TSharedRef<FJsonObject> QueryObject = MakeShared<FJsonObject>();
+		QueryObject->SetStringField(TEXT("mode"), TEXT("query"));
+		QueryObject->SetStringField(TEXT("query_kind"), InQueryKind);
+		QueryObject->SetStringField(TEXT("selector_kind"), InSelectorKind);
+		QueryObject->SetStringField(TEXT("root_object_path"), RootObjectPath);
+		QueryObject->SetStringField(TEXT("result_schema"), TEXT("query_result_v1"));
+
+		TSharedRef<FJsonObject> ResultObject = MakeShared<FJsonObject>();
+		ResultObject->SetStringField(TEXT("native_schema_version"), NativeSchema);
+		ResultObject->SetStringField(TEXT("native_source_contract"), NativeSourceContract);
+		ResultObject->SetObjectField(TEXT("payload"), NativeRootObject.ToSharedRef());
+
+		TSharedRef<FJsonObject> WrapperRootObject = MakeShared<FJsonObject>();
+		WrapperRootObject->SetStringField(TEXT("schema_version"), TEXT("query_result_v1"));
+		WrapperRootObject->SetStringField(TEXT("generated_time"), GeneratedTime);
+		WrapperRootObject->SetStringField(TEXT("status"), TEXT("succeeded"));
+		WrapperRootObject->SetObjectField(TEXT("query"), QueryObject);
+		WrapperRootObject->SetObjectField(TEXT("result"), ResultObject);
+		WrapperRootObject->SetBoolField(TEXT("all_resolved"), true);
+
+		if (!SerializeJsonObjectText(WrapperRootObject, OutJsonText))
+		{
+			OutErrorDetail = TEXT("Failed to serialize query_result_v1 response.");
+			return false;
+		}
+		return true;
+	}
+
+		// CopyCommandletJsonField는 기존 JSON field를 의미 변경 없이 새 object에 복사한다.
+	bool CopyCommandletJsonField(
+		const TSharedPtr<FJsonObject>& InSourceObject,
+		const TCHAR* InFieldName,
+		const TSharedRef<FJsonObject>& InTargetObject)
+	{
+		if (!InSourceObject.IsValid())
+		{
+			return false;
+		}
+
+		const TSharedPtr<FJsonValue> SourceValue = InSourceObject->TryGetField(InFieldName);
+		if (!SourceValue.IsValid())
+		{
+			return false;
+		}
+
+		InTargetObject->SetField(InFieldName, SourceValue);
+		return true;
+	}
+
+	// GetCommandletUtf8ByteLength는 저장할 JSON 문자열의 BOM 없는 UTF-8 byte 수를 반환한다.
+	int32 GetCommandletUtf8ByteLength(const FString& InText)
+	{
+		FTCHARToUTF8 Utf8Text(*InText);
+		return Utf8Text.Length();
+	}
+
+	// BuildCommandletAIContextBundleJson은 accepted query_result_v1을 bounded ai_context_bundle_v1로 변환한다.
+	bool BuildCommandletAIContextBundleJson(
+		const TSharedPtr<FJsonObject>& InQueryResultObject,
+		int32 InMaxItems,
+		int32 InMaxBytes,
+		FString& OutJsonText,
+		FString& OutErrorCode,
+		FString& OutErrorDetail)
+	{
+		OutJsonText.Reset();
+		OutErrorCode.Reset();
+		OutErrorDetail.Reset();
+
+		auto Fail = [&](const TCHAR* InCode, const FString& InDetail)
+		{
+			OutErrorCode = InCode;
+			OutErrorDetail = InDetail;
+			return false;
+		};
+
+		if (!InQueryResultObject.IsValid()
+			|| GetCommandletStringFieldOrEmpty(InQueryResultObject, TEXT("schema_version")) != TEXT("query_result_v1"))
+		{
+			return Fail(TEXT("ADUMP_CONTEXT_INPUT_SCHEMA_UNSUPPORTED"), TEXT("Input schema_version must be query_result_v1."));
+		}
+
+		const FString StatusText = GetCommandletStringFieldOrEmpty(InQueryResultObject, TEXT("status"));
+		const FString GeneratedTimeText = GetCommandletStringFieldOrEmpty(InQueryResultObject, TEXT("generated_time"));
+		if (StatusText != TEXT("succeeded")
+			|| GeneratedTimeText.IsEmpty()
+			|| !GetCommandletBoolFieldOrDefault(InQueryResultObject, TEXT("all_resolved"), false))
+		{
+			return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Input query_result_v1 must be succeeded, resolved, and contain generated_time."));
+		}
+
+		const TSharedPtr<FJsonObject> QueryObject = GetCommandletNestedObjectField(InQueryResultObject, TEXT("query"));
+		const TSharedPtr<FJsonObject> ResultObject = GetCommandletNestedObjectField(InQueryResultObject, TEXT("result"));
+		const TSharedPtr<FJsonObject> PayloadObject = GetCommandletNestedObjectField(ResultObject, TEXT("payload"));
+		if (!QueryObject.IsValid() || !ResultObject.IsValid() || !PayloadObject.IsValid())
+		{
+			return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Input query_result_v1 requires query, result, and result.payload objects."));
+		}
+
+		const FString QueryModeText = GetCommandletStringFieldOrEmpty(QueryObject, TEXT("mode"));
+		const FString QueryKindText = GetCommandletStringFieldOrEmpty(QueryObject, TEXT("query_kind"));
+		const FString SelectorKindText = GetCommandletStringFieldOrEmpty(QueryObject, TEXT("selector_kind"));
+		const FString RootObjectPath = GetCommandletStringFieldOrEmpty(QueryObject, TEXT("root_object_path"));
+		const FString ResultSchemaText = GetCommandletStringFieldOrEmpty(QueryObject, TEXT("result_schema"));
+		if (QueryModeText != TEXT("query")
+			|| (QueryKindText != TEXT("section") && QueryKindText != TEXT("dependency"))
+			|| (SelectorKindText != TEXT("object_path") && SelectorKindText != TEXT("asset_id"))
+			|| RootObjectPath.IsEmpty()
+			|| !RootObjectPath.StartsWith(TEXT("/"))
+			|| ResultSchemaText != TEXT("query_result_v1"))
+		{
+			return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Input query metadata is outside the accepted query_result_v1 contract."));
+		}
+
+		const FString NativeSchemaText = GetCommandletStringFieldOrEmpty(ResultObject, TEXT("native_schema_version"));
+		const FString NativeSourceContractText = GetCommandletStringFieldOrEmpty(ResultObject, TEXT("native_source_contract"));
+		const FString PayloadSchemaText = GetCommandletStringFieldOrEmpty(PayloadObject, TEXT("schema_version"));
+		const FString PayloadSourceContractText = GetCommandletStringFieldOrEmpty(PayloadObject, TEXT("source_contract"));
+		const FString PayloadGeneratedTimeText = GetCommandletStringFieldOrEmpty(PayloadObject, TEXT("generated_time"));
+		if (PayloadGeneratedTimeText != GeneratedTimeText
+			|| !GetCommandletBoolFieldOrDefault(PayloadObject, TEXT("all_resolved"), false))
+		{
+			return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Input wrapper and native payload generated_time/all_resolved values do not agree."));
+		}
+
+		const FString ExpectedNativeSchema = QueryKindText == TEXT("section")
+			? TEXT("lazy_section_dump_v1")
+			: TEXT("dependency_trace_query_v1");
+		const FString ExpectedNativeSourceContract = QueryKindText == TEXT("section")
+			? TEXT("indexed_stored_evidence")
+			: TEXT("indexed_dependency_evidence");
+		if (NativeSchemaText != ExpectedNativeSchema
+			|| NativeSourceContractText != ExpectedNativeSourceContract
+			|| PayloadSchemaText != ExpectedNativeSchema
+			|| PayloadSourceContractText != ExpectedNativeSourceContract)
+		{
+			return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Input native schema/source pair does not match query_kind."));
+		}
+
+		const TSharedPtr<FJsonObject> NativeRootAssetObject = QueryKindText == TEXT("section")
+			? GetCommandletNestedObjectField(PayloadObject, TEXT("asset"))
+			: GetCommandletNestedObjectField(PayloadObject, TEXT("root_asset"));
+		if (!NativeRootAssetObject.IsValid()
+			|| GetCommandletStringFieldOrEmpty(NativeRootAssetObject, TEXT("object_path")) != RootObjectPath)
+		{
+			return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Input native root object path does not match wrapper query.root_object_path."));
+		}
+
+		TArray<TSharedPtr<FJsonValue>> CandidateItemArray;
+		bool bSourceTruncated = false;
+		TArray<FString> SourceTruncationReasonArray;
+
+		if (QueryKindText == TEXT("section"))
+		{
+			const TArray<TSharedPtr<FJsonValue>>* SectionValueArray = nullptr;
+			const int32 SectionCount = GetCommandletIntegerFieldOrDefault(PayloadObject, TEXT("section_count"), -1);
+			if (!PayloadObject->TryGetArrayField(TEXT("sections"), SectionValueArray)
+				|| !SectionValueArray
+				|| SectionCount != SectionValueArray->Num())
+			{
+				return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Section payload section_count/sections contract is invalid."));
+			}
+
+			CandidateItemArray.Reserve(SectionValueArray->Num());
+			for (int32 SectionIndex = 0; SectionIndex < SectionValueArray->Num(); ++SectionIndex)
+			{
+				const TSharedPtr<FJsonValue>& SectionValue = (*SectionValueArray)[SectionIndex];
+				if (!SectionValue.IsValid() || SectionValue->Type != EJson::Object)
+				{
+					return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Section payload contains a non-object section item."));
+				}
+
+				const TSharedPtr<FJsonObject> SectionObject = SectionValue->AsObject();
+				const FString SectionNameText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("section_name"));
+				const FString SectionSchemaText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("section_schema_version"));
+				const FString SourceFileText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("source_file"));
+				const FString JsonPointerText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("json_pointer"));
+				const FString StorageKindText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("storage_kind"));
+				const TSharedPtr<FJsonValue> DataValue = SectionObject.IsValid() ? SectionObject->TryGetField(TEXT("data")) : nullptr;
+								if (SectionNameText.IsEmpty()
+					|| !SectionObject->HasField(TEXT("section_schema_version"))
+					|| SourceFileText.IsEmpty()
+					|| !FPaths::IsRelative(SourceFileText)
+					|| SourceFileText.Contains(TEXT("\\"))
+					|| SourceFileText.StartsWith(TEXT("../"))
+					|| !JsonPointerText.StartsWith(TEXT("/"))
+					|| StorageKindText.IsEmpty()
+					|| !DataValue.IsValid())
+				{
+					return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Section payload item is missing required evidence fields."));
+				}
+
+				TSharedRef<FJsonObject> ItemObject = MakeShared<FJsonObject>();
+				ItemObject->SetStringField(TEXT("item_id"), FString::Printf(TEXT("item_%04d"), SectionIndex));
+				ItemObject->SetStringField(TEXT("item_kind"), TEXT("section"));
+				ItemObject->SetNumberField(TEXT("source_index"), SectionIndex);
+				ItemObject->SetStringField(TEXT("object_path"), RootObjectPath);
+				ItemObject->SetStringField(TEXT("section_name"), SectionNameText);
+				ItemObject->SetStringField(TEXT("section_schema_version"), SectionSchemaText);
+				ItemObject->SetStringField(TEXT("source_file"), SourceFileText);
+				ItemObject->SetStringField(TEXT("json_pointer"), JsonPointerText);
+				ItemObject->SetStringField(TEXT("storage_kind"), StorageKindText);
+				ItemObject->SetField(TEXT("data"), DataValue);
+				CandidateItemArray.Add(MakeShared<FJsonValueObject>(ItemObject));
+			}
+		}
+		else
+		{
+			const TArray<TSharedPtr<FJsonValue>>* NodeValueArray = nullptr;
+			const TArray<TSharedPtr<FJsonValue>>* EdgeValueArray = nullptr;
+			const int32 NodeCount = GetCommandletIntegerFieldOrDefault(PayloadObject, TEXT("node_count"), -1);
+			const int32 EdgeCount = GetCommandletIntegerFieldOrDefault(PayloadObject, TEXT("edge_count"), -1);
+			if (!PayloadObject->TryGetArrayField(TEXT("nodes"), NodeValueArray)
+				|| !PayloadObject->TryGetArrayField(TEXT("edges"), EdgeValueArray)
+				|| !NodeValueArray
+				|| !EdgeValueArray
+				|| NodeCount != NodeValueArray->Num()
+				|| EdgeCount != EdgeValueArray->Num())
+			{
+				return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency payload node/edge counts do not match their arrays."));
+			}
+
+			bool bNativeTruncated = false;
+			if (!PayloadObject->TryGetBoolField(TEXT("truncated"), bNativeTruncated))
+			{
+				return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency payload is missing truncated."));
+			}
+			bSourceTruncated = bNativeTruncated;
+
+			const TArray<TSharedPtr<FJsonValue>>* NativeReasonValueArray = nullptr;
+			if (!PayloadObject->TryGetArrayField(TEXT("truncation_reasons"), NativeReasonValueArray) || !NativeReasonValueArray)
+			{
+				return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency payload is missing truncation_reasons."));
+			}
+			for (const TSharedPtr<FJsonValue>& ReasonValue : *NativeReasonValueArray)
+			{
+				FString ReasonText;
+				if (!ReasonValue.IsValid() || !ReasonValue->TryGetString(ReasonText)
+					|| (ReasonText != TEXT("max_nodes") && ReasonText != TEXT("max_edges"))
+					|| SourceTruncationReasonArray.Contains(ReasonText))
+				{
+					return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency source truncation reasons are invalid."));
+				}
+				SourceTruncationReasonArray.Add(ReasonText);
+			}
+			TArray<FString> CanonicalSourceReasonArray;
+			if (SourceTruncationReasonArray.Contains(TEXT("max_nodes"))) CanonicalSourceReasonArray.Add(TEXT("max_nodes"));
+			if (SourceTruncationReasonArray.Contains(TEXT("max_edges"))) CanonicalSourceReasonArray.Add(TEXT("max_edges"));
+			if (SourceTruncationReasonArray != CanonicalSourceReasonArray
+				|| bSourceTruncated != (SourceTruncationReasonArray.Num() > 0))
+			{
+				return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency source truncation flag/reason ordering is invalid."));
+			}
+
+			CandidateItemArray.Reserve(NodeValueArray->Num() + EdgeValueArray->Num());
+			for (int32 NodeIndex = 0; NodeIndex < NodeValueArray->Num(); ++NodeIndex)
+			{
+				const TSharedPtr<FJsonValue>& NodeValue = (*NodeValueArray)[NodeIndex];
+				if (!NodeValue.IsValid() || NodeValue->Type != EJson::Object)
+				{
+					return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency payload contains a non-object node."));
+				}
+
+				const TSharedPtr<FJsonObject> NodeObject = NodeValue->AsObject();
+				FString NodeIdText;
+				FString NodeObjectPath;
+				FString AssetIdText;
+				FString AssetKeyText;
+				FString AssetClassText;
+				FString AssetFamilyText;
+				bool bIndexed = false;
+				double MinDepth = -1.0;
+				const TArray<TSharedPtr<FJsonValue>>* RoleValueArray = nullptr;
+				if (!NodeObject.IsValid()
+					|| !NodeObject->TryGetStringField(TEXT("node_id"), NodeIdText)
+					|| !NodeObject->TryGetStringField(TEXT("object_path"), NodeObjectPath)
+					|| !NodeObject->TryGetStringField(TEXT("asset_id"), AssetIdText)
+					|| !NodeObject->TryGetStringField(TEXT("asset_key"), AssetKeyText)
+					|| !NodeObject->TryGetStringField(TEXT("asset_class"), AssetClassText)
+					|| !NodeObject->TryGetStringField(TEXT("asset_family"), AssetFamilyText)
+					|| !NodeObject->TryGetBoolField(TEXT("indexed"), bIndexed)
+					|| !NodeObject->TryGetNumberField(TEXT("min_depth"), MinDepth)
+					|| !NodeObject->TryGetArrayField(TEXT("roles"), RoleValueArray)
+					|| !RoleValueArray
+					|| NodeIdText.IsEmpty()
+					|| NodeObjectPath.IsEmpty()
+					|| !NodeObjectPath.StartsWith(TEXT("/"))
+					|| MinDepth < 0.0)
+				{
+					return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency node contract is invalid."));
+				}
+
+				for (const TSharedPtr<FJsonValue>& RoleValue : *RoleValueArray)
+				{
+					FString RoleText;
+					if (!RoleValue.IsValid() || !RoleValue->TryGetString(RoleText)
+						|| (RoleText != TEXT("root") && RoleText != TEXT("dependency") && RoleText != TEXT("referencer")))
+					{
+						return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency node roles contract is invalid."));
+					}
+				}
+
+				const int32 CandidateIndex = CandidateItemArray.Num();
+				TSharedRef<FJsonObject> ItemObject = MakeShared<FJsonObject>();
+				ItemObject->SetStringField(TEXT("item_id"), FString::Printf(TEXT("item_%04d"), CandidateIndex));
+				ItemObject->SetStringField(TEXT("item_kind"), TEXT("asset"));
+				ItemObject->SetNumberField(TEXT("source_index"), CandidateIndex);
+				for (const TCHAR* FieldName : { TEXT("node_id"), TEXT("object_path"), TEXT("asset_id"), TEXT("asset_key"), TEXT("asset_class"), TEXT("asset_family"), TEXT("indexed"), TEXT("min_depth"), TEXT("roles") })
+				{
+					if (!CopyCommandletJsonField(NodeObject, FieldName, ItemObject))
+					{
+						return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency node field copy failed."));
+					}
+				}
+				CandidateItemArray.Add(MakeShared<FJsonValueObject>(ItemObject));
+			}
+
+			for (int32 EdgeIndex = 0; EdgeIndex < EdgeValueArray->Num(); ++EdgeIndex)
+			{
+				const TSharedPtr<FJsonValue>& EdgeValue = (*EdgeValueArray)[EdgeIndex];
+				if (!EdgeValue.IsValid() || EdgeValue->Type != EJson::Object)
+				{
+					return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency payload contains a non-object edge."));
+				}
+
+				const TSharedPtr<FJsonObject> EdgeObject = EdgeValue->AsObject();
+				FString EdgeIdText;
+				FString TraversalDirectionText;
+				FString TraversalFromText;
+				FString TraversalToText;
+				FString RelationFromText;
+				FString RelationToText;
+				FString StrengthText;
+				FString ReasonText;
+				FString SourceKindText;
+				FString SourcePathText;
+				double Depth = -1.0;
+				bool bClosesCycle = false;
+				if (!EdgeObject.IsValid()
+					|| !EdgeObject->TryGetStringField(TEXT("edge_id"), EdgeIdText)
+					|| !EdgeObject->TryGetStringField(TEXT("traversal_direction"), TraversalDirectionText)
+					|| !EdgeObject->TryGetStringField(TEXT("traversal_from"), TraversalFromText)
+					|| !EdgeObject->TryGetStringField(TEXT("traversal_to"), TraversalToText)
+					|| !EdgeObject->TryGetStringField(TEXT("relation_from"), RelationFromText)
+					|| !EdgeObject->TryGetStringField(TEXT("relation_to"), RelationToText)
+					|| !EdgeObject->TryGetStringField(TEXT("strength"), StrengthText)
+					|| !EdgeObject->TryGetStringField(TEXT("reason"), ReasonText)
+					|| !EdgeObject->TryGetStringField(TEXT("source_kind"), SourceKindText)
+					|| !EdgeObject->TryGetStringField(TEXT("source_path"), SourcePathText)
+					|| !EdgeObject->TryGetNumberField(TEXT("depth"), Depth)
+					|| !EdgeObject->TryGetBoolField(TEXT("closes_cycle"), bClosesCycle)
+					|| EdgeIdText.IsEmpty()
+					|| TraversalFromText.IsEmpty()
+					|| TraversalToText.IsEmpty()
+					|| RelationFromText.IsEmpty()
+					|| RelationToText.IsEmpty()
+					|| Depth < 0.0)
+				{
+					return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency edge contract is invalid."));
+				}
+
+				const int32 CandidateIndex = CandidateItemArray.Num();
+				TSharedRef<FJsonObject> ItemObject = MakeShared<FJsonObject>();
+				ItemObject->SetStringField(TEXT("item_id"), FString::Printf(TEXT("item_%04d"), CandidateIndex));
+				ItemObject->SetStringField(TEXT("item_kind"), TEXT("relation"));
+				ItemObject->SetNumberField(TEXT("source_index"), CandidateIndex);
+				for (const TCHAR* FieldName : { TEXT("edge_id"), TEXT("depth"), TEXT("traversal_direction"), TEXT("traversal_from"), TEXT("traversal_to"), TEXT("relation_from"), TEXT("relation_to"), TEXT("strength"), TEXT("reason"), TEXT("source_kind"), TEXT("source_path"), TEXT("closes_cycle") })
+				{
+					if (!CopyCommandletJsonField(EdgeObject, FieldName, ItemObject))
+					{
+						return Fail(TEXT("ADUMP_CONTEXT_INPUT_CONTRACT_INVALID"), TEXT("Dependency edge field copy failed."));
+					}
+				}
+				CandidateItemArray.Add(MakeShared<FJsonValueObject>(ItemObject));
+			}
+		}
+
+		const bool bMaxItemsTruncated = CandidateItemArray.Num() > InMaxItems;
+		TArray<TSharedPtr<FJsonValue>> IncludedItemArray;
+		const int32 InitialIncludedCount = FMath::Min(CandidateItemArray.Num(), InMaxItems);
+		IncludedItemArray.Reserve(InitialIncludedCount);
+		for (int32 ItemIndex = 0; ItemIndex < InitialIncludedCount; ++ItemIndex)
+		{
+			IncludedItemArray.Add(CandidateItemArray[ItemIndex]);
+		}
+
+		bool bMaxBytesTruncated = false;
+		auto BuildBundleRootObject = [&]()
+		{
+			TSharedRef<FJsonObject> SourceObject = MakeShared<FJsonObject>();
+			SourceObject->SetStringField(TEXT("query_result_schema_version"), TEXT("query_result_v1"));
+			SourceObject->SetStringField(TEXT("query_kind"), QueryKindText);
+			SourceObject->SetStringField(TEXT("selector_kind"), SelectorKindText);
+			SourceObject->SetStringField(TEXT("root_object_path"), RootObjectPath);
+			SourceObject->SetStringField(TEXT("native_schema_version"), NativeSchemaText);
+			SourceObject->SetStringField(TEXT("native_source_contract"), NativeSourceContractText);
+			SourceObject->SetBoolField(TEXT("source_truncated"), bSourceTruncated);
+			AddCommandletStringArrayField(SourceObject, TEXT("source_truncation_reasons"), SourceTruncationReasonArray);
+
+			TSharedRef<FJsonObject> LimitsObject = MakeShared<FJsonObject>();
+			LimitsObject->SetNumberField(TEXT("max_items"), InMaxItems);
+			LimitsObject->SetNumberField(TEXT("max_bytes"), InMaxBytes);
+
+			TSharedRef<FJsonObject> CountsObject = MakeShared<FJsonObject>();
+			CountsObject->SetNumberField(TEXT("available_item_count"), CandidateItemArray.Num());
+			CountsObject->SetNumberField(TEXT("included_item_count"), IncludedItemArray.Num());
+			CountsObject->SetNumberField(TEXT("omitted_item_count"), CandidateItemArray.Num() - IncludedItemArray.Num());
+
+			TArray<FString> BundleTruncationReasonArray;
+			if (bSourceTruncated) BundleTruncationReasonArray.Add(TEXT("source_truncated"));
+			if (bMaxItemsTruncated) BundleTruncationReasonArray.Add(TEXT("max_items"));
+			if (bMaxBytesTruncated) BundleTruncationReasonArray.Add(TEXT("max_bytes"));
+
+			TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
+			RootObject->SetStringField(TEXT("schema_version"), TEXT("ai_context_bundle_v1"));
+			RootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+			RootObject->SetStringField(TEXT("status"), TEXT("succeeded"));
+			RootObject->SetObjectField(TEXT("source"), SourceObject);
+			RootObject->SetObjectField(TEXT("limits"), LimitsObject);
+			RootObject->SetObjectField(TEXT("counts"), CountsObject);
+			RootObject->SetBoolField(TEXT("truncated"), BundleTruncationReasonArray.Num() > 0);
+			AddCommandletStringArrayField(RootObject, TEXT("truncation_reasons"), BundleTruncationReasonArray);
+			RootObject->SetArrayField(TEXT("items"), IncludedItemArray);
+			RootObject->SetBoolField(TEXT("all_resolved"), true);
+			return RootObject;
+		};
+
+		while (true)
+		{
+			const TSharedRef<FJsonObject> BundleRootObject = BuildBundleRootObject();
+			FString CandidateJsonText;
+			if (!SerializeJsonObjectText(BundleRootObject, CandidateJsonText))
+			{
+				return Fail(TEXT("ADUMP_CONTEXT_BUNDLE_BUILD_FAILED"), TEXT("Failed to serialize ai_context_bundle_v1."));
+			}
+
+			if (GetCommandletUtf8ByteLength(CandidateJsonText) <= InMaxBytes)
+			{
+				OutJsonText = MoveTemp(CandidateJsonText);
+				return true;
+			}
+
+			bMaxBytesTruncated = true;
+			if (IncludedItemArray.Num() == 0)
+			{
+				return Fail(TEXT("ADUMP_CONTEXT_BUNDLE_LIMIT_TOO_SMALL"), TEXT("MaxBytes cannot fit the zero-item ai_context_bundle_v1 envelope."));
+			}
+			IncludedItemArray.RemoveAt(IncludedItemArray.Num() - 1, 1, EAllowShrinking::No);
+		}
 	}
 
 	// ResolveCommandletReferenceSourceKindText는 references source를 dependency_index source_kind로 정규화한다.
@@ -4900,7 +7347,7 @@ namespace
 
 int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 {
-	// ModeValue는 list / asset / asset_details / map / bpgraph / bpdump / batchdump / index / validate / makefixtures 중 실행 모드를 고른다.
+				// ModeValue는 list / asset / asset_details / map / bpgraph / bpdump / batchdump / index / sectiondump / dependencyquery / query / validate / makefixtures 중 실행 모드를 고른다.
 	FString ModeValue;
 	// OutputFilePath는 저장할 JSON 파일 경로다.
 	FString OutputFilePath;
@@ -4913,7 +7360,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 	if (!GetCmdValue(CommandLine, TEXT("Mode="), ModeValue))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|validate|makefixtures"));
+								UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|sectiondump|dependencyquery|query|validate|makefixtures"));
 		return 1;
 	}
 
@@ -4939,8 +7386,9 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 	FString SectionSource = TEXT("full");
 
 	// bUsesSectionSerialization은 주요 dump.json 직렬화를 사용하는 commandlet 모드인지 나타낸다.
-	const bool bUsesSectionSerialization = ModeValue.Equals(TEXT("bpdump"), ESearchCase::IgnoreCase)
-		|| ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase);
+		const bool bUsesSectionSerialization = ModeValue.Equals(TEXT("bpdump"), ESearchCase::IgnoreCase)
+		|| ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase)
+		|| ModeValue.Equals(TEXT("sectiondump"), ESearchCase::IgnoreCase);
 	if (bUsesSectionSerialization
 		&& (!TryParseSectionSelection(CommandLine, SectionSelection, SectionSelectionError)
 			|| !TryParseIntentSelection(CommandLine, IntentName, IntentSectionSelection, SectionSelectionError)
@@ -4968,16 +7416,47 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		// IndexFilePath는 저장할 index.json 최종 경로다.
 		FString IndexFilePath;
 
-		// DependencyIndexFilePath는 저장할 dependency_index.json 최종 경로다.
+				// DependencyIndexFilePath는 저장할 dependency_index.json 최종 경로다.
 		FString DependencyIndexFilePath;
-		if (!BuildDumpIndexFiles(DumpRootPath, IndexFilePath, DependencyIndexFilePath))
+
+				// AssetIndexFilePath는 저장할 additive asset_index.json 최종 경로다.
+		FString AssetIndexFilePath;
+
+		// SectionIndexFilePath는 저장할 additive section_index.json 최종 경로다.
+		FString SectionIndexFilePath;
+		if (!BuildDumpIndexFiles(DumpRootPath, IndexFilePath, DependencyIndexFilePath, AssetIndexFilePath, SectionIndexFilePath))
 		{
 			UE_LOG(LogTemp, Error, TEXT("Failed to build dump index files under: %s"), *DumpRootPath);
 			return 2;
 		}
 
+						int32 AssetIndexAssetCount = 0;
+		FString AssetIndexContractDetail;
+				if (!ValidateCommandletAssetIndexContract(AssetIndexFilePath, AssetIndexAssetCount, AssetIndexContractDetail))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Generated asset index contract failed: %s"), *AssetIndexContractDetail);
+			return 2;
+		}
+
+		int32 SectionIndexSectionCount = 0;
+		int32 SectionIndexSymbolCount = 0;
+		FString SectionIndexContractDetail;
+		if (!ValidateCommandletSectionIndexContract(
+			SectionIndexFilePath,
+			AssetIndexFilePath,
+			DumpRootPath,
+			SectionIndexSectionCount,
+			SectionIndexSymbolCount,
+			SectionIndexContractDetail))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Generated section index contract failed: %s"), *SectionIndexContractDetail);
+			return 2;
+		}
+
 		UE_LOG(LogTemp, Display, TEXT("Saved dump index JSON: %s"), *IndexFilePath);
 		UE_LOG(LogTemp, Display, TEXT("Saved dump dependency index JSON: %s"), *DependencyIndexFilePath);
+				UE_LOG(LogTemp, Display, TEXT("Saved dump asset index JSON: %s (%s)"), *AssetIndexFilePath, *AssetIndexContractDetail);
+		UE_LOG(LogTemp, Display, TEXT("Saved dump section index JSON: %s (%s)"), *SectionIndexFilePath, *SectionIndexContractDetail);
 		return 0;
 	}
 
@@ -4986,9 +7465,28 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		&& !ModeValue.Equals(TEXT("batchdump"), ESearchCase::IgnoreCase)
 		&& !ModeValue.Equals(TEXT("validate"), ESearchCase::IgnoreCase)
 		&& !ModeValue.Equals(TEXT("makefixtures"), ESearchCase::IgnoreCase);
-	if (bRequireExplicitOutputPath && !GetCmdValue(CommandLine, TEXT("Output="), OutputFilePath))
+		if (bRequireExplicitOutputPath && !GetCmdValue(CommandLine, TEXT("Output="), OutputFilePath))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Missing -Output=. Example: -Output=C:/Temp/out.json"));
+				if (ModeValue.Equals(TEXT("sectiondump"), ESearchCase::IgnoreCase))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_LAZY_DUMP_OUTPUT_REQUIRED: -Mode=sectiondump requires explicit -Output=."));
+		}
+				else if (ModeValue.Equals(TEXT("dependencyquery"), ESearchCase::IgnoreCase))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_OUTPUT_REQUIRED: -Mode=dependencyquery requires explicit -Output=."));
+		}
+				else if (ModeValue.Equals(TEXT("query"), ESearchCase::IgnoreCase))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_OUTPUT_REQUIRED: -Mode=query requires explicit -Output=."));
+		}
+		else if (ModeValue.Equals(TEXT("contextbundle"), ESearchCase::IgnoreCase))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_OUTPUT_REQUIRED: -Mode=contextbundle requires explicit -Output=."));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Missing -Output=. Example: -Output=C:/Temp/out.json"));
+		}
 		return 1;
 	}
 
@@ -5053,6 +7551,512 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 		UE_LOG(LogTemp, Display, TEXT("Saved validation report JSON: %s"), *OutputFilePath);
 		return ValidationFailureCount > 0 ? 2 : 0;
+	}
+					else if (ModeValue.Equals(TEXT("contextbundle"), ESearchCase::IgnoreCase))
+	{
+		FString InputFilePath;
+		if (!GetCmdValue(CommandLine, TEXT("Input="), InputFilePath)
+			|| InputFilePath.TrimStartAndEnd().IsEmpty())
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_INPUT_REQUIRED: -Mode=contextbundle requires explicit -Input=."));
+			return 1;
+		}
+		InputFilePath = InputFilePath.TrimStartAndEnd();
+
+		const TCHAR* UnsupportedOptionTokenArray[] = {
+			TEXT("DumpRoot="), TEXT("Asset="), TEXT("AssetId="), TEXT("QueryKind="), TEXT("ResultSchema="),
+			TEXT("Sections="), TEXT("Direction="), TEXT("Strength="), TEXT("MaxDepth="), TEXT("MaxNodes="),
+			TEXT("MaxEdges="), TEXT("Intent="), TEXT("Profile=")
+		};
+		for (const TCHAR* UnsupportedOptionToken : UnsupportedOptionTokenArray)
+		{
+			if (CommandLine.Contains(UnsupportedOptionToken, ESearchCase::IgnoreCase))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_OPTION_UNSUPPORTED: contextbundle does not accept query or dump-generation options."));
+				return 1;
+			}
+		}
+
+		auto TryParseBoundedInteger = [](const FString& InText, int32 InMinimum, int32 InMaximum, int32& OutValue)
+		{
+			if (InText.IsEmpty()) return false;
+			for (int32 CharacterIndex = 0; CharacterIndex < InText.Len(); ++CharacterIndex)
+			{
+				if (!FChar::IsDigit(InText[CharacterIndex])) return false;
+			}
+			OutValue = FCString::Atoi(*InText);
+			return OutValue >= InMinimum && OutValue <= InMaximum;
+		};
+
+		int32 MaxItems = 64;
+		FString MaxItemsText;
+		if (CommandLine.Contains(TEXT("MaxItems="), ESearchCase::IgnoreCase))
+		{
+			GetCmdValue(CommandLine, TEXT("MaxItems="), MaxItemsText);
+			if (!TryParseBoundedInteger(MaxItemsText.TrimStartAndEnd(), 1, 256, MaxItems))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_MAX_ITEMS_INVALID: MaxItems must be an integer from 1 through 256."));
+				return 1;
+			}
+		}
+
+		int32 MaxBytes = 262144;
+		FString MaxBytesText;
+		if (CommandLine.Contains(TEXT("MaxBytes="), ESearchCase::IgnoreCase))
+		{
+			GetCmdValue(CommandLine, TEXT("MaxBytes="), MaxBytesText);
+			if (!TryParseBoundedInteger(MaxBytesText.TrimStartAndEnd(), 4096, 1048576, MaxBytes))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_MAX_BYTES_INVALID: MaxBytes must be an integer from 4096 through 1048576."));
+				return 1;
+			}
+		}
+
+		InputFilePath = FPaths::ConvertRelativePathToFull(InputFilePath);
+		OutputFilePath = FPaths::ConvertRelativePathToFull(OutputFilePath);
+		FPaths::NormalizeFilename(InputFilePath);
+		FPaths::NormalizeFilename(OutputFilePath);
+		FPaths::CollapseRelativeDirectories(InputFilePath);
+		FPaths::CollapseRelativeDirectories(OutputFilePath);
+		if (InputFilePath.Equals(OutputFilePath, ESearchCase::IgnoreCase))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_INPUT_OUTPUT_CONFLICT: Input and Output must resolve to different files."));
+			return 1;
+		}
+
+		const int64 InputFileSize = IFileManager::Get().FileSize(*InputFilePath);
+		if (InputFileSize < 0)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_INPUT_NOT_FOUND: Input file does not exist: %s"), *InputFilePath);
+			return 2;
+		}
+		if (InputFileSize > 16ll * 1024ll * 1024ll)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_INPUT_TOO_LARGE: Input file exceeds 16 MiB: %s"), *InputFilePath);
+			return 2;
+		}
+
+		TSharedPtr<FJsonObject> InputRootObject;
+		if (!LoadCommandletJsonObjectFromFile(InputFilePath, InputRootObject))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_INPUT_JSON_INVALID: Input is not a readable JSON object: %s"), *InputFilePath);
+			return 2;
+		}
+
+		FString ContextErrorCode;
+		FString ContextErrorDetail;
+		if (!BuildCommandletAIContextBundleJson(
+			InputRootObject,
+			MaxItems,
+			MaxBytes,
+			JsonText,
+			ContextErrorCode,
+			ContextErrorDetail))
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s: %s"), *ContextErrorCode, *ContextErrorDetail);
+			return 2;
+		}
+
+		FString SaveErrorMessage;
+		if (!ADumpJson::SaveJsonTextToFile(OutputFilePath, JsonText, SaveErrorMessage))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_CONTEXT_OUTPUT_WRITE_FAILED: %s"), *SaveErrorMessage);
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved AI context bundle JSON: %s"), *OutputFilePath);
+		return 0;
+	}
+	else if (ModeValue.Equals(TEXT("query"), ESearchCase::IgnoreCase))
+	{
+		FString QueryKindText;
+		if (!GetCmdValue(CommandLine, TEXT("QueryKind="), QueryKindText)
+			|| QueryKindText.TrimStartAndEnd().IsEmpty())
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_KIND_REQUIRED: -Mode=query requires -QueryKind=section|dependency."));
+			return 1;
+		}
+		QueryKindText = QueryKindText.TrimStartAndEnd().ToLower();
+		if (QueryKindText != TEXT("section") && QueryKindText != TEXT("dependency"))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_KIND_INVALID: QueryKind must be section or dependency."));
+			return 1;
+		}
+
+						FString ResultSchemaText = TEXT("native");
+		FString ExplicitResultSchemaText;
+		const bool bHasResultSchemaOption = CommandLine.Contains(TEXT("ResultSchema="), ESearchCase::IgnoreCase);
+		if (bHasResultSchemaOption)
+		{
+			GetCmdValue(CommandLine, TEXT("ResultSchema="), ExplicitResultSchemaText);
+			ResultSchemaText = ExplicitResultSchemaText.TrimStartAndEnd().ToLower();
+			if (ResultSchemaText != TEXT("native") && ResultSchemaText != TEXT("query_result_v1"))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_RESULT_SCHEMA_INVALID: ResultSchema must be native or query_result_v1."));
+				return 1;
+			}
+		}
+
+		FString UnsupportedOptionValue;
+		if (GetCmdValue(CommandLine, TEXT("Intent="), UnsupportedOptionValue)
+			|| GetCmdValue(CommandLine, TEXT("Profile="), UnsupportedOptionValue))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_OPTION_UNSUPPORTED: query mode does not accept Intent or Profile."));
+			return 1;
+		}
+
+		FString AssetIdSelector;
+		const bool bHasAssetSelector = GetCmdValue(CommandLine, TEXT("Asset="), AssetPath) && !AssetPath.IsEmpty();
+		const bool bHasAssetIdSelector = GetCmdValue(CommandLine, TEXT("AssetId="), AssetIdSelector) && !AssetIdSelector.IsEmpty();
+		if (!bHasAssetSelector && !bHasAssetIdSelector)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_SELECTOR_REQUIRED: Provide exactly one of -Asset= or -AssetId=."));
+			return 1;
+		}
+		if (bHasAssetSelector && bHasAssetIdSelector)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_SELECTOR_CONFLICT: -Asset= and -AssetId= cannot be used together."));
+			return 1;
+		}
+
+		FString DumpRootPath;
+		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
+		{
+			DumpRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDump"));
+		}
+
+		if (QueryKindText == TEXT("section"))
+		{
+			if (GetCmdValue(CommandLine, TEXT("Direction="), UnsupportedOptionValue)
+				|| GetCmdValue(CommandLine, TEXT("Strength="), UnsupportedOptionValue)
+				|| GetCmdValue(CommandLine, TEXT("MaxDepth="), UnsupportedOptionValue)
+				|| GetCmdValue(CommandLine, TEXT("MaxNodes="), UnsupportedOptionValue)
+				|| GetCmdValue(CommandLine, TEXT("MaxEdges="), UnsupportedOptionValue))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_OPTION_UNSUPPORTED: QueryKind=section does not accept dependency traversal options."));
+				return 1;
+			}
+
+			FString ExplicitSectionListText;
+			if (!GetCmdValue(CommandLine, TEXT("Sections="), ExplicitSectionListText)
+				|| ExplicitSectionListText.TrimStartAndEnd().IsEmpty())
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_SECTIONS_REQUIRED: QueryKind=section requires explicit -Sections=."));
+				return 1;
+			}
+
+			FADumpSectionSelection QuerySectionSelection;
+			FString QuerySectionError;
+			if (!TryParseSectionSelection(CommandLine, QuerySectionSelection, QuerySectionError)
+				|| QuerySectionSelection.IsFullMode())
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_OPTION_UNSUPPORTED: %s"), *QuerySectionError);
+				return 1;
+			}
+
+			FString LazyDumpErrorCode;
+			FString LazyDumpErrorDetail;
+			if (!BuildCommandletLazySectionDumpJson(
+				DumpRootPath,
+				bHasAssetSelector ? AssetPath : FString(),
+				bHasAssetIdSelector ? AssetIdSelector : FString(),
+				QuerySectionSelection,
+				JsonText,
+				LazyDumpErrorCode,
+				LazyDumpErrorDetail))
+			{
+				UE_LOG(LogTemp, Error, TEXT("%s: %s"), *LazyDumpErrorCode, *LazyDumpErrorDetail);
+				return 2;
+			}
+		}
+		else
+		{
+			if (GetCmdValue(CommandLine, TEXT("Sections="), UnsupportedOptionValue))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_OPTION_UNSUPPORTED: QueryKind=dependency does not accept Sections."));
+				return 1;
+			}
+
+			FString DirectionText = TEXT("dependencies");
+			GetCmdValue(CommandLine, TEXT("Direction="), DirectionText);
+			DirectionText = DirectionText.TrimStartAndEnd().ToLower();
+			if (DirectionText != TEXT("dependencies")
+				&& DirectionText != TEXT("referencers")
+				&& DirectionText != TEXT("both"))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_DIRECTION_INVALID: Direction must be dependencies, referencers or both."));
+				return 1;
+			}
+
+			FString StrengthText = TEXT("all");
+			GetCmdValue(CommandLine, TEXT("Strength="), StrengthText);
+			StrengthText = StrengthText.TrimStartAndEnd().ToLower();
+			if (StrengthText != TEXT("all") && StrengthText != TEXT("hard") && StrengthText != TEXT("soft"))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_STRENGTH_INVALID: Strength must be all, hard or soft."));
+				return 1;
+			}
+
+			auto TryParseBoundedInteger = [](const FString& InText, int32 InMinimum, int32 InMaximum, int32& OutValue)
+			{
+				if (InText.IsEmpty()) return false;
+				for (int32 CharacterIndex = 0; CharacterIndex < InText.Len(); ++CharacterIndex)
+				{
+					if (!FChar::IsDigit(InText[CharacterIndex])) return false;
+				}
+				OutValue = FCString::Atoi(*InText);
+				return OutValue >= InMinimum && OutValue <= InMaximum;
+			};
+
+			int32 MaxDepth = 1;
+			int32 MaxNodes = 64;
+			int32 MaxEdges = 128;
+			FString BoundText;
+			if (GetCmdValue(CommandLine, TEXT("MaxDepth="), BoundText)
+				&& !TryParseBoundedInteger(BoundText.TrimStartAndEnd(), 1, 8, MaxDepth))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_MAX_DEPTH_INVALID: MaxDepth must be an integer from 1 through 8."));
+				return 1;
+			}
+			if (GetCmdValue(CommandLine, TEXT("MaxNodes="), BoundText)
+				&& !TryParseBoundedInteger(BoundText.TrimStartAndEnd(), 1, 256, MaxNodes))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_MAX_NODES_INVALID: MaxNodes must be an integer from 1 through 256."));
+				return 1;
+			}
+			if (GetCmdValue(CommandLine, TEXT("MaxEdges="), BoundText)
+				&& !TryParseBoundedInteger(BoundText.TrimStartAndEnd(), 1, 512, MaxEdges))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_MAX_EDGES_INVALID: MaxEdges must be an integer from 1 through 512."));
+				return 1;
+			}
+
+			FString QueryErrorCode;
+			FString QueryErrorDetail;
+			if (!BuildCommandletDependencyTraceQueryJson(
+				DumpRootPath,
+				bHasAssetSelector ? AssetPath : FString(),
+				bHasAssetIdSelector ? AssetIdSelector : FString(),
+				DirectionText,
+				StrengthText,
+				MaxDepth,
+				MaxNodes,
+				MaxEdges,
+				JsonText,
+				QueryErrorCode,
+				QueryErrorDetail))
+			{
+				UE_LOG(LogTemp, Error, TEXT("%s: %s"), *QueryErrorCode, *QueryErrorDetail);
+				return 2;
+			}
+		}
+
+				if (ResultSchemaText == TEXT("query_result_v1"))
+		{
+			FString WrappedJsonText;
+			FString WrapErrorDetail;
+			if (!BuildCommandletQueryResultJson(
+				QueryKindText,
+				bHasAssetSelector ? TEXT("object_path") : TEXT("asset_id"),
+				JsonText,
+				WrappedJsonText,
+				WrapErrorDetail))
+			{
+				UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_RESULT_WRAP_FAILED: %s"), *WrapErrorDetail);
+				return 2;
+			}
+			JsonText = MoveTemp(WrappedJsonText);
+		}
+
+		FString SaveErrorMessage;
+		if (!ADumpJson::SaveJsonTextToFile(OutputFilePath, JsonText, SaveErrorMessage))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_QUERY_OUTPUT_WRITE_FAILED: %s"), *SaveErrorMessage);
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved query JSON (%s, result_schema=%s): %s"), *QueryKindText, *ResultSchemaText, *OutputFilePath);
+		return 0;
+	}
+	else if (ModeValue.Equals(TEXT("dependencyquery"), ESearchCase::IgnoreCase))
+	{
+		FString UnsupportedOptionValue;
+				if (GetCmdValue(CommandLine, TEXT("Sections="), UnsupportedOptionValue)
+			|| GetCmdValue(CommandLine, TEXT("Intent="), UnsupportedOptionValue)
+			|| GetCmdValue(CommandLine, TEXT("Profile="), UnsupportedOptionValue)
+			|| GetCmdValue(CommandLine, TEXT("ResultSchema="), UnsupportedOptionValue))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_OPTION_UNSUPPORTED: dependencyquery does not accept Sections, Intent, Profile or ResultSchema."));
+			return 1;
+		}
+
+		FString AssetIdSelector;
+		const bool bHasAssetSelector = GetCmdValue(CommandLine, TEXT("Asset="), AssetPath) && !AssetPath.IsEmpty();
+		const bool bHasAssetIdSelector = GetCmdValue(CommandLine, TEXT("AssetId="), AssetIdSelector) && !AssetIdSelector.IsEmpty();
+		if (!bHasAssetSelector && !bHasAssetIdSelector)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_SELECTOR_REQUIRED: Provide exactly one of -Asset= or -AssetId=."));
+			return 1;
+		}
+		if (bHasAssetSelector && bHasAssetIdSelector)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_SELECTOR_CONFLICT: -Asset= and -AssetId= cannot be used together."));
+			return 1;
+		}
+
+		FString DirectionText = TEXT("dependencies");
+		GetCmdValue(CommandLine, TEXT("Direction="), DirectionText);
+		DirectionText = DirectionText.TrimStartAndEnd().ToLower();
+		if (DirectionText != TEXT("dependencies")
+			&& DirectionText != TEXT("referencers")
+			&& DirectionText != TEXT("both"))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_DIRECTION_INVALID: Direction must be dependencies, referencers or both."));
+			return 1;
+		}
+
+		FString StrengthText = TEXT("all");
+		GetCmdValue(CommandLine, TEXT("Strength="), StrengthText);
+		StrengthText = StrengthText.TrimStartAndEnd().ToLower();
+		if (StrengthText != TEXT("all") && StrengthText != TEXT("hard") && StrengthText != TEXT("soft"))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_STRENGTH_INVALID: Strength must be all, hard or soft."));
+			return 1;
+		}
+
+		auto TryParseBoundedInteger = [](const FString& InText, int32 InMinimum, int32 InMaximum, int32& OutValue)
+		{
+			if (InText.IsEmpty()) return false;
+			for (int32 CharacterIndex = 0; CharacterIndex < InText.Len(); ++CharacterIndex)
+			{
+				if (!FChar::IsDigit(InText[CharacterIndex])) return false;
+			}
+			OutValue = FCString::Atoi(*InText);
+			return OutValue >= InMinimum && OutValue <= InMaximum;
+		};
+
+		int32 MaxDepth = 1;
+		int32 MaxNodes = 64;
+		int32 MaxEdges = 128;
+		FString BoundText;
+		if (GetCmdValue(CommandLine, TEXT("MaxDepth="), BoundText)
+			&& !TryParseBoundedInteger(BoundText.TrimStartAndEnd(), 1, 8, MaxDepth))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_MAX_DEPTH_INVALID: MaxDepth must be an integer from 1 through 8."));
+			return 1;
+		}
+		if (GetCmdValue(CommandLine, TEXT("MaxNodes="), BoundText)
+			&& !TryParseBoundedInteger(BoundText.TrimStartAndEnd(), 1, 256, MaxNodes))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_MAX_NODES_INVALID: MaxNodes must be an integer from 1 through 256."));
+			return 1;
+		}
+		if (GetCmdValue(CommandLine, TEXT("MaxEdges="), BoundText)
+			&& !TryParseBoundedInteger(BoundText.TrimStartAndEnd(), 1, 512, MaxEdges))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_MAX_EDGES_INVALID: MaxEdges must be an integer from 1 through 512."));
+			return 1;
+		}
+
+		FString DumpRootPath;
+		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
+		{
+			DumpRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDump"));
+		}
+
+		FString QueryErrorCode;
+		FString QueryErrorDetail;
+		if (!BuildCommandletDependencyTraceQueryJson(
+			DumpRootPath,
+			bHasAssetSelector ? AssetPath : FString(),
+			bHasAssetIdSelector ? AssetIdSelector : FString(),
+			DirectionText,
+			StrengthText,
+			MaxDepth,
+			MaxNodes,
+			MaxEdges,
+			JsonText,
+			QueryErrorCode,
+			QueryErrorDetail))
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s: %s"), *QueryErrorCode, *QueryErrorDetail);
+			return 2;
+		}
+
+		FString SaveErrorMessage;
+		if (!ADumpJson::SaveJsonTextToFile(OutputFilePath, JsonText, SaveErrorMessage))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_DEP_QUERY_OUTPUT_WRITE_FAILED: %s"), *SaveErrorMessage);
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved dependency trace query JSON: %s"), *OutputFilePath);
+		return 0;
+	}
+	else if (ModeValue.Equals(TEXT("sectiondump"), ESearchCase::IgnoreCase))
+	{
+		FString ExplicitSectionListText;
+		if (!GetCmdValue(CommandLine, TEXT("Sections="), ExplicitSectionListText)
+			|| ExplicitSectionListText.TrimStartAndEnd().IsEmpty()
+			|| SectionSelection.IsFullMode())
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_LAZY_DUMP_SECTIONS_REQUIRED: -Mode=sectiondump requires explicit -Sections=."));
+			return 1;
+		}
+
+				FString DirectResultSchemaValue;
+		if (!IntentName.IsEmpty()
+			|| !ProfileName.IsEmpty()
+			|| GetCmdValue(CommandLine, TEXT("ResultSchema="), DirectResultSchemaValue))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_LAZY_DUMP_SELECTION_SOURCE_UNSUPPORTED: -Mode=sectiondump accepts explicit -Sections= only; Intent, Profile and ResultSchema are not supported."));
+			return 1;
+		}
+
+		FString AssetIdSelector;
+		const bool bHasAssetSelector = GetCmdValue(CommandLine, TEXT("Asset="), AssetPath) && !AssetPath.IsEmpty();
+		const bool bHasAssetIdSelector = GetCmdValue(CommandLine, TEXT("AssetId="), AssetIdSelector) && !AssetIdSelector.IsEmpty();
+		if (!bHasAssetSelector && !bHasAssetIdSelector)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_LAZY_DUMP_SELECTOR_REQUIRED: Provide exactly one of -Asset= or -AssetId=."));
+			return 1;
+		}
+		if (bHasAssetSelector && bHasAssetIdSelector)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_LAZY_DUMP_SELECTOR_CONFLICT: -Asset= and -AssetId= cannot be used together."));
+			return 1;
+		}
+
+		FString DumpRootPath;
+		if (!GetCmdValue(CommandLine, TEXT("DumpRoot="), DumpRootPath))
+		{
+			DumpRootPath = FPaths::Combine(ADumpJson::BuildDefaultDumpRootDirectory(), TEXT("BPDump"));
+		}
+
+		FString LazyDumpErrorCode;
+		FString LazyDumpErrorDetail;
+		if (!BuildCommandletLazySectionDumpJson(
+			DumpRootPath,
+			bHasAssetSelector ? AssetPath : FString(),
+			bHasAssetIdSelector ? AssetIdSelector : FString(),
+			SectionSelection,
+			JsonText,
+			LazyDumpErrorCode,
+			LazyDumpErrorDetail))
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s: %s"), *LazyDumpErrorCode, *LazyDumpErrorDetail);
+			return 2;
+		}
+
+		FString SaveErrorMessage;
+		if (!ADumpJson::SaveJsonTextToFile(OutputFilePath, JsonText, SaveErrorMessage))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ADUMP_LAZY_DUMP_OUTPUT_WRITE_FAILED: %s"), *SaveErrorMessage);
+			return 3;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Saved lazy section dump JSON: %s"), *OutputFilePath);
+		return 0;
 	}
 	else if (ModeValue.Equals(TEXT("list"), ESearchCase::IgnoreCase))
 	{
@@ -5379,11 +8383,37 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		// IndexFilePath는 배치 종료 후 생성한 index.json 경로다.
 		FString IndexFilePath;
 
-		// DependencyIndexFilePath는 배치 종료 후 생성한 dependency_index.json 경로다.
+				// DependencyIndexFilePath는 배치 종료 후 생성한 dependency_index.json 경로다.
 		FString DependencyIndexFilePath;
 
-		// bIndexBuilt는 배치 종료 후 인덱스 재생성 성공 여부다.
-		const bool bIndexBuilt = !bRebuildIndexAfterBatch || BuildDumpIndexFiles(DumpRootPath, IndexFilePath, DependencyIndexFilePath);
+				// AssetIndexFilePath는 배치 종료 후 생성한 asset_index.json 경로다.
+		FString AssetIndexFilePath;
+
+		// SectionIndexFilePath는 배치 종료 후 생성한 section_index.json 경로다.
+		FString SectionIndexFilePath;
+
+		// bIndexBuilt는 배치 종료 후 네 인덱스 재생성 성공 여부다.
+		const bool bIndexBuilt = !bRebuildIndexAfterBatch
+			|| BuildDumpIndexFiles(DumpRootPath, IndexFilePath, DependencyIndexFilePath, AssetIndexFilePath, SectionIndexFilePath);
+
+		int32 AssetIndexAssetCount = 0;
+		FString AssetIndexContractDetail = bRebuildIndexAfterBatch ? FString() : TEXT("not_requested");
+				const bool bAssetIndexContractPassed = bRebuildIndexAfterBatch
+			&& bIndexBuilt
+			&& ValidateCommandletAssetIndexContract(AssetIndexFilePath, AssetIndexAssetCount, AssetIndexContractDetail);
+
+		int32 SectionIndexSectionCount = 0;
+		int32 SectionIndexSymbolCount = 0;
+		FString SectionIndexContractDetail = bRebuildIndexAfterBatch ? FString() : TEXT("not_requested");
+		const bool bSectionIndexContractPassed = bRebuildIndexAfterBatch
+			&& bAssetIndexContractPassed
+			&& ValidateCommandletSectionIndexContract(
+				SectionIndexFilePath,
+				AssetIndexFilePath,
+				DumpRootPath,
+				SectionIndexSectionCount,
+				SectionIndexSymbolCount,
+				SectionIndexContractDetail);
 
 		// GeneratedTimeText는 이번 배치 실행 완료 시각이다.
 		const FString GeneratedTimeText = FDateTime::UtcNow().ToIso8601();
@@ -5400,8 +8430,19 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 		BatchRootObject->SetNumberField(TEXT("max_assets"), MaxAssets);
 		BatchRootObject->SetBoolField(TEXT("rebuild_index"), bRebuildIndexAfterBatch);
 		BatchRootObject->SetBoolField(TEXT("index_built"), bIndexBuilt);
-		BatchRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
+				BatchRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
 		BatchRootObject->SetStringField(TEXT("dependency_index_file_path"), DependencyIndexFilePath);
+				BatchRootObject->SetStringField(TEXT("asset_index_file_path"), AssetIndexFilePath);
+		BatchRootObject->SetStringField(TEXT("asset_index_schema_version"), bAssetIndexContractPassed ? TEXT("asset_index_v1") : FString());
+		BatchRootObject->SetBoolField(TEXT("asset_index_contract_passed"), bAssetIndexContractPassed);
+		BatchRootObject->SetNumberField(TEXT("asset_index_asset_count"), AssetIndexAssetCount);
+				BatchRootObject->SetStringField(TEXT("asset_index_contract_detail"), AssetIndexContractDetail);
+		BatchRootObject->SetStringField(TEXT("section_index_file_path"), SectionIndexFilePath);
+		BatchRootObject->SetStringField(TEXT("section_index_schema_version"), bSectionIndexContractPassed ? TEXT("section_index_v1") : FString());
+		BatchRootObject->SetBoolField(TEXT("section_index_contract_passed"), bSectionIndexContractPassed);
+		BatchRootObject->SetNumberField(TEXT("section_index_section_count"), SectionIndexSectionCount);
+		BatchRootObject->SetNumberField(TEXT("section_index_symbol_count"), SectionIndexSymbolCount);
+		BatchRootObject->SetStringField(TEXT("section_index_contract_detail"), SectionIndexContractDetail);
 		BatchRootObject->SetNumberField(TEXT("asset_count"), FoundAssets.Num());
 		BatchRootObject->SetNumberField(TEXT("succeeded_count"), SucceededCount);
 		BatchRootObject->SetNumberField(TEXT("skipped_count"), SkippedCount);
@@ -5589,8 +8630,18 @@ bool UAssetDumpCommandlet::BuildMapJson(const FString& MapAssetPath, FString& Ou
 	return SerializeJsonObjectText(RootObject, OutJsonText);
 }
 
-bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FString& OutIndexFilePath, FString& OutDependencyIndexFilePath)
+bool UAssetDumpCommandlet::BuildDumpIndexFiles(
+	const FString& DumpRootPath,
+	FString& OutIndexFilePath,
+	FString& OutDependencyIndexFilePath,
+	FString& OutAssetIndexFilePath,
+	FString& OutSectionIndexFilePath)
 {
+	OutIndexFilePath.Reset();
+	OutDependencyIndexFilePath.Reset();
+	OutAssetIndexFilePath.Reset();
+	OutSectionIndexFilePath.Reset();
+
 	// NormalizedDumpRootPath는 인덱스 생성 대상 dump 루트 절대 경로다.
 	const FString NormalizedDumpRootPath = FPaths::ConvertRelativePathToFull(DumpRootPath);
 
@@ -5601,8 +8652,29 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FStr
 	// AssetEntryArray는 index.json 의 assets 배열 누적값이다.
 	TArray<TSharedPtr<FJsonValue>> AssetEntryArray;
 
-	// RelationEntryArray는 dependency_index.json 의 relations 배열 누적값이다.
+		// RelationEntryArray는 dependency_index.json 의 relations 배열 누적값이다.
 	TArray<TSharedPtr<FJsonValue>> RelationEntryArray;
+
+		// AssetIndexEntryObjectArray는 asset_index.json 의 assets object 누적값이다.
+	TArray<TSharedPtr<FJsonObject>> AssetIndexEntryObjectArray;
+
+	// SectionIndexEntryObjectArray는 section_index.json sections object 누적값이다.
+	TArray<TSharedPtr<FJsonObject>> SectionIndexEntryObjectArray;
+
+	// SectionIndexSymbolObjectArray는 section_index.json symbols object 누적값이다.
+	TArray<TSharedPtr<FJsonObject>> SectionIndexSymbolObjectArray;
+
+	// ReadyAssetCount는 main dump가 존재하고 정상 JSON인 asset index entry 수다.
+	int32 ReadyAssetCount = 0;
+
+	// IncompleteAssetCount는 main dump가 없거나 malformed인 asset index entry 수다.
+	int32 IncompleteAssetCount = 0;
+
+	// MalformedManifestCount는 읽을 수 없거나 object_path가 없는 manifest 수다.
+	int32 MalformedManifestCount = 0;
+
+	// DuplicateManifestCount는 선택되지 않은 valid duplicate manifest 수다.
+	int32 DuplicateManifestCount = 0;
 
 	// UniqueRelationKeys는 relation 중복 누적을 막는다.
 	TSet<FString> UniqueRelationKeys;
@@ -5610,27 +8682,34 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FStr
 	// SelectedManifestPathByObjectPath는 같은 자산 경로가 여러 dump 폴더에 있을 때 최신 manifest 경로만 유지한다.
 	TMap<FString, FString> SelectedManifestPathByObjectPath;
 
-	// SelectedGeneratedTimeByObjectPath는 자산 경로별 최신 generated_time 비교 기준이다.
+		// SelectedGeneratedTimeByObjectPath는 자산 경로별 최신 generated_time 비교 기준이다.
 	TMap<FString, FString> SelectedGeneratedTimeByObjectPath;
 
-	for (const FString& ManifestFilePath : ManifestFilePathArray)
+	// ValidManifestCountByObjectPath는 object_path별 valid manifest 수를 집계한다.
+	TMap<FString, int32> ValidManifestCountByObjectPath;
+
+		for (const FString& ManifestFilePath : ManifestFilePathArray)
 	{
 		// ManifestRootObject는 manifest.json 역직렬화 결과다.
 		TSharedPtr<FJsonObject> ManifestRootObject;
 		if (!LoadCommandletJsonObjectFromFile(ManifestFilePath, ManifestRootObject))
 		{
+			++MalformedManifestCount;
 			continue;
 		}
 
 		// AssetObject는 manifest.asset object다.
 		const TSharedPtr<FJsonObject> AssetObject = GetCommandletNestedObjectField(ManifestRootObject, TEXT("asset"));
 
-		// ObjectPathText는 현재 dump가 대표하는 자산 경로다.
+				// ObjectPathText는 현재 dump가 대표하는 자산 경로다.
 		const FString ObjectPathText = GetCommandletStringFieldOrEmpty(AssetObject, TEXT("object_path"));
 		if (ObjectPathText.IsEmpty())
 		{
+			++MalformedManifestCount;
 			continue;
 		}
+
+		++ValidManifestCountByObjectPath.FindOrAdd(ObjectPathText);
 
 		// GeneratedTimeText는 최신 manifest 판별에 사용할 generated_time 문자열이다.
 		const FString GeneratedTimeText = GetCommandletStringFieldOrEmpty(ManifestRootObject, TEXT("generated_time"));
@@ -5642,6 +8721,11 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FStr
 			SelectedGeneratedTimeByObjectPath.Add(ObjectPathText, GeneratedTimeText);
 			SelectedManifestPathByObjectPath.Add(ObjectPathText, ManifestFilePath);
 		}
+		}
+
+	for (const TPair<FString, int32>& ValidManifestCountPair : ValidManifestCountByObjectPath)
+	{
+		DuplicateManifestCount += FMath::Max(0, ValidManifestCountPair.Value - 1);
 	}
 
 	for (const TPair<FString, FString>& SelectedManifestPair : SelectedManifestPathByObjectPath)
@@ -5703,8 +8787,34 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FStr
 		AssetEntryObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
 		AssetEntryObject->SetStringField(TEXT("fingerprint"), FingerprintText);
 		AssetEntryObject->SetStringField(TEXT("manifest_path"), ManifestRelativePath);
-		AssetEntryObject->SetStringField(TEXT("digest_path"), DigestRelativePath);
+				AssetEntryObject->SetStringField(TEXT("digest_path"), DigestRelativePath);
 		AssetEntryArray.Add(MakeShared<FJsonValueObject>(AssetEntryObject));
+
+		// AssetIndexEntryObject는 selected manifest와 실제 output 파일에서 만든 v0.9.0 entry다.
+		TSharedPtr<FJsonObject> AssetIndexEntryObject;
+		bool bAssetIndexEntryReady = false;
+				if (BuildCommandletAssetIndexEntry(ManifestFilePath, NormalizedDumpRootPath, AssetIndexEntryObject, bAssetIndexEntryReady)
+			&& AssetIndexEntryObject.IsValid())
+		{
+			AssetIndexEntryObjectArray.Add(AssetIndexEntryObject);
+			if (bAssetIndexEntryReady)
+			{
+				++ReadyAssetCount;
+			}
+			else
+			{
+				++IncompleteAssetCount;
+			}
+
+			if (!BuildCommandletSectionIndexEntries(
+				AssetIndexEntryObject,
+				NormalizedDumpRootPath,
+				SectionIndexEntryObjectArray,
+				SectionIndexSymbolObjectArray))
+			{
+				return false;
+			}
+		}
 
 		// ReferencesFilePath는 dependency_index 생성에 사용할 references.json 경로다.
 		const FString ReferencesFilePath = FPaths::Combine(DumpDirectoryPath, TEXT("references.json"));
@@ -5808,6 +8918,92 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FStr
 			return GetCommandletStringFieldOrEmpty(AssetEntryObject, TEXT("asset_key"));
 		});
 
+		Algo::SortBy(
+		AssetIndexEntryObjectArray,
+		[](const TSharedPtr<FJsonObject>& InObject)
+		{
+			return GetCommandletStringFieldOrEmpty(InObject, TEXT("object_path"));
+		});
+
+		// AssetIndexEntryArray는 순차 asset_id가 부여된 asset_index.json assets 배열이다.
+	TArray<TSharedPtr<FJsonValue>> AssetIndexEntryArray;
+	AssetIndexEntryArray.Reserve(AssetIndexEntryObjectArray.Num());
+	TMap<FString, FString> AssetIdByObjectPath;
+	for (int32 AssetIndex = 0; AssetIndex < AssetIndexEntryObjectArray.Num(); ++AssetIndex)
+	{
+		const TSharedPtr<FJsonObject>& AssetIndexEntryObject = AssetIndexEntryObjectArray[AssetIndex];
+		if (!AssetIndexEntryObject.IsValid())
+		{
+			continue;
+		}
+
+		const FString AssetIdText = FString::Printf(TEXT("asset_%04d"), AssetIndex);
+		AssetIndexEntryObject->SetStringField(TEXT("asset_id"), AssetIdText);
+		AssetIdByObjectPath.Add(GetCommandletStringFieldOrEmpty(AssetIndexEntryObject, TEXT("object_path")), AssetIdText);
+		AssetIndexEntryArray.Add(MakeShared<FJsonValueObject>(AssetIndexEntryObject.ToSharedRef()));
+	}
+
+	for (const TSharedPtr<FJsonObject>& SectionEntryObject : SectionIndexEntryObjectArray)
+	{
+		if (!SectionEntryObject.IsValid())
+		{
+			return false;
+		}
+		const FString AssetIdText = AssetIdByObjectPath.FindRef(GetCommandletStringFieldOrEmpty(SectionEntryObject, TEXT("object_path")));
+		if (AssetIdText.IsEmpty())
+		{
+			return false;
+		}
+		SectionEntryObject->SetStringField(TEXT("asset_id"), AssetIdText);
+	}
+
+	for (const TSharedPtr<FJsonObject>& SymbolEntryObject : SectionIndexSymbolObjectArray)
+	{
+		if (!SymbolEntryObject.IsValid())
+		{
+			return false;
+		}
+		const FString AssetIdText = AssetIdByObjectPath.FindRef(GetCommandletStringFieldOrEmpty(SymbolEntryObject, TEXT("object_path")));
+		if (AssetIdText.IsEmpty())
+		{
+			return false;
+		}
+		SymbolEntryObject->SetStringField(TEXT("asset_id"), AssetIdText);
+	}
+
+	Algo::SortBy(
+		SectionIndexEntryObjectArray,
+		[](const TSharedPtr<FJsonObject>& InObject)
+		{
+			return MakeCommandletSectionSortKey(InObject);
+		});
+	Algo::SortBy(
+		SectionIndexSymbolObjectArray,
+		[](const TSharedPtr<FJsonObject>& InObject)
+		{
+			return MakeCommandletSymbolSortKey(InObject);
+		});
+
+	TArray<TSharedPtr<FJsonValue>> SectionIndexEntryArray;
+	SectionIndexEntryArray.Reserve(SectionIndexEntryObjectArray.Num());
+	TSet<FString> IndexedSectionObjectPaths;
+	for (int32 SectionIndex = 0; SectionIndex < SectionIndexEntryObjectArray.Num(); ++SectionIndex)
+	{
+		const TSharedPtr<FJsonObject>& SectionEntryObject = SectionIndexEntryObjectArray[SectionIndex];
+		SectionEntryObject->SetStringField(TEXT("section_id"), FString::Printf(TEXT("section_%05d"), SectionIndex));
+		IndexedSectionObjectPaths.Add(GetCommandletStringFieldOrEmpty(SectionEntryObject, TEXT("object_path")));
+		SectionIndexEntryArray.Add(MakeShared<FJsonValueObject>(SectionEntryObject.ToSharedRef()));
+	}
+
+	TArray<TSharedPtr<FJsonValue>> SectionIndexSymbolArray;
+	SectionIndexSymbolArray.Reserve(SectionIndexSymbolObjectArray.Num());
+	for (int32 SymbolIndex = 0; SymbolIndex < SectionIndexSymbolObjectArray.Num(); ++SymbolIndex)
+	{
+		const TSharedPtr<FJsonObject>& SymbolEntryObject = SectionIndexSymbolObjectArray[SymbolIndex];
+		SymbolEntryObject->SetStringField(TEXT("symbol_entry_id"), FString::Printf(TEXT("symbol_%06d"), SymbolIndex));
+		SectionIndexSymbolArray.Add(MakeShared<FJsonValueObject>(SymbolEntryObject.ToSharedRef()));
+	}
+
 	Algo::SortBy(
 		RelationEntryArray,
 		[](const TSharedPtr<FJsonValue>& InValue)
@@ -5832,24 +9028,59 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(const FString& DumpRootPath, FStr
 	// DependencyRootObject는 dependency_index.json 최상위 object다.
 	TSharedRef<FJsonObject> DependencyRootObject = MakeShared<FJsonObject>();
 	DependencyRootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
-	DependencyRootObject->SetNumberField(TEXT("relation_count"), RelationEntryArray.Num());
+		DependencyRootObject->SetNumberField(TEXT("relation_count"), RelationEntryArray.Num());
 	DependencyRootObject->SetArrayField(TEXT("relations"), RelationEntryArray);
+
+	// AssetIndexRootObject는 additive asset_index_v1 최상위 object다.
+	TSharedRef<FJsonObject> AssetIndexRootObject = MakeShared<FJsonObject>();
+	AssetIndexRootObject->SetStringField(TEXT("schema_version"), TEXT("asset_index_v1"));
+	AssetIndexRootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+	AssetIndexRootObject->SetNumberField(TEXT("asset_count"), AssetIndexEntryArray.Num());
+	AssetIndexRootObject->SetNumberField(TEXT("ready_asset_count"), ReadyAssetCount);
+	AssetIndexRootObject->SetNumberField(TEXT("incomplete_asset_count"), IncompleteAssetCount);
+	AssetIndexRootObject->SetNumberField(TEXT("duplicate_manifest_count"), DuplicateManifestCount);
+		AssetIndexRootObject->SetNumberField(TEXT("malformed_manifest_count"), MalformedManifestCount);
+	AssetIndexRootObject->SetArrayField(TEXT("assets"), AssetIndexEntryArray);
+
+	// SectionIndexRootObject는 additive section_index_v1 최상위 object다.
+	TSharedRef<FJsonObject> SectionIndexRootObject = MakeShared<FJsonObject>();
+	SectionIndexRootObject->SetStringField(TEXT("schema_version"), TEXT("section_index_v1"));
+	SectionIndexRootObject->SetStringField(TEXT("generated_time"), GeneratedTimeText);
+	SectionIndexRootObject->SetStringField(TEXT("asset_index_schema_version"), TEXT("asset_index_v1"));
+	SectionIndexRootObject->SetNumberField(TEXT("asset_count"), AssetIndexEntryArray.Num());
+	SectionIndexRootObject->SetNumberField(TEXT("indexed_asset_count"), IndexedSectionObjectPaths.Num());
+	SectionIndexRootObject->SetNumberField(TEXT("section_count"), SectionIndexEntryArray.Num());
+	SectionIndexRootObject->SetNumberField(TEXT("symbol_count"), SectionIndexSymbolArray.Num());
+	SectionIndexRootObject->SetArrayField(TEXT("sections"), SectionIndexEntryArray);
+	SectionIndexRootObject->SetArrayField(TEXT("symbols"), SectionIndexSymbolArray);
 
 	// IndexJsonText는 index.json 직렬화 문자열이다.
 	FString IndexJsonText;
 
-	// DependencyJsonText는 dependency_index.json 직렬화 문자열이다.
+		// DependencyJsonText는 dependency_index.json 직렬화 문자열이다.
 	FString DependencyJsonText;
+
+		// AssetIndexJsonText는 asset_index.json 직렬화 문자열이다.
+	FString AssetIndexJsonText;
+
+	// SectionIndexJsonText는 section_index.json 직렬화 문자열이다.
+	FString SectionIndexJsonText;
 	if (!SerializeJsonObjectText(IndexRootObject, IndexJsonText)
-		|| !SerializeJsonObjectText(DependencyRootObject, DependencyJsonText))
+		|| !SerializeJsonObjectText(DependencyRootObject, DependencyJsonText)
+		|| !SerializeJsonObjectText(AssetIndexRootObject, AssetIndexJsonText)
+		|| !SerializeJsonObjectText(SectionIndexRootObject, SectionIndexJsonText))
 	{
 		return false;
 	}
 
-	OutIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("index.json"));
+		OutIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("index.json"));
 	OutDependencyIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("dependency_index.json"));
+	OutAssetIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("asset_index.json"));
+	OutSectionIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("section_index.json"));
 	return SaveJsonToFile(OutIndexFilePath, IndexJsonText)
-		&& SaveJsonToFile(OutDependencyIndexFilePath, DependencyJsonText);
+		&& SaveJsonToFile(OutDependencyIndexFilePath, DependencyJsonText)
+		&& SaveJsonToFile(OutAssetIndexFilePath, AssetIndexJsonText)
+		&& SaveJsonToFile(OutSectionIndexFilePath, SectionIndexJsonText);
 }
 
 bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount)
@@ -6646,11 +9877,49 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	// IndexFilePath는 validation root 기준으로 재생성한 index.json 경로다.
 	FString IndexFilePath;
 
-	// DependencyIndexFilePath는 validation root 기준으로 재생성한 dependency_index.json 경로다.
+		// DependencyIndexFilePath는 validation root 기준으로 재생성한 dependency_index.json 경로다.
 	FString DependencyIndexFilePath;
 
-	// bIndexBuilt는 validation dump 루트 인덱스 재생성 성공 여부다.
-	const bool bIndexBuilt = BuildDumpIndexFiles(ValidationRootPath, IndexFilePath, DependencyIndexFilePath);
+		// AssetIndexFilePath는 validation root 기준으로 재생성한 asset_index.json 경로다.
+	FString AssetIndexFilePath;
+
+	// SectionIndexFilePath는 validation root 기준으로 재생성한 section_index.json 경로다.
+	FString SectionIndexFilePath;
+
+	// bIndexBuilt는 validation dump 루트 네 인덱스 재생성 성공 여부다.
+	const bool bIndexBuilt = BuildDumpIndexFiles(
+		ValidationRootPath,
+		IndexFilePath,
+		DependencyIndexFilePath,
+		AssetIndexFilePath,
+		SectionIndexFilePath);
+
+	int32 AssetIndexAssetCount = 0;
+	FString AssetIndexContractDetail;
+	const bool bAssetIndexContractPassed = bIndexBuilt
+		&& IFileManager::Get().FileExists(*IndexFilePath)
+		&& IFileManager::Get().FileExists(*DependencyIndexFilePath)
+		&& ValidateCommandletAssetIndexContract(AssetIndexFilePath, AssetIndexAssetCount, AssetIndexContractDetail);
+		if (!bAssetIndexContractPassed)
+	{
+		++OutFailureCount;
+	}
+
+	int32 SectionIndexSectionCount = 0;
+	int32 SectionIndexSymbolCount = 0;
+	FString SectionIndexContractDetail;
+	const bool bSectionIndexContractPassed = bAssetIndexContractPassed
+		&& ValidateCommandletSectionIndexContract(
+			SectionIndexFilePath,
+			AssetIndexFilePath,
+			ValidationRootPath,
+			SectionIndexSectionCount,
+			SectionIndexSymbolCount,
+			SectionIndexContractDetail);
+	if (!bSectionIndexContractPassed)
+	{
+		++OutFailureCount;
+	}
 
 	// SectionSmokeFailureCount는 자산 비의존 섹션 선택 스모크 검사 실패 개수다.
 	int32 SectionSmokeFailureCount = 0;
@@ -6669,8 +9938,19 @@ bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FStri
 	ValidationRootObject->SetNumberField(TEXT("optional_missing_count"), OptionalMissingCount);
 	ValidationRootObject->SetNumberField(TEXT("required_failed_count"), OutFailureCount);
 	ValidationRootObject->SetBoolField(TEXT("index_built"), bIndexBuilt);
-	ValidationRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
+		ValidationRootObject->SetStringField(TEXT("index_file_path"), IndexFilePath);
 	ValidationRootObject->SetStringField(TEXT("dependency_index_file_path"), DependencyIndexFilePath);
+		ValidationRootObject->SetStringField(TEXT("asset_index_file_path"), AssetIndexFilePath);
+	ValidationRootObject->SetStringField(TEXT("asset_index_schema_version"), bAssetIndexContractPassed ? TEXT("asset_index_v1") : FString());
+	ValidationRootObject->SetBoolField(TEXT("asset_index_contract_passed"), bAssetIndexContractPassed);
+	ValidationRootObject->SetNumberField(TEXT("asset_index_asset_count"), AssetIndexAssetCount);
+		ValidationRootObject->SetStringField(TEXT("asset_index_contract_detail"), AssetIndexContractDetail);
+	ValidationRootObject->SetStringField(TEXT("section_index_file_path"), SectionIndexFilePath);
+	ValidationRootObject->SetStringField(TEXT("section_index_schema_version"), bSectionIndexContractPassed ? TEXT("section_index_v1") : FString());
+	ValidationRootObject->SetBoolField(TEXT("section_index_contract_passed"), bSectionIndexContractPassed);
+	ValidationRootObject->SetNumberField(TEXT("section_index_section_count"), SectionIndexSectionCount);
+	ValidationRootObject->SetNumberField(TEXT("section_index_symbol_count"), SectionIndexSymbolCount);
+	ValidationRootObject->SetStringField(TEXT("section_index_contract_detail"), SectionIndexContractDetail);
 	ValidationRootObject->SetObjectField(TEXT("section_selection"), SectionSmokeValidationObject);
 	ValidationRootObject->SetArrayField(TEXT("cases"), ValidationCaseResultArray);
 
