@@ -1,7 +1,7 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.6
-- 최근 갱신일: 2026-07-28
+- 문서 버전: v1.9
+- 최근 갱신일: 2026-07-30
 - 문서 상태: Current
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
 
@@ -43,7 +43,7 @@ AGENTS.md
 
 | 영역 | 책임 |
 | --- | --- |
-| `AGENTS.md` | AssetDump 작업 절차, Git 보호와 검증 규칙 |
+| `AGENTS.md` | configured repository 작업 대문, `repository_instructions` 적용·Git 보호·검증 라우팅 |
 | `Documents/Document_Entry.md` | 작업 종류와 진입 경로 선택 |
 | `Documents/ActiveWork.md` | 현재 활성 작업과 마지막 작업 초점 선택 |
 | `Documents/Plan/README.md` | Plan 폴더와 대표 진입 문서 색인 |
@@ -59,12 +59,14 @@ AGENTS.md
 | 작업 종류 | 첫 진입 문서 | 다음 확인 대상 |
 | --- | --- | --- |
 | 이전 세션 복원 또는 활성 작업 전환 | `Documents/ActiveWork.md` | 대표 Plan, Git 상태와 실제 구현 |
+| Browser MCP 정책 적용 감사 | 루트 `AGENTS.md` | target-scoped `repository_instructions`, `nearest_by_target`, SHA-256와 cache 동작 |
 | Asset Intelligence 현재 계획 확인 | `Documents/Plan/README.md` | `AssetIntelligencePlan/README.md` |
 | DataAsset Diff Report Contract 이력 확인 | `Documents/ActiveWork.md` | 완료 TaskSource 이력, 스크립트와 canonical closure report |
 | 새 코드·스크립트 구현 | `AGENTS.md` | 대표 Plan의 범위·보호 계약 확인 후 Browser가 허용 파일을 직접 수정하고 가능한 검증을 수행 |
-| Standalone 구현 착수 | `Documents/Plan/StandaloneImplementationWorkOrder.md` | 현재 Phase 작업 범위와 변경 허용 파일 |
+| Standalone 독립성 후속 작업 또는 재검토 | `Documents/Plan/StandalonePlan.md` | 선택한 Current Plan, `StandaloneValidationPolicy.md`와 완료 Work Order 이력 |
 | Standalone 검증 강도 결정 | `Documents/Plan/StandaloneValidationPolicy.md` | Change Check, Task Close, Phase Close, Release 기준 |
-| 빌드 목적·엔진 경로·Editor Target 판정 | `AGENTS.md`의 엔진 바인딩 규칙 | `StandaloneValidationPolicy.md`의 Build identity 기준과 실제 build report |
+| 빌드 목적·엔진 경로·Editor Target 판정 | `Documents/Plan/StandaloneValidationPolicy.md` | Build identity 기준과 실제 build report |
+| 작업 종료 후 다음 세션·후속 작업 안내 | `AGENTS.md`의 작업 종료 후 추천 프롬프트 규칙 | `Documents/ActiveWork.md`와 대표 Plan의 다음 작업·미완료 검증 |
 | Browser 문서·증거 검토 | `Documents/ActiveWork.md` | Git diff, 저장된 report·process log와 콘텐츠 불변성 증거 |
 | 공개 commandlet 계약 확인 | `Documents/Plan/AssetIntelligencePlan/SectionRegistry_v1.md` | 실제 commandlet 구현과 보고서 |
 | 검증 정책 확인 | `Documents/Plan/AssetIntelligencePlan/ValidationPolicy_v1.md` | 실행 스크립트와 결과 로그 |
@@ -155,9 +157,47 @@ CarFight에 기록 금지
 
 GoPyMCP 역시 별도 저장소이며 GoPyMCP 내부 문서체계에서 관리한다.
 
+### 6.1 Browser MCP `repository_instructions` 감사 체크리스트
+
+Browser MCP 문서·코드 작업은 다음을 확인한다.
+
+```text
+1. 작업 대상이 configured repository `assetdump_repo` 안에 있는지 확인
+2. 쓰기 전 대상 경로를 포함한 repo.read_batch 또는 repo.search_batch 수행
+3. repository_instructions.must_follow == true 확인
+4. files[] 적용 순서가 repository root → nearest AGENTS.md인지 확인
+5. nearest_by_target이 실제 대상에 의도한 AGENTS.md를 가리키는지 확인
+6. files[].path, sha256, content_included 기록
+7. 같은 client_request_id와 동일 SHA에서 본문 재전송이 생략되는지 확인
+8. cache 만료·서버 재시작 후 target-scoped 재로딩으로 정상 진행 가능한지 확인
+9. 하위 AGENTS.md는 실제 차별 규칙이 있을 때만 존재하는지 확인
+10. Current 링크가 저장소 루트 상대 경로이며 과거 TaskSource·Work Order·YAML을 착수 gate로 요구하지 않는지 확인
+```
+
+현재 `Documents/`, `Documents/Plan/`, `Source/`, `Scripts/`, `Content/`에는 별도 `AGENTS.md`가 없으며 루트 `AGENTS.md`가 nearest instruction이다.
+`repository_instructions`는 정책 확인을 돕는 소프트 게이트이며 별도의 서버 측 pre-write 하드 게이트를 요구하지 않는다.
+
 ---
 
 ## 7. Changelog
+
+### v1.9 - 2026-07-30
+
+- 루트 `AGENTS.md`에서 분리된 build identity 상세 라우팅을 `StandaloneValidationPolicy.md`로 직접 교정.
+- Completed 상태의 `StandaloneImplementationWorkOrder.md`를 신규 착수 gate처럼 보이게 하던 라우팅을 제거하고 역사적 범위·변경 허용 기록으로 재분류.
+- 새 Standalone 후속 작업은 `StandalonePlan.md`, 선택한 Current Plan과 위험 기반 검증 정책에서 범위를 정하도록 정리.
+
+### v1.8 - 2026-07-30
+
+- Browser MCP `repository_instructions` 정책 적용 감사 라우팅과 체크리스트 추가.
+- configured repository 경계, root→nearest 적용 순서, SHA-256·본문 cache와 서버 재시작 후 재로딩 기준 명시.
+- 현재 Documents·Plan·Source·Scripts·Content에 하위 `AGENTS.md`가 없고 루트가 nearest instruction임을 기록.
+- 과거 TaskSource·Work Order·generated YAML이 신규 착수 gate가 아님을 Current 문서 감사 항목으로 고정.
+
+### v1.7 - 2026-07-29
+
+- 작업 완료 후 후속 작업이나 이어서 할 검증이 남은 경우 `AGENTS.md`의 짧은 추천 프롬프트 규칙으로 라우팅 추가.
+- 추천 프롬프트가 ActiveWork와 대표 Plan을 대체하지 않고 다음 세션의 진입점 역할만 하도록 명시.
 
 ### v1.6 - 2026-07-28
 
@@ -211,3 +251,6 @@ GoPyMCP 역시 별도 저장소이며 GoPyMCP 내부 문서체계에서 관리�
 - Browser가 실행하지 않은 parser·closure·commandlet 검증은 저장된 외부 실행 증거를 기준으로만 판정한다.
 - 이전에 CarFight `Document/Plan/AssetDumpPlan/README.md`에 기록했던 세션 상태는 `Documents/ActiveWork.md`로 이관한다.
 - 앞으로 AssetDump 세션 복원은 이 문서와 `Documents/ActiveWork.md`를 기준으로 수행한다.
+- 작업 종료 시 다음 작업이나 미완료 후속이 남아 있으면 `AGENTS.md`의 형식에 따라 짧은 복사 가능 추천 프롬프트를 안내한다.
+- Browser MCP 작업은 target-scoped `repository_instructions`를 소프트 게이트로 사용하며 cache 만료나 서버 재시작만으로 정상 작업을 차단하지 않는다.
+- `StandaloneImplementationWorkOrder.md`는 완료된 독립화 작업의 범위·변경 허용 이력이며 신규 작업의 필수 착수 gate가 아니다.

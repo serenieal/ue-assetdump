@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.27
+- document_version: v1.28
 - created_at: 2026-07-10
 - updated_at: 2026-07-30
 - owner_repository: assetdump_repo
@@ -24,7 +24,7 @@ The purpose is to prevent unrelated project validation or gameplay compilation f
 
 Plugin validation checks AssetDump-owned validation fixtures and plugin behavior.
 
-Use this as the primary gate for plugin feature acceptance unless a TaskSource explicitly requires project-level validation.
+Use this as the primary gate for plugin feature acceptance unless the selected Current Plan explicitly requires project-level validation.
 
 Expected use:
 
@@ -241,7 +241,7 @@ For a focused AssetDump feature, acceptance should require:
 - Plugin validation passes
 - Feature-specific smoke tests pass
 - Feature-specific JSON output is inspected when required
-- Project asset batch passes when the TaskSource requires integration coverage
+- Project asset batch passes when the selected Current Plan requires integration coverage
 ```
 
 A repository-wide editor build failure does not automatically block plugin feature acceptance when it is classified and evidenced as an unrelated existing issue.
@@ -1276,7 +1276,7 @@ git diff --check: PASS
 
 ## Migration
 
-This policy does not change AssetDump behavior. TaskSource documents should reference this policy when defining verification gates.
+This policy does not change AssetDump behavior. New verification gates are defined by the selected Current Plan and should reference this policy. Historical TaskSource and Work Order documents remain evidence records and are not mandatory current-work gates.
 
 ## Unresolved
 
@@ -1285,6 +1285,12 @@ No unresolved standalone validation-policy blocker remains.
 The historical Consumer Project `DA_Cam_Default reference_count_min` assertion remains a separate non-blocking validation-policy cleanup candidate. It must not be resolved by changing Consumer assets solely to satisfy AssetDump acceptance.
 
 ## Changelog
+
+### v1.28
+
+- Replaced current acceptance wording that delegated project-level and integration coverage decisions to TaskSource documents with selected Current Plan ownership.
+- Classified historical TaskSource and Work Order documents as evidence records rather than mandatory verification gates.
+- Preserved all commandlet, structured-report, parser, stable-failure, closure and content-invariance requirements unchanged.
 
 ### v1.27
 

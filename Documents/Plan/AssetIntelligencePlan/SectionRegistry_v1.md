@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.37
+- document_version: v1.38
 - created_at: 2026-07-10
-- updated_at: 2026-07-29
+- updated_at: 2026-07-30
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: shared_registry
@@ -548,7 +548,7 @@ asset_class
 dump_status
 ```
 
-The exact envelope policy should be defined by the relevant TaskSource and implementation.
+The exact envelope policy should be defined by the selected Current Plan and implementation.
 
 ## Invalid Section Policy
 
@@ -660,13 +660,20 @@ full mode remains compatible
 
 ## Migration
 
-No runtime migration is required for this registry. New section work must update this registry through the current Plan documents and implementation when adding or renaming section names. Historical TaskSource files may remain as design evidence but are not mandatory execution gates.
+No runtime migration is required for this registry. New section work must update this registry through the selected Current Plan and implementation when adding or renaming section names. Historical TaskSource and generated contract files may remain as design evidence but are not mandatory execution gates. Browser MCP `repository_instructions` routes applicable `AGENTS.md` policy only and does not replace this registry's schema ownership.
 
 ## Unresolved
 
 None.
 
 ## Changelog
+
+### v1.38
+
+- Replaced the remaining current envelope-policy dependency on TaskSource with selected Current Plan ownership.
+- Clarified that historical TaskSource and generated contracts remain evidence rather than mandatory execution gates.
+- Clarified that Browser MCP `repository_instructions` routes work policy and does not replace canonical section/schema ownership.
+- Preserved all accepted section names, schemas, intent/profile mappings and compatibility requirements.
 
 ### v1.37
 

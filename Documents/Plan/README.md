@@ -1,7 +1,7 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.44
-- 최근 갱신일: 2026-07-29
+- 문서 버전: v1.45
+- 최근 갱신일: 2026-07-30
 - 문서 상태: Current
 - 역할: `assetdump_repo`의 Plan 폴더와 대표 진입 문서를 연결하는 색인
 
@@ -13,13 +13,15 @@
 CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는다.
 
 새 파일이 생겼다는 이유만으로 이 색인을 갱신하지 않는다.
-실제 착수 또는 검증 중인 Plan 폴더와 대표 진입 문서만 등록한다.
+현재 대표 Plan·정책 문서와 세션 복원에 필요한 완료 이력만 선택적으로 등록한다.
 
 ---
 
-## 2. 현재 활성 Plan
+## 2. Current Plan 및 선택적 완료 이력
 
-| 폴더 | 현재 상태 | 역할 | 대표 진입 문서 |
+아래 표는 현재 대표 Plan·정책 문서와 세션 복원에 필요한 완료 Work Order 이력을 함께 색인한다. `Completed`, `Executed` 또는 `Superseded` 상태의 Work Order는 신규 작업의 활성 Plan이나 필수 착수 gate가 아니다.
+
+| 문서/폴더 | 현재 상태 | 역할 | 대표 진입 문서 |
 | --- | --- | --- | --- |
 | `StandalonePlan.md` | `ADUMP-ARCH-001 Completed / Contract Accepted` | 특정 Host Project 경로·에셋·빌드 타깃·검증 기본값을 제거하고 범용 설치·검증 계약을 확립한 완료 Plan | `StandalonePlan.md` |
 | `StandaloneImplementationWorkOrder.md` | `Completed / Standalone Contract Accepted` | P1A부터 P4까지 파일별 구현 범위와 변경 허용 범위의 완료 기록 | `StandaloneImplementationWorkOrder.md` |
@@ -47,9 +49,9 @@ Asset Intelligence 기능·schema 작업이면 `AssetIntelligencePlan/README.md`
 | --- | --- |
 | 저장소·Host Project 완전 독립화 | `StandalonePlan.md` |
 | 검증 강도·증거 재사용 판단 | `StandaloneValidationPolicy.md` |
-| P1A Codex runtime 검증 | `P1ARuntimeVerificationCodexWorkOrder.md` |
+| 과거 P1A Codex runtime 검증 이력 | `P1ARuntimeVerificationCodexWorkOrder.md` |
 | P1A runtime 결과 감사 | `P1ARuntimeVerificationAudit.md` |
-| P1B Codex runtime 검증 | `P1BRuntimeVerificationCodexWorkOrder.md` |
+| 과거 P1B Codex runtime 검증 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | Phase 1 PowerShell·profile 전체 matrix | `StandalonePlan.md`와 `Scripts/RunStandalonePhase1MatrixVerification.ps1` |
 | Phase 2 BuildPlugin·Generic Host·P2B 통합 검증 | `StandalonePlan.md`와 `Scripts/RunStandalonePhase2Verification.ps1` |
 | 과거 P2A-1 단독 검증 계약 | `P2ABuildPluginVerificationWorkOrder.md` |
@@ -108,6 +110,13 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 6. Changelog
+
+### v1.45 - 2026-07-30
+
+- Reclassified completed and executed Work Orders as selectively indexed history rather than current active Plans or mandatory start gates.
+- Aligned the current index with `AGENTS.md` v1.11 ownership: selected Current Plans define scope, while TaskSource, Work Order and generated YAML remain evidence history.
+- Kept the v1.44 no-Git statement unchanged as a historical record and clarified that current repository text edits are distinct from explicit Git history operations.
+- Changed documentation routing only; no product, script or validation contract changed.
 
 ### v1.44 - 2026-07-29
 
@@ -375,6 +384,12 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 7. Migration
+
+### v1.45 적용 안내
+
+- 새 작업은 현재 대표 Plan과 Current 정책 문서에서 범위와 검증 수준을 선택한다.
+- `Completed`, `Executed`, `Superseded` Work Order와 과거 TaskSource·Codex YAML은 필요한 경우에만 읽는 실행 이력이며 신규 착수 gate가 아니다.
+- 사용자의 현재 요청으로 승인된 repository text 수정은 허용되지만 `commit`, `push`, `reset`, `checkout`, `stash`, `rebase`, `merge`, `clean`은 별도 명시 요청이 필요하다.
 
 - 저장소 독립화 작업은 `StandalonePlan.md`에서 복원한다.
 - 기존 `AssetIntelligencePlan` 내부 파일과 폴더는 이동하지 않는다.

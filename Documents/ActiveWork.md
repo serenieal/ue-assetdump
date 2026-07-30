@@ -1,6 +1,6 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.62
+- 문서 버전: v1.63
 - 최근 갱신일: 2026-07-30
 - 문서 상태: Current
 - 역할: AssetDump 독립 저장소의 현재 활성 작업과 최근 완료 체크포인트를 연결하는 세션 복원 색인
@@ -46,7 +46,7 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 - multi-query assembly: deferred to v1.1.2
 - ranking / semantic deduplication / summarization / natural query: inactive
 - live asset loading / index rebuild / source-file reread / freshness claim: prohibited
-- Git write operations: explicitly skipped until user request
+- Git state: cumulative v0.9.0-v1.0.2 feature commit created locally; `main` is ahead of `origin/main` by 1; remote branch update pending
 - runtime validation: PowerShell 5.1 self-test, fresh BuildPlugin, canonical Phase 2 v1.14.2 and standard Phase 1 matrix PASS
 - fresh BuildPlugin job: `5785c490d2a84a18bba5ca590196fbd7`
 - fresh BuildPlugin report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260729_090219_153_494dbf74.json`
@@ -576,7 +576,7 @@ Content/Validation 원본
 validation-content exact restoration 계약
 ```
 
-사용자의 명시적 요청 없이 commit, push, reset, checkout 또는 stash를 수행하지 않는다.
+사용자의 명시적 요청 없이 `commit`, `push`, `reset`, `checkout`, `stash`, `rebase`, `merge` 또는 `clean`을 수행하지 않는다. 현재 요청과 선택된 Current Plan 범위에서 승인된 repository text 수정은 이 Git 작업 제한과 별개다.
 
 ---
 
@@ -598,6 +598,13 @@ validation-content exact restoration 계약
 ---
 
 ## 7. Changelog
+
+### v1.63 - 2026-07-30
+
+- Replaced the stale current Git-write prohibition with the verified local feature-commit and remote-branch status.
+- Aligned current Git operation restrictions with `AGENTS.md` v1.11 while preserving authorized repository text edits within the selected Current Plan scope.
+- Preserved earlier Work Order, Codex and no-Git statements as historical execution records rather than current mandatory gates.
+- Changed documentation state only; product source, runner behavior and acceptance evidence remain unchanged.
 
 ### v1.62 - 2026-07-30
 
@@ -1045,6 +1052,12 @@ validation-content exact restoration 계약
 ---
 
 ## 8. Migration
+
+### v1.63 적용 안내
+
+- 현재 Git 상태는 실제 branch/upstream/ahead 상태를 기준으로 기록하며 과거 closure 시점의 no-Git 문구를 현재 금지 정책으로 재사용하지 않는다.
+- repository text 수정 권한은 사용자의 현재 요청과 선택된 Current Plan 범위에서 결정하고, history-changing Git 작업은 계속 별도 명시 요청을 요구한다.
+- 과거 TaskSource, Work Order, Codex YAML과 해당 시점의 실행 지시는 완료 이력으로 보존하며 새 작업의 필수 착수 gate로 사용하지 않는다.
 
 ### v1.22 적용 안내
 

@@ -1,7 +1,7 @@
 # AssetIntelligencePlan
 
-- Document version: v1.42
-- Last updated: 2026-07-29
+- Document version: v1.43
+- Last updated: 2026-07-30
 - Status: Current
 
 This folder contains the planning documents and preserved implementation-contract history for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
@@ -226,24 +226,34 @@ CarFight를 포함한 프로젝트 이름, Editor Target, build wrapper와 `/Gam
 
 ```text
 Browser
-= bounded document/code reading, Git diff review, document updates, and audit of stored reports and logs
+= target-scoped repository_instructions 확인
++ bounded repository reading and Git review
++ 사용자의 현재 구현·수정 요청과 selected Current Plan 범위 안의 Documents/Source/Scripts/text 설정 직접 수정
++ 공개된 allowlisted process/build 실행
++ stored report, process log, result JSON schema와 content-invariance evidence 감사
 
-CarFightMCP_Admin Process Runner or a user-selected local implementation environment
-= authorized Source/Scripts changes, Host Editor build, parser, regression, commandlet, and full closure execution
+CarFightMCP_Admin Process Runner
+= repository-owned allowlisted PowerShell runner의 parser, regression, commandlet, build/package와 closure 실행
+
+User-selected local environment
+= Browser에 노출되지 않은 runtime 검증의 선택적 보완
 
 Browser follow-up review
-= verification of the actual diff, stored machine-readable reports, process logs, and content-invariance evidence
+= 실제 diff와 machine-readable evidence를 기준으로 Implemented / Verified / Not Run / Blocked를 분리 판정
 ```
 
-The current Admin surface exposes repository-scoped text operations, allowlisted builds, and repository-script Process Runner execution. New work must use those bounded surfaces and must not depend on hidden `agent.*`, `plan.*`, Work/Lab, or automatic external Codex YAML generation.
+작업 시작 전 대상 경로를 포함한 `repo.read_batch` 또는 `repo.search_batch`가 반환한 `repository_instructions`를 repository root에서 nearest `AGENTS.md` 순서로 따른다. 이 기능은 정책 확인을 돕는 소프트 게이트이며 별도의 서버 측 pre-write 하드 게이트를 요구하지 않는다. 동일 SHA-256 본문 cache, cache 만료 또는 서버 재시작은 정상 작업 중단 사유가 아니며 target-scoped 읽기로 다시 로드한다.
 
-`apply_approved=true` is an MCP transport flag for an already authorized write. It is not evidence that the user approved a Browser direct code edit under the AssetDump project policy.
+The current Admin surface exposes repository-scoped text operations, Git review, allowlisted builds, and repository-script Process Runner execution. New work must use those bounded surfaces and must not depend on hidden `agent.*`, `plan.*`, Work/Lab, TaskSource, Work Order, or automatic external Codex YAML generation as mandatory prerequisites.
+
+`apply_approved=true` is an MCP transport flag for a synthesized write. Authorization comes from the user's current request and the selected Current Plan scope; the flag alone neither grants nor withholds Browser direct-edit authority.
 
 If the user explicitly requires an external Codex YAML and the Browser work-order surface remains unavailable, report:
 
 ```text
 Blocked — Browser Work-Order Surface Not Exposed
 ```
+
 
 ## Next Sequence
 
@@ -254,12 +264,20 @@ Blocked — Browser Work-Order Surface Not Exposed
 4. Define adapter ownership, accepted structured input/output, deterministic normalization, ambiguity boundaries, unsupported language behavior, stable failures and compatibility.
 5. Keep ambiguous candidate flow assigned to v1.1.1 and multi-query context bundle assembly assigned to v1.1.2.
 6. Keep ranking, semantic summarization, live loading, index rebuild, freshness claims and failure envelopes inactive unless a future Plan explicitly owns them.
-7. Skip all Git write operations until the user explicitly requests them.
+7. Do not perform commit, push, reset, checkout, stash, rebase, merge or clean until the user explicitly requests them; authorized repository text edits follow the current task scope.
 ```
 
 The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
+
+### v1.43 - 2026-07-30
+
+- Aligned current execution responsibility with Browser direct repository text edits and the allowlisted Process Runner contract.
+- Added target-scoped `repository_instructions` root-to-nearest ordering, soft-gate semantics and cache/restart recovery behavior.
+- Removed TaskSource, Work Order and generated Codex YAML from the mandatory current-work prerequisite set while preserving them as history.
+- Clarified that `apply_approved=true` is a transport flag and that authorization comes from the current user request plus Current Plan scope.
+- Replaced the ambiguous blanket Git-write prohibition with explicit destructive/history-changing Git operation restrictions.
 
 ### v1.42 - 2026-07-29
 
@@ -477,6 +495,13 @@ The v0.7.2 Enhanced Input Summary human release review remains a separate releas
 - Promoted the Report Contract TaskSource and generated Codex YAML as the active task.
 
 ## Migration
+
+### v1.43
+
+- New Browser work starts with target-scoped `repository_instructions` and may directly modify authorized Documents, Source, Scripts and text settings.
+- Process Runner and user-selected local environments supplement runtime verification; they are not mandatory Source/Scripts implementation gates.
+- Historical TaskSource, Work Order and generated YAML paths remain evidence references and must not be reactivated as current prerequisites.
+- Cache expiration or server restart requires re-reading the target scope, not blocking or abandoning the task.
 
 ### v1.16
 
