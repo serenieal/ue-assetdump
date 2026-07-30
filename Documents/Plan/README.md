@@ -1,6 +1,6 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.45
+- 문서 버전: v1.51
 - 최근 갱신일: 2026-07-30
 - 문서 상태: Current
 - 역할: `assetdump_repo`의 Plan 폴더와 대표 진입 문서를 연결하는 색인
@@ -30,7 +30,7 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 | `P1ARuntimeVerificationAudit.md` | `P1A Plugin Runtime Contract Accepted / Host Invariance Pending` | Codex strict 결과, v1.6.1 diff, regression blocker와 Host binary attribution 감사 | `P1ARuntimeVerificationAudit.md` |
 | `P1BRuntimeVerificationCodexWorkOrder.md` | `Executed / Browser Scoped Audit Accepted` | P1B parser·self-test·Plugin isolation·restoration과 Project routing 증거 실행 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | `P2ABuildPluginVerificationWorkOrder.md` | `Superseded / Historical P2A-1 Contract` | Phase 묶음 도입 전 P2A-1 단독 실행 계약 이력 | `P2ABuildPluginVerificationWorkOrder.md` |
-| `AssetIntelligencePlan/` | `ADUMP-v1.0.2-AICB Completed / Contract Accepted / Next Selection Ready` | AI 지향 Asset Intelligence Layer 로드맵, 공개 계약, 검증과 구현 결과 | `AssetIntelligencePlan/README.md` |
+| `AssetIntelligencePlan/` | `No Active Feature / v1.0.2 Accepted Baseline / NQAC Cancelled` | 인덱스 기반 부분 조회, bounded Query/Result/Context 계약과 구현 이력 | `AssetIntelligencePlan/README.md` |
 
 현재 작업 초점과 정확한 다음 단계는 다음 문서를 우선한다.
 
@@ -82,6 +82,7 @@ Asset Intelligence 기능·schema 작업이면 `AssetIntelligencePlan/README.md`
 | v1.0.1 closure 증거 | `v1_0_1_QueryResultSchemaClose_v1.md`, `ImplementationResultLog_v1.md` |
 | v1.0.2 AI Context Bundle 계약 | `v1_0_2_AIContextBundlePlan_v1.md`, `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
 | v1.0.2 closure 증거 | `v1_0_2_AIContextBundleClose_v1.md`, `ImplementationResultLog_v1.md` |
+| v1.1.0 Natural Query Adapter 폐기 결정 이력 | `v1_1_0_NaturalQueryAdapterPlan_v1.md`, `ImplementationResultLog_v1.md` |
 | 완료 작업지시서 이력 | 필요한 `v0_7_1_*_TaskSource.md`와 대응 Codex YAML만 선택 |
 | 생성 결과와 증거 | 필요한 `Generated/` 결과만 선택 |
 
@@ -110,6 +111,47 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 6. Changelog
+
+### v1.51 - 2026-07-30
+
+- Completed the cancellation cleanup for `ADUMP-v1.1.0-NQAC` and restored v1.0.2 as the last accepted Asset Intelligence baseline.
+- Reclassified the v1.1.0 plan and implementation reports as historical records rather than Current execution gates.
+- Migration: all v1.46-v1.50 activation, diagnosis and retry instructions are superseded; AI/MCP calls accepted Query Mode directly.
+- Recorded no BuildPlugin, canonical Phase 2, Phase 1, commit or push for this cleanup.
+
+### v1.50 - 2026-07-30
+
+- Recovered the existing fresh canonical Phase 2 terminal result without starting another process.
+- Recorded Generic Host build and accepted compatibility PASS through Query Result, followed by one unresolved NQAC positive runtime-gate failure.
+- Kept focused NQAC evidence, AI Context Bundle, P2B, Phase 1 and Contract Accepted incomplete.
+- Changed index/evidence state only; no product, runner, commit or push action was performed.
+
+### v1.49 - 2026-07-30
+
+- Reclassified the NQAC canonical Phase 2 result from unresolved Generic Host failure to a host Live Coding process block.
+- Recorded that no AssetDump or Generic Host source file owns the first blocking condition.
+- Kept fresh BuildPlugin PASS, product files, Phase 1, Contract Accepted, commit and push unchanged.
+
+### v1.48 - 2026-07-30
+
+- Recorded fresh BuildPlugin PASS for the active Natural Query Adapter implementation.
+- Recorded canonical Phase 2 failure at Generic Host Editor Build before adapter runtime evidence.
+- Kept Phase 1, Contract Accepted, commit and push inactive.
+- Preserved the exact implementation allowlist and protected paths.
+
+### v1.47 - 2026-07-30
+
+- Promoted `ADUMP-v1.1.0-NQAC` to Active / Product Implemented / Level 1 Passed / BuildPlugin Pending.
+- Kept the Natural Query Adapter representative Plan as the Current implementation entry.
+- Recorded no BuildPlugin, canonical Phase 2, Phase 1, Contract Accepted, commit, or push result.
+- Changed index state only; the exact implementation allowlist and protected paths remain unchanged.
+
+### v1.46 - 2026-07-30
+
+- Activated `ADUMP-v1.1.0-NQAC` and registered `v1_1_0_NaturalQueryAdapterPlan_v1.md` as the Current implementation Plan.
+- Changed the Asset Intelligence folder state from Next Selection Ready to active implementation authorization.
+- Registered the exact Source/Script/Document allowlist and risk-based validation route without starting implementation.
+- Preserved all accepted v0.7.1-v1.0.2 contracts and historical Work Order evidence.
 
 ### v1.45 - 2026-07-30
 
@@ -384,6 +426,25 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 7. Migration
+
+### v1.50 적용 안내
+
+- 이전 Live Coding 상태는 최신 blocker가 아니다. fresh Generic Host build는 통과했다.
+- 현재 대표 Plan 상태는 NQAC positive runtime gate의 단일 미해결 실패를 가리킨다.
+- blocked/failed report는 Phase 1 또는 Contract Accepted 입력으로 사용하지 않는다.
+- 다음 작업은 retained Korean-step 로그와 failure summary 진단이며 기능 범위 확대가 아니다.
+
+### v1.49 적용 안내
+
+- 다음 NQAC Phase 2 실행 전 Unreal Live Coding을 비활성화하거나 관련 Editor/game process를 종료한다.
+- 기존 blocked Phase 2 report를 Phase 1 또는 Contract Accepted 입력으로 사용하지 않는다.
+- 이번 진단만으로 제품 Source나 runner 기능을 수정하지 않는다.
+
+### v1.46 적용 안내
+
+- Asset Intelligence 구현 세션은 `v1_1_0_NaturalQueryAdapterPlan_v1.md`를 Current Plan으로 사용한다.
+- Source·Scripts 수정은 해당 Plan의 exact allowlist에 한정하고 unlisted 파일은 보호한다.
+- 구현과 검증이 시작되기 전까지 상태는 `Implementation Authorized / Not Started`이며 Contract Accepted가 아니다.
 
 ### v1.45 적용 안내
 

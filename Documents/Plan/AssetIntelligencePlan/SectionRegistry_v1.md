@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.38
+- document_version: v1.44
 - created_at: 2026-07-10
 - updated_at: 2026-07-30
 - owner_repository: assetdump_repo
@@ -53,6 +53,19 @@ Current Plan documents and implementations should reference this registry rather
 | `section_index` | Dump-root section and Blueprint symbol location index | Completed v0.9.1; external closure passed, contract accepted | `section_index_v1` |
 | `query_result` | Structured query output | Completed v1.0.1; contract accepted | `query_result_v1` |
 | `ai_context_bundle` | Bounded single-query AI evidence export | Completed v1.0.2; contract accepted | `ai_context_bundle_v1` |
+
+## Retired Non-Section Request Schemas
+
+`natural_query_request_v1` and `assetdump_query_request_v1` were never accepted. They are retained here only as historical identifiers for `ADUMP-v1.1.0-NQAC`; they must not appear in public section, query-result or context-bundle contracts. AI/MCP directly supplies accepted Query Mode options instead.
+
+### v1.44 Cancellation Changelog and Migration
+
+- Reclassified both proposed request schemas as historical, unaccepted identifiers.
+- Superseded v1.39-v1.43 registration and runtime-evidence migration instructions.
+- Existing section, index, Query Result and AI Context Bundle consumers require no migration.
+
+
+
 
 ## Current Specialized Section State
 
@@ -660,6 +673,41 @@ full mode remains compatible
 
 ## Migration
 
+### v1.43
+
+- Keep both NQAC request schemas registered as implemented non-section contracts.
+- Record the three generated mapped section requests as partial evidence, not full runtime acceptance.
+- Keep dependency/default/repeat, invariance, atomicity, stable-negative and Query-equivalence request-schema evidence Not Run.
+- Existing section, index, query-result and context-bundle consumers remain unchanged and passed their compatibility gates.
+
+### v1.42
+
+- Keep both NQAC request schemas registered as implemented non-section contracts.
+- Classify the retained Phase 2 attempt as blocked by host Live Coding, not as runtime schema failure evidence.
+- Disable Live Coding before collecting fresh request-schema runtime evidence.
+- Existing section, index, query-result and context-bundle consumers require no migration.
+
+### v1.41
+
+- Keep both request schemas registered as implemented non-section contracts.
+- Treat fresh BuildPlugin as compile/package evidence, not runtime schema evidence.
+- Keep runtime request-schema behavior unverified until Generic Host build and canonical Phase 2 pass.
+- Existing section and query consumers require no migration.
+
+### v1.40
+
+- Register `natural_query_request_v1` and `assetdump_query_request_v1` as implemented non-section request schemas.
+- Do not add either schema to per-asset section lists, section indexes, native query payloads, query-result payloads, or context-bundle items.
+- Existing section consumers require no migration because `queryadapter` is additive.
+- Runtime acceptance remains pending fresh BuildPlugin and canonical closure.
+
+### v1.39
+
+- Treat `natural_query_request_v1` and `assetdump_query_request_v1` as active non-section request schemas owned by the v1.1.0 Current Plan.
+- Do not add them to per-asset section arrays or accepted result/bundle payload registries.
+- Keep the v1.1.0 frozen implemented-section snapshot authoritative until explicit contract revision.
+- Existing accepted sections and schemas require no migration.
+
 No runtime migration is required for this registry. New section work must update this registry through the selected Current Plan and implementation when adding or renaming section names. Historical TaskSource and generated contract files may remain as design evidence but are not mandatory execution gates. Browser MCP `repository_instructions` routes applicable `AGENTS.md` policy only and does not replace this registry's schema ownership.
 
 ## Unresolved
@@ -667,6 +715,41 @@ No runtime migration is required for this registry. New section work must update
 None.
 
 ## Changelog
+
+### v1.43
+
+- Recorded fresh Generic Host and accepted compatibility PASS through Query Result.
+- Recorded section A/B byte equality and a structurally valid Korean mapped request before one unresolved runtime gate.
+- Kept full request-schema focused evidence and Contract Accepted false.
+- Changed no schema, section registration or accepted consumer contract.
+
+### v1.42
+
+- Recorded the canonical Phase 2 blocker as `process_lock_live_coding_active` with no source-owner file.
+- Kept request-schema runtime evidence Not Run and preserved fresh BuildPlugin PASS.
+- Changed no request schema, section registry entry or accepted consumer contract.
+- Kept Contract Accepted false.
+
+### v1.41
+
+- Recorded fresh BuildPlugin PASS for the implemented request schemas.
+- Recorded canonical Phase 2 failure before any request-schema runtime case executed.
+- Preserved all accepted per-asset sections, indexes, query results and context-bundle contracts.
+- Kept Contract Accepted false.
+
+### v1.40
+
+- Promoted the active Natural Query Adapter non-section request schemas from authorized/not-started to product implemented/Level 1 passed.
+- Recorded implementation versions and Level 1 process/static evidence.
+- Preserved the frozen v1.1.0 section snapshot and every accepted section/index/query schema.
+- Kept BuildPlugin, canonical Phase 2 and contract acceptance pending.
+
+### v1.39
+
+- Activated the v1.1.0 non-section request-schema registry for `queryadapter`.
+- Registered `natural_query_request_v1`, `assetdump_query_request_v1`, supported languages, exact selectors, and v1.1.1/v1.1.2 boundaries.
+- Preserved all accepted section, index, query-result, and context-bundle contracts unchanged.
+- Kept implementation and contract acceptance Not Started/Not Accepted.
 
 ### v1.38
 

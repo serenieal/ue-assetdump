@@ -1,6 +1,9 @@
 ﻿# File: RunStandalonePhase2Verification.ps1
-# Version: v1.14.2
+# Version: v1.15.2
 # Changelog:
+# - v1.15.2: 미채택 NQAC 검증 함수와 비활성 runtime evidence 블록을 완전히 제거하고 accepted v1.0.2 검증 기준선만 유지.
+# - v1.15.1: NQAC 실행 경로를 비활성화하고 MCP 직접 Query Mode orchestration으로 책임을 이동.
+# - v1.15.0: NQAC runtime evidence를 실험적으로 추가했으나 계약 채택 전 폐기.
 # - v1.14.2: 두 Query Result compatibility 검사 호출을 독립 식으로 괄호 처리해 PowerShell parameter binding 충돌을 수정.
 # - v1.14.1: schema-less core section의 빈 section_schema_version accepted contract를 bundle 검증과 정렬.
 # - v1.14.0: single-query ai_context_bundle_v1 item/byte bounds, stable failures와 invariance evidence를 추가.
@@ -2849,7 +2852,7 @@ $Phase2Passed = $FailureList.Count -eq 0
 $FinalReport = [ordered]@{
     schema_version = "assetdump_standalone_phase2_verification_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-                                                                                                                                                                                                                                                    script_version = "v1.14.2"
+                                                                                                                                                                                                                                                    script_version = "v1.15.2"
     workspace_root = $ResolvedWorkspaceRoot
     engine_root_source = $EngineResolution.source
     engine_root = $ResolvedEngineRoot

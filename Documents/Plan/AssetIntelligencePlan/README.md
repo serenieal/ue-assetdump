@@ -1,6 +1,6 @@
 # AssetIntelligencePlan
 
-- Document version: v1.43
+- Document version: v1.50
 - Last updated: 2026-07-30
 - Status: Current
 
@@ -24,7 +24,15 @@ v0.9.3 Dependency Trace Query: completed; actual and synthetic bounded traversal
 v1.0.0 Query Mode: completed; native section/dependency routing, direct/selector equivalence, QueryKind normalization, 23 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
 v1.0.1 Query Result Schema: completed; additive query_result_v1, native-default preservation, complete payload equality, 31 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
 v1.0.2 AI Context Bundle Export: completed; single-query bounded export, 28 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
+v1.1.0 Natural Query Adapter Contract: cancelled before acceptance; superseded by MCP direct Query Mode orchestration
 ```
+
+## v1.50 Cancellation Changelog and Migration
+
+- Removed the NQAC commandlet and Phase 2 execution surfaces; the two temporary untracked retired adapter Source files were subsequently deleted by the Codex deletion-only task.
+- Restored v1.0.2 Query/Result/Context as the current accepted architecture and kept the original bounded-retrieval objective unchanged.
+- All earlier v1.44-v1.48 activation, Live Coding diagnosis, repair, retry and acceptance instructions are historical and superseded.
+- Existing Query Mode, Query Result and AI Context Bundle callers require no migration.
 
 ## v0.7.1 Contract Acceptance
 
@@ -139,7 +147,7 @@ The restore loop remains hardened for an open Unreal Editor: files already ident
 
 ## Current Status
 
-There is no active Asset Intelligence feature implementation task. `ADUMP-v1.0.2-AICB` AI Context Bundle Export is Completed / Contract Accepted. It accepts exactly one successful `query_result_v1` file and exports one bounded deterministic `ai_context_bundle_v1` without rerunning queries or rereading underlying dump/index files. The next selectable candidate is v1.1.0 Natural Query Adapter Contract and it is not active.
+There is no active Asset Intelligence implementation task. `ADUMP-v1.1.0-NQAC` was cancelled before contract acceptance because AssetDump is called by AI through MCP, not directly by a natural-language user. AI/MCP now owns intent interpretation and directly invokes the accepted Query Mode. The accepted v0.9.x index/lazy retrieval and v1.0.x query/result/context contracts remain the scale-control baseline that prevents unnecessary full-resource dumps.
 
 ```text
 ADUMP-v0.7.1-RC: Completed / Contract Accepted
@@ -154,11 +162,13 @@ ADUMP-v0.9.3-DTQ: Completed / Contract Accepted
 ADUMP-v1.0.0-QMODE: Completed / Contract Accepted
 ADUMP-v1.0.1-QRES: Completed / Contract Accepted
 ADUMP-v1.0.2-AICB: Completed / Contract Accepted
+ADUMP-v1.1.0-NQAC: Cancelled / Superseded by MCP Direct Query Orchestration / Contract Not Accepted
 ```
 
 Current implementation and closure documents:
 
 ```text
+v1_1_0_NaturalQueryAdapterPlan_v1.md
 v0_7_3_ComponentTreePlan_v1.md
 v0_7_3_ComponentTreeClosureReport_v1.md
 v0_8_0_GraphNodeRolePlan_v1.md
@@ -258,18 +268,60 @@ Blocked — Browser Work-Order Surface Not Exposed
 ## Next Sequence
 
 ```text
-1. Keep the accepted v0.7.1-v1.0.2 public contracts protected.
-2. Preserve the canonical v1.0.2 BuildPlugin, Phase 2 and Phase 1 reports and SHA evidence.
-3. Select and register a separate v1.1.0 Natural Query Adapter Contract Plan before implementation; do not activate it automatically.
-4. Define adapter ownership, accepted structured input/output, deterministic normalization, ambiguity boundaries, unsupported language behavior, stable failures and compatibility.
-5. Keep ambiguous candidate flow assigned to v1.1.1 and multi-query context bundle assembly assigned to v1.1.2.
-6. Keep ranking, semantic summarization, live loading, index rebuild, freshness claims and failure envelopes inactive unless a future Plan explicitly owns them.
-7. Do not perform commit, push, reset, checkout, stash, rebase, merge or clean until the user explicitly requests them; authorized repository text edits follow the current task scope.
+1. Preserve accepted v0.9.x index/lazy retrieval and v1.0.x Query/Result/Context contracts.
+2. Have AI/MCP translate user intent directly into accepted Query Mode options.
+3. Prefer exact asset_id/object_path selectors, explicit sections and bounded dependency limits.
+4. Use ai_context_bundle_v1 MaxItems/MaxBytes when preparing evidence for an AI context window.
+5. Treat the failed NQAC run as historical diagnostic evidence only; do not repair or rerun it.
+6. Define any future UE Window natural-language input as a separate optional Plan.
+7. Do not perform commit, push, reset, checkout, stash, rebase, merge or clean until explicitly requested.
 ```
 
 The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
+
+### v1.50 - 2026-07-30
+
+- Recorded final deletion of `Source/AssetDump/Private/ADumpNaturalQueryAdapter.cpp` and `Source/AssetDump/Public/ADumpNaturalQueryAdapter.h` after both were confirmed as untracked v0.2.0 compile-neutral retired files.
+- Confirmed no adapter execution reference remains in the commandlet, AssetDump Source tree or Phase 2 runner, and all five retired contract strings are absent from runtime surfaces.
+- Recorded exact SHA-256 preservation for the 11 pre-existing dirty files and no build, runtime matrix, commit or push action for the deletion-only task.
+- Superseded the temporary retained-stub wording from v1.49 while preserving the cancelled architecture decision and v1.0.2 accepted baseline.
+
+### v1.48 - 2026-07-30
+
+- Recorded terminal fresh Phase 2 job `e0c567efa7704a6ba8ae3fca8fdd8979`, exit `1`, duration `2057.978s` and report SHA-256 `8b894b60e650f218c353bbf443aee168f3e7cbb14a4af4392e3808d24387a36e`.
+- Confirmed Generic Host build and all accepted compatibility families through Query Result passed.
+- Recorded partial NQAC section outputs and byte equality before one unresolved positive runtime-gate exception.
+- Kept full NQAC evidence, AI Context Bundle, P2B, Phase 1 and Contract Accepted pending.
+
+### v1.47 - 2026-07-30
+
+- Diagnosed active Unreal Live Coding as the canonical Phase 2 Generic Host pre-compilation blocker.
+- Recorded `process_lock_live_coding_active`, no source-owner file, build-log SHA-256 `f23915106989e41194325cce52b762dee8bbc1a85d2345978c86972833a4391c`, and diagnostic-report SHA-256 `f3fe36a5c58ab6f49d20eeaabb947f660cec7636842f76785e6dddefa0fdb7d0`.
+- Restored the Phase 2 runner to SHA-256 `73a1c797104c46a80065cedfdb20b97f5cc0dbff320c3f86e4292f753b04e455` and changed no product code.
+- Kept adapter runtime evidence, Phase 1 and Contract Accepted pending.
+
+### v1.46 - 2026-07-30
+
+- Recorded fresh BuildPlugin PASS, report SHA-256 `48a13871b78bbcfd123d46515ad904ae1774cd42b7169742e81dda2acc7c4534`, package inspection and source invariance.
+- Recorded canonical Phase 2 failure at Generic Host Editor Build with `OtherCompilationError`.
+- Kept all adapter runtime predicates, P2B, Phase 1 and Contract Accepted unverified.
+- Performed no retry, product repair, commit or push.
+
+### v1.45 - 2026-07-30
+
+- Recorded Natural Query Adapter v0.1.0, commandlet v0.22.0, header v0.5.0 and Phase 2 runner v1.15.0 implementation.
+- Recorded PowerShell 5.1 Level 1 process job `f5179ef031594358b424c1864e64e7d7` and target-scoped static validation PASS.
+- Promoted the active status to Product Implemented / Level 1 Passed / BuildPlugin Pending.
+- Kept fresh BuildPlugin, Generic Host runtime, canonical Phase 2, Phase 1 and Contract Accepted Not Run.
+
+### v1.44 - 2026-07-30
+
+- Activated `ADUMP-v1.1.0-NQAC` and registered `v1_1_0_NaturalQueryAdapterPlan_v1.md` as the Current implementation Plan.
+- Registered external semantic interpretation, deterministic AssetDump mapping, English/Korean language scope, exact selectors, and stable ambiguity boundaries.
+- Fixed the implementation allowlist and risk-based validation route while leaving Source, Scripts, runtime, and acceptance Not Started/Not Run.
+- Preserved all accepted v0.7.1-v1.0.2 contracts and v1.1.1/v1.1.2 ownership boundaries.
 
 ### v1.43 - 2026-07-30
 
@@ -495,6 +547,49 @@ The v0.7.2 Enhanced Input Summary human release review remains a separate releas
 - Promoted the Report Contract TaskSource and generated Codex YAML as the active task.
 
 ## Migration
+
+### v1.50 Final Source Retirement Migration
+
+- Do not restore either deleted `ADumpNaturalQueryAdapter` Source path or reactivate its command mode, request schemas or stable-code family.
+- Existing Query Mode, Query Result and AI Context Bundle callers require no migration.
+- Treat the prior retained-stub wording as superseded historical state; the current Source and Phase 2 runner contain no NQAC runtime surface.
+- No BuildPlugin, canonical Phase 2 or Phase 1 rerun is required solely for deleting the two compile-neutral untracked files.
+
+### v1.48 Partial Runtime Failure Migration
+
+- Supersede active Live Coding as the current blocker; fresh Generic Host build passed.
+- Treat section A/B byte equality and Korean mapped output as partial diagnostic evidence only.
+- Dependency/default/repeat, invariance, atomicity, stable-negative, Query equivalence, AI Context Bundle and P2B predicates remain Not Run.
+- Inspect the retained Korean-step log before assigning product or runner ownership.
+- Existing accepted query/result/context consumers require no migration.
+
+### v1.47 Live Coding Block Migration
+
+- Treat the retained Phase 2 attempt as blocked by host Live Coding rather than as an AssetDump compile failure.
+- Disable Live Coding or close the active Editor/game process before one fresh canonical Phase 2.
+- Do not use the blocked report as Phase 1 or Contract Accepted evidence.
+- Existing accepted query/result/context consumers and NQAC product files require no migration.
+
+### v1.46 Build and Phase 2 Migration
+
+- Fresh BuildPlugin report `AssetDump_20260730_022642_298_5d421614.json` is valid compile/package evidence for the current worktree.
+- The failed Phase 2 report is diagnostic evidence only and must not be supplied to Phase 1.
+- Generic Host runtime and Natural Query Adapter focused evidence remain Not Run because the build gate failed first.
+- Existing accepted query/result/context consumers require no migration.
+
+### v1.45 Implementation Migration
+
+- `queryadapter` is additive and leaves every accepted direct/query/context command unchanged.
+- External adapters may now create one structured `natural_query_request_v1`; the returned canonical request still requires external Query Mode orchestration.
+- Level 1 PASS does not replace fresh BuildPlugin, Generic Host canonical Phase 2, Phase 1, or Contract Accepted.
+- Existing users require no migration unless they opt into the new command mode.
+
+### v1.44
+
+- Use `v1_1_0_NaturalQueryAdapterPlan_v1.md` as the Current implementation contract.
+- Modify only its exact allowlist; Build.cs, the plugin descriptor, Config, Content, and all unlisted files remain protected.
+- Treat activation as implementation authorization only, not Implemented, Verified, or Contract Accepted.
+- Preserve v1.1.1 ambiguity candidates and v1.1.2 multi-query assembly as separate future owners.
 
 ### v1.43
 

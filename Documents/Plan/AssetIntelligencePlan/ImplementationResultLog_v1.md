@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.37
+- document_version: v1.42
 - created_at: 2026-07-10
-- updated_at: 2026-07-29
+- updated_at: 2026-07-30
 - document_role: implementation_result_log
 - codex_input: false
 
@@ -13,6 +13,143 @@
 Record implementation and verification results for Asset Intelligence planning tasks after Codex or manual implementation work is completed.
 
 ## Results
+
+## 2026-07-30 - NQAC Architecture Decision
+
+```text
+task_id: ADUMP-v1.1.0-NQAC
+final_status: Cancelled / Superseded by MCP Direct Query Orchestration
+contract_acceptance: false
+accepted_runtime_baseline: v1.0.2
+```
+
+- The original objective was to prevent full Unreal resource dumps from becoming the minimum unit of work.
+- That objective is already implemented by Asset Index, Section Index, Lazy Section Dump, bounded Dependency Query, Query Mode, Query Result and bounded AI Context Bundle.
+- AssetDump is normally called by AI through MCP, so `request_text`, language metadata and an additional `queryadapter` translation layer duplicate the caller's responsibility.
+- `queryadapter`, both NQAC schemas and `ADUMP_NQ_*` are retired. The failed Phase 2 run remains diagnostic history only.
+- AI/MCP now owns intent interpretation and direct construction of accepted Query Mode calls.
+
+
+
+## 2026-07-30 - AssetDump v1.1.0 Natural Query Adapter Level 1 Checkpoint
+
+### Status
+
+```text
+task_id: ADUMP-v1.1.0-NQAC
+implementation: product Source and Phase 2 evidence wiring completed
+command_mode: queryadapter
+input_schema: natural_query_request_v1
+output_schema: assetdump_query_request_v1
+adapter_version: 0.1.0
+commandlet_version: 0.22.0
+header_version: 0.5.0
+phase2_runner_version: 1.15.0
+level_1_parser_selftest: passed
+level_1_process_job: f5179ef031594358b424c1864e64e7d7
+level_1_static_validation: passed
+fresh_buildplugin: passed
+fresh_buildplugin_job: 9843991de38d41a8bca6f932a569efee
+canonical_phase2: failed_at_nqac_positive_runtime_gate
+canonical_phase2_job: e0c567efa7704a6ba8ae3fca8fdd8979
+canonical_phase2_failure_owner: unresolved_report_or_process_gate
+phase1_matrix: not_run
+contract_acceptance: not_accepted
+```
+
+### Implementation Summary
+
+- Added `ADumpNaturalQueryAdapter` as a standalone deterministic structured-input validator and canonical request serializer.
+- Added additive `-Mode=queryadapter` commandlet integration without changing accepted Query Mode defaults or direct specialized modes.
+- Implemented English/Korean language normalization, request-text whitespace normalization, exact selectors, frozen section ordering, dependency defaults, strict field ownership and the declared `ADUMP_NQ_*` stable failures.
+- Reused the established BOM-free UTF-8 temp-to-final atomic JSON helper.
+- Extended Phase 2 runner v1.15.0 with temporary JSON fixtures, exact output-byte determinism, input invariance, output preservation, 27 runtime stable-failure paths and direct Query Mode mapping equivalence.
+- Preserved Build.cs, AssetDump.uplugin, Config, Content and every unlisted Source/Script file.
+
+### Level 1 Verification
+
+```text
+PowerShell runtime: Windows PowerShell 5.1
+script: Scripts/RunStandalonePhase2Verification.ps1
+arguments: -RunSelfTests
+process job: f5179ef031594358b424c1864e64e7d7
+exit_code: 0
+duration_seconds: 0.904
+log_tail: Standalone Phase 2 self tests: passed
+target-scoped source/search/diff review: PASS
+BuildPlugin: Not Run
+Generic Host commandlet runtime: Not Run
+canonical Phase 2: Not Run
+Phase 1: Not Run
+git diff --check: Not Run
+```
+
+### Migration
+
+Existing `query`, `sectiondump`, `dependencyquery` and `contextbundle` callers require no change. External semantic adapters may opt into `queryadapter` by supplying one `natural_query_request_v1`; the canonical output still requires an external orchestrator to supply Query Mode `DumpRoot` and final result `Output`. Query Mode continues to default to native when `ResultSchema` is omitted.
+
+### BuildPlugin Verification
+
+```text
+process job: 9843991de38d41a8bca6f932a569efee
+exit_code: 0
+duration_seconds: 123.829
+engine_root: D:\UnrealEngine_Source
+report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260730_022642_298_5d421614.json
+report_sha256: 48a13871b78bbcfd123d46515ad904ae1774cd42b7169742e81dda2acc7c4534
+compile_package_gate_passed: true
+package_inspection_passed: true
+validation_asset_count: 10
+module_binary_count: 1
+forbidden_package_item_count: 0
+source_validation_invariance_passed: true
+source_descriptor_filter_invariance_passed: true
+generic_host_runtime: Not Run by BuildPlugin gate
+```
+
+### Canonical Phase 2 Audit
+
+```text
+process job: e0c567efa7704a6ba8ae3fca8fdd8979
+exit_code: 1
+duration_seconds: 2057.978
+workspace: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260730_035145_906_8199b9cc
+report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260730_035145_906_8199b9cc\Reports\phase2_report.json
+report_sha256: 8b894b60e650f218c353bbf443aee168f3e7cbb14a4af4392e3808d24387a36e
+failure_count: 1
+buildplugin_gate_passed: true
+generic_host_build_passed: true
+plugin_fixture: Passed
+plugin_validation: Passed
+accepted_compatibility_through_query_result: Passed
+failure_stage: Natural Query Adapter Korean positive post-save gate
+failure_classification: nqac_positive_runtime_gate_unresolved
+failure_owner_file: unresolved; no product defect proven
+section_a_output_sha256: 4168f1b12a4826b0821c4673c3d6740ec0549c62ec17db652c0e24ea14f61143
+section_b_output_sha256: 4168f1b12a4826b0821c4673c3d6740ec0549c62ec17db652c0e24ea14f61143
+korean_section_output_sha256: 23fc55e7ff5cfce7925af97ef0786c5314042fb2e29310ed656832a78f48f13d
+section_a_b_exact_bytes: Passed
+korean_mapped_shape_direct_audit: Passed
+natural_query_adapter_focused_evidence: Not Run
+query_mode_mapping_equivalence: Not Run
+stable_negative_matrix: Not Run
+AI_Context_Bundle: Not Run
+P2B: Not Run
+phase2_implementation_gate_passed: false
+```
+
+The fresh run supersedes the prior Live Coding blocker: Generic Host build and accepted compatibility passed. The runner emitted section A, equivalent section B and Korean mapped requests, then stopped before the dependency positive case and before `natural_query_adapter_evidence.json` was written. The two English normalized outputs are byte-identical and the Korean JSON directly satisfies the mapped section-request shape, but the exact report/process gate failure remains unresolved. No product Source defect is proven by this report.
+
+### Final Disposition
+
+This checkpoint is historical evidence only. The contract was cancelled before acceptance, so the retained log and report require no further ownership diagnosis, repair, canonical Phase 2 rerun, Phase 1 run or acceptance promotion.
+
+### v1.42 Cancellation Changelog and Migration
+
+- Preserved the implementation, BuildPlugin and failed Phase 2 values as historical facts.
+- Superseded the earlier opt-in and next-gate instructions.
+- Migrated current callers to AI/MCP direct construction of accepted Query Mode requests.
+
 
 ## 2026-07-29 - AssetDump v1.0.2 AI Context Bundle Export
 
@@ -2462,6 +2599,33 @@ Feature smoke tests: ...
 ```
 
 ## Changelog
+
+### v1.41
+
+- Recovered terminal canonical Phase 2 job `e0c567efa7704a6ba8ae3fca8fdd8979` without starting another process.
+- Recorded fresh Generic Host build and accepted compatibility PASS through Query Result.
+- Recorded partial NQAC outputs, section A/B byte equality and structurally valid Korean mapped output before one unresolved runtime-gate exception.
+- Kept dependency/default/repeat, invariance, atomicity, 27 stable failures, Query equivalence, AI Context Bundle and P2B Not Run.
+- Made no product or runner repair and kept Phase 1, Contract Accepted, commit and push inactive.
+
+### v1.40
+
+- Diagnosed the retained Generic Host build log and classified the Phase 2 block as active Unreal Live Coding.
+- Recorded no compiler-owned source file and no AssetDump, Generic Host target, or toolchain compile defect.
+- Recorded build-log and diagnostic-report SHA-256 evidence and restored the temporarily instrumented runner to its original v1.15.0 SHA.
+- Kept product implementation unchanged and left Phase 2 runtime, Phase 1 and Contract Accepted pending.
+
+### v1.39
+
+- Recorded fresh BuildPlugin PASS, package inspection and source-invariance evidence for ADUMP-v1.1.0-NQAC.
+- Recorded canonical Phase 2 failure at Generic Host Editor Build before any adapter runtime case.
+- Preserved the failure as diagnostic evidence and prohibited Phase 1 reuse or Contract Accepted promotion.
+
+### v1.38
+
+- Added the ADUMP-v1.1.0-NQAC product implementation and Level 1 checkpoint entry.
+- Recorded adapter, commandlet, public-header and Phase 2 runner versions plus parser/self-test evidence.
+- Kept BuildPlugin, runtime closure, Phase 1 and Contract Accepted pending at that checkpoint.
 
 ### v1.37
 

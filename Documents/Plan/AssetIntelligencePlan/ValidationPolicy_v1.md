@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- document_version: v1.28
+- document_version: v1.34
 - created_at: 2026-07-10
 - updated_at: 2026-07-30
 - owner_repository: assetdump_repo
@@ -1274,7 +1274,63 @@ git diff --check: PASS
 
 `ai_context_bundle_v1` is therefore an accepted successful export contract. This acceptance does not activate a natural-language adapter, ambiguous asset candidate flow, multi-query assembly, ranking, semantic summarization, live loading, index rebuild, freshness claims or failure envelopes.
 
+## MCP Direct Query Orchestration Boundary
+
+Natural-language interpretation is outside AssetDump validation scope. AI/MCP maps user intent directly to the accepted Query Mode contract and minimizes work through exact selectors, explicit section lists, bounded dependency limits and bounded AI Context Bundle output.
+
+```text
+AssetDump validates and executes accepted structured Query Mode options.
+AI/MCP owns natural-language interpretation, ambiguity handling and multi-call orchestration.
+All unaccepted NQAC request-mode, schema and stable-code surfaces are retired.
+The failed NQAC Phase 2 report is historical evidence and is not a repair, retry or acceptance prerequisite.
+```
+
+### v1.34 Cancellation Changelog and Migration
+
+- Removed NQAC-specific Level 1/Level 2 and contract-acceptance gates from Current validation policy.
+- Superseded v1.29-v1.33 build, Live Coding, diagnosis and retry instructions while preserving their reports as history.
+- This cleanup requires only Windows PowerShell 5.1 runner self-tests; BuildPlugin, canonical Phase 2 and Phase 1 remain Not Run.
+
+
+
+
 ## Migration
+
+### v1.33
+
+- Classify the fresh report as accepted-compatibility PASS plus partial NQAC runtime evidence, not canonical Phase 2 PASS.
+- Supersede Live Coding as the current blocker because fresh Generic Host build passed.
+- Keep section A/B byte equality and Korean mapped-output shape as diagnostic predicates only.
+- Require retained Korean-step log/failure-summary diagnosis before assigning product or runner ownership.
+- Prohibit Phase 1 and Contract Accepted until full NQAC, AI Context Bundle and P2B predicates pass in one fresh canonical report.
+
+### v1.32
+
+- Classify the retained NQAC Phase 2 attempt as `process_lock_live_coding_active`, not as product or runtime contract failure evidence.
+- Require Live Coding to be disabled or the active Editor/game process to be closed before one fresh canonical Phase 2.
+- Keep the blocked report diagnostic-only and prohibit Phase 1 or Contract Accepted reuse.
+- Do not require product Source or runner changes for this host-process blocker.
+
+### v1.31
+
+- Accept the fresh BuildPlugin report only for compilation, packaging, package inspection and source-invariance predicates.
+- Classify the failed canonical Phase 2 report as diagnostic evidence, not runtime or acceptance evidence.
+- Do not execute Phase 1 from the failed Phase 2 report.
+- Inspect and resolve the retained Generic Host build failure before one fresh Phase 2 rerun.
+
+### v1.30
+
+- Classify the completed PowerShell 5.1 `-RunSelfTests` execution and target-scoped source/diff audit as Level 1 evidence only.
+- Do not classify Level 1 PASS as compilation, packaging, Generic Host runtime, canonical Phase 2, Phase 1, or Contract Accepted evidence.
+- Require fresh BuildPlugin and runtime closure before promoting v1.1.0 beyond BuildPlugin Pending.
+- Existing accepted validation predicates remain unchanged.
+
+### v1.29
+
+- Use the active v1.1.0 Current Plan for adapter validation scope and stable-code ownership.
+- Apply document-only validation to this activation change; do not run a build until Source or Scripts change.
+- Apply Level 1 and focused Level 2 during implementation, then fresh BuildPlugin, Generic Host Phase 2, and standard Phase 1 before Contract Accepted.
+- Preserve v1.1.1 ambiguity candidates and v1.1.2 multi-query assembly outside this validation scope.
 
 This policy does not change AssetDump behavior. New verification gates are defined by the selected Current Plan and should reference this policy. Historical TaskSource and Work Order documents remain evidence records and are not mandatory current-work gates.
 
@@ -1285,6 +1341,41 @@ No unresolved standalone validation-policy blocker remains.
 The historical Consumer Project `DA_Cam_Default reference_count_min` assertion remains a separate non-blocking validation-policy cleanup candidate. It must not be resolved by changing Consumer assets solely to satisfy AssetDump acceptance.
 
 ## Changelog
+
+### v1.33
+
+- Recorded fresh Generic Host build and accepted compatibility PASS through Query Result.
+- Recorded one unresolved NQAC positive runtime-gate exception after three mapped section outputs.
+- Recorded section A/B exact-byte equality while keeping all unexecuted focused and downstream predicates Not Run.
+- Added no waiver, product/runner fix, Phase 2 retry, Phase 1 run, acceptance, commit or push.
+
+### v1.32
+
+- Diagnosed the first Generic Host build blocker from the retained log as active Unreal Live Coding.
+- Recorded process-lock ownership, no source-owner file, build-log SHA-256 `f23915106989e41194325cce52b762dee8bbc1a85d2345978c86972833a4391c`, and diagnostic-report SHA-256 `f3fe36a5c58ab6f49d20eeaabb947f660cec7636842f76785e6dddefa0fdb7d0`.
+- Preserved BuildPlugin PASS and kept all adapter runtime and acceptance predicates Not Run.
+- Added no waiver, product fix, Phase 2 retry, Phase 1 run, commit or push.
+
+### v1.31
+
+- Recorded fresh BuildPlugin PASS with package and source-invariance predicates true.
+- Recorded canonical Phase 2 failure at the Generic Host build gate and preserved all later predicates as Not Run.
+- Kept Phase 1 and Contract Accepted inactive.
+- Made no validation-policy waiver or retry exception.
+
+### v1.30
+
+- Recorded Natural Query Adapter product implementation and Level 1 parser/self-test/static validation PASS.
+- Bound Level 1 evidence to process job `f5179ef031594358b424c1864e64e7d7` and the current target-scoped diff.
+- Kept BuildPlugin, Generic Host runtime, canonical Phase 2, Phase 1 and Contract Accepted explicitly Not Run.
+- Preserved all accepted validation and invariance contracts.
+
+### v1.29
+
+- Activated the Natural Query Adapter validation contract while keeping implementation and runtime evidence Not Run.
+- Defined activation-only document checks, Level 1 change checks, focused Level 2 adapter runtime, compatibility, and final acceptance gates.
+- Required fresh BuildPlugin, Generic Host canonical Phase 2, P2B/invariance, and the standard Phase 1 matrix before Contract Accepted.
+- Kept Consumer Integration optional and preserved every accepted v0.7.1-v1.0.2 contract.
 
 ### v1.28
 

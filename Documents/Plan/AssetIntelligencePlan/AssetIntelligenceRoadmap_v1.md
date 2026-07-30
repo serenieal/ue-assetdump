@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.39
+- document_version: v1.45
 - created_at: 2026-07-10
-- updated_at: 2026-07-29
+- updated_at: 2026-07-30
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: master_roadmap
@@ -50,7 +50,7 @@ Summarize turret-related Blueprint and DataAsset assets.
 4. Keep the current representative Plan, public contracts, protection boundaries, and verification requirements explicit before implementation starts.
 5. Preserve deterministic output ordering.
 6. Keep validation gates separate for Plugin, Project, and release-level policies.
-7. Separate Browser document/evidence review from Codex or user-selected local Source/Scripts implementation and validation-evidence generation.
+7. Use the selected Current Plan to authorize Browser implementation within an exact repository allowlist; user-selected local environments may supplement unexposed runtime verification.
 8. Preserve historical TaskSource and generated Codex YAML files as design and execution records, but do not require them as gates for new work.
 
 ## Document Structure
@@ -187,17 +187,27 @@ v1.0.1 Query result schema - completed 2026-07-29; contract accepted
 v1.0.2 AI context bundle export - completed 2026-07-29; contract accepted
 ```
 
-### v1.1.x Natural Query Bridge
+### v1.1.x MCP Orchestration Boundary
 
-Goal: Let an AI adapter convert natural-language requests into AssetDump queries.
-
-Planned scope:
+Goal: Keep natural-language interpretation outside AssetDump and let AI/MCP call the accepted structured Query Mode directly.
 
 ```text
-v1.1.0 Natural query adapter contract
-v1.1.1 Ambiguous asset candidate flow
-v1.1.2 Multi-query context bundle assembly
+v1.1.0 NQAC - cancelled before acceptance on 2026-07-30
+AI/MCP ownership - intent interpretation, selector selection, section/dependency choice, bounds and multi-call orchestration
+AssetDump ownership - indexed bounded retrieval, deterministic query_result_v1 and bounded ai_context_bundle_v1
+future UE Window natural-language UI - separate optional feature requiring its own explicit Plan
 ```
+
+The original scale-control objective remains owned by v0.9.x index/lazy retrieval and v1.0.x structured query/context contracts. AssetDump must not require a full resource dump when an indexed bounded query can satisfy the request.
+
+### v1.45 Cancellation Changelog and Migration
+
+- Retired the unaccepted v1.1.0 bridge and removed its product/runner execution surfaces.
+- Superseded all v1.40-v1.44 implementation, diagnosis and retry instructions while preserving them as versioned history.
+- Kept v1.0.2 as the accepted roadmap baseline and assigned direct query orchestration to AI/MCP.
+- No BuildPlugin, Phase 2, Phase 1 or contract-acceptance rerun is required by this decision.
+
+
 
 ## Implementation Planning Policy
 
@@ -882,6 +892,42 @@ This is separate from the standalone Plugin Contract and Generic Host acceptance
 
 ## Migration
 
+### v1.44
+
+- Supersede active Live Coding as the current v1.1.0 blocker; fresh Generic Host build passed.
+- Preserve accepted compatibility PASS through Query Result independently from the failed NQAC focused runtime gate.
+- Treat section A/B equality and Korean mapped output as partial evidence only.
+- Diagnose the retained Korean-step log before assigning product or runner ownership and before one fresh Phase 2 rerun.
+- Preserve v1.1.1 ambiguity and v1.1.2 multi-query ownership unchanged.
+
+### v1.43
+
+- Reclassify the v1.1.0 Phase 2 attempt as a host Live Coding process block, not a product compile failure.
+- Disable Live Coding or close the active Editor/game process before the next fresh canonical Phase 2.
+- Keep the blocked report diagnostic-only and do not feed it to Phase 1 or Contract Accepted.
+- Preserve v1.1.1 ambiguity and v1.1.2 multi-query ownership unchanged.
+
+### v1.42
+
+- Fresh BuildPlugin is accepted as current compile/package evidence only.
+- The failed canonical Phase 2 report is diagnostic and cannot feed Phase 1 or Contract Accepted.
+- Generic Host build recovery must precede adapter runtime validation.
+- v1.1.1 ambiguity and v1.1.2 multi-query ownership remain unchanged.
+
+### v1.41
+
+- The Natural Query Adapter product implementation and Phase 2 evidence wiring now exist within the fixed v1.1.0 allowlist.
+- Existing commands and accepted v0.7.1-v1.0.2 schemas remain unchanged; `queryadapter` is additive.
+- Level 1 PASS is parser/static evidence only and does not waive fresh BuildPlugin, Generic Host canonical Phase 2, Phase 1, or Contract Accepted.
+- Continue to keep ambiguous candidate discovery in v1.1.1 and multi-query assembly in v1.1.2.
+
+### v1.40
+
+- Use `v1_1_0_NaturalQueryAdapterPlan_v1.md` as the active v1.1.0 implementation contract.
+- Keep the exact allowlist, deterministic adapter boundary, and risk-based validation route authoritative until closure.
+- Preserve v1.1.1 ambiguity candidates and v1.1.2 multi-query assembly as separate roadmap stages.
+- Existing commands and accepted v0.7.1-v1.0.2 schemas require no migration.
+
 This roadmap does not change runtime or dump behavior by itself. It only defines the staged plan for future AssetDump improvements.
 
 For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps full-output compatibility.
@@ -891,6 +937,41 @@ For v0.6.0, existing commands require no change. Omitting `-Sections=` keeps ful
 None.
 
 ## Changelog
+
+### v1.44
+
+- Recorded fresh Generic Host build and accepted compatibility PASS through Query Result.
+- Recorded one unresolved NQAC positive runtime-gate failure after three mapped section outputs.
+- Recorded section A/B byte equality and kept all focused downstream predicates Not Run.
+- Changed roadmap evidence state only; no product fix, Phase 1, acceptance, commit or push occurred.
+
+### v1.43
+
+- Diagnosed active Unreal Live Coding as the v1.1.0 Generic Host pre-compilation blocker.
+- Recorded process-lock ownership, no source-owner file and retained log/report SHA evidence.
+- Preserved product Source, runner behavior, BuildPlugin PASS and all accepted contracts.
+- Kept fresh canonical Phase 2 runtime, Phase 1 and Contract Accepted pending.
+
+### v1.42
+
+- Recorded fresh BuildPlugin PASS and exact report identity for v1.1.0.
+- Recorded canonical Phase 2 failure at Generic Host Editor Build with `OtherCompilationError`.
+- Kept adapter runtime evidence, Phase 1 and Contract Accepted pending.
+- Changed roadmap evidence state only.
+
+### v1.41
+
+- Promoted v1.1.0 Natural Query Adapter to product implemented and Level 1 passed.
+- Recorded adapter v0.1.0, commandlet v0.22.0, header v0.5.0 and Phase 2 runner v1.15.0.
+- Recorded PowerShell 5.1 process job `f5179ef031594358b424c1864e64e7d7` and target-scoped static validation PASS.
+- Kept BuildPlugin, Generic Host runtime, canonical Phase 2, Phase 1 and Contract Accepted pending.
+
+### v1.40
+
+- Activated `ADUMP-v1.1.0-NQAC` with planning complete and implementation not started.
+- Registered the Current Plan, deterministic ownership boundary, exact allowlist, and risk-based validation path.
+- Preserved every accepted v0.7.1-v1.0.2 contract and kept v1.1.1/v1.1.2 deferred.
+- Changed documentation state only; no runtime or accepted evidence changed.
 
 ### v1.39
 

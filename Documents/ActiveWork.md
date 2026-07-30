@@ -1,6 +1,6 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.63
+- 문서 버전: v1.70
 - 최근 갱신일: 2026-07-30
 - 문서 상태: Current
 - 역할: AssetDump 독립 저장소의 현재 활성 작업과 최근 완료 체크포인트를 연결하는 세션 복원 색인
@@ -24,7 +24,21 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 
 ## 2. 현재 활성 작업
 
-현재 명시적으로 활성화된 Asset Intelligence 구현 작업은 없다. 마지막 완료 작업은 v1.0.2 AI Context Bundle Export다.
+현재 명시적으로 활성화된 Asset Intelligence 구현 작업은 없다. 마지막 완료 계약은 `ADUMP-v1.0.2-AICB`이며, AI/MCP는 accepted Query Mode를 직접 조립해 필요한 자산·section·dependency만 요청한다.
+
+### 중단 결정: ADUMP-v1.1.0-NQAC
+
+- 작업 ID: `ADUMP-v1.1.0-NQAC`
+- 최종 상태: `Cancelled / Superseded by MCP Direct Query Orchestration / Contract Not Accepted`
+- 결정 이유: AssetDump의 실제 호출자는 MCP를 사용하는 AI이며, 자유형 자연어·언어 태그·request text를 AssetDump에 다시 전달할 필요가 없다.
+- 원래 목적: UE 리소스 전체 덤프와 대규모 AI 입력을 피하고 필요한 범위만 조회하는 것
+- 목적 달성 주체: accepted Asset Index, Section Index, Lazy Section Dump, bounded Dependency Query, Query Mode, Query Result, AI Context Bundle
+- 현재 책임 경계: AI/MCP가 사용자 의도를 해석하고 `section | dependency`, selector, bounds와 output schema를 선택한다. AssetDump는 구조화 요청 실행과 결정론적 bounded 결과만 담당한다.
+- 폐기 범위: 미채택 NQAC request bridge, 임시 request schema와 전용 stable-code family
+- 보존 대상: 기존 v0.9.0-v1.0.2 accepted 계약과 실패 실험 보고서
+- NQAC Phase 2 실패는 진단 이력으로만 보존하며 수정·재실행·acceptance 대상으로 삼지 않는다.
+
+
 
 ### 마지막 완료 작업: ADUMP-v1.0.2-AICB
 
@@ -46,7 +60,7 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 - multi-query assembly: deferred to v1.1.2
 - ranking / semantic deduplication / summarization / natural query: inactive
 - live asset loading / index rebuild / source-file reread / freshness claim: prohibited
-- Git state: cumulative v0.9.0-v1.0.2 feature commit created locally; `main` is ahead of `origin/main` by 1; remote branch update pending
+- Git state: feature and repository-policy commits exist locally; `main` is ahead of `origin/main` by 2; NQAC 폐기 정리 변경은 미커밋 상태이며 remote branch update도 수행하지 않음
 - runtime validation: PowerShell 5.1 self-test, fresh BuildPlugin, canonical Phase 2 v1.14.2 and standard Phase 1 matrix PASS
 - fresh BuildPlugin job: `5785c490d2a84a18bba5ca590196fbd7`
 - fresh BuildPlugin report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260729_090219_153_494dbf74.json`
@@ -59,7 +73,7 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 - canonical Phase 1 job: `e4215be097e943109bbdafe40c3df686`
 - Phase 1 report SHA-256: `42c78338de114882d99c2ca90860d253b0f5c03fd06e62314f2dcd1e229d2410`
 - Plugin / Project / Both / PS5.1 / PS7 / cross-shell / git diff check: PASS
-- next candidate: v1.1.0 Natural Query Adapter Contract / Selectable / Not Active
+- successor state: v1.1.0 Natural Query Adapter Contract was cancelled before acceptance; MCP calls accepted Query Mode directly
 - contract acceptance: Accepted
 
 ### 이전 완료 작업: ADUMP-v1.0.1-QRES
@@ -526,7 +540,26 @@ ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 
 ## 4. 현재 검증 상태
 
-최종 승인 상태:
+현재 상태:
+
+```text
+active_feature: none
+last_accepted_task: ADUMP-v1.0.2-AICB
+accepted_baseline: v0.7.1-v1.0.2 preserved
+nqac_status: Cancelled / Superseded by MCP Direct Query Orchestration / Contract Not Accepted
+nqac_runtime_or_acceptance_retry: not required
+nqac_source_state: commandlet integration removed; both untracked retired adapter Source files deleted; no Source/runner references remain
+phase2_runner_state: retired NQAC function and runtime block removed
+validation_for_this_cleanup: PowerShell 5.1 -RunSelfTests only
+BuildPlugin: Not Run
+canonical_Phase_2: Not Run
+Phase_1: Not Run
+Consumer_Integration: Not Required
+```
+
+과거 NQAC 구현·BuildPlugin·실패 report의 세부 수치는 `ImplementationResultLog_v1.md`의 역사 기록에서만 확인한다.
+
+마지막 완료 계약:
 
 ```text
 status: Completed / Contract Accepted
@@ -556,7 +589,7 @@ validation exact invariance: PASS
 git diff --check: PASS
 binary fixture changes: none
 closure report: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md
-next_candidate: v1.1.0 Natural Query Adapter Contract / Selectable / Not Active
+next_candidate: none selected
 ```
 
 v0.7.2 Enhanced Input Summary human release review와 이전 accepted closures는 별도 완료 이력으로 유지한다.
@@ -565,7 +598,7 @@ v0.7.2 Enhanced Input Summary human release review와 이전 accepted closures�
 
 ## 5. 보호 범위
 
-v0.7.1 acceptance 이후에도 다음 확정 계약은 후속 작업에서 불필요하게 변경하지 않는다.
+v0.7.1-v1.0.2 acceptance 이후에도 다음 확정 계약은 후속 작업에서 불필요하게 변경하지 않는다.
 
 ```text
 Source/AssetDump/Private/AssetDumpCommandlet.cpp의 data_asset_diff_v1 공개 계약
@@ -598,6 +631,60 @@ validation-content exact restoration 계약
 ---
 
 ## 7. Changelog
+
+### v1.70 - 2026-07-30
+
+- Recorded the Codex deletion of the two untracked v0.2.0 compile-neutral retired adapter Source files.
+- Confirmed `AssetDumpCommandlet.cpp/.h`, `Source/AssetDump/**` and `Scripts/RunStandalonePhase2Verification.ps1` contain no NQAC adapter execution references or any of the five retired contract strings.
+- Recorded that all 11 protected dirty files retained identical pre/post deletion SHA-256 values.
+- Superseded the temporary v1.69 stub-retention instruction; no BuildPlugin, PowerShell self-test, canonical Phase 2, Phase 1, commit or push was performed by the deletion-only Codex task.
+
+### v1.69 - 2026-07-30
+
+- Cancelled `ADUMP-v1.1.0-NQAC` before contract acceptance and restored `ADUMP-v1.0.2-AICB` as the last accepted baseline.
+- Removed the commandlet integration and Phase 2 NQAC validation/runtime block; two untracked compile-neutral retired Source files were temporarily retained in this Browser step and were subsequently deleted in v1.70.
+- Moved natural-language interpretation, ambiguity handling and Query Mode call construction to AI/MCP ownership.
+- Classified all prior NQAC build/runtime reports as historical evidence with no repair, retry, Phase 1 or acceptance obligation.
+- Kept BuildPlugin, canonical Phase 2, Phase 1, commit and push Not Run/Not Performed for this cleanup.
+
+### v1.68 - 2026-07-30
+
+- Recovered terminal job `e0c567efa7704a6ba8ae3fca8fdd8979` without starting another process and recorded exit `1`, duration `2057.978s` and fresh report SHA-256 `8b894b60e650f218c353bbf443aee168f3e7cbb14a4af4392e3808d24387a36e`.
+- Confirmed Live Coding was cleared: fresh Generic Host build, Plugin fixture/validation and every accepted compatibility family through Query Result passed.
+- Recorded three generated NQAC section outputs, exact byte equality for section A/B and structurally valid Korean mapped output.
+- Classified the single unresolved failure after Korean positive output and before dependency/evidence aggregation; no product Source defect was proven.
+- Kept full NQAC focused evidence, AI Context Bundle, P2B, Phase 1, Contract Accepted, commit and push inactive.
+
+### v1.67 - 2026-07-30
+
+- Diagnosed the canonical Phase 2 Generic Host build block from the retained `Logs/GenericHost/01_build.log`.
+- Confirmed the first blocking condition is active Unreal Live Coding, classified as `process_lock_live_coding_active` with no compiler-owned AssetDump or Generic Host source file.
+- Preserved the fresh BuildPlugin PASS and all NQAC product files unchanged; restored the temporarily instrumented runner to SHA-256 `73a1c797104c46a80065cedfdb20b97f5cc0dbff320c3f86e4292f753b04e455`.
+- Kept canonical Phase 2 runtime evidence, Phase 1, Contract Accepted, commit and push inactive.
+
+### v1.66 - 2026-07-30
+
+- Passed fresh BuildPlugin using explicit `D:\UnrealEngine_Source`; compile/package, package inspection, source Content/Validation invariance and source descriptor/filter invariance passed.
+- Recorded BuildPlugin job `9843991de38d41a8bca6f932a569efee` and report SHA-256 `48a13871b78bbcfd123d46515ad904ae1774cd42b7169742e81dda2acc7c4534`.
+- Ran canonical Phase 2 with the fresh report and recorded failure at Generic Host Editor Build with `OtherCompilationError`.
+- Recorded Phase 2 job `777232014e854cf9ad6051e7acecd377` and report SHA-256 `359ef950f2792d6c8d68f73f68c25cc5f94c48c1e2ef885bb22f791c3da7acfe`.
+- Kept adapter runtime evidence, Phase 1 and Contract Accepted inactive; performed no retry, source repair, commit or push.
+
+### v1.65 - 2026-07-30
+
+- Implemented `ADumpNaturalQueryAdapter` v0.1.0 and additive commandlet `queryadapter` integration at commandlet v0.22.0 / header v0.5.0.
+- Extended Phase 2 runner v1.15.0 with temporary structured JSON fixtures, exact output-byte determinism, atomic preservation, 27 stable-failure runtime paths and Query Mode equivalence evidence.
+- Passed Windows PowerShell 5.1 parser/self-test job `f5179ef031594358b424c1864e64e7d7` and target-scoped Level 1 static validation.
+- Kept BuildPlugin, Generic Host runtime, canonical Phase 2, Phase 1 and Contract Accepted pending.
+- Preserved Build.cs, AssetDump.uplugin, Config, Content and every unlisted Source/Script file.
+
+### v1.64 - 2026-07-30
+
+- Activated `ADUMP-v1.1.0-NQAC` and linked `v1_1_0_NaturalQueryAdapterPlan_v1.md` as the Current implementation Plan.
+- Recorded deterministic adapter ownership, English/Korean language scope, exact-selector and ambiguity boundaries, and v1.1.1/v1.1.2 deferrals.
+- Fixed the implementation allowlist and excluded Build.cs, the plugin descriptor, Config, Content, and all unlisted files.
+- Fixed the risk-based validation path while keeping implementation and all runtime gates Not Run.
+- Preserved every accepted v0.7.1-v1.0.2 contract and canonical closure evidence.
 
 ### v1.63 - 2026-07-30
 
@@ -1052,6 +1139,24 @@ validation-content exact restoration 계약
 ---
 
 ## 8. Migration
+
+### v1.70 적용 안내
+
+- 두 untracked adapter Source 파일은 Codex 삭제 전용 작업으로 실제 삭제됐으며 다시 생성하지 않는다.
+- `AssetDumpCommandlet.cpp/.h`, `Source/AssetDump/**`와 Phase 2 runner에는 NQAC 실행 계약이나 잔여 참조가 없어야 한다.
+- v1.69의 임시 retired-file 유지 안내는 superseded이며 현재 migration 의무가 아니다.
+- BuildPlugin, canonical Phase 2와 Phase 1은 이 삭제 전용 정합성 변경의 필수 gate가 아니다.
+- 다음 작업은 별도 Current Plan이 선택되거나 Git 확정 작업이 명시적으로 요청될 때만 시작한다.
+
+### v1.69 적용 안내
+
+- NQAC는 현재 구현 진입점이 아니라 취소된 역사 기록이다.
+- AI/MCP는 accepted Query Mode를 직접 조립하고 AssetDump는 indexed bounded retrieval만 수행한다.
+- 과거 NQAC report, Live Coding 진단과 retry 지시는 모두 superseded이며 새 Phase 2 또는 Phase 1 실행 조건이 아니다.
+- 이 버전에서 임시로 유지됐던 두 untracked retired Source 파일은 v1.70에서 삭제됐으며 더 이상 현재 상태나 migration 지시가 아니다.
+- 새 기능은 별도 Current Plan을 선택하기 전까지 활성화하지 않는다.
+
+
 
 ### v1.63 적용 안내
 
