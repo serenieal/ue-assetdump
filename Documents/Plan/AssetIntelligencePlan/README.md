@@ -1,10 +1,11 @@
 # AssetIntelligencePlan
 
-- Document version: v1.50
-- Last updated: 2026-07-30
-- Status: Current
+- Document version: v1.53
+- Last updated: 2026-07-31
+- Status: Current / Accepted Foundation / Maintenance
 
 This folder contains the planning documents and preserved implementation-contract history for evolving AssetDump into an AI-oriented Asset Intelligence Layer.
+In this context, Asset Intelligence means searchable, bounded and traceable UE asset evidence for an external AI. It does not grant AssetDump ownership of natural-language interpretation, semantic analysis, quality/performance evaluation, diagnosis or recommendation.
 
 ## Current State
 
@@ -25,7 +26,36 @@ v1.0.0 Query Mode: completed; native section/dependency routing, direct/selector
 v1.0.1 Query Result Schema: completed; additive query_result_v1, native-default preservation, complete payload equality, 31 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
 v1.0.2 AI Context Bundle Export: completed; single-query bounded export, 28 stable failures, invariance, P2B and Phase 1 matrix passed; contract accepted
 v1.1.0 Natural Query Adapter Contract: cancelled before acceptance; superseded by MCP direct Query Mode orchestration
+foundation lifecycle: accepted v0.7.1-v1.0.2 contracts preserved under maintenance
+active feature Plan: Documents/Plan/AIResourceEvidencePlan.md
+active feature task: ADUMP-v1.2.0-AIRE / Phase 0 / Source Not Started
+accepted maintenance baseline: ADUMP-v1.0.2-AICB
+role boundary policy: Documents/RoleBoundaryPolicy.md v1.1
 ```
+
+## v1.53 Active Plan Handoff
+
+- `Documents/Plan/AIResourceEvidencePlan.md` is the Current feature-development Plan after explicit user reactivation and Role Gate PASS.
+- This folder remains the accepted foundation for v0.7.1-v1.0.2 command, schema, validation and closure history.
+- New Entity Evidence, Niagara and Consumer Acceptance design is owned by the flat `AIResourceEvidence*.md` Plan suite in `Documents/Plan/`.
+- No Source, Script, Content or public schema implementation has started under `ADUMP-v1.2.0-AIRE`.
+- Existing accepted consumers require no migration and NQAC remains cancelled.
+
+## v1.52 Role Boundary Alignment
+
+- `Documents/RoleBoundaryPolicy.md` is the product-role SSOT applied before this roadmap or any feature Plan.
+- AssetDump owns UE resource observation, normalization, deterministic derived evidence and bounded delivery.
+- AI/MCP owns user intent, semantic interpretation, evaluation, diagnosis, prioritization, recommendation and natural-language reporting.
+- Existing accepted Graph Role, Execution Preview, Diff, Index, Query and Context contracts remain compatible deterministic-evidence contracts.
+- Natural Query, semantic ranking/deduplication/summarization, scoring and optimization recommendation remain outside AssetDump.
+
+## v1.51 Maintenance Transition
+
+- Asset Intelligence is now in `Maintenance / Feature Development Closed / No Active Implementation`.
+- `ADUMP-v1.0.2-AICB` is the protected accepted baseline for indexed bounded retrieval and Query/Result/Context behavior.
+- Maintenance is limited to defect correction, engine/toolchain compatibility, packaging, validation, documentation and security hardening that preserve accepted public contracts.
+- New command modes, schemas, sections, semantic interpretation or feature expansion require explicit user reactivation and a new Current Plan.
+- The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item and does not reopen feature development.
 
 ## v1.50 Cancellation Changelog and Migration
 
@@ -147,7 +177,11 @@ The restore loop remains hardened for an open Unreal Editor: files already ident
 
 ## Current Status
 
-There is no active Asset Intelligence implementation task. `ADUMP-v1.1.0-NQAC` was cancelled before contract acceptance because AssetDump is called by AI through MCP, not directly by a natural-language user. AI/MCP now owns intent interpretation and directly invokes the accepted Query Mode. The accepted v0.9.x index/lazy retrieval and v1.0.x query/result/context contracts remain the scale-control baseline that prevents unnecessary full-resource dumps.
+This folder is the accepted foundation and maintenance owner for completed v0.7.1-v1.0.2 contracts. Feature development has been explicitly reactivated under `ADUMP-v1.2.0-AIRE`, whose Current representative Plan is `Documents/Plan/AIResourceEvidencePlan.md`.
+
+`ADUMP-v1.1.0-NQAC` remains cancelled because user intent and natural-language interpretation belong to AI/MCP. The new work instead adds addressable UE evidence, Niagara structure and end-to-end Consumer Acceptance while preserving the accepted v0.9.x index/lazy retrieval and v1.0.x Query/Result/Context defaults.
+
+Maintenance changes in this folder continue to preserve accepted public modes, schemas, stable failures, deterministic ordering and bounded-output semantics. New feature scope, state and completion gates are read from the AI Resource Evidence Plan suite.
 
 ```text
 ADUMP-v0.7.1-RC: Completed / Contract Accepted
@@ -218,6 +252,7 @@ These files remain evidence and design history. They are not mandatory prerequis
 ## Main Documents
 
 ```text
+Documents/RoleBoundaryPolicy.md
 AssetIntelligenceRoadmap_v1.md
 SectionRegistry_v1.md
 ValidationPolicy_v1.md
@@ -265,21 +300,46 @@ Blocked — Browser Work-Order Surface Not Exposed
 ```
 
 
-## Next Sequence
+## Foundation Preservation and Active Plan Handoff
 
 ```text
 1. Preserve accepted v0.9.x index/lazy retrieval and v1.0.x Query/Result/Context contracts.
-2. Have AI/MCP translate user intent directly into accepted Query Mode options.
-3. Prefer exact asset_id/object_path selectors, explicit sections and bounded dependency limits.
-4. Use ai_context_bundle_v1 MaxItems/MaxBytes when preparing evidence for an AI context window.
-5. Treat the failed NQAC run as historical diagnostic evidence only; do not repair or rerun it.
-6. Define any future UE Window natural-language input as a separate optional Plan.
-7. Do not perform commit, push, reset, checkout, stash, rebase, merge or clean until explicitly requested.
+2. Apply Documents/RoleBoundaryPolicy.md before any schema or semantic change.
+3. Use Documents/Plan/AIResourceEvidencePlan.md for current Entity/Niagara/Consumer feature development.
+4. Use this folder for accepted contract lookup, regression policy and historical closure evidence.
+5. Keep AI/MCP responsible for natural-language interpretation, evaluation, diagnosis and recommendation.
+6. Introduce new Entity contracts additively without changing v1 defaults.
+7. Treat NQAC implementation and failed runtime evidence as historical only; do not restore or rerun it.
+8. Do not claim implementation, MCP exposure or Consumer Acceptance from Phase 0 documents.
+9. Select risk-based validation from StandaloneValidationPolicy.md when Source or Scripts change.
+10. Do not perform commit, push, reset, checkout, stash, rebase, merge or clean until explicitly requested.
 ```
 
 The v0.7.2 Enhanced Input Summary human release review remains a separate release-management item.
 
 ## Changelog
+
+### v1.53 - 2026-07-31
+
+- Handed Current feature development to `Documents/Plan/AIResourceEvidencePlan.md` and its companion documents.
+- Reclassified this folder as the accepted v0.7.1-v1.0.2 foundation, regression policy and maintenance history owner.
+- Recorded `ADUMP-v1.2.0-AIRE` Phase 0 as documented with Source implementation not started.
+- Preserved all accepted defaults and kept NQAC cancelled.
+
+### v1.52 - 2026-07-31
+
+- Registered `Documents/RoleBoundaryPolicy.md` v1.0 as the product-role SSOT ahead of roadmap and feature planning.
+- Restricted Asset Intelligence to searchable, bounded and traceable evidence delivery for external AI analysis.
+- Separated allowed deterministic derivation from AI/MCP-owned semantic interpretation, evaluation, diagnosis and recommendation.
+- Preserved every accepted v0.7.1-v1.0.2 contract and kept Natural Query, ranking/summarization, scoring and recommendation out of scope.
+
+### v1.51 - 2026-07-30
+
+- Transitioned Asset Intelligence to formal maintenance mode after the accepted bounded-retrieval objective and Git closure were completed.
+- Fixed `ADUMP-v1.0.2-AICB` as the protected accepted maintenance baseline.
+- Defined maintenance categories and required risk-based validation while preserving all accepted public contracts.
+- Removed automatic next-feature selection from the default sequence and required explicit lifecycle reactivation plus a new Current Plan for new public behavior.
+- Kept NQAC as cancelled history and the v0.7.2 human release review as a separate release-management item.
 
 ### v1.50 - 2026-07-30
 
@@ -547,6 +607,29 @@ The v0.7.2 Enhanced Input Summary human release review remains a separate releas
 - Promoted the Report Contract TaskSource and generated Codex YAML as the active task.
 
 ## Migration
+
+### v1.53 Active Plan Handoff Migration
+
+- Use `Documents/Plan/AIResourceEvidencePlan.md` for new Entity Evidence, Niagara and Consumer Acceptance work.
+- Continue using this folder for accepted command/schema definitions, validation policy and closure history.
+- Existing v0.7.1-v1.0.2 consumers require no migration.
+- Do not infer Source implementation, MCP exposure or runtime acceptance from the Phase 0 planning transition.
+
+### v1.52 Role Boundary Migration
+
+- Existing accepted consumers require no command, schema or data migration.
+- New work applies `Documents/RoleBoundaryPolicy.md` before roadmap selection or lifecycle reactivation.
+- Graph Node Role, Execution Path Preview, Diff, Index, Query and Context remain accepted deterministic-evidence contracts with their existing provenance and bounds.
+- Natural-language interpretation, semantic analysis, scoring, diagnosis and recommendation remain AI/MCP responsibilities and must not be restored as AssetDump features.
+- The term Asset Intelligence is interpreted only as evidence organization and delivery for an external AI.
+
+### v1.51 Maintenance Mode Migration
+
+- Consumers of accepted v0.9.x and v1.0.x contracts require no migration.
+- Default repository work now starts in maintenance mode rather than feature-candidate selection.
+- Defect, compatibility, packaging, validation, documentation and security changes must preserve accepted public behavior and use risk-based validation.
+- New public command modes, schemas, sections, semantic interpretation or other functionality require explicit user reactivation and a new Current Plan before implementation.
+- Historical NQAC activation, diagnosis, retry and acceptance instructions remain superseded and must not be used as maintenance steps.
 
 ### v1.50 Final Source Retirement Migration
 

@@ -1,16 +1,18 @@
 # AssetDump 작업 대문
 
-- 문서 버전: v1.11
-- 최근 갱신일: 2026-07-30
+- 문서 버전: v1.13
+- 최근 갱신일: 2026-07-31
 - 문서 상태: Current
 - 적용 범위: configured repository `assetdump_repo` 루트 이하의 코드, 스크립트, 콘텐츠와 문서
 
 ## 1. 저장소 역할과 경계
 
 AssetDump는 특정 게임 프로젝트의 내부 기능이 아니라, Unreal Engine 프로젝트에 독립적으로 설치할 수 있는 Editor 플러그인이다.
+AssetDump의 제품 역할은 UE 리소스의 관측 정보와 허용된 결정론적 파생 증거를 MCP Consumer에 전달하는 데 한정한다. 사용자 의도 해석, 의미 분석, 품질·성능 평가, 진단과 개선 제안은 AI/MCP Consumer가 담당한다.
 
 ```text
 저장소: assetdump_repo
+역할 경계: Documents/RoleBoundaryPolicy.md
 문서 진입점: Documents/Document_Entry.md
 활성 작업: Documents/ActiveWork.md
 Plan 색인: Documents/Plan/README.md
@@ -20,6 +22,8 @@ Plan 색인: Documents/Plan/README.md
 ```
 
 - configured repository 루트가 AssetDump 정책 경계다. 부모 CarFight 작업공간의 `AGENTS.md`는 이 저장소에 자동 적용되는 규칙으로 간주하지 않는다.
+- Browser repo facade의 public target 경로 해석, repository ownership 판정과 `AGENTS.md` 탐색은 GoPyMCP/Admin 계약이다. 현재 AssetDump target은 `UE/Plugins/ue-assetdump/...` public path를 사용한다.
+- 경로 기준 또는 `repository_instructions` 문제를 AssetDump 리소스 덤프 결함으로 분류하거나 AssetDump 내부 workspace 탐색·경로 보정으로 우회하지 않는다.
 - 하위 경로는 기본적으로 이 루트 `AGENTS.md`를 따른다.
 - 실제로 다른 규칙이 필요한 경로에만 하위 `AGENTS.md`를 두며, 상위 규칙을 반복 복사하지 않는다.
 - 현재 `Documents/`, `Source/`, `Scripts/`, `Content/` 아래에는 별도 `AGENTS.md`가 없고 루트 규칙이 nearest instruction이다.
@@ -56,9 +60,10 @@ repository_instructions.must_follow = true
 
 1. 현재 브랜치, upstream, ahead/behind와 기존 미커밋 변경을 확인한다.
 2. 기존 dirty 파일의 diff를 읽고 사용자 변경과 다른 작업 산출물을 보호 범위로 기록한다.
-3. `Documents/Document_Entry.md`, `Documents/ActiveWork.md`, `Documents/Plan/README.md`를 읽는다.
-4. 선택한 대표 Plan과 실제 코드·스크립트·report를 교차검증한다.
-5. 변경 위험에 맞는 검증 레벨과 실행 가능한 surface를 확정한다.
+3. `Documents/Document_Entry.md`, `Documents/RoleBoundaryPolicy.md`, `Documents/ActiveWork.md`, `Documents/Plan/README.md`를 읽는다.
+4. 새 기능·schema·section·의미 변경은 `RoleBoundaryPolicy.md`의 기능 제안 역할 게이트를 먼저 통과시킨다.
+5. 선택한 대표 Plan과 실제 코드·스크립트·report를 교차검증한다.
+6. 변경 위험에 맞는 검증 레벨과 실행 가능한 surface를 확정한다.
 
 ## 5. 변경 보호와 금지 작업
 
@@ -83,6 +88,9 @@ Git diff와 기존 dirty 변경 보존
 코드·스크립트 변경은 `Documents/Plan/StandaloneValidationPolicy.md`에서 위험 기반 Level을 선택하고, 기능별 공개 계약은 다음 Current 문서를 따른다.
 
 ```text
+제품 역할, 허용 파생 정보와 금지된 의미 판단
+= Documents/RoleBoundaryPolicy.md
+
 commandlet 실행과 옵션 계약
 = Documents/Plan/AssetIntelligencePlan/SectionRegistry_v1.md
 
@@ -104,6 +112,19 @@ AssetDump 검증을 일반적인 CarFight Editor build 절차로 대체하지 �
 - 모든 작업이 완결되었고 합리적인 후속이 없으면 추천 프롬프트를 억지로 만들지 않는다.
 
 ## 8. Changelog
+
+### v1.13 - 2026-07-31
+
+- Browser repository public target 경로 해석과 ownership·AGENTS 적용을 GoPyMCP/Admin 책임으로 분리했다.
+- AssetDump target의 현재 `main_work_root` 상대 경로 예시를 추가했다.
+- 저장소 경로 문제를 AssetDump 덤프 결함으로 귀속하거나 플러그인 내부 보정 로직으로 우회하는 것을 금지했다.
+
+### v1.12 - 2026-07-31
+
+- `Documents/RoleBoundaryPolicy.md`를 AssetDump 제품 책임의 최상위 역할 경계 정책으로 등록.
+- AssetDump를 UE 리소스 관측·구조화·전달 계층으로 제한하고 AI/MCP의 의도 해석·분석·평가·진단·추천 책임을 분리.
+- 새 기능·schema·section·의미 변경이 역할 게이트를 먼저 통과하도록 작업 시작과 검증 라우팅에 추가.
+- 기존 accepted 결정론적 파생 계약은 provenance와 bounds 조건 아래 보존.
 
 ### v1.11 - 2026-07-30
 
@@ -147,6 +168,19 @@ AssetDump 검증을 일반적인 CarFight Editor build 절차로 대체하지 �
 - 이전 TaskSource/Codex 중심 절차와 초기 독립 저장소 규칙은 Git 이력과 관련 Current 문서의 역사 기록으로 보존한다.
 
 ## 9. Migration
+
+### v1.13 적용 안내
+
+- Browser repository 호출은 GoPyMCP/Admin의 `main_work_root` 상대 public path 계약을 따른다.
+- AssetDump 파일은 `UE/Plugins/ue-assetdump/...` 형태로 지정하고 repository-root-relative 입력은 호출 측에서 교정한다.
+- 이 경로 계약을 보정하기 위한 workspace 탐색, 저장소 전용 경로 변환 또는 직접 `AGENTS.md` 검색 기능을 AssetDump에 추가하지 않는다.
+
+### v1.12 적용 안내
+
+- 새 작업은 `Documents/RoleBoundaryPolicy.md`를 제품 역할 SSOT로 사용한다.
+- 관측 사실과 결정론적 파생 증거는 허용 조건을 충족할 때 유지할 수 있지만 의미 판단·평가·진단·추천은 AssetDump에 추가하지 않는다.
+- 기존 `graph_node_role_v1`, `execution_path_preview_v1`, Diff, Index, Query와 Context 계약은 역할 정책 도입만으로 변경하지 않는다.
+- 새 public 기능은 역할 게이트 통과와 명시적 lifecycle 재활성화 후에만 Plan으로 등록한다.
 
 ### v1.11 적용 안내
 

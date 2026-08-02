@@ -1,6 +1,13 @@
 // File: ADumpTypes.h
-// Version: v0.20.0
+// Version: v0.24.0
 // Changelog:
+// - v0.24.0: Niagara Script Graph 관측 불가 건수를 typed bounds에 추가해 partial/unavailable 전파를 지원.
+// - v0.23.0: P2-N2 Native Niagara Evidence의 stable identity, owner, semantic order와 category별 fixed bounds를 추가.
+// - v0.22.0: AIRE Phase 2 Niagara MVP Adapter의 AssetDump-owned typed evidence 구조와 FADumpResult 저장소를 추가.
+// - v0.21.0: additive entity_evidence section enum과 Entity Evidence/Query forward contract를 추가.
+// Migration:
+// - Niagara 타입은 public header에 노출하지 않고 문자열·값 기반 typed evidence로 격리한다.
+// - EntityEvidence는 기존 section 순서의 마지막에 유지하며 accepted full-mode 기본 출력은 변경하지 않는다.
 // - v0.20.0: bp_search_index_v1 symbol/index 타입과 section/result 저장소를 추가.
 // - v0.19.0: graph별 bounded execution_path_preview_v1 결과 타입을 추가.
 // - v0.18.0: 모든 graph node에 additive graph_node_role_v1 분류 결과를 추가.
@@ -89,6 +96,36 @@ enum class EADumpLinksMeta : uint8
 	Min
 };
 
+// ADumpEntityEvidence forward contract는 stored section serializer가 pure Entity builder를 호출할 수 있게 한다.
+class FJsonObject;
+struct FADumpResult;
+namespace ADumpEntityEvidence
+{
+	// BuildEntityEvidenceObject는 기존 typed Blueprint 증거를 entity_evidence_v1 object로 투영한다.
+	TSharedRef<FJsonObject> BuildEntityEvidenceObject(const FADumpResult& InDumpResult);
+}
+
+// ADumpEntityQuery forward contract는 Commandlet가 전용 Entity index/query/context core를 호출할 수 있게 한다.
+namespace ADumpEntityQuery
+{
+	// BuildEntityIndex는 현재 dump root의 stored Entity evidence를 entity_index_v1으로 만든다.
+	bool BuildEntityIndex(const FString& InDumpRootPath, FString& OutEntityIndexFilePath, FString& OutErrorCode, FString& OutErrorDetail);
+
+	// BuildEntityQueryJson은 entityquery list/get/expand success JSON을 만든다.
+	bool BuildEntityQueryJson(const FString& InCommandLine, FString& OutJsonText, FString& OutErrorCode, FString& OutErrorDetail);
+
+	// BuildEntityContextJson은 entity_query_result_v1을 entity_context_bundle_v1로 변환한다.
+	bool BuildEntityContextJson(const FString& InCommandLine, FString& OutJsonText, FString& OutErrorCode, FString& OutErrorDetail);
+}
+
+struct FADumpIssue;
+struct FADumpNiagaraEvidence;
+namespace ADumpNiagara
+{
+	// ExtractNiagaraEvidence는 Niagara UObject를 AssetDump-owned typed evidence로 관측한다.
+	bool ExtractNiagaraEvidence(const FString& InAssetObjectPath, FADumpNiagaraEvidence& OutEvidence, TArray<FADumpIssue>& OutIssues);
+}
+
 // EADumpSection은 선택적으로 직렬화할 주요 JSON 섹션을 구분한다.
 enum class EADumpSection : uint8
 {
@@ -102,7 +139,8 @@ enum class EADumpSection : uint8
 	BPSearchIndex,
 	Graphs,
 	References,
-	WidgetDesigner
+	WidgetDesigner,
+	EntityEvidence
 };
 
 // EADumpStatus는 덤프 최종 결과 상태를 나타낸다.
@@ -1631,6 +1669,222 @@ struct FADumpBPSearchIndex
 	TArray<FADumpBPSearchSymbol> Symbols;
 };
 
+// FADumpNiagaraSystemEvidence는 Niagara System root 관측 정보를 표현한다.
+struct FADumpNiagaraSystemEvidence
+{
+	FString StableKey;
+	FString ObjectPath;
+	FString SystemName;
+	FString ClassPath;
+	bool bHasSystemSpawnScript = false;
+	bool bHasSystemUpdateScript = false;
+	bool bEmpty = true;
+	int32 AvailableEmitterCount = 0;
+	int32 IncludedEmitterCount = 0;
+};
+
+// FADumpNiagaraEmitterEvidence는 emitter handle/version의 향후 P2-N2 typed evidence를 표현한다.
+struct FADumpNiagaraEmitterEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString IdentityQuality = TEXT("exact");
+	FString IdentitySource = TEXT("engine_guid");
+	FString HandleId;
+	FString VersionGuid;
+	FString EmitterName;
+	FString EmitterObjectPath;
+	FString ParentEmitterObjectPath;
+	bool bEnabled = false;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraExecutionGroupEvidence는 Niagara script usage별 실행 그룹을 표현한다.
+struct FADumpNiagaraExecutionGroupEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString ScriptUsage;
+	FString UsageId;
+	FString ScriptPath;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraModuleEvidence는 stack module의 직접 관측 identity를 표현한다.
+struct FADumpNiagaraModuleEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString IdentityQuality = TEXT("exact");
+	FString IdentitySource = TEXT("engine_guid");
+	FString ModuleName;
+	FString ScriptPath;
+	FString NodeGuid;
+	bool bEnabled = false;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraInputEvidence는 module input의 직접 관측 값을 표현한다.
+struct FADumpNiagaraInputEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString IdentityQuality = TEXT("exact");
+	FString IdentitySource = TEXT("engine_guid");
+	FString ParameterHandle;
+	FString TypeName;
+	FString SourceKind;
+	FString ValueText;
+	FString PinGuid;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraRendererEvidence는 emitter renderer 한 건을 표현한다.
+struct FADumpNiagaraRendererEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString RendererName;
+	FString RendererClass;
+	TArray<FString> BoundAttributes;
+	int32 SourceIndex = INDEX_NONE;
+	bool bEnabled = false;
+};
+
+// FADumpNiagaraParameterEvidence는 Niagara parameter inventory 한 건을 표현한다.
+struct FADumpNiagaraParameterEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString Namespace;
+	FString ParameterName;
+	FString TypeName;
+	FString SourceKind;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraBindingEvidence는 source/target parameter binding 한 건을 표현한다.
+struct FADumpNiagaraBindingEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString SourceHandle;
+	FString TargetHandle;
+	FString SourceParameterStableKey;
+	FString TargetInputStableKey;
+	FString BindingKind;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraDataInterfaceEvidence는 Data Interface inventory 한 건을 표현한다.
+struct FADumpNiagaraDataInterfaceEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString VariableName;
+	FString ObjectPath;
+	FString ClassPath;
+	int32 SourceIndex = INDEX_NONE;
+};
+
+// FADumpNiagaraStageEvidence는 Simulation Stage overview 한 건을 표현한다.
+struct FADumpNiagaraStageEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString ObjectName;
+	FString UsageId;
+	FString ScriptPath;
+	bool bEnabled = false;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraReferenceEvidence는 Niagara-owned asset reference 한 건을 표현한다.
+struct FADumpNiagaraReferenceEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString ObjectPath;
+	FString ClassName;
+	FString ReferenceRole;
+	int32 SourceIndex = INDEX_NONE;
+};
+
+// FADumpNiagaraBounds는 Niagara adapter의 fixed hard-cap 적용 결과를 표현한다.
+struct FADumpNiagaraBounds
+{
+	bool bTruncated = false;
+	int32 AvailableEmitterCount = 0;
+	int32 IncludedEmitterCount = 0;
+	int32 OmittedEmitterCount = 0;
+	int32 AvailableExecutionGroupCount = 0;
+	int32 IncludedExecutionGroupCount = 0;
+	int32 OmittedExecutionGroupCount = 0;
+	int32 AvailableModuleCount = 0;
+	int32 IncludedModuleCount = 0;
+	int32 OmittedModuleCount = 0;
+	int32 AvailableModuleInputCount = 0;
+	int32 IncludedModuleInputCount = 0;
+	int32 OmittedModuleInputCount = 0;
+	int32 AvailableRendererCount = 0;
+	int32 IncludedRendererCount = 0;
+	int32 OmittedRendererCount = 0;
+	int32 AvailableParameterCount = 0;
+	int32 IncludedParameterCount = 0;
+	int32 OmittedParameterCount = 0;
+	int32 AvailableBindingCount = 0;
+	int32 IncludedBindingCount = 0;
+	int32 OmittedBindingCount = 0;
+	int32 AvailableDataInterfaceCount = 0;
+	int32 IncludedDataInterfaceCount = 0;
+	int32 OmittedDataInterfaceCount = 0;
+	int32 AvailableSimulationStageCount = 0;
+	int32 IncludedSimulationStageCount = 0;
+	int32 OmittedSimulationStageCount = 0;
+	int32 AvailableAssetReferenceCount = 0;
+	int32 IncludedAssetReferenceCount = 0;
+		int32 OmittedAssetReferenceCount = 0;
+	int32 UnavailableScriptGraphCount = 0;
+	int32 OmittedEntityCount = 0;
+	int32 OmittedRelationCount = 0;
+	TArray<FString> Reasons;
+};
+
+// FADumpNiagaraEvidence는 Niagara typed native evidence 전체를 감싼다.
+struct FADumpNiagaraEvidence
+{
+	static constexpr int32 MaxEmitters = 64;
+	static constexpr int32 MaxExecutionGroups = 128;
+	static constexpr int32 MaxModules = 1024;
+	static constexpr int32 MaxModuleInputs = 4096;
+	static constexpr int32 MaxRenderers = 256;
+	static constexpr int32 MaxParameters = 2048;
+	static constexpr int32 MaxBindings = 4096;
+	static constexpr int32 MaxDataInterfaces = 256;
+	static constexpr int32 MaxSimulationStages = 128;
+	static constexpr int32 MaxAssetReferences = 2048;
+	static constexpr int32 MaxRelations = 8192;
+	static constexpr int32 MaxTraversalDepth = 16;
+	static constexpr int32 MaxFacetUtf8Bytes = 4194304;
+
+	FString SchemaVersion;
+	bool bSupported = false;
+	FString UnsupportedReason;
+	FString State = TEXT("not_requested");
+	FADumpNiagaraBounds Bounds;
+	FADumpNiagaraSystemEvidence System;
+	TArray<FADumpNiagaraEmitterEvidence> Emitters;
+	TArray<FADumpNiagaraExecutionGroupEvidence> ExecutionGroups;
+	TArray<FADumpNiagaraModuleEvidence> Modules;
+	TArray<FADumpNiagaraInputEvidence> ModuleInputs;
+	TArray<FADumpNiagaraRendererEvidence> Renderers;
+	TArray<FADumpNiagaraParameterEvidence> Parameters;
+	TArray<FADumpNiagaraBindingEvidence> Bindings;
+	TArray<FADumpNiagaraDataInterfaceEvidence> DataInterfaces;
+	TArray<FADumpNiagaraStageEvidence> SimulationStages;
+	TArray<FADumpNiagaraReferenceEvidence> References;
+};
+
 // FADumpResult는 dump.json 전체를 담는 최상위 중간 결과 구조다.
 struct FADumpResult
 {
@@ -1675,6 +1929,9 @@ struct FADumpResult
 
 	// BPSearchIndex는 자산별 Blueprint symbol 검색 section이다.
 	FADumpBPSearchIndex BPSearchIndex;
+
+	// NiagaraEvidence는 entity_evidence_v1 projection 전용 Niagara typed native evidence다.
+	FADumpNiagaraEvidence NiagaraEvidence;
 
 	// Graphs는 그래프 덤프 결과다.
 	TArray<FADumpGraph> Graphs;

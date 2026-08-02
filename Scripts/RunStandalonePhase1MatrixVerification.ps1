@@ -1,10 +1,17 @@
 ﻿# File: RunStandalonePhase1MatrixVerification.ps1
-# Version: v1.0
+# Version: v1.4
 # Changelog:
+# - v1.4: P2-N4 Niagara actual dump, active registry union, query/context, loaded-index negative와 Content invariance predicate가 모두 PASS한 Phase 2 report만 재사용.
+# - v1.3: AIRE-G2 actual index/query/context, failure atomicity, repeat 결정성과 protected-source invariance가 모두 PASS한 Phase 2 report만 재사용.
+# - v1.2: Windows PowerShell 5.1에서 BOM 없는 UTF-8 Phase 2·child report를 명시적 UTF-8로 읽도록 교정.
+# - v1.1: 성공한 Phase 2 report의 AIRE-G1 Entity Evidence registry, pointer, query/context, failure와 determinism gate 재사용을 필수화.
 # - v1.0: PowerShell 5.1/7 parser·self-test, Generic Host Plugin/Project/Both profile, 0-asset 의미, PS5/PS7 DataAsset closure와 Validation invariance를 단일 Phase 1 matrix로 통합.
 # Migration:
 # - Phase 2 Accepted report의 외부 Generic Host와 packaged harness를 재사용하며 BuildPlugin을 반복하지 않는다.
 # - Consumer Project validation 정책은 이 standalone Phase 1 matrix의 acceptance에 포함하지 않는다.
+# - Phase 1 matrix는 `entity_evidence_passed`와 AIRE-G1 세부 gate가 모두 true인 Phase 2 report만 재사용한다.
+# - AIRE-G2 closure에서는 `aire_g2_index_query_context_passed`와 actual negative·atomicity·filter·truncation·repeat 세부 predicate를 모두 요구한다.
+# - JSON report read는 Windows PowerShell 5.1에서도 BOM 유무와 무관하게 UTF-8로 해석한다.
 # - Project와 Both profile은 Generic Host `/Game` 0-asset 결과를 `host_smoke_zero_asset`으로 요구한다.
 # - 중첩 regression/closure harness는 자체 exit code와 fresh report를 authoritative하게 사용한다.
 
@@ -22,7 +29,7 @@ param(
     # CompactLog는 child harness 전체 로그는 파일에 저장하고 콘솔에는 핵심 줄만 출력한다.
     [switch]$CompactLog,
 
-    # RunSelfTests는 외부 프로세스 없이 report predicate와 manifest helper를 검사한다.
+            # RunSelfTests는 외부 프로세스 없이 report predicate와 manifest helper를 검사한다.
     [switch]$RunSelfTests
 )
 
@@ -62,7 +69,7 @@ function Read-JsonFile {
     if (-not (Test-Path -LiteralPath $PathText -PathType Leaf)) {
         throw "JSON report가 없습니다: $PathText"
     }
-    return Get-Content -LiteralPath $PathText -Raw | ConvertFrom-Json
+        return Get-Content -LiteralPath $PathText -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
 function Resolve-RequiredFile {
@@ -376,14 +383,42 @@ function Resolve-PwshExecutable {
     throw "PowerShell 7 pwsh.exe를 찾을 수 없습니다."
 }
 
+# Test-AireG2Phase2Report는 AIRE-G2 closure에 필요한 fresh Phase 2 predicate 집합을 검사한다.
+function Test-AireG2Phase2Report {
+    param([psobject]$ReportObject)
+
+    return $null -ne $ReportObject -and
+        [string]$ReportObject.schema_version -eq "assetdump_standalone_phase2_verification_v1" -and
+        [bool]$ReportObject.phase2_implementation_gate_passed -and
+        [bool]$ReportObject.entity_evidence_passed -and
+        [bool]$ReportObject.aire_g2_index_query_context_passed -and
+        [bool]$ReportObject.entity_asset_selector_equivalence_passed -and
+        [bool]$ReportObject.entity_filter_direction_passed -and
+        [bool]$ReportObject.entity_query_max_bytes_passed -and
+        [bool]$ReportObject.entity_context_truncation_contract_passed -and
+        [bool]$ReportObject.entity_index_actual_negative_matrix_passed -and
+        [bool]$ReportObject.entity_query_actual_negative_matrix_passed -and
+        [bool]$ReportObject.entity_context_actual_negative_matrix_passed -and
+        [bool]$ReportObject.entity_failure_atomicity_passed -and
+                [bool]$ReportObject.entity_protected_source_invariance_passed -and
+        [bool]$ReportObject.entity_repeat_determinism_passed -and
+        [bool]$ReportObject.niagara_phase2_closure_passed -and
+        [bool]$ReportObject.niagara_actual_dump_passed -and
+        [bool]$ReportObject.niagara_registry_matrix_passed -and
+        [bool]$ReportObject.niagara_query_context_matrix_passed -and
+        [bool]$ReportObject.niagara_loaded_registry_negative_passed -and
+        [bool]$ReportObject.niagara_content_invariance_passed -and
+        [int]$ReportObject.failure_count -eq 0
+}
+
 function Resolve-Phase2Report {
     param([string]$ExplicitReportPath)
 
     if (-not [string]::IsNullOrWhiteSpace($ExplicitReportPath)) {
         $ResolvedPath = Resolve-RequiredFile -PathText (Convert-PathToFullPath -PathText $ExplicitReportPath) -Label "ExistingPhase2Report"
         $ReportObject = Read-JsonFile -PathText $ResolvedPath
-        if (-not [bool]$ReportObject.phase2_implementation_gate_passed) {
-            throw "지정한 Phase 2 report가 PASS가 아닙니다: $ResolvedPath"
+                if (-not (Test-AireG2Phase2Report -ReportObject $ReportObject)) {
+            throw "지정한 Phase 2 report가 AIRE-G2 predicate를 충족하지 않습니다: $ResolvedPath"
         }
         return [pscustomobject]@{ source = "explicit_argument"; path = $ResolvedPath; report = $ReportObject }
     }
@@ -392,7 +427,7 @@ function Resolve-Phase2Report {
     foreach ($ReportFileInfo in @(Get-ChildItem -LiteralPath $Phase2RootPath -Recurse -File -Filter "phase2_report.json" -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending)) {
         try {
             $ReportObject = Read-JsonFile -PathText $ReportFileInfo.FullName
-            if ([string]$ReportObject.schema_version -eq "assetdump_standalone_phase2_verification_v1" -and [bool]$ReportObject.phase2_implementation_gate_passed) {
+                        if (Test-AireG2Phase2Report -ReportObject $ReportObject) {
                 return [pscustomobject]@{ source = "latest_successful_temp_report"; path = $ReportFileInfo.FullName; report = $ReportObject }
             }
         } catch {
@@ -436,7 +471,20 @@ function Invoke-RunnerSelfTests {
         integration_all_passed = $true; overall_passed = $true; validation_content_unchanged = $true; negative_error_codes_from_process_log = $true
         cases = @([pscustomobject]@{ name = "project_owned_snapshot_diff"; canonical_name = "plugin_owned_snapshot_diff"; asset_scope = "plugin" }) + @(1..10 | ForEach-Object { [pscustomobject]@{ name = "case_$_" } })
     }
-    if (-not (Test-ClosureReport -ReportObject $FakeClosure).passed) { throw "self test 실패: closure report" }
+        if (-not (Test-ClosureReport -ReportObject $FakeClosure).passed) { throw "self test 실패: closure report" }
+
+    $FakeG2Phase2 = [pscustomobject]@{
+        schema_version = "assetdump_standalone_phase2_verification_v1"; phase2_implementation_gate_passed = $true; entity_evidence_passed = $true
+        aire_g2_index_query_context_passed = $true; entity_asset_selector_equivalence_passed = $true; entity_filter_direction_passed = $true
+        entity_query_max_bytes_passed = $true; entity_context_truncation_contract_passed = $true; entity_index_actual_negative_matrix_passed = $true
+        entity_query_actual_negative_matrix_passed = $true; entity_context_actual_negative_matrix_passed = $true; entity_failure_atomicity_passed = $true
+                entity_protected_source_invariance_passed = $true; entity_repeat_determinism_passed = $true
+        niagara_phase2_closure_passed = $true; niagara_actual_dump_passed = $true; niagara_registry_matrix_passed = $true
+        niagara_query_context_matrix_passed = $true; niagara_loaded_registry_negative_passed = $true; niagara_content_invariance_passed = $true; failure_count = 0
+    }
+    if (-not (Test-AireG2Phase2Report -ReportObject $FakeG2Phase2)) { throw "self test 실패: AIRE-G2 Phase 2 predicate" }
+    $FakeG2Phase2.entity_failure_atomicity_passed = $false
+    if (Test-AireG2Phase2Report -ReportObject $FakeG2Phase2) { throw "self test 실패: AIRE-G2 atomicity 누락 허용" }
 
     $TempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("AssetDumpPhase1MatrixSelfTest_" + [Guid]::NewGuid().ToString("N"))
     try {
@@ -456,6 +504,8 @@ if ($RunSelfTests) {
     Invoke-RunnerSelfTests
     return
 }
+
+
 
 $ScriptDirectoryPath = $PSScriptRoot
 $PluginRootPath = (Resolve-Path -LiteralPath (Join-Path $ScriptDirectoryPath "..")).ProviderPath
@@ -603,15 +653,40 @@ Write-TextFile -PathText $GitDiffCheckLogPath -ContentText ((@($GitDiffOutputLin
 $GitDiffCheckPassed = $GitDiffCheckExitCode -eq 0
 if (-not $GitDiffCheckPassed) { $FailureList.Add("git diff --check 실패: exit=$GitDiffCheckExitCode") }
 
+$EntityEvidenceReusedPassed = [bool]$Phase2Report.entity_evidence_passed -and
+    [bool]$Phase2Report.entity_evidence_registry_exact_passed -and
+    [bool]$Phase2Report.entity_evidence_identity_relation_passed -and
+    [bool]$Phase2Report.entity_index_pointer_passed -and
+    [bool]$Phase2Report.entity_query_positive_passed -and
+    [bool]$Phase2Report.entity_query_selector_equivalence_passed -and
+    [bool]$Phase2Report.entity_query_bounds_cursor_passed -and
+    [bool]$Phase2Report.entity_context_native_equality_passed -and
+    [bool]$Phase2Report.entity_context_utf8_bounds_passed -and
+    [bool]$Phase2Report.entity_negative_matrix_passed -and
+    [bool]$Phase2Report.entity_stable_failure_registry_passed -and
+    [bool]$Phase2Report.entity_repeat_determinism_passed
+if (-not $EntityEvidenceReusedPassed) {
+    $FailureList.Add("Phase 2 report의 AIRE-G1 Entity Evidence 세부 gate가 완전하지 않습니다.")
+}
+$AireG2Phase2ReusedPassed = Test-AireG2Phase2Report -ReportObject $Phase2Report
+if (-not $AireG2Phase2ReusedPassed) {
+    $FailureList.Add("Phase 2 report의 AIRE-G2 Index Query Context 세부 gate가 완전하지 않습니다.")
+}
+
 $Phase1MatrixPassed = $FailureList.Count -eq 0
 $FinalReport = [ordered]@{
     schema_version = "assetdump_standalone_phase1_matrix_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-    script_version = "v1.0"
+        script_version = "v1.4"
     workspace_root = $ResolvedWorkspaceRoot
     phase2_report_source = $Phase2Resolution.source
     phase2_report_path = $Phase2Resolution.path
-    phase2_gate_reused = [bool]$Phase2Report.phase2_implementation_gate_passed
+            phase2_gate_reused = [bool]$Phase2Report.phase2_implementation_gate_passed
+        entity_evidence_phase2_reused_passed = $EntityEvidenceReusedPassed
+    aire_g1_native_evidence_reused = $EntityEvidenceReusedPassed
+        aire_g2_phase2_reused_passed = $AireG2Phase2ReusedPassed
+    p2_n4_niagara_phase2_reused_passed = [bool]$Phase2Report.niagara_phase2_closure_passed -and [bool]$Phase2Report.niagara_content_invariance_passed
+    aire_g2_index_query_context_accepted = $AireG2Phase2ReusedPassed -and $Phase1MatrixPassed
     generic_host_project_file = $GenericHostProjectFile
     generic_host_build_evidence_reused = [bool]$Phase2Report.generic_host_build_passed
     engine_root = $ResolvedEngineRoot
@@ -665,6 +740,8 @@ Write-Host "Project profile passed: $($FinalReport.project_profile_passed)"
 Write-Host "Both profile passed: $($FinalReport.both_profile_passed)"
 Write-Host "PowerShell 5.1 closure passed: $($FinalReport.closure_powershell51_passed)"
 Write-Host "PowerShell 7 closure passed: $($FinalReport.closure_pwsh7_passed)"
+Write-Host "AIRE-G2 Phase 2 evidence reused: $($FinalReport.aire_g2_phase2_reused_passed)"
+Write-Host "P2-N4 Niagara Phase 2 evidence reused: $($FinalReport.p2_n4_niagara_phase2_reused_passed)"
 Write-Host "Phase 1 full matrix passed: $($FinalReport.phase1_full_matrix_passed)"
 
 if (-not $FinalReport.phase1_full_matrix_passed) {

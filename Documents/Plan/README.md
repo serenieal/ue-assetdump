@@ -1,8 +1,9 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.51
-- 최근 갱신일: 2026-07-30
+- 문서 버전: v1.66
+- 최근 갱신일: 2026-08-02
 - 문서 상태: Current
+
 - 역할: `assetdump_repo`의 Plan 폴더와 대표 진입 문서를 연결하는 색인
 
 ---
@@ -30,23 +31,42 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 | `P1ARuntimeVerificationAudit.md` | `P1A Plugin Runtime Contract Accepted / Host Invariance Pending` | Codex strict 결과, v1.6.1 diff, regression blocker와 Host binary attribution 감사 | `P1ARuntimeVerificationAudit.md` |
 | `P1BRuntimeVerificationCodexWorkOrder.md` | `Executed / Browser Scoped Audit Accepted` | P1B parser·self-test·Plugin isolation·restoration과 Project routing 증거 실행 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | `P2ABuildPluginVerificationWorkOrder.md` | `Superseded / Historical P2A-1 Contract` | Phase 묶음 도입 전 P2A-1 단독 실행 계약 이력 | `P2ABuildPluginVerificationWorkOrder.md` |
-| `AssetIntelligencePlan/` | `No Active Feature / v1.0.2 Accepted Baseline / NQAC Cancelled` | 인덱스 기반 부분 조회, bounded Query/Result/Context 계약과 구현 이력 | `AssetIntelligencePlan/README.md` |
+| `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / Phase 3 Planning Complete / Contract Review Ready` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
+| `AIResourceEvidencePhase3Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P3 / P3-P2A Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / P3-P2B R87 Parked` | exact Browser-only evidence tool, Static Review·Blueprint·Vector, offline implementation, runtime validation split과 AIRE-G3/G4 Roadmap | `AIResourceEvidencePhase3Plan_v1.md` |
+| `AIResourceEvidencePhase2Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P2 / Completed / Niagara MVP Adapter Accepted` | UE 5.8 foundation, P2-N1~P2-N4 구현·검증, canonical report와 accepted native contract | `AIResourceEvidencePhase2Plan_v1.md` |
+| `AIResourceEvidencePhase1Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P1 / Completed / Native Entity Core Accepted` | Blueprint Entity Core의 exact implementation, G1/G2 검증 계약과 accepted baseline | `AIResourceEvidencePhase1Plan_v1.md` |
+| `AIResourceEvidencePhase1Close_v1.md` | `Completed / Authoritative Closure` | G1/G2 canonical jobs, reports, hashes, zero-diff와 final acceptance 증거 | `AIResourceEvidencePhase1Close_v1.md` |
+| `AssetIntelligencePlan/` | `Accepted Foundation / v1.0.2 Baseline / Maintenance` | 인덱스 기반 부분 조회와 bounded Query/Result/Context accepted 계약·검증 이력 | `AssetIntelligencePlan/README.md` |
 
-현재 작업 초점과 정확한 다음 단계는 다음 문서를 우선한다.
+제품 역할과 기능 범위는 `Documents/RoleBoundaryPolicy.md`를 먼저 적용한다.
+현재 lifecycle과 활성 작업은 다음 문서를 우선한다.
 
 ```text
 Documents/ActiveWork.md
+Documents/Plan/AIResourceEvidencePlan.md
 ```
+
+`AIRE-G0`, Phase 1 `AIRE-G1/G2`와 Phase 2 `P2-N0~P2-N4`는 PASS다. `ADUMP-v1.2.0-AIRE-P1`은 `Completed / Native Entity Core Accepted`이며 authoritative evidence는 `AIResourceEvidencePhase1Close_v1.md`가 소유한다. `ADUMP-v1.2.0-AIRE-P2`는 canonical Phase 2 v1.18.1과 Phase 1 Matrix v1.4를 failure_count=0으로 통과한 `Completed / Niagara MVP Adapter Accepted` 상태다. Phase 3 P3-P2A Browser 준비, Static Contract QA와 기계 실행 Blueprint·synthetic Vector 교정은 완료됐으며 현재 `Ready for Local Source Implementation / Source Not Implemented` 상태다. P3-P2B runtime integration과 Browser Consumer 단계는 R87을 해결할 수 있을 때까지 parked 상태다.
 
 ---
 
 ## 3. 선택 읽기 규칙
 
-현재 활성 작업이 저장소 독립성·이식성 개선이면 `StandalonePlan.md`를 먼저 읽는다.
-Asset Intelligence 기능·schema 작업이면 `AssetIntelligencePlan/README.md`를 먼저 읽은 뒤 필요한 문서만 선택한다.
+새 AI Resource Evidence 개발은 `AIResourceEvidencePlan.md`를 먼저 읽고 Product Goal, Consumer Workflow, Entity Architecture, Niagara Contract, Consumer Validation과 Roadmap을 작업 목적에 맞게 선택한다.
+저장소 독립성·이식성 유지보수이면 `StandalonePlan.md`와 `StandaloneValidationPolicy.md`를 먼저 읽는다.
+기존 Asset Intelligence defect·compatibility·regression이면 `AssetIntelligencePlan/README.md`와 accepted 계약 문서를 선택한다.
 
 | 목적 | 선택 문서 |
 | --- | --- |
+| 제품 역할·분석 책임·새 기능 범위 판정 | `Documents/RoleBoundaryPolicy.md` |
+| 현재 AI Resource Evidence 개발 상태 | `AIResourceEvidencePlan.md`, `Documents/ActiveWork.md` |
+| 제품 목표와 완료 조건 | `AIResourceEvidenceProductGoal_v1.md` |
+| Browser GPT Golden Consumer Journey | `AIResourceEvidenceConsumerWorkflow_v1.md` |
+| Entity·Provenance·Relation 공통 설계 | `AIResourceEvidenceEntityArchitecture_v1.md` |
+| Niagara Evidence 범위와 계약 | `AIResourceEvidenceNiagaraContract_v1.md` |
+| Phase 2 exact 구현·registry·fixture·검증 계약 | `AIResourceEvidencePhase2Plan_v1.md` |
+| Consumer Acceptance와 검증 Gate | `AIResourceEvidenceConsumerValidation_v1.md` |
+| Phase 0~6 Roadmap | `AIResourceEvidenceRoadmap_v1.md` |
 | 저장소·Host Project 완전 독립화 | `StandalonePlan.md` |
 | 검증 강도·증거 재사용 판단 | `StandaloneValidationPolicy.md` |
 | 과거 P1A Codex runtime 검증 이력 | `P1ARuntimeVerificationCodexWorkOrder.md` |
@@ -111,6 +131,120 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 6. Changelog
+
+### v1.66 - 2026-08-02
+
+- GoPyMCP Static Contract Review v1.0.0과 교정된 Plan/Work Order v1.2.1, Blueprint/Vector v1.0.1을 Phase 3 Current 계약에 연결했다.
+- exact 28-property schema, plain-dict error envelope, nested UE env extraction, cleanup-before-sizing과 frozen Admin surface regression 교정을 반영했다.
+- P3-P2A 상태를 `Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented`로 전환했다.
+- AssetDump Source·Scripts·Content와 actual runtime evidence, GoPyMCP Source·Config·test·R87은 변경·재실행하지 않았다.
+
+### v1.65 - 2026-08-02
+
+- GoPyMCP Mechanical Code Blueprint v1.0.0과 Synthetic Test Vectors v1.0.0을 Phase 3 실행 계약에 연결했다.
+- accepted AssetDump schema 기반 fixture, result-ref/cursor, argv와 response atomicity가 기계적으로 확정됐음을 반영했다.
+- P3-P2A 상태를 `Mechanical Execution Package Complete / Source Awaiting Local Executor`로 전환했다.
+- AssetDump Source·Scripts·Content와 actual runtime evidence는 변경·재실행하지 않았다.
+
+### v1.64 - 2026-08-01
+
+- R87을 P3-P2B actual runtime validation까지 parked blocker로 이동했다.
+- P3-P2A Browser source audit와 implementation insertion-point 검토 완료를 색인했다.
+- GoPyMCP Plan v1.1.1과 Work Order v1.1.2를 연결했다.
+- P3-P2A 상태를 `Browser Preparation Complete / Source Awaiting Local Executor`로 전환했다.
+- AssetDump Source·Scripts·Content와 runtime/test는 변경·실행하지 않았다.
+
+### v1.63 - 2026-08-01
+
+- Phase 3 P3-P2를 P3-P2A Offline Implementation과 P3-P2B Runtime Validation으로 분리했다.
+- P3-P2A를 `Offline Implementation Authorized`, P3-P2B를 `R87 Runtime Recovery Unavailable`로 색인했다.
+- 독립 Codex Work Order v1.1.0은 R87 미해결 상태에서도 source/mock/static test 구현을 수행하도록 전환했다.
+- actual process·smoke·native equality·Browser publication은 P3-P2B와 AIRE-G3에 남겼다.
+- AssetDump Source·Content와 GoPyMCP executable source·runtime config는 이번 문서 작업에서 변경하지 않았다.
+- Migration: 다음 실행 후보는 R87 복구가 아니라 P3-P2A offline Codex implementation이다.
+
+### v1.62 - 2026-08-01
+
+- P3-P1 Cross-Repository Contract Review를 완료하고 Phase 3 Plan을 `Contract Accepted`로 전환했다.
+- exact tool `ue.assetdump_evidence_safe`, Browser 18 / Compatibility 152와 4-operation schema를 등록했다.
+- result-ref lifecycle, response bounds와 transport/provider error projection을 최종 계약으로 고정했다.
+- GoPyMCP implementation Plan과 독립 Codex 작업지시서 경로를 Phase 3 Plan에서 연결했다.
+- R87 runtime recovery가 미완료이므로 P3-P2는 Ready / Prerequisite Blocked로 유지했다.
+- Product Source·Content, GoPyMCP executable source·runtime config, commit과 push는 변경하지 않았다.
+- Migration: R87 acceptance와 별도 Codex dispatch 전에는 신규 tool을 current exposure로 간주하지 않는다.
+
+### v1.61 - 2026-08-01
+
+- `ADUMP-v1.2.0-AIRE-P3`와 `AIResourceEvidencePhase3Plan_v1.md`를 Current planning entry로 등록했다.
+- current Browser 17-tool audit와 `ue.batchdump_safe` 단일 exposure, direct entity query/context 부재를 반영했다.
+- additive evidence tool candidate와 AIRE-G3/G4 검증 Roadmap을 색인했다.
+- 상태를 `Phase 3 Planning Complete / Contract Review Ready / Implementation Not Started`로 전환했다.
+- AssetDump Source·Content와 GoPyMCP executable/runtime 파일은 변경하지 않았다.
+- Migration: Phase 3 implementation은 별도 사용자 승인과 GoPyMCP Current contract를 요구한다.
+
+### v1.60 - 2026-08-01
+
+- `ADUMP-v1.2.0-AIRE-P2` P2-N4 canonical closure PASS를 반영했다.
+- Phase 2 Plan을 `Completed / Niagara MVP Adapter Accepted`로 전환했다.
+- canonical Phase 2 v1.18.1과 Phase 1 Matrix v1.4, 12-file Content invariance와 legacy output-root 비생성을 acceptance evidence로 기록했다.
+- 상위 AIRE 상태를 `Phase 2 Accepted / Phase 3 Not Started`로 전환했다.
+- Product Source·Content 추가 변경과 commit/push는 수행하지 않았다.
+
+### v1.59 - 2026-08-01
+
+- `AIResourceEvidencePhase2Plan_v1.md`를 Current Phase 2 implementation Plan으로 등록했다.
+- UE 5.8 foundation `GO_FOUNDATION`, registry compatibility와 exact allowlist 동결 상태를 반영했다.
+- `ADUMP-v1.2.0-AIRE-P2`를 `Implementation Authorized / Source Not Started`로 전환했다.
+- Phase 1 closure는 마지막 accepted native baseline으로 계속 보존했다.
+
+### v1.58 - 2026-07-31
+
+- AIRE-G2 Phase 2 v1.17.0과 Phase 1 Matrix v1.3 PASS를 Plan Index에 반영.
+- `AIResourceEvidencePhase1Close_v1.md`를 authoritative closure로 등록.
+- `ADUMP-v1.2.0-AIRE-P1`을 `Completed / Native Entity Core Accepted`로 전환.
+- Niagara MVP Adapter와 G3 이후 Consumer Gate는 Not Started로 유지.
+
+### v1.57 - 2026-07-31
+
+- controlled `BP_ADumpActorFixture.uasset` materialization과 first acceptance `makefixtures` 0/0/0을 Plan Index에 반영.
+- fresh BuildPlugin, canonical Phase 2 v1.16.4와 Phase 1 Matrix v1.2 전체 PASS를 기록.
+- `ADUMP-v1.2.0-AIRE-P1`을 AIRE-G1 Contract Accepted / AIRE-G2 Not Started 상태로 전환.
+- AIRE-G2와 Niagara Adapter는 별도 승인 전까지 시작하지 않도록 유지.
+
+### v1.56 - 2026-07-31
+
+- `ADUMP-v1.2.0-AIRE-P1`을 Source Implemented / Fresh BuildPlugin Passed 상태로 전환.
+- Generic Host runtime이 활성 Unreal Live Coding 때문에 차단된 현재 AIRE-G1 blocker를 Plan Index에 반영.
+- Phase 2 runner v1.16.3과 Phase 1 matrix v1.1을 현재 검증 진입점으로 등록.
+- AIRE-G1 runtime closure 전에는 AIRE-G2와 Phase 2 Niagara Adapter를 시작하지 않도록 유지.
+
+### v1.55 - 2026-07-31
+
+- AIRE-G0 PASS와 Phase 0 완료를 Plan Index에 기록.
+- `AIResourceEvidencePhase1Plan_v1.md`를 Current implementation contract로 등록.
+- Phase 1을 Implementation Authorized / Source Not Started로 전환.
+- 기존 `AssetIntelligencePlan/` accepted foundation과 v1 default 보호를 유지.
+
+### v1.54 - 2026-07-31
+
+- `ADUMP-v1.2.0-AIRE`와 `AIResourceEvidencePlan.md` 동반 문서를 새 Current feature-development Plan으로 등록.
+- Browser GPT, GoPyMCP, Entity Evidence, Niagara vertical slice와 Consumer Acceptance 문서 라우팅을 추가.
+- 기존 `AssetIntelligencePlan/`을 accepted foundation·regression·maintenance 영역으로 재분류.
+- Phase 0 `AIRE-G0` 전에는 Source 구현을 시작하지 않는 상태를 기록.
+
+### v1.53 - 2026-07-31
+
+- `Documents/RoleBoundaryPolicy.md`를 모든 Plan보다 먼저 적용하는 제품 역할 SSOT로 등록.
+- 새 public mode, schema, section과 의미 변경이 역할 게이트를 통과한 뒤에만 Current Plan 후보가 되도록 선택 규칙 보강.
+- 기존 maintenance lifecycle과 accepted contract 색인은 유지.
+
+### v1.52 - 2026-07-30
+
+- Transitioned the Asset Intelligence folder from no-active-feature selection state to formal maintenance mode.
+- Fixed v1.0.2 as the protected accepted baseline and removed automatic next-feature selection from the default workflow.
+- Added maintenance routing for defects, compatibility, packaging, validation, documentation and security hardening.
+- Required an explicit user decision, a new Current Plan and index-state update before new public functionality can start.
+- Kept historical Work Orders, NQAC diagnostics and accepted closure evidence as selective records rather than maintenance gates.
 
 ### v1.51 - 2026-07-30
 
@@ -426,6 +560,64 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 7. Migration
+
+### v1.59 Phase 2 구현 진입 적용 안내
+
+- Phase 2 세션은 `AIResourceEvidencePhase2Plan_v1.md`를 대표 구현 계약으로 사용한다.
+- 엔진 기준은 `D:\UnrealEngine_Source`의 UE 5.8.0 source engine이다.
+- Source·Scripts·Content 변경은 Phase 2 Plan의 exact allowlist를 벗어나지 않는다.
+- `GO_FOUNDATION`은 구현 착수 승인이고 Contract Accepted가 아니다.
+- Phase 1 Core registry와 canonical closure evidence를 보호한다.
+
+### v1.58 Phase 1 Native Entity Core closure 적용 안내
+
+- Phase 1 복원과 호환성 검토는 `AIResourceEvidencePhase1Close_v1.md`를 authoritative evidence로 사용한다.
+- `AIResourceEvidencePhase1Plan_v1.md` v1.4와 `Documents/ActiveWork.md` v1.79를 Current 상태 진입점으로 사용한다.
+- 다음 Phase 2 Niagara MVP Adapter는 별도 사용자 승인과 exact Plan 전까지 활성화하지 않는다.
+- 현재 Entity Source, fixture bytes, public schema와 AIRE-G1/G2 predicates를 accepted baseline으로 보호한다.
+
+### v1.57 AIRE-G1 acceptance 적용 안내
+
+- AIRE-G1은 canonical Phase 2와 Phase 1 Matrix PASS로 Contract Accepted 상태다.
+- `BP_ADumpActorFixture.uasset` controlled materialization을 반복하지 않고 현재 fixture bytes를 acceptance 기준선으로 보호한다.
+- AIRE-G2와 Niagara Adapter는 Not Started이며 별도 사용자 승인 전에는 구현·검증 상태로 전환하지 않는다.
+- 다음 세션은 `AIResourceEvidencePhase1Plan_v1.md` v1.2와 `Documents/ActiveWork.md` v1.77을 현재 상태 진입점으로 사용한다.
+
+### v1.56 Phase 1 구현 및 runtime 재개 안내
+
+- Source를 다시 구현하지 않고 `RunStandalonePhase2Verification.ps1` v1.16.3의 Generic Host·Entity focused evidence부터 재개한다.
+- Unreal Editor를 종료하거나 Live Coding을 해제한 뒤 canonical Phase 2를 통과시키고, 성공 report를 Phase 1 matrix v1.1에 전달한다.
+- fresh BuildPlugin PASS만으로 AIRE-G1을 승인하지 않는다.
+- 기존 accepted v1 command/schema 기본 의미와 protected paths는 계속 보존한다.
+
+### v1.55 AIRE-G0 승인 및 Phase 1 전환 안내
+
+- `AIRE-G0`는 PASS이며 `ADUMP-v1.2.0-AIRE-P1`이 Current implementation task다.
+- 현재 상태는 `Phase 1 Ready / Implementation Authorized / Source Not Started`다.
+- 구현은 `AIResourceEvidencePhase1Plan_v1.md`의 exact allowlist와 stable failure registry를 따른다.
+- 기존 accepted v1 command/schema의 기본 의미는 변경하지 않는다.
+
+### v1.54 AI Resource Evidence Current Plan 적용 안내
+
+- 새 feature-development 작업은 `AIResourceEvidencePlan.md`와 동반 문서를 Current 진입점으로 사용한다.
+- 기존 `AssetIntelligencePlan/`은 accepted v0.7.1-v1.0.2 계약, regression과 호환성 확인에 사용한다.
+- 구현 완료만으로 상태를 닫지 않고 MCP Exposure, Browser Workflow와 실제 프로젝트 acceptance를 요구한다.
+- 기존 v1 command/schema default 의미는 보호하며 새 Entity 계약은 additive version으로 설계한다.
+
+### v1.53 역할 정책 적용 안내
+
+- Plan 선택 전에 `Documents/RoleBoundaryPolicy.md`의 기능 제안 역할 게이트를 적용한다.
+- 역할 범위 밖의 자연어 해석, 의미 분석, scoring, diagnosis와 recommendation은 Plan 후보로 등록하지 않는다.
+- 기존 accepted 결정론적 파생 계약은 제거하지 않고 provenance와 bounds 계약을 보존한다.
+- 역할 정책 추가는 기존 Consumer의 command/schema migration을 요구하지 않는다.
+
+### v1.52 유지보수 모드 적용 안내
+
+- `AssetIntelligencePlan/`의 기본 상태는 기능 후보 선택 대기가 아니라 `Maintenance / Feature Development Closed`다.
+- 유지보수는 accepted v0.7.1-v1.0.2 계약을 보존하는 defect, compatibility, packaging, validation, documentation와 security 범위로 제한한다.
+- 새 public mode, schema, section, semantic interpretation 또는 기능은 새 Current Plan을 등록하기 전까지 비활성이다.
+- v1.50 이하의 NQAC 활성화·진단·재시도 지시는 역사 기록이며 현재 유지보수 진입점이 아니다.
+- 기능 개발을 다시 시작할 때는 먼저 `Documents/ActiveWork.md` lifecycle, 이 색인의 Current 상태와 대표 Plan을 함께 갱신한다.
 
 ### v1.50 적용 안내
 

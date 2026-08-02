@@ -1,8 +1,11 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 // File: AssetDumpBuild.cs
-// Version: v0.4.3
+// Version: v0.5.0
 // Changelog:
+// - v0.5.0: AIRE Phase 2 Niagara typed evidence를 위해 Niagara, NiagaraCore와 NiagaraEditor Editor dependency를 추가.
+// Migration:
+// - AssetDump는 Editor module이며 Niagara public 타입을 AssetDump public header에 노출하지 않는다.
 // - v0.4.3: 플러그인 루트 기반 Dumped 출력 경로 계산을 위해 Projects 의존성을 추가.
 // - v0.4.2: AnimBlueprint 상태머신 요약 확장을 위해 AnimGraph 의존성을 추가.
 // - v0.4.1: WidgetBlueprint 요약 확장을 위해 UMG / UMGEditor 의존성을 추가.
@@ -67,6 +70,9 @@ public class AssetDump : ModuleRules
 			{
 				"AnimGraph",
 				"BlueprintGraph",
+				"Niagara",
+				"NiagaraCore",
+				"NiagaraEditor",
 				"UMGEditor"
 			};
 

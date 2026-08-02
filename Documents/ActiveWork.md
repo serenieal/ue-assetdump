@@ -1,9 +1,10 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.70
-- 최근 갱신일: 2026-07-30
+- 문서 버전: v1.90
+- 최근 갱신일: 2026-08-02
 - 문서 상태: Current
-- 역할: AssetDump 독립 저장소의 현재 활성 작업과 최근 완료 체크포인트를 연결하는 세션 복원 색인
+
+- 역할: AssetDump 독립 저장소의 현재 feature lifecycle, 활성 대표 Plan과 최근 완료 체크포인트를 연결하는 세션 복원 색인
 
 ---
 
@@ -13,7 +14,8 @@
 CarFight 게임 기능과 GoPyMCP 내부 작업은 등록하지 않는다.
 
 ```text
-ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
+RoleBoundaryPolicy = 제품 역할, 허용 파생 정보와 AI/MCP 책임 경계
+ActiveWork = 현재 lifecycle, 활성 대표 Plan과 마지막 완료 초점
 대표 Plan = 상세 설계, 공개 계약, 보호 범위와 검증 기준
 실제 코드·스크립트·콘텐츠·보고서 = 최종 상태 확인 대상
 ```
@@ -22,9 +24,75 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 
 ---
 
-## 2. 현재 활성 작업
+## 2. 현재 수명주기 상태
 
-현재 명시적으로 활성화된 Asset Intelligence 구현 작업은 없다. 마지막 완료 계약은 `ADUMP-v1.0.2-AICB`이며, AI/MCP는 accepted Query Mode를 직접 조립해 필요한 자산·section·dependency만 요청한다.
+현재 AssetDump는 `Feature Development Reactivated / Phase 2 Completed / Niagara MVP Adapter Accepted / Phase 3 P3-P2A Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / P3-P2B Runtime Validation Blocked` 상태다. `AIRE-G0 Product Contract Freeze`, Phase 1 `AIRE-G1/G2`와 Phase 2 `P2-N0~P2-N4`가 canonical 증거로 통과했다. UE 5.8 native Niagara evidence, active registry compatibility, entity index/query/context와 controlled 12-file validation baseline은 Accepted다. GoPyMCP Browser-side source audit, Static Contract Review, exact code Blueprint와 accepted-schema synthetic Vector 교정은 완료됐고 executable source implementation, actual runtime integration과 Browser Consumer acceptance는 시작하지 않았다.
+
+### 현재 활성 계획
+
+```text
+active feature lifecycle: ADUMP-v1.2.0-AIRE / Phase 3 Planning
+active feature task: ADUMP-v1.2.0-AIRE-P3
+representative current Plan: Documents/Plan/AIResourceEvidencePhase3Plan_v1.md
+representative accepted baseline: Documents/Plan/AIResourceEvidencePhase2Plan_v1.md
+completed phase: Phase 0 — Product and Consumer Contract
+completed phase: Phase 1 — Entity Evidence Core / Native Entity Core Accepted
+completed phase: Phase 2 — Niagara MVP Adapter / Completed / Accepted
+completed gate: AIRE-G1 Native Evidence Contract — PASS / Contract Accepted
+completed gate: AIRE-G2 Index Query Context — PASS / Contract Accepted
+completed gate: P2-N4 Phase Close — PASS / Niagara MVP Adapter Accepted
+completed planning gate: P3-P0 Public Contract Audit — PASS / Planning Evidence
+completed gate: P3-P1 Cross-Repository Contract Freeze / PASS / Contract Accepted
+current gate: P3-P2A Offline Source Implementation / Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented
+blocked gate: P3-P2B Runtime Integration and Actual Validation / R87 Parked Until Runtime Validation
+current phase: Phase 3 — GoPyMCP Consumer Integration / Static Contract QA Complete
+role gate: PASS
+AIRE-G0: PASS / 2026-07-31
+AIRE-G3: Blocked / Runtime Publication Pending
+AIRE-G4: Not Started
+primary consumer: Browser GPT / AI Agent
+transport boundary: GoPyMCP
+first product vertical slice: Niagara FX Evidence
+implementation authorization: GoPyMCP Plan v1.2.1 / Static Review v1.0.0 / Work Order v1.2.1 / Blueprint v1.0.1 / Vectors v1.0.1 Ready
+implementation state: Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / Runtime Validation Blocked
+final completion state: Completed / Consumer Accepted
+accepted foundation: ADUMP-v1.0.2-AICB and accepted v0.7.1-v1.0.2 contracts
+```
+
+- `Documents/RoleBoundaryPolicy.md`의 기능 제안 역할 게이트는 PASS다.
+- 확정 schema는 `entity_evidence_v1`, `entity_index_v1`, `entity_query_result_v1`, `entity_context_bundle_v1`이다.
+- Phase 1은 기존 Blueprint Component·Graph·Node·Pin 증거로 Entity Core를 검증한다.
+- Phase 2 변경은 `AIResourceEvidencePhase2Plan_v1.md`의 exact implementation/validation/Content allowlist를 따른다.
+- controlled Content baseline은 기존 AIRE-G1 fixture를 포함한 10개 파일에 P2-N2 `NE_ADumpMvp.uasset`와 `NS_ADumpMvp.uasset`를 추가한 정확히 12개 파일이다.
+- 기존 accepted command/schema의 default 의미와 NQAC 취소 결정을 보존한다.
+- `entity_evidence_v1`, `entity_index_v1`, `entityquery`, `entitycontext` Source와 focused runner evidence가 exact allowlist 안에서 구현됐다.
+- AIRE-G1 기준 fresh BuildPlugin, Generic Host build/runtime와 first acceptance `makefixtures` 0/0/0이 PASS했다.
+- AIRE-G2 validation-only closure에서 canonical Phase 2 v1.17.0과 Phase 1 Matrix v1.3이 PASS했다.
+- AIRE-G1 fixture는 실제 exec/data graph link와 duplicate Node GUID 기반 `quality=fallback` / `source=source_index` 증거를 제공한다.
+- AIRE-G1과 AIRE-G2는 Contract Accepted이며 Phase 1은 `Completed / Native Entity Core Accepted`다.
+- AIRE-G2는 Product Source와 Content 변경 없이 26개 stable failure actual matrix, selector/filter/direction, query/context bounds·repeat와 Level 3 closure를 통과했다.
+- Phase 2 P2-N2는 emitter/version, execution group, module/input, renderer, parameter/binding, Data Interface, Simulation Stage와 asset reference의 실제 typed evidence 및 deterministic Entity/Relation projection을 구현·검증했다.
+- missing/duplicate emitter·module·input GUID는 원본 facet을 보존하면서 `quality=fallback / source=source_index`로 강등한다.
+- 64/65 emitter boundary, duplicate module GUID, Temp fixture package byte idempotency, section/order determinism과 packaged Generic Host actual evidence가 PASS했다.
+- P2-N2 controlled materialization은 `NE_ADumpMvp.uasset`와 `NS_ADumpMvp.uasset` 두 파일에 한정했고 기존 10개 validation 파일을 byte-identical하게 보존했다.
+- Phase 2 P2-N3는 Blueprint-only exact 5/5, Niagara-only 12/10과 mixed-root 16/12 active registry union을 실제 `entity_index_v1`에서 검증했다.
+- entity index source validation은 Internal Known Registry와 source adapter profile registry를 사용하고, entityquery filter는 loaded index registry를 authoritative contract로 사용한다.
+- query/context native equality, cursor·MaxEntities·MaxRelations·MaxBytes, index/query/context repeat determinism과 loaded-index negative 5건의 failure atomicity가 PASS했다.
+- P2-N3는 Product Source 한 파일만 변경했고 public schema, stable failure code, tracked runner와 Content는 변경하지 않았다.
+- Phase 2 registry는 Phase 1 Core exact 5/5를 보존하고 Niagara adapter registry를 additive하게 결합한다.
+- canonical spike job은 `7de87ae6632b447598e869656c297f4e`, report SHA-256은 `4c644bd9238a7e339913d9561e16882c2ae309d67d3091aca87ae8124bb5aa45`다.
+- 최종 P2-N1 fresh BuildPlugin job은 `085ccd5338434c2c8b61070b24136672`, report SHA-256은 `087766909cfd134fb367f6b18943e7536842d4891a18c13cdd3f8a602e54dc3b`다.
+- empty Niagara actual report SHA-256은 `45d2ced89f55557be0dbddc25183ac7761e9df7fd0e9d6cf78079f3ce94cf254`다.
+- Blueprint focused regression report SHA-256은 `b75c02f2e8bea3726ab09afb5ceeb09a79a886f4e60d6a706605924a412f06e1`다.
+- 최종 P2-N2 fresh BuildPlugin job은 `530c346f31b347bf945ce81273d6deb4`, report SHA-256은 `2acdd9fcbcbc0ae2c739af568e088f1bf1eb1d9c066c14382ce78b11081434b0`다.
+- P2-N2 Temp actual report SHA-256은 `597bcd1b4015cd6dc3dc861ca3944046a5f0422d0ec4107acbc793d4156cb185`다.
+- P2-N2 boundary/fallback report SHA-256은 `fd4623a374777b18470cf3d710aa7af77e438a5bf6a7320546009d5a8d1f1492`다.
+- P2-N2 materialization report SHA-256은 `7f50992231238048fd8d85bc032b1a97b831c009b843992abf2c834aea55048b`다.
+- P2-N2 packaged runtime report SHA-256은 `31843389c28a7ed44de3a0c28e2e704b50ec603c69ee8bfd9ab1f848b191c38f`다.
+- exact 구현·fixture·validation 계약은 `Documents/Plan/AIResourceEvidencePhase2Plan_v1.md`가 소유한다.
+- GoPyMCP Integration과 Browser Consumer Acceptance는 시작하지 않았다.
+- v0.7.2 Enhanced Input Summary의 human release review와 기존 maintenance 범위는 별도 항목으로 유지한다.
+
 
 ### 중단 결정: ADUMP-v1.1.0-NQAC
 
@@ -33,7 +101,7 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 - 결정 이유: AssetDump의 실제 호출자는 MCP를 사용하는 AI이며, 자유형 자연어·언어 태그·request text를 AssetDump에 다시 전달할 필요가 없다.
 - 원래 목적: UE 리소스 전체 덤프와 대규모 AI 입력을 피하고 필요한 범위만 조회하는 것
 - 목적 달성 주체: accepted Asset Index, Section Index, Lazy Section Dump, bounded Dependency Query, Query Mode, Query Result, AI Context Bundle
-- 현재 책임 경계: AI/MCP가 사용자 의도를 해석하고 `section | dependency`, selector, bounds와 output schema를 선택한다. AssetDump는 구조화 요청 실행과 결정론적 bounded 결과만 담당한다.
+- 현재 책임 경계: AI/MCP가 사용자 의도를 해석하고 `section | dependency`, selector, bounds와 output schema를 선택한다. AssetDump는 `Documents/RoleBoundaryPolicy.md`에 따른 관측 정보, 허용된 결정론적 파생 증거, 구조화 요청 실행과 bounded 결과만 담당한다.
 - 폐기 범위: 미채택 NQAC request bridge, 임시 request schema와 전용 stable-code family
 - 보존 대상: 기존 v0.9.0-v1.0.2 accepted 계약과 실패 실험 보고서
 - NQAC Phase 2 실패는 진단 이력으로만 보존하며 수정·재실행·acceptance 대상으로 삼지 않는다.
@@ -60,7 +128,7 @@ ActiveWork = 현재 AssetDump 작업과 마지막 완료 초점
 - multi-query assembly: deferred to v1.1.2
 - ranking / semantic deduplication / summarization / natural query: inactive
 - live asset loading / index rebuild / source-file reread / freshness claim: prohibited
-- Git state: feature and repository-policy commits exist locally; `main` is ahead of `origin/main` by 2; NQAC 폐기 정리 변경은 미커밋 상태이며 remote branch update도 수행하지 않음
+- Git closure: commits `e69bb1a`, `8d2803e` and `a5ae64b` were pushed to `origin/main`; maintenance transition started from synchronized `main` with a clean working tree
 - runtime validation: PowerShell 5.1 self-test, fresh BuildPlugin, canonical Phase 2 v1.14.2 and standard Phase 1 matrix PASS
 - fresh BuildPlugin job: `5785c490d2a84a18bba5ca590196fbd7`
 - fresh BuildPlugin report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260729_090219_153_494dbf74.json`
@@ -528,13 +596,21 @@ ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 
 ## 3. 마지막 완료 작업 초점
 
-- 작업 ID: `ADUMP-v1.0.2-AICB`
-- 작업명: AI Context Bundle Export
-- 최종 상태: `Completed / Contract Accepted`
-- 대표 Plan: `Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundlePlan_v1.md`
-- 최종 보고서: `Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md`
+- 작업 ID: `ADUMP-v1.2.0-AIRE-P1`
+- 완료 체크포인트: `AIRE-G1 Native Evidence Contract`
+- 최종 상태: `Completed / Native Entity Core Accepted`
+- 대표 Plan: `Documents/Plan/AIResourceEvidencePhase1Plan_v1.md`
+- controlled fixture: `Content/Validation/BP_ADumpActorFixture.uasset`
+- canonical AIRE-G2 Phase 2 job: `689f823f5212462a802a689b10bebdd3`
+- canonical Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260731_140131_972_636c8e31\Reports\phase2_report.json`
+- Phase 2 report SHA-256: `fd7714acbdc6c1f7a51c7624758e67fe0d9c945570b9993e101eebc35e6a14b5`
+- canonical AIRE-G2 Phase 1 job: `335c8f99a67744a98d1a97153f210108`
+- canonical Phase 1 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260731_234915_045_40fc7523\Reports\phase1_matrix_report.json`
+- Phase 1 report SHA-256: `3fd7cd93f4e56ca46bca48dfbc43e48dff9022770e6b583c61d495cd20e98e53`
+- Phase 1 closure: `Documents/Plan/AIResourceEvidencePhase1Close_v1.md`
+- 마지막 완결 공개 기능 계약은 계속 `ADUMP-v1.0.2-AICB Completed / Contract Accepted`다.
 
-상세 공개 계약과 canonical 검증 증거는 2절과 4절을 따른다.
+상세 AIRE-G1 계약과 canonical 검증 증거는 2절과 4절을 따른다.
 
 ---
 
@@ -543,18 +619,114 @@ ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 현재 상태:
 
 ```text
-active_feature: none
-last_accepted_task: ADUMP-v1.0.2-AICB
+lifecycle: Feature Development Reactivated / Phase 2 Accepted / Phase 3 Not Started
+active_feature: ADUMP-v1.2.0-AIRE
+active_subtask: none / Phase 3 not authorized
+completed_subtask: ADUMP-v1.2.0-AIRE-P2
+parent_feature: ADUMP-v1.2.0-AIRE
+completed_phase: Phase 1 — Entity Evidence Core / Native Entity Core Accepted
+completed_phase_2: Phase 2 — Niagara MVP Adapter / Completed / Accepted
+current_phase: Phase 3 — GoPyMCP Consumer Integration / Not Started
+completed_gate_AIRE_G1: PASS / Contract Accepted
+completed_gate_AIRE_G2: PASS / Contract Accepted
+completed_gate_P2_N1: PASS / Source Change Check
+completed_gate_P2_N2: PASS / Native Niagara Evidence
+completed_gate_P2_N3: PASS / Index Query Context
+completed_gate_P2_N4: PASS / Phase Close / Niagara MVP Adapter Accepted
+next_gate: AIRE-G3/G4 — GoPyMCP Consumer Integration / Not Started
+representative_plan: Documents/Plan/AIResourceEvidencePhase2Plan_v1.md
+AIRE_G0: PASS / Contract Frozen / 2026-07-31
+AIRE_G1: PASS / Contract Accepted / 2026-07-31
+AIRE_G2: PASS / Contract Accepted / 2026-07-31
+implementation_authorization: Phase 2 Completed / Phase 3 Not Authorized
+implementation_state: Completed / Niagara MVP Adapter Accepted / MCP Integration Pending
+Phase_2_foundation_spike: PASS / GO_FOUNDATION
+Phase_2_spike_job: 7de87ae6632b447598e869656c297f4e
+Phase_2_spike_report_sha256: 4c644bd9238a7e339913d9561e16882c2ae309d67d3091aca87ae8124bb5aa45
+P2_N1: PASS / Source Change Check
+P2_N1_BuildPlugin_job: 085ccd5338434c2c8b61070b24136672
+P2_N1_BuildPlugin_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260801_020857_639_2d7c7c2f.json
+P2_N1_BuildPlugin_sha256: 087766909cfd134fb367f6b18943e7536842d4891a18c13cdd3f8a602e54dc3b
+P2_N1_empty_Niagara_job: 5e18a78a6edd4237895cc9ed6fb21b1b
+P2_N1_empty_Niagara_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpNiagaraP2N1\Run_20260801_015813_368_30c697d4\Reports\niagara_p2n1_report.json
+P2_N1_empty_Niagara_sha256: 45d2ced89f55557be0dbddc25183ac7761e9df7fd0e9d6cf78079f3ce94cf254
+P2_N1_Blueprint_job: f01cf37ed23f4ee985a87b07e9f9c5f7
+P2_N1_Blueprint_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpNiagaraP2N1\Run_20260801_015813_368_30c697d4\Host\Saved\NiagaraP2N1BlueprintRegression\blueprint_regression_report.json
+P2_N1_Blueprint_sha256: b75c02f2e8bea3726ab09afb5ceeb09a79a886f4e60d6a706605924a412f06e1
+P2_N1_Content_invariance: PASS / source 10→10 / packaged host 10→10
+P2_N1_public_command_schema_change: none
+P2_N2: PASS / Native Niagara Evidence
+P2_N2_BuildPlugin_job: 530c346f31b347bf945ce81273d6deb4
+P2_N2_BuildPlugin_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260801_035115_257_3fb6f064.json
+P2_N2_BuildPlugin_sha256: 2acdd9fcbcbc0ae2c739af568e088f1bf1eb1d9c066c14382ce78b11081434b0
+P2_N2_actual_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpNiagaraP2N2\Run_20260801_032850_093_59c1299b\Reports\niagara_p2n2_final_report.json
+P2_N2_actual_sha256: 597bcd1b4015cd6dc3dc861ca3944046a5f0422d0ec4107acbc793d4156cb185
+P2_N2_actual_counts: entities 381 / relations 602 / truncated false / failures 0
+P2_N2_boundary_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpNiagaraP2N2\Run_20260801_032850_093_59c1299b\Reports\niagara_p2n2_boundary_final_report.json
+P2_N2_boundary_sha256: fd4623a374777b18470cf3d710aa7af77e438a5bf6a7320546009d5a8d1f1492
+P2_N2_bounds: 64→64 exact / 65→64 truncated max_emitters
+P2_N2_fallback: duplicate module GUID fallback 4 / exact 30 / duplicate entity_id 0
+P2_N2_materialization_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpNiagaraP2N2\materialization_final_20260801_035052_616.json
+P2_N2_materialization_sha256: 7f50992231238048fd8d85bc032b1a97b831c009b843992abf2c834aea55048b
+P2_N2_fixture_NE_sha256: 3df0bfa3de37d172f765fc5a6d6c437611e449e87d70868b7b5e9598b21d3cf4
+P2_N2_fixture_NS_sha256: 18cbd87a988eeb85e8e2a15d3d668899d019245c44663a0c1bc1da0695bee7b6
+P2_N2_Content_baseline: 12 files / prior 10 byte-identical / exact two added
+P2_N2_packaged_job: 771370b4c7174f588d4b4ff74ffec48d
+P2_N2_packaged_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpNiagaraP2N2\Run_20260801_032850_093_59c1299b\Reports\niagara_p2n2_packaged_runtime_final_report.json
+P2_N2_packaged_sha256: 31843389c28a7ed44de3a0c28e2e704b50ec603c69ee8bfd9ab1f848b191c38f
+P2_N2_packaged_compatibility: Niagara repeat determinism PASS / Blueprint exact Core 5 PASS
+P2_N2_public_command_schema_change: none
+P2_N3: PASS / Index Query Context
+P2_N3_product_file: Source/AssetDump/Private/ADumpEntityQuery.cpp v1.2.0
+P2_N3_product_sha256: 2b256e8001331517aa61a6f998054b2ed0480d5a0ff609e21c6e6034865fbdfa
+P2_N3_BuildPlugin_job: 6aee978b32f142c0b97be4a7e25fcdfb
+P2_N3_BuildPlugin_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpBuildPlugin\Reports\AssetDump_20260801_041042_337_2211bddf.json
+P2_N3_BuildPlugin_sha256: b0d1b0b557fff3fb4d8342525ac76dca2e513eaeb70b7b404bfb679cd86b9c2d
+P2_N3_matrix_job: 225886cbe1da4000b4c84c0bc1bbc0a2
+P2_N3_matrix_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpNiagaraP2N3\Run_20260801_041653_709_686573be\Reports\niagara_p2n3_report.json
+P2_N3_matrix_sha256: 72e133f1e84a4e74799e9be78e6034ac660b6adb8cb10284230bbffeac60ea90
+P2_N3_matrix_counts: BP 1/32/33 / Niagara 1/380/599 / Mixed 2/412/632
+P2_N3_registries: BP 5/5 / Niagara 12/10 / Mixed 16/12 / all deterministic
+P2_N3_query_context: loaded filters, native equality, cursor and UTF8 bounds, repeat determinism PASS
+P2_N3_negative: 5/5 stable code + output preservation PASS
+P2_N3_Content_baseline: 12→12 source/packaged invariant / zero Content change
+P2_N3_public_command_schema_change: none
+P2_N4: PASS / Phase Close / failure_count 0
+P2_N4_Phase2_job: 18aa66e698c84477a6a017299dd3cbd2
+P2_N4_Phase2_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260801_063022_733_9e22ff33\Reports\phase2_report.json
+P2_N4_Phase2_sha256: 02de5574ba9b0cf2945fe11f96d2270a84c14663790adfda2ea47115e63de56f
+P2_N4_Phase1_job: 82eaa9e6c07a4ebabc6aa8aac0cbb08a
+P2_N4_Phase1_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260801_164615_104_1defaff8\Reports\phase1_matrix_report.json
+P2_N4_Phase1_sha256: 3f62df54341b4462945cff67fbb3d6c9f0fb50ae6d0e89adce0c8288698968a5
+P2_N4_matrix: BuildPlugin / Generic Host / Niagara actual / registry-query-context / Blueprint regression PASS
+P2_N4_Content: source-package-host 12-file exact invariance PASS
+P2_N4_legacy_output_root: absent
+P2_N4_product_source_change: none
+P2_N4_content_change: none
+last_accepted_checkpoint: ADUMP-v1.2.0-AIRE-P2 / Niagara MVP Adapter Accepted
+last_completed_public_contract: ADUMP-v1.0.2-AICB
 accepted_baseline: v0.7.1-v1.0.2 preserved
+role_gate: PASS
+primary_consumer: Browser GPT / AI Agent
+transport_boundary: GoPyMCP
+first_product_vertical_slice: Niagara FX Evidence / Native Adapter Accepted / MCP Integration Pending
 nqac_status: Cancelled / Superseded by MCP Direct Query Orchestration / Contract Not Accepted
-nqac_runtime_or_acceptance_retry: not required
-nqac_source_state: commandlet integration removed; both untracked retired adapter Source files deleted; no Source/runner references remain
-phase2_runner_state: retired NQAC function and runtime block removed
-validation_for_this_cleanup: PowerShell 5.1 -RunSelfTests only
-BuildPlugin: Not Run
-canonical_Phase_2: Not Run
-Phase_1: Not Run
-Consumer_Integration: Not Required
+phase0_validation: PASS / documentation readback, naming, compatibility, allowlist and Git diff review
+Phase_1_source: Implemented / exact allowlist plus approved single fixture exception
+PowerShell_5_1_self_tests: PASS / Phase 2 v1.18.1 and Phase 1 Matrix v1.4
+BuildPlugin: PASS / fresh compile and package
+canonical_Phase_2: PASS / v1.18.1 / exit_code=0 / failure_count=0 / P2-N4 Accepted
+canonical_Phase_2_job: 18aa66e698c84477a6a017299dd3cbd2
+canonical_Phase_2_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260801_063022_733_9e22ff33\Reports\phase2_report.json
+canonical_Phase_2_sha256: 02de5574ba9b0cf2945fe11f96d2270a84c14663790adfda2ea47115e63de56f
+AIRE_G1_Level_2: PASS / five entity kinds, five relation kinds and fallback/source_index
+AIRE_G2_Index_Query_Context: PASS / 26 actual stable failures, filters, bounds, continuation, context and repeat determinism
+Phase_1_matrix: PASS / v1.4 / Phase 2 Niagara evidence reused / exit_code=0 / failure_count=0
+Phase_1_matrix_job: 82eaa9e6c07a4ebabc6aa8aac0cbb08a
+Phase_1_matrix_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260801_164615_104_1defaff8\Reports\phase1_matrix_report.json
+Phase_1_matrix_sha256: 3f62df54341b4462945cff67fbb3d6c9f0fb50ae6d0e89adce0c8288698968a5
+Phase_1_close: Documents/Plan/AIResourceEvidencePhase1Close_v1.md
+Consumer_Integration: P3-P1 Accepted / P3-P2A Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / P3-P2B R87 Parked
 ```
 
 과거 NQAC 구현·BuildPlugin·실패 report의 세부 수치는 `ImplementationResultLog_v1.md`의 역사 기록에서만 확인한다.
@@ -589,7 +761,7 @@ validation exact invariance: PASS
 git diff --check: PASS
 binary fixture changes: none
 closure report: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md
-next_candidate: none selected
+next_candidate: local executor availability, then AssetDumpEvidenceMCPPlan.md v1.2.1 + AssetDumpEvidenceStaticReview.md v1.0.0 + Codex_AssetDumpEvidenceMCP.md v1.2.1 P3-P2A source implementation
 ```
 
 v0.7.2 Enhanced Input Summary human release review와 이전 accepted closures는 별도 완료 이력으로 유지한다.
@@ -604,7 +776,7 @@ v0.7.1-v1.0.2 acceptance 이후에도 다음 확정 계약은 후속 작업에�
 Source/AssetDump/Private/AssetDumpCommandlet.cpp의 data_asset_diff_v1 공개 계약
 Scripts/RunDataAssetDiffClosure.ps1 v1.5 report contract
 Scripts/RunBPDumpRegression.ps1
-Content/Validation 원본
+AIRE-G1 + P2-N2 materialized Content/Validation 12-file accepted baseline
 다섯 stable error code
 validation-content exact restoration 계약
 ```
@@ -631,6 +803,171 @@ validation-content exact restoration 계약
 ---
 
 ## 7. Changelog
+
+### v1.90 - 2026-08-02
+
+- GoPyMCP P3-P2A Static Contract Review v1.0.0 완료와 Current 계약 교정을 반영했다.
+- Plan/Work Order를 v1.2.1, Blueprint/Vector를 v1.0.1로 연결했다.
+- exact 28-property schema, plain-dict error envelope, nested UE env extraction, cleanup-before-sizing과 frozen Admin surface regression 범위를 기록했다.
+- 상태를 `Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented`로 전환했다.
+- AssetDump Source·Scripts·Content와 GoPyMCP Source·Config·test·runtime·R87은 변경·실행하지 않았다.
+
+### v1.89 - 2026-08-02
+
+- GoPyMCP P3-P2A Mechanical Code Blueprint v1.0.0과 Synthetic Test Vectors v1.0.0 작성 완료를 반영했다.
+- result-ref/cursor, provider argv, response atomicity, accepted-schema fixtures와 mandatory vector coverage가 기계 실행 계약으로 고정됐다.
+- GoPyMCP Plan과 Work Order를 v1.2.0으로 연결하고 P3-P2A 상태를 `Mechanical Execution Package Complete / Source Awaiting Local Executor`로 전환했다.
+- AssetDump accepted Source·Scripts·Content와 runtime evidence는 변경·재실행하지 않았다.
+
+### v1.88 - 2026-08-01
+
+- R87을 P3-P2B actual runtime validation 시점까지 `Parked / No Action`으로 이동했다.
+- GoPyMCP Browser-side source audit와 exact implementation insertion-point 검토 완료를 반영했다.
+- `client_request_id` passthrough와 기존 `ue.` annotation 정책 재사용 결정을 연결했다.
+- P3-P2A를 `Browser Preparation Complete / Source Awaiting Local Executor`로 전환했다.
+- GoPyMCP Plan v1.1.1과 Work Order v1.1.2를 Current 진입점으로 기록했다.
+- AssetDump Source·Scripts·Content와 runtime/test는 변경·실행하지 않았다.
+
+### v1.87 - 2026-08-01
+
+- 현재 R87 수정 불가 조건을 반영해 P3-P2를 Offline Implementation과 Runtime Validation으로 분리했다.
+- P3-P2A를 `Authorized / Not Started`로 전환하고 독립 Codex Offline Work Order 실행을 승인했다.
+- P3-P2B를 `Blocked / R87 Runtime Recovery Unavailable`로 유지하고 actual process·smoke·publication을 소유하게 했다.
+- AIRE-G3를 `Blocked / Runtime Publication Pending`, AIRE-G4를 Not Started로 유지했다.
+- AssetDump Source·Content와 GoPyMCP executable source·runtime config는 이번 문서 작업에서 변경하지 않았다.
+- Migration: 다음 실행은 R87 수정이 아니라 `Codex_AssetDumpEvidenceMCP.md` v1.1.0의 offline implementation이다.
+
+### v1.86 - 2026-08-01
+
+- P3-P1 Cross-Repository Contract Review를 `PASS / Contract Accepted`로 완료했다.
+- exact Browser-only tool `ue.assetdump_evidence_safe`와 Browser 18 / Compatibility 152 보존 계약을 고정했다.
+- 4-operation closed schema, result-ref lifecycle, 256 KiB response bound와 transport/provider error projection을 승인했다.
+- GoPyMCP implementation Plan `AssetDumpEvidenceMCPPlan.md`와 독립 Work Order `Codex_AssetDumpEvidenceMCP.md`를 생성했다.
+- R87가 `Runtime Reload Required`이므로 P3-P2는 Ready 상태에서 prerequisite blocked로 유지했다.
+- AssetDump Source·Content와 GoPyMCP executable source·runtime config는 변경하지 않았다.
+- Migration: R87 Accepted와 별도 Codex dispatch 전에는 신규 tool을 현재 공개 surface로 간주하지 않는다.
+
+### v1.85 - 2026-08-01
+
+- `ADUMP-v1.2.0-AIRE-P3` Phase 3 planning과 대표 Plan을 Current 상태로 등록했다.
+- current GoPyMCP Browser 17-tool surface와 `ue.batchdump_safe` 단일 AssetDump exposure를 actual audit evidence로 기록했다.
+- direct entityquery/entitycontext exposure 부재와 path-only follow-up의 G4 gap을 분리했다.
+- 기존 batchdump를 보존하고 additive `ue.assetdump_evidence_safe` candidate와 4-operation contract를 review 대상으로 등록했다.
+- P3-P0 audit는 planning evidence PASS, P3-P1은 Review Ready, AIRE-G3/G4와 implementation은 Not Started로 유지했다.
+- AssetDump Source·Content와 GoPyMCP executable/runtime 파일을 변경하지 않았다.
+- Migration: 다음 상태 전환은 Phase 3 contract 사용자 승인 뒤 GoPyMCP 저장소의 별도 구현 작업이 소유한다.
+
+### v1.84 - 2026-08-01
+
+- P2-N4 canonical Phase 2 v1.18.1과 Phase 1 Matrix v1.4를 failure_count=0으로 완료했다.
+- fresh BuildPlugin evidence, packaged Generic Host, Niagara actual dump, Blueprint/Niagara/mixed registry와 entity query/context closure를 PASS로 등록했다.
+- Plugin/Project/Both, PowerShell 5.1/7, cross-shell DataAsset closure와 Git diff check를 PASS로 등록했다.
+- source/package/host `Content/Validation` 12-file exact invariance와 legacy `PluginRoot/Dumped` 비생성을 확인했다.
+- Product Source와 controlled fixture bytes는 변경하지 않았다.
+- Phase 2를 `Completed / Niagara MVP Adapter Accepted`로 닫고 Phase 3 GoPyMCP Consumer Integration은 Not Started로 전환했다.
+- commit과 push는 수행하지 않았다.
+
+### v1.83 - 2026-08-01
+
+- P2-N3 Index Query Context를 구현·검증하고 `PASS / P2-N4 Not Started`로 전환했다.
+- active adapter profile registry union, Internal Known Registry source validation과 loaded-index filter validation을 구현했다.
+- Blueprint-only 5/5, Niagara-only 12/10과 mixed-root 16/12 registry 및 반복 index determinism을 actual matrix로 확인했다.
+- Niagara와 mixed-root query filter, EntityId/StableKey equality, entitycontext native equality, cursor와 UTF-8 bounds를 PASS로 확인했다.
+- corrupted loaded registry 4건과 Blueprint root의 Niagara filter 거부에서 stable failure code와 output atomic preservation을 확인했다.
+- fresh BuildPlugin과 source/packaged Content/Validation 12→12 exact invariance를 확인했다.
+- public schema, stable failure registry, tracked runner와 Content는 변경하지 않았다.
+- 다음 gate를 P2-N4 Phase Close로 전환하고 Phase 2 전체 acceptance는 미완료로 유지했다.
+
+### v1.82 - 2026-08-01
+
+- P2-N2 Native Niagara Evidence를 구현·검증하고 `PASS / P2-N3 Not Started`로 전환했다.
+- emitter/version, execution group, module/input, renderer, parameter/binding, Data Interface, Simulation Stage와 asset reference typed evidence 및 deterministic projection을 반영했다.
+- missing/duplicate GUID fallback, 64/65 emitter boundary, fixture package byte idempotency, section/order determinism을 actual evidence로 확인했다.
+- `NE_ADumpMvp.uasset`와 `NS_ADumpMvp.uasset` 두 controlled fixture만 추가하고 기존 10개 validation 파일을 byte-identical하게 보존했다.
+- final 12-file BuildPlugin과 packaged Generic Host Niagara evidence, Blueprint exact Core 5 compatibility를 PASS로 등록했다.
+- 다음 gate를 P2-N3 Index Query Context로 전환하고 Phase 2 전체 acceptance는 미완료로 유지했다.
+
+### v1.81 - 2026-08-01
+
+- 최종 source formatting 정리 후 fresh BuildPlugin job `085ccd5338434c2c8b61070b24136672`와 report SHA-256 `087766909cfd134fb367f6b18943e7536842d4891a18c13cdd3f8a602e54dc3b`를 canonical compile/package 증거로 갱신했다.
+- P2-N1 Native Adapter Source foundation을 구현하고 `PASS / Source Change Check`로 전환했다.
+- Niagara plugin/module dependency, AssetDump-owned typed evidence, Core/Niagara/Known registry와 empty System projection을 반영했다.
+- final fresh BuildPlugin, factory-created empty Niagara actual evidence와 Blueprint focused regression을 canonical P2-N1 증거로 등록했다.
+- source와 packaged host `Content/Validation` 10-file exact invariance, public command/schema zero-change를 확인했다.
+- 다음 gate를 P2-N2 Native Niagara Evidence로 전환하고 controlled Content fixture는 Not Started로 유지했다.
+
+### v1.80 - 2026-08-01
+
+- UE 5.8 source-engine Niagara foundation spike `GO_FOUNDATION`을 current evidence로 등록했다.
+- `ADUMP-v1.2.0-AIRE-P2`와 `AIResourceEvidencePhase2Plan_v1.md`를 활성 task/대표 Plan으로 전환했다.
+- Phase 1 Core exact 5/5 보존, Niagara adapter registry와 loaded-index query validation 계약을 기록했다.
+- exact implementation, validation과 controlled Content allowlist를 동결했다.
+- 상태를 `Phase 2 Implementation Authorized / Product Source Not Started`로 전환했다.
+
+### v1.79 - 2026-07-31
+
+- AIRE-G2 canonical Phase 2 v1.17.0과 Phase 1 Matrix v1.3 전체 PASS를 반영.
+- 26개 stable failure actual execution·atomicity, selector/filter/direction, query/context bounds·repeat와 protected-source invariance를 acceptance 증거로 등록.
+- `ADUMP-v1.2.0-AIRE-P1`을 `Completed / Native Entity Core Accepted`로 종료.
+- 다음 Phase 2 Niagara MVP Adapter, GoPyMCP와 Browser Consumer는 Not Started로 유지.
+
+### v1.78 - 2026-07-31
+
+- 사용자 승인에 따라 AIRE-G2를 Product Source·Content zero-diff validation-only 작업으로 착수.
+- 기존 두 standalone runner에 index/query/context actual positive·negative·determinism·atomicity matrix만 additive하게 보강하도록 범위를 고정.
+- AIRE-G1 fixture SHA와 public schema·predicate를 보호하며 Niagara Adapter, GoPyMCP와 Browser Consumer 작업은 미착수로 유지.
+- AIRE-G2는 fresh Phase 2와 Phase 1 Matrix가 모두 통과하기 전까지 In Progress로 유지.
+
+### v1.77 - 2026-07-31
+
+- `BP_ADumpActorFixture.uasset` 단일 controlled materialization과 first acceptance `makefixtures` 0/0/0을 기록.
+- fresh BuildPlugin, Generic Host, canonical Phase 2 v1.16.4의 Entity Evidence와 P2B 전체 PASS를 반영.
+- Phase 1 Matrix v1.2의 parser/self-test, Plugin/Project/Both, PS5.1/PS7 closure, cross-shell, invariance와 failure_count=0을 기록.
+- `AIRE-G1 Native Evidence Contract`를 PASS / Contract Accepted로 전환하고 AIRE-G2와 Niagara Adapter는 Not Started로 유지.
+
+### v1.76 - 2026-07-31
+
+- `ADUMP-v1.2.0-AIRE-P1`의 Entity Evidence Source와 두 canonical runner 검증 계약 구현을 기록.
+- 최신 fresh BuildPlugin compile/package PASS와 `RunStandalonePhase2Verification.ps1` v1.16.3 report를 등록.
+- Generic Host build가 AssetDump compiler defect가 아니라 활성 Unreal Live Coding 때문에 차단된 정확한 blocker를 기록.
+- AIRE-G1 Level 2, canonical Phase 2와 Phase 1 matrix는 미통과 상태로 유지하고 Phase 2/AIRE-G2로 진행하지 않음.
+
+### v1.75 - 2026-07-31
+
+- accepted-contract 요약의 `next_candidate`를 현재 구현 작업 `ADUMP-v1.2.0-AIRE-P1 Entity Evidence Core implementation`으로 교정.
+- `AIRE-G0` PASS와 Phase 1 `Implementation Authorized` 상태에 맞춰 세션 복원 요약을 정렬.
+- 기존 v1.74 AIRE-G0 승인 계약과 accepted v1 compatibility 기준은 변경하지 않음.
+
+### v1.74 - 2026-07-31
+
+- 사용자 최종 승인에 따라 `AIRE-G0 Product Contract Freeze`를 PASS로 전환.
+- `ADUMP-v1.2.0-AIRE-P1`과 `AIResourceEvidencePhase1Plan_v1.md`를 Current implementation task/Plan으로 등록.
+- Entity schema, 공통 계약, Niagara MVP와 Phase 1 exact allowlist 동결을 기록.
+- Phase 1을 Implementation Authorized / Source Not Started로 전환.
+- 기존 accepted v0.7.1-v1.0.2 계약과 NQAC 취소 결정을 보존.
+
+### v1.73 - 2026-07-31
+
+- 명시적 사용자 결정과 역할 게이트 PASS에 따라 feature development를 재활성화.
+- `ADUMP-v1.2.0-AIRE`와 `Documents/Plan/AIResourceEvidencePlan.md`를 Current 대표 작업으로 등록.
+- Browser GPT·GoPyMCP·Niagara FX Golden Consumer Journey를 첫 제품 목표로 선택.
+- 최종 완료 상태를 `Completed / Consumer Accepted`로 강화하고 Phase 0에서는 Source 구현을 시작하지 않음.
+- accepted v0.7.1-v1.0.2 계약과 NQAC 취소 결정을 보존.
+
+### v1.72 - 2026-07-31
+
+- `Documents/RoleBoundaryPolicy.md` v1.0을 현재 lifecycle의 제품 역할 SSOT로 등록.
+- 유지보수와 기능 재활성화 기준에 역할 게이트 PASS를 추가.
+- 관측 사실·허용된 결정론적 파생 증거와 AI/MCP의 의미 분석·평가·진단·추천 책임을 분리.
+- 기존 accepted v0.7.1-v1.0.2 계약은 호환 기준선으로 보존하고 Natural Query·semantic ranking/summarization·scoring·recommendation 확장을 금지.
+
+### v1.71 - 2026-07-30
+
+- Transitioned AssetDump from feature development to `Maintenance / Feature Development Closed / No Active Implementation`.
+- Fixed `ADUMP-v1.0.2-AICB` as the protected accepted baseline and defined the allowed maintenance categories.
+- Required explicit user authorization, a new Current Plan and lifecycle-state updates before any new public mode, schema, section or feature work can start.
+- Recorded the completed Git closure at `a5ae64b` with synchronized `main`/`origin/main` and no remaining Git termination work.
+- Kept the v0.7.2 human release review as a separate release-management item rather than an active implementation task.
 
 ### v1.70 - 2026-07-30
 
@@ -1139,6 +1476,75 @@ validation-content exact restoration 계약
 ---
 
 ## 8. Migration
+
+### v1.79 Phase 1 Native Entity Core closure 안내
+
+- Phase 1은 AIRE-G1과 AIRE-G2를 모두 통과해 완료됐으며 기존 Blueprint Entity Source와 fixture bytes를 accepted baseline으로 보호한다.
+- 다음 기능 작업은 `Documents/Plan/AIResourceEvidencePhase1Close_v1.md`와 fresh report identity를 Phase 1 authoritative evidence로 사용한다.
+- Niagara MVP Adapter는 별도 사용자 승인과 새 exact implementation Plan 전까지 시작하지 않는다.
+- GoPyMCP MCP Exposure와 Browser Consumer Acceptance도 별도 Phase로 남는다.
+
+### v1.78 AIRE-G2 validation-only 착수 안내
+
+- 이번 작업은 `Scripts/RunStandalonePhase2Verification.ps1`과 `Scripts/RunStandalonePhase1MatrixVerification.ps1`의 additive acceptance coverage 및 Current 문서 동기화에 한정한다.
+- `Source/AssetDump/**`, `Content/**`, Config, plugin descriptor와 Build.cs는 변경하지 않는다.
+- AIRE-G2 actual negative는 저장소 밖 isolated synthetic dump root에서만 실행하며 canonical evidence와 fixture bytes를 수정하지 않는다.
+- 실제 Source defect가 확인되면 validation을 중단하고 별도 Plan revision과 사용자 승인을 요구한다.
+
+### v1.77 AIRE-G1 Contract Accepted 안내
+
+- AIRE-G1 fixture materialization과 acceptance는 완료됐으며 같은 controlled regeneration을 반복하지 않는다.
+- 다음 세션은 canonical Phase 2 job `c6f560a708764f8886cee4e6612d506b`와 Phase 1 Matrix job `337993893966463faa6d590456f166c0`을 AIRE-G1 authoritative evidence로 사용한다.
+- AIRE-G2, Niagara Adapter, GoPyMCP Integration과 Browser Consumer Acceptance는 시작되지 않았다.
+- 별도 사용자 승인 전에는 현재 Entity Source, `BP_ADumpActorFixture.uasset` bytes, schema와 acceptance predicate를 변경하지 않는다.
+
+### v1.76 Phase 1 구현 및 Live Coding blocker 안내
+
+- Source 구현은 완료됐지만 `AIRE-G1` acceptance는 아직 완료되지 않았다.
+- 최신 fresh BuildPlugin PASS는 Native Fixture와 Generic Host runtime PASS를 대체하지 않는다.
+- Unreal Editor를 종료하거나 Live Coding을 해제한 뒤 canonical Phase 2를 재실행하고, 성공 report로 Phase 1 matrix를 실행한다.
+- 다음 세션은 Source를 다시 작성하지 말고 v1.16.3 runner의 Entity focused evidence부터 재개한다.
+- AIRE-G1 PASS 전에는 AIRE-G2, Niagara Adapter, GoPyMCP Integration 또는 Browser Consumer Acceptance를 시작하지 않는다.
+
+### v1.75 Phase 1 구현 후보 교정 안내
+
+- 새 세션의 다음 구현 후보는 `ADUMP-v1.2.0-AIRE-P1 Entity Evidence Core implementation`이다.
+- 과거 `AIRE-G0 review` 문구는 승인 전 상태를 가리키므로 사용하지 않는다.
+- 대표 구현 계약은 `Documents/Plan/AIResourceEvidencePhase1Plan_v1.md`다.
+- 이번 교정은 상태 요약 정렬이며 기존 accepted command/schema migration을 요구하지 않는다.
+
+### v1.74 AIRE-G0 승인 및 Phase 1 전환 안내
+
+- 새 구현 세션은 `Documents/Plan/AIResourceEvidencePhase1Plan_v1.md`를 Current implementation contract로 사용한다.
+- `AIRE-G0`는 PASS이며 Phase 1 exact allowlist 안의 구현은 승인됐다.
+- Source는 아직 시작되지 않았으며 구현 결과나 runtime PASS를 주장하지 않는다.
+- `query_result_v2`, `ai_context_bundle_v2`, `entity_query_v1` 초안 이름을 사용하지 않는다.
+- Niagara와 Material 구현은 Phase 1 범위가 아니며 Phase 2 이후 별도 계약을 따른다.
+
+### v1.73 AI Resource Evidence 재활성화 안내
+
+- 새 세션은 `Documents/Plan/AIResourceEvidencePlan.md`를 Current 대표 Plan으로 사용한다.
+- 기존 `AssetIntelligencePlan/`은 accepted v0.7.1-v1.0.2 foundation과 검증 이력을 확인할 때 선택적으로 읽는다.
+- `AIRE-G0` 승인 전에는 Source·Scripts·Content 또는 public schema 구현으로 진행하지 않는다.
+- 새 기능은 Native Contract뿐 아니라 MCP Exposure, Browser Consumer Workflow와 실제 프로젝트 acceptance까지 완료해야 한다.
+- 기존 `query_result_v1`, `ai_context_bundle_v1`과 direct command default 의미는 변경하지 않는다.
+
+### v1.72 역할 경계 적용 안내
+
+- 새 세션과 기능 검토는 `Documents/RoleBoundaryPolicy.md`를 lifecycle 및 대표 Plan보다 먼저 적용한다.
+- 기존 Graph Node Role, Execution Path Preview, DataAsset Diff, Index, Query와 Context 계약은 허용된 결정론적 파생 증거로 유지한다.
+- 새 기능은 역할 게이트 PASS 없이는 lifecycle을 재활성화하거나 Plan Index에 등록하지 않는다.
+- 분석·평가·진단·추천 요구는 AI/MCP Consumer로 라우팅하며 AssetDump 유지보수로 구현하지 않는다.
+- 이번 변경은 문서 정책 정렬이므로 제품 Source와 accepted runtime evidence에는 migration이 없다.
+
+### v1.71 유지보수 전환 안내
+
+- 기본 세션 상태는 새 기능 선택 대기가 아니라 유지보수 모드다.
+- defect, engine/toolchain compatibility, packaging, validation, documentation 또는 security hardening만 유지보수 범위로 바로 분류할 수 있다.
+- 새 public command mode, schema, section, semantic layer 또는 사용자 기능은 별도 기능 개발이며 자동 착수하지 않는다.
+- 기능 개발 재개에는 사용자의 명시적 결정, 새 Current Plan 선택, `Documents/Plan/README.md` 등록과 이 문서 lifecycle 변경이 모두 필요하다.
+- 기존 v0.7.1-v1.0.2 accepted 계약과 canonical evidence는 변경되지 않는 한 재사용하고, 실제 변경 위험에 맞는 검증만 수행한다.
+- 유지보수 전환 자체는 문서 상태 변경이므로 BuildPlugin, canonical Phase 2와 Phase 1을 요구하지 않는다.
 
 ### v1.70 적용 안내
 

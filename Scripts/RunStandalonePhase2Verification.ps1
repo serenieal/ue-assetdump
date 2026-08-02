@@ -1,6 +1,15 @@
 ﻿# File: RunStandalonePhase2Verification.ps1
-# Version: v1.15.2
+# Version: v1.18.2
 # Changelog:
+# - v1.18.2: filtered expand endpoint 폐쇄성, zero-relation cursor 전진과 Niagara Script Graph partial 전파 회귀 검증을 추가.
+# - v1.18.1: P2-N4 actual Relation 검증을 frozen registry subset + 필수 observed coverage로 정렬하고 조건부 inherits_from 출현 강제를 제거.
+# - v1.18.0: P2-N4 packaged Niagara actual dump, Blueprint/Niagara/mixed active registry union, loaded-index query/context와 corruption atomicity closure를 canonical Phase 2 gate에 추가.
+# - v1.17.0: AIRE-G2 selector/filter/direction, query/context truncation·repeat, isolated index corruption과 26개 actual stable failure atomicity matrix를 추가.
+# - v1.16.4: Windows PowerShell 5.1에서 BOM 없는 UTF-8 JSON report를 명시적 UTF-8로 읽도록 교정.
+# - v1.16.3: query/context frozen envelope과 asset/section/entity index exact registry·pointer 검증을 추가.
+# - v1.16.2: Architecture v1 문자열 state, capability map, Facet envelope, Stable Identity registry와 root bounds exact 검증을 추가.
+# - v1.16.1: entity_index_v1의 entity_entry_%07d와 available_facets exact record 계약 검증을 추가.
+# - v1.16.0: AIRE Phase 1 Entity Evidence stored section, index, list/get/expand, context, bounds, pointer, failure와 결정성 Generic Host evidence를 추가.
 # - v1.15.2: 미채택 NQAC 검증 함수와 비활성 runtime evidence 블록을 완전히 제거하고 accepted v1.0.2 검증 기준선만 유지.
 # - v1.15.1: NQAC 실행 경로를 비활성화하고 MCP 직접 Query Mode orchestration으로 책임을 이동.
 # - v1.15.0: NQAC runtime evidence를 실험적으로 추가했으나 계약 채택 전 폐기.
@@ -34,6 +43,10 @@
 # - BuildPlugin, Generic Host Runtime과 Consumer Integration 판정은 report에서 계속 분리한다.
 # - P2B는 임시 Generic Host의 PluginRoot/Dumped를 파일로 차단해 Project/Saved/AssetDump fallback을 검증한다.
 # - Release Contract Accepted와 Consumer Integration은 이 Phase report에서 계속 false/Not Run으로 유지한다.
+# - entity_evidence_v1은 explicit section에서만 생성하며 기존 accepted full-mode 기본 출력은 변경하지 않는다.
+# - JSON report read는 Windows PowerShell 5.1에서도 BOM 유무와 무관하게 UTF-8로 해석하며 report schema와 출력 형식은 변경하지 않는다.
+# - AIRE-G2 actual corruption과 duplicate case는 저장소 밖 workspace의 isolated synthetic dump root에서만 실행한다.
+# - AIRE-G2 validation은 Product Source, public schema, Plugin Content와 AIRE-G1 fixture bytes를 변경하지 않는다.
 
 [CmdletBinding()]
 param(
@@ -52,7 +65,7 @@ param(
     # KeepWorkspace는 성공 후 workspace를 유지한다. 현재 기본 동작도 증거 보존을 위해 유지이며 향후 cleanup option과 구분하기 위한 명시 플래그다.
     [switch]$KeepWorkspace,
 
-    # RunSelfTests는 엔진 없이 Generic Host template, path guard와 report helper를 검사한다.
+                                            # RunSelfTests는 엔진 없이 Generic Host template, path guard와 report helper를 검사한다.
     [switch]$RunSelfTests
 )
 
@@ -157,7 +170,7 @@ function Read-JsonFile {
     if (-not (Test-Path -LiteralPath $PathText -PathType Leaf)) {
         throw "JSON report가 없습니다: $PathText"
     }
-    return Get-Content -LiteralPath $PathText -Raw | ConvertFrom-Json
+                return Get-Content -LiteralPath $PathText -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
 function Copy-DirectoryFresh {
@@ -550,7 +563,47 @@ function Invoke-ExpectedFailureCommand {
         $TailText = @($OutputLineList.ToArray() | Select-Object -Last 10) -join " || "
         throw "$StepName expected-failure contract failed: exit=$ExitCode code=$ExpectedCode observed=$StableCodeObserved output_preserved=$OutputPreserved log=$LogPath tail=$TailText"
     }
-    return $ResultObject
+        return $ResultObject
+}
+
+# ConvertTo-EntityNormalizedJson은 generated_time만 제외해 query/context repeat 결정을 비교한다.
+function ConvertTo-EntityNormalizedJson {
+    param([psobject]$ValueObject)
+
+    $CloneObject = (($ValueObject | ConvertTo-Json -Depth 100) | ConvertFrom-Json)
+    if ($CloneObject.PSObject.Properties.Name -contains "generated_time") {
+        $CloneObject.generated_time = ""
+    }
+    return $CloneObject | ConvertTo-Json -Depth 100 -Compress
+}
+
+# Test-EntityTruncationReasonOrder는 context reason의 frozen canonical 순서를 검사한다.
+function Test-EntityTruncationReasonOrder {
+    param([object[]]$ReasonArray)
+
+    $ReasonRank = @{ source_truncated = 0; max_items = 1; max_bytes = 2 }
+    $PreviousRank = -1
+    foreach ($Reason in @($ReasonArray)) {
+        $ReasonText = [string]$Reason
+        if (-not $ReasonRank.ContainsKey($ReasonText)) { return $false }
+        $CurrentRank = [int]$ReasonRank[$ReasonText]
+        if ($CurrentRank -lt $PreviousRank) { return $false }
+        $PreviousRank = $CurrentRank
+    }
+    return $true
+}
+
+# New-EntitySyntheticRoot는 canonical evidence를 변경하지 않는 isolated failure root를 만든다.
+function New-EntitySyntheticRoot {
+    param(
+        [string]$SourceRootPath,
+        [string]$SyntheticParentPath,
+        [string]$CaseName
+    )
+
+    $DestinationPath = Join-Path $SyntheticParentPath $CaseName
+    Copy-DirectoryFresh -SourcePath $SourceRootPath -DestinationPath $DestinationPath
+    return $DestinationPath
 }
 
 function Test-SectionIndexRelativePaths {
@@ -923,10 +976,10 @@ function Get-ExternalErrorClassification {
 }
 
 function Test-ReportContract {
-    param([string]$ReportPath, [ValidateSet("fixture", "validation", "batch", "regression_summary", "data_asset_closure", "bpdump", "lazy_dump", "dependency_query", "query_result", "context_bundle")] [string]$ReportKind)
+    param([string]$ReportPath, [ValidateSet("fixture", "validation", "batch", "regression_summary", "data_asset_closure", "bpdump", "lazy_dump", "dependency_query", "query_result", "context_bundle", "entity_query", "entity_context")] [string]$ReportKind)
 
     if ($ReportKind -eq "bpdump") {
-        try { $ReportText = Get-Content -LiteralPath $ReportPath -Raw } catch { return [pscustomobject]@{ passed = $false; report = $null; detail = $_.Exception.Message } }
+                                try { $ReportText = Get-Content -LiteralPath $ReportPath -Raw -Encoding UTF8 } catch { return [pscustomobject]@{ passed = $false; report = $null; detail = $_.Exception.Message } }
         $Passed = $ReportText -match '"dump_status"\s*:\s*"success"'
         return [pscustomobject]@{ passed = $Passed; report = $null; detail = "bpdump_raw_contract" }
     }
@@ -948,9 +1001,26 @@ function Test-ReportContract {
         return [pscustomobject]@{ passed = $Passed; report = $ReportObject; detail = "query_result" }
     }
 
-    if ($ReportKind -eq "context_bundle") {
+        if ($ReportKind -eq "context_bundle") {
         $Passed = Test-AIContextBundleResponseContract -BundleObject $ReportObject -BundlePath $ReportPath
         return [pscustomobject]@{ passed = $Passed; report = $ReportObject; detail = "context_bundle" }
+    }
+
+    if ($ReportKind -eq "entity_query") {
+        $Passed = [string]$ReportObject.schema_version -eq "entity_query_result_v1" -and
+            [string]$ReportObject.status -eq "succeeded" -and [bool]$ReportObject.all_resolved -and
+            [string]$ReportObject.source_contract -eq "indexed_entity_evidence" -and
+            $null -ne $ReportObject.bounds -and $null -ne $ReportObject.continuation -and
+            $null -ne $ReportObject.entities -and $null -ne $ReportObject.relations
+        return [pscustomobject]@{ passed = $Passed; report = $ReportObject; detail = "entity_query" }
+    }
+
+    if ($ReportKind -eq "entity_context") {
+        $Passed = [string]$ReportObject.schema_version -eq "entity_context_bundle_v1" -and
+            [string]$ReportObject.input_schema_version -eq "entity_query_result_v1" -and
+            [string]$ReportObject.status -eq "succeeded" -and [bool]$ReportObject.all_resolved -and
+            $null -ne $ReportObject.bounds -and $null -ne $ReportObject.items
+        return [pscustomobject]@{ passed = $Passed; report = $ReportObject; detail = "entity_context" }
     }
 
     if ($ReportKind -eq "fixture") {
@@ -998,7 +1068,7 @@ function Invoke-ExternalCommand {
         [string]$LogPath,
                 [switch]$UseCompactLog,
         [string]$ExpectedReportPath = "",
-                [ValidateSet("", "fixture", "validation", "batch", "regression_summary", "data_asset_closure", "bpdump", "lazy_dump", "dependency_query", "query_result", "context_bundle")]
+                                [ValidateSet("", "fixture", "validation", "batch", "regression_summary", "data_asset_closure", "bpdump", "lazy_dump", "dependency_query", "query_result", "context_bundle", "entity_query", "entity_context")]
         [string]$ExpectedReportKind = "",
         [switch]$ReportAuthoritative
     )
@@ -1194,6 +1264,8 @@ if ($RunSelfTests) {
     return
 }
 
+
+
 $ScriptDirectoryPath = $PSScriptRoot
 $PluginRootPath = (Resolve-Path -LiteralPath (Join-Path $ScriptDirectoryPath "..")).ProviderPath
 $BuildPluginScriptPath = Resolve-RequiredFile -PathText (Join-Path $ScriptDirectoryPath "RunBuildPluginVerification.ps1") -Label "RunBuildPluginVerification.ps1"
@@ -1257,6 +1329,9 @@ $DependencyQueryEvidence = $null
 $QueryModeEvidence = $null
 $QueryResultEvidence = $null
 $AIContextBundleEvidence = $null
+$EntityEvidence = $null
+$NiagaraPhase2Closure = $null
+$NiagaraPhase2ClosurePassed = $false
 $P2BFallbackPassed = $false
 
 try {
@@ -2789,9 +2864,846 @@ try {
     }
     $AIContextBundleEvidenceReportPath = Join-Path $AIContextBundleEvidenceRootPath "ai_context_bundle_evidence.json"
     Write-JsonFile -PathText $AIContextBundleEvidenceReportPath -ValueObject $AIContextBundleEvidence
-    if (-not $AIContextBundleEvidencePassed) {
+            if (-not $AIContextBundleEvidencePassed) {
         throw "ai_context_bundle_v1 focused Generic Host evidence 실패: $AIContextBundleEvidenceReportPath"
     }
+
+    # AIRE Phase 1 focused evidence는 Plugin-owned Blueprint fixture 두 개를 수정 없이 읽어 Entity Core 전체 계약을 검증한다.
+    $EntityEvidenceRootPath = Join-Path $HostEvidenceRootPath "EntityEvidence"
+    $ComponentEntityRootPath = Join-Path $EntityEvidenceRootPath "Component"
+    $ActorEntityRootPath = Join-Path $EntityEvidenceRootPath "Actor"
+    $ComponentEntityDumpPath = Join-Path $ComponentEntityRootPath "component_entity.dump.json"
+    $ActorEntityDumpPath = Join-Path $ActorEntityRootPath "actor_entity.dump.json"
+    $ComponentTreeBlueprintPath = "/AssetDump/Validation/BP_ADumpComponentTree.BP_ADumpComponentTree"
+
+    $ComponentEntityArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=bpdump", "-Asset=$ComponentTreeBlueprintPath", "-Output=$ComponentEntityDumpPath", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $ComponentEntityArguments -StepName "Entity Evidence Component Fixture" -LogPath (Join-Path $HostLogRootPath "06ec_entity_component.log") -UseCompactLog:$CompactLog -ExpectedReportPath $ComponentEntityDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "Entity Evidence Component Fixture"
+    $ComponentEntityDump = Read-JsonFile -PathText $ComponentEntityDumpPath
+
+    $ActorEntityArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=bpdump", "-Asset=$ActorBlueprintPath", "-Output=$ActorEntityDumpPath", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $ActorEntityArguments -StepName "Entity Evidence Actor Fixture A" -LogPath (Join-Path $HostLogRootPath "06ed_entity_actor_a.log") -UseCompactLog:$CompactLog -ExpectedReportPath $ActorEntityDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "Entity Evidence Actor Fixture A"
+    $ActorEntityDumpA = Read-JsonFile -PathText $ActorEntityDumpPath
+    $ActorEvidenceAJson = $ActorEntityDumpA.entity_evidence | ConvertTo-Json -Depth 100 -Compress
+
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $ActorEntityArguments -StepName "Entity Evidence Actor Fixture B" -LogPath (Join-Path $HostLogRootPath "06ee_entity_actor_b.log") -UseCompactLog:$CompactLog -ExpectedReportPath $ActorEntityDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "Entity Evidence Actor Fixture B"
+    $ActorEntityDumpB = Read-JsonFile -PathText $ActorEntityDumpPath
+    $ActorEvidenceBJson = $ActorEntityDumpB.entity_evidence | ConvertTo-Json -Depth 100 -Compress
+
+    $ExpectedEntityKindArray = @("asset", "blueprint_component", "blueprint_graph", "blueprint_graph_node", "blueprint_graph_pin")
+    $ExpectedRelationKindArray = @("owns", "contains", "attached_to", "executes_before", "data_flows_to")
+    $CompletenessRegistry = @("complete", "empty", "partial", "truncated", "unsupported", "unavailable", "failed", "not_requested")
+    $EvidenceKindRegistry = @("observed", "deterministic_derived")
+    $ExactnessRegistry = @("exact", "composite", "structural_inference", "fallback")
+
+    $StoredSchemaPassed = $ComponentEntityDump.entity_evidence.schema_version -eq "entity_evidence_v1" -and $ActorEntityDumpB.entity_evidence.schema_version -eq "entity_evidence_v1"
+    $ExplicitOmissionPassed = -not ($ComponentEntityDump.PSObject.Properties.Name -contains "component_tree") -and -not ($ComponentEntityDump.PSObject.Properties.Name -contains "graphs") -and -not ($ActorEntityDumpB.PSObject.Properties.Name -contains "component_tree") -and -not ($ActorEntityDumpB.PSObject.Properties.Name -contains "graphs")
+    $AcceptedFullDefaultPassed = -not ($ActorFullText -match '"entity_evidence"\s*:')
+            $ExpectedCapabilityNameArray = @("bindings", "execution", "hierarchy", "identity")
+    $ExpectedFacetNameArray = @("identity", "overview", "settings", "hierarchy", "children", "properties", "graph", "pin", "execution", "bindings", "renderers", "references", "relations", "provenance", "bounds", "scalability")
+    $IdentityQualityRegistry = @("exact", "composite", "fallback")
+    $IdentitySourceRegistry = @("engine_guid", "object_path", "structural_key", "source_index")
+
+    $CapabilityContractPassed = $true
+    foreach ($EvidenceObject in @($ComponentEntityDump.entity_evidence, $ActorEntityDumpB.entity_evidence)) {
+        $CapabilityNameArray = @($EvidenceObject.capabilities.PSObject.Properties.Name | Sort-Object)
+        if (($CapabilityNameArray -join "|") -cne ($ExpectedCapabilityNameArray -join "|")) { $CapabilityContractPassed = $false }
+        foreach ($CapabilityName in $ExpectedCapabilityNameArray) {
+            if ($CompletenessRegistry -notcontains [string]$EvidenceObject.capabilities.$CapabilityName) { $CapabilityContractPassed = $false }
+        }
+    }
+
+    $CombinedEntityArray = @($ComponentEntityDump.entity_evidence.entities) + @($ActorEntityDumpB.entity_evidence.entities)
+    $CombinedRelationArray = @($ComponentEntityDump.entity_evidence.relations) + @($ActorEntityDumpB.entity_evidence.relations)
+    $ObservedEntityKinds = @($CombinedEntityArray | ForEach-Object { [string]$_.entity_kind } | Sort-Object -Unique)
+    $ObservedRelationKinds = @($CombinedRelationArray | ForEach-Object { [string]$_.relation_kind } | Sort-Object -Unique)
+    $FiveEntityKindsPassed = (@($ExpectedEntityKindArray | Sort-Object) -join "|") -ceq ($ObservedEntityKinds -join "|")
+    $FiveRelationKindsPassed = (@($ExpectedRelationKindArray | Sort-Object) -join "|") -ceq ($ObservedRelationKinds -join "|")
+
+    $CompletenessPassed = $true
+    foreach ($EvidenceObject in @($ComponentEntityDump.entity_evidence, $ActorEntityDumpB.entity_evidence)) {
+        if ($CompletenessRegistry -notcontains [string]$EvidenceObject.state) { $CompletenessPassed = $false }
+    }
+    foreach ($NativeObject in ($CombinedEntityArray + $CombinedRelationArray)) {
+        if ($CompletenessRegistry -notcontains [string]$NativeObject.state) { $CompletenessPassed = $false }
+    }
+
+    $FacetContractPassed = $true
+    foreach ($Entity in $CombinedEntityArray) {
+        $FacetNameArray = @($Entity.facets.PSObject.Properties.Name)
+        if ($FacetNameArray.Count -lt 1) { $FacetContractPassed = $false }
+        foreach ($FacetName in $FacetNameArray) {
+            if ($ExpectedFacetNameArray -notcontains [string]$FacetName) { $FacetContractPassed = $false; continue }
+            $Facet = $Entity.facets.$FacetName
+            if ($CompletenessRegistry -notcontains [string]$Facet.state -or $EvidenceKindRegistry -notcontains [string]$Facet.evidence_kind -or $ExactnessRegistry -notcontains [string]$Facet.exactness -or $Facet.PSObject.Properties.Name -notcontains "schema_version" -or $null -eq $Facet.source -or [string]::IsNullOrWhiteSpace([string]$Facet.source.source_contract) -or [string]::IsNullOrWhiteSpace([string]$Facet.source.source_file) -or -not ([string]$Facet.source.json_pointer).StartsWith("/") -or $null -eq $Facet.bounds -or [int]$Facet.bounds.available_count -ne ([int]$Facet.bounds.included_count + [int]$Facet.bounds.omitted_count) -or $Facet.bounds.PSObject.Properties.Name -notcontains "reasons" -or $null -eq $Facet.data) {
+                $FacetContractPassed = $false
+            }
+        }
+    }
+
+    $StableIdentityPassed = $true
+    $FallbackEntityArray = @()
+    foreach ($Entity in $CombinedEntityArray) {
+        if ([string]$Entity.stable_identity.schema_version -ne "stable_identity_v1" -or [string]::IsNullOrWhiteSpace([string]$Entity.stable_identity.stable_key) -or $IdentityQualityRegistry -notcontains [string]$Entity.stable_identity.quality -or $IdentitySourceRegistry -notcontains [string]$Entity.stable_identity.source -or $null -eq $Entity.stable_identity.components) { $StableIdentityPassed = $false }
+        if ([string]$Entity.stable_identity.quality -eq "fallback") { $FallbackEntityArray += $Entity }
+    }
+        $FallbackDisclosurePassed = @($FallbackEntityArray).Count -gt 0
+    foreach ($FallbackEntity in $FallbackEntityArray) {
+        if (-not ([string]$FallbackEntity.stable_identity.stable_key).Contains("source_index=") -or [string]$FallbackEntity.stable_identity.source -ne "source_index") { $FallbackDisclosurePassed = $false }
+    }
+
+    $EntityOrderPassed = $true
+    foreach ($EvidenceObject in @($ComponentEntityDump.entity_evidence, $ActorEntityDumpB.entity_evidence)) {
+        for ($EntityIndex = 0; $EntityIndex -lt @($EvidenceObject.entities).Count; ++$EntityIndex) {
+            $Entity = $EvidenceObject.entities[$EntityIndex]
+            if ([string]$Entity.entity_id -ne ("entity_{0:D6}" -f $EntityIndex) -or [int]$Entity.canonical_order -ne $EntityIndex -or $Entity.PSObject.Properties.Name -notcontains "semantic_order") { $EntityOrderPassed = $false }
+        }
+    }
+
+    $RelationContractPassed = $true
+    foreach ($EvidenceObject in @($ComponentEntityDump.entity_evidence, $ActorEntityDumpB.entity_evidence)) {
+        $LocalEntityIdSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($Entity in @($EvidenceObject.entities)) { [void]$LocalEntityIdSet.Add([string]$Entity.entity_id) }
+        for ($RelationIndex = 0; $RelationIndex -lt @($EvidenceObject.relations).Count; ++$RelationIndex) {
+            $Relation = $EvidenceObject.relations[$RelationIndex]
+            if ([string]$Relation.relation_id -ne ("relation_{0:D6}" -f $RelationIndex) -or -not $LocalEntityIdSet.Contains([string]$Relation.from_entity_id) -or -not $LocalEntityIdSet.Contains([string]$Relation.to_entity_id) -or $EvidenceKindRegistry -notcontains [string]$Relation.evidence_kind -or $ExactnessRegistry -notcontains [string]$Relation.exactness -or $Relation.PSObject.Properties.Name -notcontains "semantic_order") { $RelationContractPassed = $false }
+        }
+    }
+
+        $CountContractPassed = [int]$ComponentEntityDump.entity_evidence.counts.entity_count -eq @($ComponentEntityDump.entity_evidence.entities).Count -and [int]$ComponentEntityDump.entity_evidence.counts.relation_count -eq @($ComponentEntityDump.entity_evidence.relations).Count -and [int]$ActorEntityDumpB.entity_evidence.counts.entity_count -eq @($ActorEntityDumpB.entity_evidence.entities).Count -and [int]$ActorEntityDumpB.entity_evidence.counts.relation_count -eq @($ActorEntityDumpB.entity_evidence.relations).Count
+    $RootBoundsPassed = $true
+    foreach ($EvidenceObject in @($ComponentEntityDump.entity_evidence, $ActorEntityDumpB.entity_evidence)) {
+        $Bounds = $EvidenceObject.bounds
+        if ($null -eq $Bounds -or $Bounds.PSObject.Properties.Name -notcontains "truncated" -or $Bounds.PSObject.Properties.Name -notcontains "reasons" -or [int]$Bounds.available_entity_count -ne ([int]$Bounds.included_entity_count + [int]$Bounds.omitted_entity_count) -or [int]$Bounds.available_relation_count -ne ([int]$Bounds.included_relation_count + [int]$Bounds.omitted_relation_count) -or [int]$Bounds.included_entity_count -ne @($EvidenceObject.entities).Count -or [int]$Bounds.included_relation_count -ne @($EvidenceObject.relations).Count -or [bool]$Bounds.truncated -ne (@($Bounds.reasons).Count -gt 0)) {
+            $RootBoundsPassed = $false
+        }
+    }
+    $StoredDeterminismPassed = $ActorEvidenceAJson -ceq $ActorEvidenceBJson
+
+    $EntityIndexArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=index", "-DumpRoot=$EntityEvidenceRootPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityIndexArguments -StepName "Entity Index A" -LogPath (Join-Path $HostLogRootPath "06ef_entity_index_a.log") -UseCompactLog:$CompactLog))
+    $EntityIndexPath = Join-Path $EntityEvidenceRootPath "entity_index.json"
+    $EntityIndexA = Read-JsonFile -PathText $EntityIndexPath
+    $EntityIndexAStableJson = [ordered]@{ assets = @($EntityIndexA.assets); entities = @($EntityIndexA.entities); relations = @($EntityIndexA.relations) } | ConvertTo-Json -Depth 100 -Compress
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityIndexArguments -StepName "Entity Index B" -LogPath (Join-Path $HostLogRootPath "06eg_entity_index_b.log") -UseCompactLog:$CompactLog))
+        $EntityIndexB = Read-JsonFile -PathText $EntityIndexPath
+    $EntityIndexBStableJson = [ordered]@{ assets = @($EntityIndexB.assets); entities = @($EntityIndexB.entities); relations = @($EntityIndexB.relations) } | ConvertTo-Json -Depth 100 -Compress
+    $EntityAssetIndex = Read-JsonFile -PathText (Join-Path $EntityEvidenceRootPath "asset_index.json")
+    $EntitySectionIndex = Read-JsonFile -PathText (Join-Path $EntityEvidenceRootPath "section_index.json")
+    $EntityAssetIndexContractPassed = @($EntityAssetIndex.assets).Count -eq 2
+    foreach ($AssetEntry in @($EntityAssetIndex.assets)) {
+        if (@($AssetEntry.available_sections) -notcontains "entity_evidence" -or [string]$AssetEntry.section_schema_versions.entity_evidence -ne "entity_evidence_v1") { $EntityAssetIndexContractPassed = $false }
+    }
+    $EntitySectionEntryArray = @($EntitySectionIndex.sections | Where-Object { $_.section_name -eq "entity_evidence" })
+    $EntitySectionIndexContractPassed = $EntitySectionEntryArray.Count -eq 2
+    foreach ($SectionEntry in $EntitySectionEntryArray) {
+        if ([string]$SectionEntry.section_schema_version -ne "entity_evidence_v1" -or [string]$SectionEntry.json_pointer -ne "/entity_evidence" -or [string]$SectionEntry.storage_kind -ne "main_dump" -or [string]::IsNullOrWhiteSpace([string]$SectionEntry.source_file)) { $EntitySectionIndexContractPassed = $false }
+    }
+
+            $EntityKindRegistryPassed = ($EntityIndexB.entity_kind_registry -join "|") -ceq ($ExpectedEntityKindArray -join "|")
+    $RelationKindRegistryPassed = ($EntityIndexB.relation_kind_registry -join "|") -ceq ($ExpectedRelationKindArray -join "|")
+    $EntityIndexSchemaPassed = $EntityIndexB.schema_version -eq "entity_index_v1" -and $EntityIndexB.entity_evidence_schema_version -eq "entity_evidence_v1" -and $EntityKindRegistryPassed -and $RelationKindRegistryPassed -and [int]$EntityIndexB.entity_count -eq @($EntityIndexB.entities).Count -and [int]$EntityIndexB.relation_count -eq @($EntityIndexB.relations).Count
+    $EntityIndexRecordContractPassed = $true
+    for ($EntityEntryIndex = 0; $EntityEntryIndex -lt @($EntityIndexB.entities).Count; ++$EntityEntryIndex) {
+        $EntityEntry = $EntityIndexB.entities[$EntityEntryIndex]
+        if ([string]$EntityEntry.entity_entry_id -ne ("entity_entry_{0:D7}" -f $EntityEntryIndex) -or $EntityEntry.PSObject.Properties.Name -notcontains "available_facets" -or $EntityEntry.PSObject.Properties.Name -contains "facets") {
+            $EntityIndexRecordContractPassed = $false
+        }
+    }
+    $EntityIndexDeterminismPassed = $EntityIndexAStableJson -ceq $EntityIndexBStableJson
+    $EntityPointerResolutionPassed = $true
+    $EntitySourceCache = @{}
+    foreach ($IndexEntity in @($EntityIndexB.entities)) {
+        $RelativeSourcePath = [string]$IndexEntity.source_file
+        $PointerText = [string]$IndexEntity.json_pointer
+        if ([System.IO.Path]::IsPathRooted($RelativeSourcePath) -or $RelativeSourcePath.Contains('\') -or -not $PointerText.StartsWith('/entity_evidence/entities/')) { $EntityPointerResolutionPassed = $false; continue }
+        if (-not $EntitySourceCache.ContainsKey($RelativeSourcePath)) { $EntitySourceCache[$RelativeSourcePath] = Read-JsonFile -PathText (Join-Path $EntityEvidenceRootPath $RelativeSourcePath) }
+        $SourceIndex = [int]($PointerText.Substring('/entity_evidence/entities/'.Length))
+        $NativeEntity = @($EntitySourceCache[$RelativeSourcePath].entity_evidence.entities)[$SourceIndex]
+        if ($null -eq $NativeEntity -or [string]$NativeEntity.entity_id -ne [string]$IndexEntity.entity_id -or [string]$NativeEntity.stable_identity.stable_key -ne [string]$IndexEntity.stable_key) { $EntityPointerResolutionPassed = $false }
+    }
+    foreach ($IndexRelation in @($EntityIndexB.relations)) {
+        $RelativeSourcePath = [string]$IndexRelation.source_file
+        $PointerText = [string]$IndexRelation.json_pointer
+        if ([System.IO.Path]::IsPathRooted($RelativeSourcePath) -or $RelativeSourcePath.Contains('\') -or -not $PointerText.StartsWith('/entity_evidence/relations/')) { $EntityPointerResolutionPassed = $false; continue }
+        if (-not $EntitySourceCache.ContainsKey($RelativeSourcePath)) { $EntitySourceCache[$RelativeSourcePath] = Read-JsonFile -PathText (Join-Path $EntityEvidenceRootPath $RelativeSourcePath) }
+        $SourceIndex = [int]($PointerText.Substring('/entity_evidence/relations/'.Length))
+        $NativeRelation = @($EntitySourceCache[$RelativeSourcePath].entity_evidence.relations)[$SourceIndex]
+        if ($null -eq $NativeRelation -or [string]$NativeRelation.relation_id -ne [string]$IndexRelation.relation_id) { $EntityPointerResolutionPassed = $false }
+    }
+
+    $EntityQueryListPath = Join-Path $EntityEvidenceRootPath "entity_list.json"
+    $EntityQueryListArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-Output=$EntityQueryListPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityQueryListArguments -StepName "Entity Query List" -LogPath (Join-Path $HostLogRootPath "06eh_entity_list.log") -UseCompactLog:$CompactLog))
+    $EntityQueryList = Read-JsonFile -PathText $EntityQueryListPath
+    $SelectedEntity = @($EntityQueryList.entities | Where-Object { $_.entity_kind -eq "blueprint_graph_node" } | Select-Object -First 1)
+    if ($SelectedEntity.Count -ne 1) { throw "Entity Query selector fixture가 blueprint_graph_node를 제공하지 않습니다." }
+    $SelectedEntityId = [string]$SelectedEntity[0].entity_id
+    $SelectedStableKey = [string]$SelectedEntity[0].stable_identity.stable_key
+
+    $EntityGetIdPath = Join-Path $EntityEvidenceRootPath "entity_get_id.json"
+    $EntityGetIdArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=get", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Output=$EntityGetIdPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityGetIdArguments -StepName "Entity Query Get EntityId" -LogPath (Join-Path $HostLogRootPath "06ei_entity_get_id.log") -UseCompactLog:$CompactLog))
+    $EntityGetId = Read-JsonFile -PathText $EntityGetIdPath
+
+    $EntityGetKeyPath = Join-Path $EntityEvidenceRootPath "entity_get_key.json"
+    $EntityGetKeyArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=get", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-StableKey=$SelectedStableKey", "-Output=$EntityGetKeyPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityGetKeyArguments -StepName "Entity Query Get StableKey" -LogPath (Join-Path $HostLogRootPath "06ej_entity_get_key.log") -UseCompactLog:$CompactLog))
+    $EntityGetKey = Read-JsonFile -PathText $EntityGetKeyPath
+
+    $EntityExpandPath = Join-Path $EntityEvidenceRootPath "entity_expand.json"
+    $EntityExpandArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Direction=both", "-MaxDepth=2", "-MaxEntities=256", "-MaxRelations=1024", "-Output=$EntityExpandPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityExpandArguments -StepName "Entity Query Expand" -LogPath (Join-Path $HostLogRootPath "06ek_entity_expand.log") -UseCompactLog:$CompactLog))
+        $EntityExpand = Read-JsonFile -PathText $EntityExpandPath
+
+    $EntityFilteredExpandPath = Join-Path $EntityEvidenceRootPath "entity_expand_filtered.json"
+    $EntityFilteredExpandArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Direction=both", "-MaxDepth=1", "-EntityKinds=blueprint_graph_node,blueprint_graph_pin", "-MaxEntities=256", "-MaxRelations=1024", "-Output=$EntityFilteredExpandPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityFilteredExpandArguments -StepName "Entity Query Filtered Endpoint Closure" -LogPath (Join-Path $HostLogRootPath "06ek1_entity_filtered_expand.log") -UseCompactLog:$CompactLog))
+    $EntityFilteredExpand = Read-JsonFile -PathText $EntityFilteredExpandPath
+
+    $EntityNoRelationsPath = Join-Path $EntityEvidenceRootPath "entity_expand_no_relations.json"
+    $EntityNoRelationsArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Direction=both", "-MaxDepth=2", "-MaxEntities=1024", "-MaxRelations=0", "-MaxBytes=1048576", "-Output=$EntityNoRelationsPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityNoRelationsArguments -StepName "Entity Query Zero Relation Progress" -LogPath (Join-Path $HostLogRootPath "06ek2_entity_no_relations.log") -UseCompactLog:$CompactLog))
+    $EntityNoRelations = Read-JsonFile -PathText $EntityNoRelationsPath
+
+    $EntityBoundedPath = Join-Path $EntityEvidenceRootPath "entity_bounded.json"
+    $EntityBoundedArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-MaxEntities=1", "-MaxRelations=0", "-MaxBytes=1048576", "-Output=$EntityBoundedPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityBoundedArguments -StepName "Entity Query Bounds" -LogPath (Join-Path $HostLogRootPath "06el_entity_bounds.log") -UseCompactLog:$CompactLog))
+    $EntityBounded = Read-JsonFile -PathText $EntityBoundedPath
+    $EntityCursorPath = Join-Path $EntityEvidenceRootPath "entity_cursor.json"
+    $EntityCursorArguments = @($EntityBoundedArguments | Where-Object { -not $_.StartsWith("-Output=") }) + @("-Cursor=$($EntityBounded.continuation.cursor)", "-Output=$EntityCursorPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityCursorArguments -StepName "Entity Query Cursor" -LogPath (Join-Path $HostLogRootPath "06em_entity_cursor.log") -UseCompactLog:$CompactLog))
+    $EntityCursor = Read-JsonFile -PathText $EntityCursorPath
+
+    $EntityContextPath = Join-Path $EntityEvidenceRootPath "entity_context.json"
+    $EntityContextArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$EntityExpandPath", "-Output=$EntityContextPath", "-MaxItems=512", "-MaxBytes=1048576", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityContextArguments -StepName "Entity Context Native" -LogPath (Join-Path $HostLogRootPath "06en_entity_context.log") -UseCompactLog:$CompactLog))
+    $EntityContext = Read-JsonFile -PathText $EntityContextPath
+
+    $EntityContextBytesPath = Join-Path $EntityEvidenceRootPath "entity_context_bytes.json"
+    $EntityContextBytesArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$EntityExpandPath", "-Output=$EntityContextBytesPath", "-MaxItems=512", "-MaxBytes=4096", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityContextBytesArguments -StepName "Entity Context UTF8 Bounds" -LogPath (Join-Path $HostLogRootPath "06eo_entity_context_bytes.log") -UseCompactLog:$CompactLog))
+    $EntityContextBytes = Read-JsonFile -PathText $EntityContextBytesPath
+        $EntityContextUtf8Bytes = [System.Text.Encoding]::UTF8.GetByteCount((Get-Content -LiteralPath $EntityContextBytesPath -Raw -Encoding UTF8))
+
+    $ActorEntityIndexAssetEntryArray = @($EntityIndexB.assets | Where-Object { [string]$_.object_path -eq $ActorBlueprintPath })
+    if ($ActorEntityIndexAssetEntryArray.Count -ne 1) { throw "AIRE-G2 Actor entity index asset entry가 정확히 하나가 아닙니다." }
+    $ActorEntityAssetId = [string]$ActorEntityIndexAssetEntryArray[0].asset_id
+    $ActorEntitySourceRelativePath = [string]$ActorEntityIndexAssetEntryArray[0].source_file
+
+    $EntityQueryAssetIdPath = Join-Path $EntityEvidenceRootPath "entity_list_asset_id.json"
+    $EntityQueryAssetIdArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-AssetId=$ActorEntityAssetId", "-Output=$EntityQueryAssetIdPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityQueryAssetIdArguments -StepName "Entity Query AssetId" -LogPath (Join-Path $HostLogRootPath "06er_entity_asset_id.log") -UseCompactLog:$CompactLog))
+    $EntityQueryAssetId = Read-JsonFile -PathText $EntityQueryAssetIdPath
+
+    $EntityKindFilterPath = Join-Path $EntityEvidenceRootPath "entity_filter_kind.json"
+    $EntityKindFilterArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityKinds=blueprint_graph_node", "-Output=$EntityKindFilterPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityKindFilterArguments -StepName "Entity Query Kind Filter" -LogPath (Join-Path $HostLogRootPath "06es_entity_kind_filter.log") -UseCompactLog:$CompactLog))
+    $EntityKindFilter = Read-JsonFile -PathText $EntityKindFilterPath
+
+    $SelectedFacetName = @($SelectedEntity[0].facets.PSObject.Properties.Name | Sort-Object | Select-Object -First 1)
+    if ($SelectedFacetName.Count -ne 1) { throw "AIRE-G2 facet filter용 Facet을 선택하지 못했습니다." }
+    $SelectedFacetName = [string]$SelectedFacetName[0]
+    $EntityFacetFilterPath = Join-Path $EntityEvidenceRootPath "entity_filter_facet.json"
+    $EntityFacetFilterArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-Facets=$SelectedFacetName", "-Output=$EntityFacetFilterPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityFacetFilterArguments -StepName "Entity Query Facet Filter" -LogPath (Join-Path $HostLogRootPath "06et_entity_facet_filter.log") -UseCompactLog:$CompactLog))
+    $EntityFacetFilter = Read-JsonFile -PathText $EntityFacetFilterPath
+
+    $EntityDirectionOutputPath = Join-Path $EntityEvidenceRootPath "entity_expand_out.json"
+    $EntityDirectionOutputArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Direction=out", "-MaxDepth=1", "-Output=$EntityDirectionOutputPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityDirectionOutputArguments -StepName "Entity Query Direction Out" -LogPath (Join-Path $HostLogRootPath "06eu_entity_direction_out.log") -UseCompactLog:$CompactLog))
+    $EntityDirectionOutput = Read-JsonFile -PathText $EntityDirectionOutputPath
+
+    $EntityDirectionInputPath = Join-Path $EntityEvidenceRootPath "entity_expand_in.json"
+    $EntityDirectionInputArguments = @($EntityDirectionOutputArguments | Where-Object { -not $_.StartsWith("-Direction=") -and -not $_.StartsWith("-Output=") }) + @("-Direction=in", "-Output=$EntityDirectionInputPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityDirectionInputArguments -StepName "Entity Query Direction In" -LogPath (Join-Path $HostLogRootPath "06ev_entity_direction_in.log") -UseCompactLog:$CompactLog))
+    $EntityDirectionInput = Read-JsonFile -PathText $EntityDirectionInputPath
+
+    $EntityDirectionBothPath = Join-Path $EntityEvidenceRootPath "entity_expand_both_depth1.json"
+    $EntityDirectionBothArguments = @($EntityDirectionOutputArguments | Where-Object { -not $_.StartsWith("-Direction=") -and -not $_.StartsWith("-Output=") }) + @("-Direction=both", "-Output=$EntityDirectionBothPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityDirectionBothArguments -StepName "Entity Query Direction Both" -LogPath (Join-Path $HostLogRootPath "06ew_entity_direction_both.log") -UseCompactLog:$CompactLog))
+    $EntityDirectionBoth = Read-JsonFile -PathText $EntityDirectionBothPath
+
+    $SelectedRelationKindArray = @($EntityDirectionBoth.relations | ForEach-Object { [string]$_.relation_kind } | Sort-Object -Unique | Select-Object -First 1)
+    if ($SelectedRelationKindArray.Count -ne 1) { throw "AIRE-G2 relation filter용 Relation Kind를 선택하지 못했습니다." }
+    $SelectedRelationKind = [string]$SelectedRelationKindArray[0]
+    $EntityRelationFilterPath = Join-Path $EntityEvidenceRootPath "entity_filter_relation.json"
+    $EntityRelationFilterArguments = @($EntityDirectionBothArguments | Where-Object { -not $_.StartsWith("-Output=") }) + @("-RelationKinds=$SelectedRelationKind", "-Output=$EntityRelationFilterPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityRelationFilterArguments -StepName "Entity Query Relation Filter" -LogPath (Join-Path $HostLogRootPath "06ex_entity_relation_filter.log") -UseCompactLog:$CompactLog))
+    $EntityRelationFilter = Read-JsonFile -PathText $EntityRelationFilterPath
+
+    $EntityQueryMaxBytesPath = Join-Path $EntityEvidenceRootPath "entity_query_max_bytes.json"
+    $EntityQueryMaxBytesArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-MaxEntities=1024", "-MaxRelations=0", "-MaxBytes=4096", "-Output=$EntityQueryMaxBytesPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityQueryMaxBytesArguments -StepName "Entity Query UTF8 Bounds" -LogPath (Join-Path $HostLogRootPath "06ey_entity_query_bytes.log") -UseCompactLog:$CompactLog))
+    $EntityQueryMaxBytes = Read-JsonFile -PathText $EntityQueryMaxBytesPath
+    $EntityQueryMaxBytesUtf8Bytes = [System.Text.Encoding]::UTF8.GetByteCount((Get-Content -LiteralPath $EntityQueryMaxBytesPath -Raw -Encoding UTF8))
+
+    $EntityQueryRepeatPath = Join-Path $EntityEvidenceRootPath "entity_list_repeat.json"
+    $EntityQueryRepeatArguments = @($EntityQueryListArguments | Where-Object { -not $_.StartsWith("-Output=") }) + @("-Output=$EntityQueryRepeatPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityQueryRepeatArguments -StepName "Entity Query Repeat" -LogPath (Join-Path $HostLogRootPath "06ez_entity_query_repeat.log") -UseCompactLog:$CompactLog))
+    $EntityQueryRepeat = Read-JsonFile -PathText $EntityQueryRepeatPath
+
+    $EntityContextMaxItemsPath = Join-Path $EntityEvidenceRootPath "entity_context_max_items.json"
+    $EntityContextMaxItemsArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$EntityExpandPath", "-Output=$EntityContextMaxItemsPath", "-MaxItems=1", "-MaxBytes=1048576", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityContextMaxItemsArguments -StepName "Entity Context MaxItems" -LogPath (Join-Path $HostLogRootPath "06f0_entity_context_items.log") -UseCompactLog:$CompactLog))
+    $EntityContextMaxItems = Read-JsonFile -PathText $EntityContextMaxItemsPath
+
+    $EntityContextSourcePath = Join-Path $EntityEvidenceRootPath "entity_context_source_truncated.json"
+    $EntityContextSourceArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$EntityBoundedPath", "-Output=$EntityContextSourcePath", "-MaxItems=512", "-MaxBytes=1048576", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityContextSourceArguments -StepName "Entity Context Source Truncated" -LogPath (Join-Path $HostLogRootPath "06f1_entity_context_source.log") -UseCompactLog:$CompactLog))
+    $EntityContextSource = Read-JsonFile -PathText $EntityContextSourcePath
+
+    $EntityContextRepeatPath = Join-Path $EntityEvidenceRootPath "entity_context_repeat.json"
+    $EntityContextRepeatArguments = @($EntityContextArguments | Where-Object { -not $_.StartsWith("-Output=") }) + @("-Output=$EntityContextRepeatPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityContextRepeatArguments -StepName "Entity Context Repeat" -LogPath (Join-Path $HostLogRootPath "06f2_entity_context_repeat.log") -UseCompactLog:$CompactLog))
+    $EntityContextRepeat = Read-JsonFile -PathText $EntityContextRepeatPath
+
+
+        $SelectorEquivalencePassed = @($EntityGetId.entities).Count -eq 1 -and @($EntityGetKey.entities).Count -eq 1 -and (($EntityGetId.entities[0] | ConvertTo-Json -Depth 100 -Compress) -ceq ($EntityGetKey.entities[0] | ConvertTo-Json -Depth 100 -Compress))
+    $AssetSelectorEquivalencePassed = (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryList) -ceq (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryAssetId)
+    $EntityKindFilterPassed = @($EntityKindFilter.entities).Count -gt 0 -and @($EntityKindFilter.entities | Where-Object { [string]$_.entity_kind -ne "blueprint_graph_node" }).Count -eq 0
+    $FacetFilterPassed = @($EntityFacetFilter.entities).Count -gt 0 -and @($EntityFacetFilter.entities | Where-Object { $_.facets.PSObject.Properties.Name -notcontains $SelectedFacetName }).Count -eq 0
+    $QueryRepeatDeterminismPassed = (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryList) -ceq (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryRepeat)
+    $QueryPositivePassed = $EntityQueryList.schema_version -eq "entity_query_result_v1" -and $EntityGetId.schema_version -eq "entity_query_result_v1" -and $EntityExpand.schema_version -eq "entity_query_result_v1" -and $EntityQueryList.operation -eq "list" -and $EntityGetId.operation -eq "get" -and $EntityExpand.operation -eq "expand" -and $null -ne $EntityQueryList.resolved_asset -and $null -eq $EntityQueryList.root_entity -and $null -ne $EntityGetId.root_entity -and $null -ne $EntityExpand.root_entity -and -not [string]::IsNullOrWhiteSpace([string]$EntityQueryList.query.normalized_query) -and @($EntityQueryList.entities).Count -gt 1 -and @($EntityExpand.entities).Count -ge 1
+    $BoundsCursorPassed = [bool]$EntityBounded.bounds.truncated -and [bool]$EntityBounded.continuation.has_more -and [string]$EntityBounded.continuation.cursor -match '^ec1\.' -and @($EntityBounded.entities).Count -eq 1 -and [int]$EntityBounded.bounds.available_entity_count -eq ([int]$EntityBounded.bounds.included_entity_count + [int]$EntityBounded.bounds.omitted_entity_count) -and [int]$EntityCursor.query.canonical_offset -eq 1 -and [string]$EntityBounded.entities[0].entity_id -ne [string]$EntityCursor.entities[0].entity_id
+        $QueryMaxBytesPassed = $EntityQueryMaxBytesUtf8Bytes -le 4096 -and [bool]$EntityQueryMaxBytes.bounds.truncated -and @($EntityQueryMaxBytes.bounds.truncation_reasons) -contains "max_bytes"
+
+    $FilteredExpandEntityIdSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($Entity in @($EntityFilteredExpand.entities)) { [void]$FilteredExpandEntityIdSet.Add([string]$Entity.entity_id) }
+    $FilteredExpandEndpointClosurePassed = @($EntityFilteredExpand.relations).Count -gt 0
+    foreach ($Relation in @($EntityFilteredExpand.relations)) {
+        if (-not $FilteredExpandEntityIdSet.Contains([string]$Relation.from_entity_id) -or -not $FilteredExpandEntityIdSet.Contains([string]$Relation.to_entity_id)) {
+            $FilteredExpandEndpointClosurePassed = $false
+        }
+    }
+    $ZeroRelationCursorProgressPassed = @($EntityNoRelations.relations).Count -eq 0 -and
+        [int]$EntityNoRelations.bounds.available_relation_count -gt 0 -and
+        [bool]$EntityNoRelations.bounds.truncated -and
+        @($EntityNoRelations.bounds.truncation_reasons) -contains "max_relations" -and
+        -not [bool]$EntityNoRelations.continuation.has_more -and
+        [string]::IsNullOrWhiteSpace([string]$EntityNoRelations.continuation.cursor) -and
+        [int]$EntityNoRelations.continuation.next_canonical_offset -gt [int]$EntityNoRelations.query.canonical_offset -and
+        [int]$EntityNoRelations.continuation.next_canonical_offset -eq ([int]$EntityNoRelations.bounds.available_entity_count + [int]$EntityNoRelations.bounds.available_relation_count)
+
+    $OutputRelationArray = @($EntityDirectionOutput.relations)
+    $InputRelationArray = @($EntityDirectionInput.relations)
+    $BothRelationArray = @($EntityDirectionBoth.relations)
+    $DirectionFilterPassed = $OutputRelationArray.Count -gt 0 -and $InputRelationArray.Count -gt 0
+    foreach ($Relation in $OutputRelationArray) { if ([string]$Relation.from_entity_id -ne $SelectedEntityId) { $DirectionFilterPassed = $false } }
+    foreach ($Relation in $InputRelationArray) { if ([string]$Relation.to_entity_id -ne $SelectedEntityId) { $DirectionFilterPassed = $false } }
+    $DirectionUnionText = @(($OutputRelationArray + $InputRelationArray) | ForEach-Object { [string]$_.relation_id } | Sort-Object -Unique) -join "|"
+    $DirectionBothText = @($BothRelationArray | ForEach-Object { [string]$_.relation_id } | Sort-Object -Unique) -join "|"
+    if ($DirectionUnionText -cne $DirectionBothText) { $DirectionFilterPassed = $false }
+    $RelationKindFilterPassed = @($EntityRelationFilter.relations).Count -gt 0 -and @($EntityRelationFilter.relations | Where-Object { [string]$_.relation_kind -ne $SelectedRelationKind }).Count -eq 0
+
+    $ExpandEntityMap = @{}
+    foreach ($Entity in @($EntityExpand.entities)) { $ExpandEntityMap[[string]$Entity.entity_id] = $Entity }
+    $ExpandRelationMap = @{}
+    foreach ($Relation in @($EntityExpand.relations)) { $ExpandRelationMap[[string]$Relation.relation_id] = $Relation }
+    $ContextNativeEqualityPassed = $EntityContext.schema_version -eq "entity_context_bundle_v1" -and $EntityContext.input_schema_version -eq "entity_query_result_v1" -and [int]$EntityContext.bounds.available_count -eq ([int]$EntityContext.bounds.included_count + [int]$EntityContext.bounds.omitted_count)
+    foreach ($ContextItem in @($EntityContext.items)) {
+        if ([string]$ContextItem.item_kind -eq "entity") { $ExpectedNative = $ExpandEntityMap[[string]$ContextItem.native_id] } else { $ExpectedNative = $ExpandRelationMap[[string]$ContextItem.native_id] }
+        if ($null -eq $ExpectedNative -or (($ExpectedNative | ConvertTo-Json -Depth 100 -Compress) -cne ($ContextItem.data | ConvertTo-Json -Depth 100 -Compress))) { $ContextNativeEqualityPassed = $false }
+    }
+    $ContextMaxItemsPassed = [bool]$EntityContextMaxItems.bounds.truncated -and [int]$EntityContextMaxItems.bounds.included_count -eq 1 -and @($EntityContextMaxItems.bounds.truncation_reasons) -contains "max_items"
+    $ContextMaxItemsNativeEqualityPassed = $true
+    foreach ($ContextItem in @($EntityContextMaxItems.items)) {
+        if ([string]$ContextItem.item_kind -eq "entity") { $ExpectedNative = $ExpandEntityMap[[string]$ContextItem.native_id] } else { $ExpectedNative = $ExpandRelationMap[[string]$ContextItem.native_id] }
+        if ($null -eq $ExpectedNative -or (($ExpectedNative | ConvertTo-Json -Depth 100 -Compress) -cne ($ContextItem.data | ConvertTo-Json -Depth 100 -Compress))) { $ContextMaxItemsNativeEqualityPassed = $false }
+    }
+    $ContextSourceTruncatedPassed = [bool]$EntityContextSource.source.source_truncated -and @($EntityContextSource.bounds.truncation_reasons) -contains "source_truncated"
+    $ContextReasonOrderPassed = (Test-EntityTruncationReasonOrder -ReasonArray @($EntityContextMaxItems.bounds.truncation_reasons)) -and (Test-EntityTruncationReasonOrder -ReasonArray @($EntityContextSource.bounds.truncation_reasons)) -and (Test-EntityTruncationReasonOrder -ReasonArray @($EntityContextBytes.bounds.truncation_reasons))
+    $ContextRepeatDeterminismPassed = (ConvertTo-EntityNormalizedJson -ValueObject $EntityContext) -ceq (ConvertTo-EntityNormalizedJson -ValueObject $EntityContextRepeat)
+    $Utf8BoundsPassed = $EntityContextUtf8Bytes -le 4096 -and [int]$EntityContextBytes.limits.max_bytes -eq 4096 -and ((-not [bool]$EntityContextBytes.bounds.truncated) -or @($EntityContextBytes.bounds.truncation_reasons) -contains "max_bytes")
+        $AireG2PositivePassed = $AssetSelectorEquivalencePassed -and $EntityKindFilterPassed -and $FacetFilterPassed -and $DirectionFilterPassed -and $RelationKindFilterPassed -and $FilteredExpandEndpointClosurePassed -and $ZeroRelationCursorProgressPassed -and $QueryRepeatDeterminismPassed -and $QueryMaxBytesPassed -and $ContextMaxItemsPassed -and $ContextMaxItemsNativeEqualityPassed -and $ContextSourceTruncatedPassed -and $ContextReasonOrderPassed -and $ContextRepeatDeterminismPassed
+
+
+        $EntitySentinelPath = Join-Path $EntityEvidenceRootPath "entity_failure_sentinel.json"
+    Write-TextFile -PathText $EntitySentinelPath -ContentText '{"sentinel":true}'
+    $EntityProtectedPathArray = @($ComponentEntityDumpPath, $ActorEntityDumpPath, (Join-Path $EntityEvidenceRootPath "asset_index.json"), (Join-Path $EntityEvidenceRootPath "section_index.json"), $EntityIndexPath)
+    $EntityProtectedHashBefore = @{}
+    foreach ($ProtectedPath in $EntityProtectedPathArray) { $EntityProtectedHashBefore[$ProtectedPath] = Get-FileSha256 -PathText $ProtectedPath }
+
+    $EntitySyntheticParentPath = Join-Path $ResolvedWorkspaceRoot "EntityG2Synthetic"
+    New-Item -ItemType Directory -Path $EntitySyntheticParentPath -Force | Out-Null
+
+    $IndexMissingRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "index_missing"
+    Remove-Item -LiteralPath (Join-Path $IndexMissingRoot "entity_index.json") -Force
+
+    $IndexInvalidRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "index_invalid_json"
+    Write-TextFile -PathText (Join-Path $IndexInvalidRoot "entity_index.json") -ContentText '{invalid'
+
+    $IndexSchemaRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "index_schema"
+    $IndexSchemaObject = Read-JsonFile -PathText (Join-Path $IndexSchemaRoot "entity_index.json")
+    $IndexSchemaObject.schema_version = "entity_index_v0"
+    Write-JsonFile -PathText (Join-Path $IndexSchemaRoot "entity_index.json") -ValueObject $IndexSchemaObject
+
+    $SourceMissingRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "source_missing"
+    $SourceMissingIndex = Read-JsonFile -PathText (Join-Path $SourceMissingRoot "entity_index.json")
+    (@($SourceMissingIndex.assets | Where-Object { [string]$_.object_path -eq $ActorBlueprintPath }))[0].source_file = "missing_actor.dump.json"
+    Write-JsonFile -PathText (Join-Path $SourceMissingRoot "entity_index.json") -ValueObject $SourceMissingIndex
+
+    $SourceInvalidRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "source_invalid"
+    Write-TextFile -PathText (Join-Path $SourceInvalidRoot ($ActorEntitySourceRelativePath -replace '/', [System.IO.Path]::DirectorySeparatorChar)) -ContentText '{invalid'
+
+    $PointerInvalidRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "pointer_invalid"
+    $PointerInvalidIndex = Read-JsonFile -PathText (Join-Path $PointerInvalidRoot "entity_index.json")
+    (@($PointerInvalidIndex.entities | Where-Object { [string]$_.object_path -eq $ActorBlueprintPath }))[0].json_pointer = "/invalid"
+    Write-JsonFile -PathText (Join-Path $PointerInvalidRoot "entity_index.json") -ValueObject $PointerInvalidIndex
+
+    $PointerMissingRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "pointer_missing"
+    $PointerMissingIndex = Read-JsonFile -PathText (Join-Path $PointerMissingRoot "entity_index.json")
+    (@($PointerMissingIndex.entities | Where-Object { [string]$_.object_path -eq $ActorBlueprintPath }))[0].json_pointer = "/entity_evidence/entities/999999"
+    Write-JsonFile -PathText (Join-Path $PointerMissingRoot "entity_index.json") -ValueObject $PointerMissingIndex
+
+    $FingerprintRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "fingerprint"
+    $FingerprintIndex = Read-JsonFile -PathText (Join-Path $FingerprintRoot "entity_index.json")
+    (@($FingerprintIndex.assets | Where-Object { [string]$_.object_path -eq $ActorBlueprintPath }))[0].fingerprint = "stale_fingerprint"
+    Write-JsonFile -PathText (Join-Path $FingerprintRoot "entity_index.json") -ValueObject $FingerprintIndex
+
+    $DuplicateRoot = New-EntitySyntheticRoot -SourceRootPath $EntityEvidenceRootPath -SyntheticParentPath $EntitySyntheticParentPath -CaseName "duplicate"
+    $DuplicateIndexPath = Join-Path $DuplicateRoot "entity_index.json"
+    $DuplicateIndex = Read-JsonFile -PathText $DuplicateIndexPath
+    $DuplicateSourcePath = Join-Path $DuplicateRoot ($ActorEntitySourceRelativePath -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+    $DuplicateSource = Read-JsonFile -PathText $DuplicateSourcePath
+    $DuplicateNativeEntityArray = @($DuplicateSource.entity_evidence.entities)
+    if ($DuplicateNativeEntityArray.Count -lt 2) { throw "AIRE-G2 duplicate synthetic case에 Entity가 부족합니다." }
+    $DuplicateStableKey = [string]$DuplicateNativeEntityArray[0].stable_identity.stable_key
+    $DuplicateNativeEntityArray[1].stable_identity.stable_key = $DuplicateStableKey
+    $DuplicateSecondEntityId = [string]$DuplicateNativeEntityArray[1].entity_id
+    (@($DuplicateIndex.entities | Where-Object { [string]$_.object_path -eq $ActorBlueprintPath -and [string]$_.entity_id -eq $DuplicateSecondEntityId }))[0].stable_key = $DuplicateStableKey
+    Write-JsonFile -PathText $DuplicateSourcePath -ValueObject $DuplicateSource
+    Write-JsonFile -PathText $DuplicateIndexPath -ValueObject $DuplicateIndex
+
+    $ContextInvalidJsonPath = Join-Path $EntitySyntheticParentPath "context_invalid.json"
+    Write-TextFile -PathText $ContextInvalidJsonPath -ContentText '{invalid'
+    $ContextUnsupportedPath = Join-Path $EntitySyntheticParentPath "context_unsupported.json"
+    Write-JsonFile -PathText $ContextUnsupportedPath -ValueObject ([ordered]@{ schema_version = "query_result_v1" })
+    $ContextFailedPath = Join-Path $EntitySyntheticParentPath "context_failed.json"
+    Write-JsonFile -PathText $ContextFailedPath -ValueObject ([ordered]@{ schema_version = "entity_query_result_v1"; status = "failed"; all_resolved = $false; source_contract = "indexed_entity_evidence" })
+    $ContextTooSmallPath = Join-Path $EntitySyntheticParentPath "context_too_small.json"
+    Write-JsonFile -PathText $ContextTooSmallPath -ValueObject ([ordered]@{
+        schema_version = "entity_query_result_v1"; status = "succeeded"; all_resolved = $true; source_contract = "indexed_entity_evidence"
+        resolved_asset = [ordered]@{ object_path = ("/Synthetic/" + ("X" * 8192)); asset_id = "asset_0000"; fingerprint = "fp" }
+        bounds = [ordered]@{ truncated = $false }
+        entities = @(); relations = @()
+    })
+
+    $EntityNegativeResultList = [System.Collections.Generic.List[object]]::new()
+    $EntityNegativeSpecs = @(
+        [pscustomobject]@{ category = "index"; name = "Entity Index Missing"; code = "ADUMP_ENTITY_INDEX_NOT_FOUND"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$IndexMissingRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "index"; name = "Entity Index Invalid JSON"; code = "ADUMP_ENTITY_INDEX_JSON_INVALID"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$IndexInvalidRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "index"; name = "Entity Index Schema"; code = "ADUMP_ENTITY_INDEX_SCHEMA_UNSUPPORTED"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$IndexSchemaRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "index"; name = "Entity Source Missing"; code = "ADUMP_ENTITY_SOURCE_FILE_NOT_FOUND"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$SourceMissingRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "index"; name = "Entity Source Invalid JSON"; code = "ADUMP_ENTITY_SOURCE_JSON_INVALID"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$SourceInvalidRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "index"; name = "Entity Pointer Invalid"; code = "ADUMP_ENTITY_POINTER_INVALID"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$PointerInvalidRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "index"; name = "Entity Pointer Missing"; code = "ADUMP_ENTITY_POINTER_NOT_FOUND"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$PointerMissingRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "index"; name = "Entity Fingerprint Mismatch"; code = "ADUMP_ENTITY_FINGERPRINT_MISMATCH"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$FingerprintRoot", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "query"; name = "Entity Missing Asset Selector"; code = "ADUMP_ENTITY_ASSET_SELECTOR_REQUIRED"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath") },
+        [pscustomobject]@{ category = "query"; name = "Entity Asset Selector Conflict"; code = "ADUMP_ENTITY_ASSET_SELECTOR_CONFLICT"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-AssetId=$ActorEntityAssetId") },
+        [pscustomobject]@{ category = "query"; name = "Entity Asset Not Found"; code = "ADUMP_ENTITY_ASSET_NOT_FOUND"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=/Synthetic/Missing.Missing") },
+        [pscustomobject]@{ category = "query"; name = "Entity Operation Unsupported"; code = "ADUMP_ENTITY_OPERATION_UNSUPPORTED"; include_output = $true; args = @("-Mode=entityquery", "-Operation=invalid", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "query"; name = "Entity Missing Entity Selector"; code = "ADUMP_ENTITY_SELECTOR_REQUIRED"; include_output = $true; args = @("-Mode=entityquery", "-Operation=get", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath") },
+        [pscustomobject]@{ category = "query"; name = "Entity Selector Conflict"; code = "ADUMP_ENTITY_SELECTOR_CONFLICT"; include_output = $true; args = @("-Mode=entityquery", "-Operation=get", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-StableKey=$SelectedStableKey") },
+        [pscustomobject]@{ category = "query"; name = "Entity Not Found"; code = "ADUMP_ENTITY_NOT_FOUND"; include_output = $true; args = @("-Mode=entityquery", "-Operation=get", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=entity_999999") },
+        [pscustomobject]@{ category = "query"; name = "Entity Duplicate"; code = "ADUMP_ENTITY_DUPLICATE"; include_output = $true; args = @("-Mode=entityquery", "-Operation=get", "-DumpRoot=$DuplicateRoot", "-Asset=$ActorBlueprintPath", "-StableKey=$DuplicateStableKey") },
+        [pscustomobject]@{ category = "query"; name = "Entity Invalid Bounds"; code = "ADUMP_ENTITY_BOUNDS_INVALID"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-MaxEntities=0") },
+        [pscustomobject]@{ category = "query"; name = "Entity Invalid Cursor"; code = "ADUMP_ENTITY_CURSOR_INVALID"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-Cursor=invalid") },
+        [pscustomobject]@{ category = "query"; name = "Entity Stale Cursor"; code = "ADUMP_ENTITY_CURSOR_STALE"; include_output = $true; args = @("-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-MaxEntities=2", "-MaxRelations=0", "-MaxBytes=1048576", "-Cursor=$($EntityBounded.continuation.cursor)") },
+        [pscustomobject]@{ category = "context"; name = "Entity Context Input Required"; code = "ADUMP_ENTITY_CONTEXT_INPUT_REQUIRED"; include_output = $true; args = @("-Mode=entitycontext") },
+        [pscustomobject]@{ category = "context"; name = "Entity Context Input Not Found"; code = "ADUMP_ENTITY_CONTEXT_INPUT_NOT_FOUND"; include_output = $true; args = @("-Mode=entitycontext", "-Input=$(Join-Path $EntitySyntheticParentPath 'missing_context.json')") },
+        [pscustomobject]@{ category = "context"; name = "Entity Context Invalid JSON"; code = "ADUMP_ENTITY_CONTEXT_INPUT_JSON_INVALID"; include_output = $true; args = @("-Mode=entitycontext", "-Input=$ContextInvalidJsonPath") },
+        [pscustomobject]@{ category = "context"; name = "Entity Context Schema"; code = "ADUMP_ENTITY_CONTEXT_INPUT_SCHEMA_UNSUPPORTED"; include_output = $true; args = @("-Mode=entitycontext", "-Input=$ContextUnsupportedPath") },
+        [pscustomobject]@{ category = "context"; name = "Entity Context Source Failed"; code = "ADUMP_ENTITY_CONTEXT_SOURCE_FAILED"; include_output = $true; args = @("-Mode=entitycontext", "-Input=$ContextFailedPath") },
+        [pscustomobject]@{ category = "context"; name = "Entity Context Output Required"; code = "ADUMP_ENTITY_CONTEXT_OUTPUT_REQUIRED"; include_output = $false; args = @("-Mode=entitycontext", "-Input=$EntityExpandPath") },
+        [pscustomobject]@{ category = "context"; name = "Entity Context Output Too Small"; code = "ADUMP_ENTITY_CONTEXT_OUTPUT_TOO_SMALL"; include_output = $true; args = @("-Mode=entitycontext", "-Input=$ContextTooSmallPath", "-MaxItems=1", "-MaxBytes=4096") }
+    )
+    $NegativeIndex = 0
+    foreach ($NegativeSpec in $EntityNegativeSpecs) {
+        $NegativeArguments = @($HostInfo.project_file, "-run=AssetDump") + @($NegativeSpec.args)
+        if ([bool]$NegativeSpec.include_output) { $NegativeArguments += "-Output=$EntitySentinelPath" }
+        $NegativeArguments += @("-unattended", "-nop4", "-NoLogTimes")
+        $NegativeResult = Invoke-ExpectedFailureCommand -FilePath $CommandletPath -Arguments $NegativeArguments -StepName $NegativeSpec.name -ExpectedCode $NegativeSpec.code -LogPath (Join-Path $HostLogRootPath ("06f3_entity_negative_{0:D2}.log" -f $NegativeIndex)) -ExpectedOutputPath $EntitySentinelPath -UseCompactLog:$CompactLog
+        $NegativeResult | Add-Member -NotePropertyName category -NotePropertyValue $NegativeSpec.category
+        $EntityNegativeResultList.Add($NegativeResult)
+        ++$NegativeIndex
+    }
+
+        $ActualFailureCoverageText = @($EntityNegativeResultList | ForEach-Object { [string]$_.expected_code } | Sort-Object) -join "|"
+    $ExpectedFailureCoverageText = @($EntityNegativeSpecs | ForEach-Object { [string]$_.code } | Sort-Object) -join "|"
+    $EntityIndexNegativePassed = @($EntityNegativeResultList | Where-Object { $_.category -eq "index" -and -not $_.succeeded }).Count -eq 0 -and @($EntityNegativeResultList | Where-Object { $_.category -eq "index" }).Count -eq 8
+    $EntityQueryNegativePassed = @($EntityNegativeResultList | Where-Object { $_.category -eq "query" -and -not $_.succeeded }).Count -eq 0 -and @($EntityNegativeResultList | Where-Object { $_.category -eq "query" }).Count -eq 11
+    $EntityContextNegativePassed = @($EntityNegativeResultList | Where-Object { $_.category -eq "context" -and -not $_.succeeded }).Count -eq 0 -and @($EntityNegativeResultList | Where-Object { $_.category -eq "context" }).Count -eq 7
+    $EntityFailureAtomicityPassed = @($EntityNegativeResultList | Where-Object { -not $_.output_preserved }).Count -eq 0
+    $EntityNegativePassed = @($EntityNegativeResultList | Where-Object { -not $_.succeeded }).Count -eq 0 -and $EntityNegativeResultList.Count -eq 26 -and $ActualFailureCoverageText -ceq $ExpectedFailureCoverageText
+
+    $EntityProtectedSourceInvariancePassed = $true
+    foreach ($ProtectedPath in $EntityProtectedPathArray) {
+        if ((Get-FileSha256 -PathText $ProtectedPath) -ne [string]$EntityProtectedHashBefore[$ProtectedPath]) { $EntityProtectedSourceInvariancePassed = $false }
+    }
+
+
+    $ExpectedFailureCodeArray = @(
+        "ADUMP_ENTITY_INDEX_NOT_FOUND", "ADUMP_ENTITY_INDEX_JSON_INVALID", "ADUMP_ENTITY_INDEX_SCHEMA_UNSUPPORTED", "ADUMP_ENTITY_SOURCE_FILE_NOT_FOUND", "ADUMP_ENTITY_SOURCE_JSON_INVALID", "ADUMP_ENTITY_POINTER_INVALID", "ADUMP_ENTITY_POINTER_NOT_FOUND", "ADUMP_ENTITY_FINGERPRINT_MISMATCH", "ADUMP_ENTITY_ASSET_SELECTOR_REQUIRED", "ADUMP_ENTITY_ASSET_SELECTOR_CONFLICT", "ADUMP_ENTITY_ASSET_NOT_FOUND", "ADUMP_ENTITY_OPERATION_UNSUPPORTED", "ADUMP_ENTITY_SELECTOR_REQUIRED", "ADUMP_ENTITY_SELECTOR_CONFLICT", "ADUMP_ENTITY_NOT_FOUND", "ADUMP_ENTITY_DUPLICATE", "ADUMP_ENTITY_BOUNDS_INVALID", "ADUMP_ENTITY_CURSOR_INVALID", "ADUMP_ENTITY_CURSOR_STALE", "ADUMP_ENTITY_CONTEXT_INPUT_REQUIRED", "ADUMP_ENTITY_CONTEXT_INPUT_NOT_FOUND", "ADUMP_ENTITY_CONTEXT_INPUT_JSON_INVALID", "ADUMP_ENTITY_CONTEXT_INPUT_SCHEMA_UNSUPPORTED", "ADUMP_ENTITY_CONTEXT_SOURCE_FAILED", "ADUMP_ENTITY_CONTEXT_OUTPUT_REQUIRED", "ADUMP_ENTITY_CONTEXT_OUTPUT_TOO_SMALL"
+    )
+    $PackagedEntityQuerySourcePath = Join-Path $HostPluginRootPath "Source\AssetDump\Private\ADumpEntityQuery.cpp"
+    $ActualFailureCodeArray = @([regex]::Matches((Get-Content -LiteralPath $PackagedEntityQuerySourcePath -Raw), 'ADUMP_ENTITY_[A-Z0-9_]+') | ForEach-Object { $_.Value } | Sort-Object -Unique)
+    $FailureRegistryExactPassed = (@($ExpectedFailureCodeArray | Sort-Object) -join "|") -ceq ($ActualFailureCodeArray -join "|")
+
+                $AireG2IndexQueryContextPassed = $EntityIndexSchemaPassed -and $EntityIndexRecordContractPassed -and $EntityIndexDeterminismPassed -and $EntityPointerResolutionPassed -and $AireG2PositivePassed -and $EntityIndexNegativePassed -and $EntityQueryNegativePassed -and $EntityContextNegativePassed -and $EntityFailureAtomicityPassed -and $EntityProtectedSourceInvariancePassed -and $FailureRegistryExactPassed
+    $EntityEvidencePassed = $StoredSchemaPassed -and $ExplicitOmissionPassed -and $AcceptedFullDefaultPassed -and $CapabilityContractPassed -and $EntityKindRegistryPassed -and $RelationKindRegistryPassed -and $FiveEntityKindsPassed -and $FiveRelationKindsPassed -and $CompletenessPassed -and $FacetContractPassed -and $StableIdentityPassed -and $FallbackDisclosurePassed -and $EntityOrderPassed -and $RelationContractPassed -and $CountContractPassed -and $RootBoundsPassed -and $StoredDeterminismPassed -and $EntityAssetIndexContractPassed -and $EntitySectionIndexContractPassed -and $EntityIndexSchemaPassed -and $EntityIndexRecordContractPassed -and $EntityIndexDeterminismPassed -and $EntityPointerResolutionPassed -and $QueryPositivePassed -and $SelectorEquivalencePassed -and $BoundsCursorPassed -and $ContextNativeEqualityPassed -and $Utf8BoundsPassed -and $EntityNegativePassed -and $FailureRegistryExactPassed -and $AireG2IndexQueryContextPassed
+    $EntityEvidence = [ordered]@{
+        schema_version = "entity_evidence_phase2_evidence_v1"
+        stored_schema_passed = $StoredSchemaPassed
+        explicit_prerequisite_omission_passed = $ExplicitOmissionPassed
+        accepted_full_default_preserved = $AcceptedFullDefaultPassed
+        entity_kind_registry_exact = $EntityKindRegistryPassed
+                relation_kind_registry_exact = $RelationKindRegistryPassed
+        capability_contract_passed = $CapabilityContractPassed
+        five_entity_kinds_passed = $FiveEntityKindsPassed
+        five_relation_kinds_passed = $FiveRelationKindsPassed
+                completeness_registry_passed = $CompletenessPassed
+        facet_contract_passed = $FacetContractPassed
+        stable_identity_passed = $StableIdentityPassed
+        fallback_identity_disclosure_passed = $FallbackDisclosurePassed
+        fallback_identity_count = @($FallbackEntityArray).Count
+        entity_canonical_and_semantic_order_passed = $EntityOrderPassed
+        relation_endpoint_and_provenance_passed = $RelationContractPassed
+                count_contract_passed = $CountContractPassed
+        root_bounds_contract_passed = $RootBoundsPassed
+                stored_repeat_determinism_passed = $StoredDeterminismPassed
+        asset_index_entity_section_contract_passed = $EntityAssetIndexContractPassed
+        section_index_entity_section_contract_passed = $EntitySectionIndexContractPassed
+                entity_index_schema_passed = $EntityIndexSchemaPassed
+        entity_index_record_contract_passed = $EntityIndexRecordContractPassed
+        entity_index_repeat_determinism_passed = $EntityIndexDeterminismPassed
+        entity_index_pointer_resolution_passed = $EntityPointerResolutionPassed
+        list_get_expand_positive_passed = $QueryPositivePassed
+        selector_equivalence_passed = $SelectorEquivalencePassed
+                bounds_cursor_truncation_passed = $BoundsCursorPassed
+        asset_selector_equivalence_passed = $AssetSelectorEquivalencePassed
+        entity_kind_filter_passed = $EntityKindFilterPassed
+        facet_filter_passed = $FacetFilterPassed
+                relation_kind_filter_passed = $RelationKindFilterPassed
+        direction_filter_passed = $DirectionFilterPassed
+        filtered_expand_endpoint_closure_passed = $FilteredExpandEndpointClosurePassed
+        zero_relation_cursor_progress_passed = $ZeroRelationCursorProgressPassed
+        entity_query_max_bytes_passed = $QueryMaxBytesPassed
+        entity_query_repeat_determinism_passed = $QueryRepeatDeterminismPassed
+        entity_context_native_equality_passed = $ContextNativeEqualityPassed
+        entity_context_max_items_passed = $ContextMaxItemsPassed
+        entity_context_truncated_native_equality_passed = $ContextMaxItemsNativeEqualityPassed
+        entity_context_source_truncated_passed = $ContextSourceTruncatedPassed
+        entity_context_reason_order_passed = $ContextReasonOrderPassed
+        entity_context_repeat_determinism_passed = $ContextRepeatDeterminismPassed
+        exact_utf8_max_bytes_passed = $Utf8BoundsPassed
+        exact_utf8_byte_count = $EntityContextUtf8Bytes
+                negative_matrix_passed = $EntityNegativePassed
+        negative_case_count = @($EntityNegativeResultList).Count
+        index_actual_negative_matrix_passed = $EntityIndexNegativePassed
+        query_actual_negative_matrix_passed = $EntityQueryNegativePassed
+        context_actual_negative_matrix_passed = $EntityContextNegativePassed
+        failure_atomicity_passed = $EntityFailureAtomicityPassed
+        protected_entity_source_invariance_passed = $EntityProtectedSourceInvariancePassed
+        negative_results = @($EntityNegativeResultList)
+        stable_failure_registry_exact = $FailureRegistryExactPassed
+        aire_g2_index_query_context_passed = $AireG2IndexQueryContextPassed
+        entity_count = @($CombinedEntityArray).Count
+        relation_count = @($CombinedRelationArray).Count
+        component_dump_path = $ComponentEntityDumpPath
+        actor_dump_path = $ActorEntityDumpPath
+        entity_index_path = $EntityIndexPath
+        list_output = $EntityQueryListPath
+        get_entity_id_output = $EntityGetIdPath
+        get_stable_key_output = $EntityGetKeyPath
+        expand_output = $EntityExpandPath
+        context_output = $EntityContextPath
+        context_max_bytes_output = $EntityContextBytesPath
+        evidence_root = $EntityEvidenceRootPath
+        all_passed = $EntityEvidencePassed
+    }
+    $EntityEvidenceReportPath = Join-Path $EntityEvidenceRootPath "entity_evidence_phase2_evidence.json"
+    Write-JsonFile -PathText $EntityEvidenceReportPath -ValueObject $EntityEvidence
+        if (-not $EntityEvidencePassed) { throw "AIRE Phase 1 Entity Evidence focused Generic Host evidence 실패: $EntityEvidenceReportPath" }
+
+    # P2-N4 Niagara closure는 packaged controlled fixtures를 읽기만 하며 Blueprint-only, Niagara-only와 mixed-root index/query/context를 검증한다.
+    $NiagaraClosureRootPath = Join-Path $HostEvidenceRootPath "NiagaraPhase2Closure"
+    $BlueprintOnlyRootPath = Join-Path $NiagaraClosureRootPath "BlueprintOnly"
+    $NiagaraOnlyRootPath = Join-Path $NiagaraClosureRootPath "NiagaraOnly"
+    $MixedRootPath = Join-Path $NiagaraClosureRootPath "Mixed"
+    $NiagaraAssetPath = "/AssetDump/Validation/NS_ADumpMvp.NS_ADumpMvp"
+    $NiagaraEmitterFixturePath = Join-Path $HostValidationRootPath "NE_ADumpMvp.uasset"
+    $NiagaraSystemFixturePath = Join-Path $HostValidationRootPath "NS_ADumpMvp.uasset"
+    $NiagaraFixtureBaselinePassed = $HostValidationBefore.file_count -eq 12 -and $PackageValidationBefore.file_count -eq 12 -and
+        (Test-Path -LiteralPath $NiagaraEmitterFixturePath -PathType Leaf) -and (Test-Path -LiteralPath $NiagaraSystemFixturePath -PathType Leaf)
+
+    $BlueprintOnlyDumpPath = Join-Path $BlueprintOnlyRootPath "Blueprint\actor.dump.json"
+    $BlueprintOnlyArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=bpdump", "-Asset=$ActorBlueprintPath", "-Output=$BlueprintOnlyDumpPath", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $BlueprintOnlyArguments -StepName "P2-N4 Blueprint-only Evidence" -LogPath (Join-Path $HostLogRootPath "06g0_p2n4_blueprint_dump.log") -UseCompactLog:$CompactLog -ExpectedReportPath $BlueprintOnlyDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "P2-N4 Blueprint-only Evidence"
+
+    $NiagaraOnlyDumpPath = Join-Path $NiagaraOnlyRootPath "Niagara\system.dump.json"
+    $NiagaraOnlyArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=bpdump", "-Asset=$NiagaraAssetPath", "-Output=$NiagaraOnlyDumpPath", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraOnlyArguments -StepName "P2-N4 Niagara Evidence A" -LogPath (Join-Path $HostLogRootPath "06g1_p2n4_niagara_dump_a.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraOnlyDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "P2-N4 Niagara Evidence A"
+    $NiagaraDumpA = Read-JsonFile -PathText $NiagaraOnlyDumpPath
+    $NiagaraEvidenceAJson = $NiagaraDumpA.entity_evidence | ConvertTo-Json -Depth 100 -Compress
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraOnlyArguments -StepName "P2-N4 Niagara Evidence B" -LogPath (Join-Path $HostLogRootPath "06g2_p2n4_niagara_dump_b.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraOnlyDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "P2-N4 Niagara Evidence B"
+    $NiagaraDumpB = Read-JsonFile -PathText $NiagaraOnlyDumpPath
+    $NiagaraEvidenceBJson = $NiagaraDumpB.entity_evidence | ConvertTo-Json -Depth 100 -Compress
+
+    $MixedBlueprintDumpPath = Join-Path $MixedRootPath "Blueprint\actor.dump.json"
+    $MixedBlueprintArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=bpdump", "-Asset=$ActorBlueprintPath", "-Output=$MixedBlueprintDumpPath", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $MixedBlueprintArguments -StepName "P2-N4 Mixed Blueprint Evidence" -LogPath (Join-Path $HostLogRootPath "06g3_p2n4_mixed_blueprint.log") -UseCompactLog:$CompactLog -ExpectedReportPath $MixedBlueprintDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "P2-N4 Mixed Blueprint Evidence"
+
+    $MixedNiagaraDumpPath = Join-Path $MixedRootPath "Niagara\system.dump.json"
+    $MixedNiagaraArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=bpdump", "-Asset=$NiagaraAssetPath", "-Output=$MixedNiagaraDumpPath", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $MixedNiagaraArguments -StepName "P2-N4 Mixed Niagara Evidence" -LogPath (Join-Path $HostLogRootPath "06g4_p2n4_mixed_niagara.log") -UseCompactLog:$CompactLog -ExpectedReportPath $MixedNiagaraDumpPath -ExpectedReportKind "bpdump"))
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "P2-N4 Mixed Niagara Evidence"
+
+    $ExpectedBlueprintEntityRegistry = @("asset", "blueprint_component", "blueprint_graph", "blueprint_graph_node", "blueprint_graph_pin")
+    $ExpectedBlueprintRelationRegistry = @("owns", "contains", "attached_to", "executes_before", "data_flows_to")
+    $ExpectedNiagaraEntityRegistry = @("asset", "niagara_system", "niagara_emitter", "niagara_execution_group", "niagara_module", "niagara_module_input", "niagara_renderer", "niagara_parameter", "niagara_parameter_binding", "niagara_data_interface", "niagara_simulation_stage", "asset_reference")
+    $ExpectedNiagaraRelationRegistry = @("owns", "contains", "executes_before", "uses_script", "binds_to", "reads_attribute", "renders_with", "references", "inherits_from", "overrides")
+        $RequiredNiagaraObservedRelationKinds = @("owns", "contains", "executes_before", "uses_script", "binds_to", "reads_attribute", "renders_with", "references")
+    $ExpectedMixedEntityRegistry = @("asset", "blueprint_component", "blueprint_graph", "blueprint_graph_node", "blueprint_graph_pin", "niagara_system", "niagara_emitter", "niagara_execution_group", "niagara_module", "niagara_module_input", "niagara_renderer", "niagara_parameter", "niagara_parameter_binding", "niagara_data_interface", "niagara_simulation_stage", "asset_reference")
+    $ExpectedMixedRelationRegistry = @("owns", "contains", "attached_to", "executes_before", "data_flows_to", "uses_script", "binds_to", "reads_attribute", "renders_with", "references", "inherits_from", "overrides")
+
+        $NiagaraObservedEntityKinds = @($NiagaraDumpB.entity_evidence.entities | ForEach-Object { [string]$_.entity_kind } | Sort-Object -Unique)
+    $NiagaraObservedRelationKinds = @($NiagaraDumpB.entity_evidence.relations | ForEach-Object { [string]$_.relation_kind } | Sort-Object -Unique)
+        $NiagaraObservedRelationRegistrySubsetPassed = @($NiagaraObservedRelationKinds | Where-Object { $ExpectedNiagaraRelationRegistry -notcontains [string]$_ }).Count -eq 0
+    $NiagaraRequiredRelationCoveragePassed = @($RequiredNiagaraObservedRelationKinds | Where-Object { $NiagaraObservedRelationKinds -notcontains [string]$_ }).Count -eq 0
+    $NiagaraScriptGraphUnavailableObserved = @($NiagaraDumpB.warnings | Where-Object { [string]$_.code -eq "NIAGARA_SCRIPT_GRAPH_UNAVAILABLE" }).Count -gt 0
+    $NiagaraPartialStateContractPassed = if ($NiagaraScriptGraphUnavailableObserved) {
+        [string]$NiagaraDumpB.entity_evidence.state -eq "partial" -and
+            [string]$NiagaraDumpB.entity_evidence.capabilities.execution -in @("partial", "unavailable") -and
+            [string]$NiagaraDumpB.entity_evidence.capabilities.bindings -in @("partial", "unavailable")
+    } else {
+        [string]$NiagaraDumpB.entity_evidence.state -eq "complete"
+    }
+    $PackagedNiagaraSourcePath = Join-Path $HostPluginRootPath "Source\AssetDump\Private\ADumpNiagara.cpp"
+    $PackagedNiagaraSourceText = Get-Content -LiteralPath $PackagedNiagaraSourcePath -Raw
+    $NiagaraPartialPropagationSourcePassed = $PackagedNiagaraSourceText.Contains("NIAGARA_SCRIPT_GRAPH_UNAVAILABLE") -and $PackagedNiagaraSourceText.Contains("UnavailableScriptGraphCount")
+    $NiagaraActualDumpPassed = [string]$NiagaraDumpB.entity_evidence.schema_version -eq "entity_evidence_v1" -and
+        [string]$NiagaraDumpB.entity_evidence.adapter_profile -eq "niagara_mvp_v1" -and
+        -not [bool]$NiagaraDumpB.entity_evidence.bounds.truncated -and
+        (@($NiagaraObservedEntityKinds) -join "|") -ceq (@($ExpectedNiagaraEntityRegistry | Sort-Object) -join "|") -and
+                $NiagaraObservedRelationRegistrySubsetPassed -and $NiagaraRequiredRelationCoveragePassed -and
+        $NiagaraPartialStateContractPassed -and $NiagaraPartialPropagationSourcePassed -and
+        $NiagaraEvidenceAJson -ceq $NiagaraEvidenceBJson
+
+    $IndexResultByName = @{}
+    foreach ($RootSpec in @(
+        [pscustomobject]@{ name = "blueprint"; root = $BlueprintOnlyRootPath; log_a = "06g5_p2n4_index_blueprint_a.log"; log_b = "06g6_p2n4_index_blueprint_b.log" },
+        [pscustomobject]@{ name = "niagara"; root = $NiagaraOnlyRootPath; log_a = "06g7_p2n4_index_niagara_a.log"; log_b = "06g8_p2n4_index_niagara_b.log" },
+        [pscustomobject]@{ name = "mixed"; root = $MixedRootPath; log_a = "06g9_p2n4_index_mixed_a.log"; log_b = "06ga_p2n4_index_mixed_b.log" }
+    )) {
+        $IndexArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=index", "-DumpRoot=$($RootSpec.root)", "-unattended", "-nop4", "-NoLogTimes")
+        $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $IndexArguments -StepName ("P2-N4 Index " + $RootSpec.name + " A") -LogPath (Join-Path $HostLogRootPath $RootSpec.log_a) -UseCompactLog:$CompactLog))
+        Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName ("P2-N4 Index " + $RootSpec.name + " A")
+        $IndexA = Read-JsonFile -PathText (Join-Path $RootSpec.root "entity_index.json")
+        $IndexStableA = [ordered]@{ entity_kind_registry = @($IndexA.entity_kind_registry); relation_kind_registry = @($IndexA.relation_kind_registry); assets = @($IndexA.assets); entities = @($IndexA.entities); relations = @($IndexA.relations) } | ConvertTo-Json -Depth 100 -Compress
+        $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $IndexArguments -StepName ("P2-N4 Index " + $RootSpec.name + " B") -LogPath (Join-Path $HostLogRootPath $RootSpec.log_b) -UseCompactLog:$CompactLog))
+        Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName ("P2-N4 Index " + $RootSpec.name + " B")
+        $IndexB = Read-JsonFile -PathText (Join-Path $RootSpec.root "entity_index.json")
+        $IndexStableB = [ordered]@{ entity_kind_registry = @($IndexB.entity_kind_registry); relation_kind_registry = @($IndexB.relation_kind_registry); assets = @($IndexB.assets); entities = @($IndexB.entities); relations = @($IndexB.relations) } | ConvertTo-Json -Depth 100 -Compress
+        $IndexResultByName[$RootSpec.name] = [pscustomobject]@{ index = $IndexB; deterministic = ($IndexStableA -ceq $IndexStableB) }
+    }
+
+    $BlueprintRegistryPassed = (@($IndexResultByName.blueprint.index.entity_kind_registry) -join "|") -ceq ($ExpectedBlueprintEntityRegistry -join "|") -and
+        (@($IndexResultByName.blueprint.index.relation_kind_registry) -join "|") -ceq ($ExpectedBlueprintRelationRegistry -join "|")
+    $NiagaraRegistryPassed = (@($IndexResultByName.niagara.index.entity_kind_registry) -join "|") -ceq ($ExpectedNiagaraEntityRegistry -join "|") -and
+        (@($IndexResultByName.niagara.index.relation_kind_registry) -join "|") -ceq ($ExpectedNiagaraRelationRegistry -join "|")
+    $MixedRegistryPassed = (@($IndexResultByName.mixed.index.entity_kind_registry) -join "|") -ceq ($ExpectedMixedEntityRegistry -join "|") -and
+        (@($IndexResultByName.mixed.index.relation_kind_registry) -join "|") -ceq ($ExpectedMixedRelationRegistry -join "|")
+    $NiagaraRegistryMatrixPassed = $BlueprintRegistryPassed -and $NiagaraRegistryPassed -and $MixedRegistryPassed -and
+        [bool]$IndexResultByName.blueprint.deterministic -and [bool]$IndexResultByName.niagara.deterministic -and [bool]$IndexResultByName.mixed.deterministic -and
+        [int]$IndexResultByName.blueprint.index.asset_count -eq 1 -and [int]$IndexResultByName.niagara.index.asset_count -eq 1 -and [int]$IndexResultByName.mixed.index.asset_count -eq 2
+
+    $NiagaraModuleListPath = Join-Path $NiagaraOnlyRootPath "query_niagara_modules.json"
+    $NiagaraModuleListArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$NiagaraOnlyRootPath", "-Asset=$NiagaraAssetPath", "-EntityKinds=niagara_module", "-Output=$NiagaraModuleListPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraModuleListArguments -StepName "P2-N4 Niagara Module Filter" -LogPath (Join-Path $HostLogRootPath "06gb_p2n4_niagara_filter.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraModuleListPath -ExpectedReportKind "entity_query"))
+    $NiagaraModuleList = Read-JsonFile -PathText $NiagaraModuleListPath
+    $NiagaraFilterPassed = @($NiagaraModuleList.entities).Count -gt 0 -and @($NiagaraModuleList.entities | Where-Object { [string]$_.entity_kind -ne "niagara_module" }).Count -eq 0
+
+    $MixedBlueprintListPath = Join-Path $MixedRootPath "query_mixed_blueprint.json"
+    $MixedBlueprintListArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$MixedRootPath", "-Asset=$ActorBlueprintPath", "-EntityKinds=blueprint_graph_node", "-Output=$MixedBlueprintListPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $MixedBlueprintListArguments -StepName "P2-N4 Mixed Core Filter" -LogPath (Join-Path $HostLogRootPath "06gc_p2n4_mixed_core_filter.log") -UseCompactLog:$CompactLog -ExpectedReportPath $MixedBlueprintListPath -ExpectedReportKind "entity_query"))
+    $MixedBlueprintList = Read-JsonFile -PathText $MixedBlueprintListPath
+    $MixedCoreFilterPassed = @($MixedBlueprintList.entities).Count -gt 0 -and @($MixedBlueprintList.entities | Where-Object { [string]$_.entity_kind -ne "blueprint_graph_node" }).Count -eq 0
+
+    $MixedNiagaraListPath = Join-Path $MixedRootPath "query_mixed_niagara.json"
+    $MixedNiagaraListArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$MixedRootPath", "-Asset=$NiagaraAssetPath", "-EntityKinds=niagara_renderer", "-Output=$MixedNiagaraListPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $MixedNiagaraListArguments -StepName "P2-N4 Mixed Niagara Filter" -LogPath (Join-Path $HostLogRootPath "06gd_p2n4_mixed_niagara_filter.log") -UseCompactLog:$CompactLog -ExpectedReportPath $MixedNiagaraListPath -ExpectedReportKind "entity_query"))
+    $MixedNiagaraList = Read-JsonFile -PathText $MixedNiagaraListPath
+    $MixedNiagaraFilterPassed = @($MixedNiagaraList.entities).Count -gt 0 -and @($MixedNiagaraList.entities | Where-Object { [string]$_.entity_kind -ne "niagara_renderer" }).Count -eq 0
+
+    $SelectedNiagaraModule = @($NiagaraModuleList.entities | Select-Object -First 1)
+    if ($SelectedNiagaraModule.Count -ne 1) { throw "P2-N4 Niagara module selector를 선택하지 못했습니다." }
+    $SelectedNiagaraModuleId = [string]$SelectedNiagaraModule[0].entity_id
+    $SelectedNiagaraModuleKey = [string]$SelectedNiagaraModule[0].stable_identity.stable_key
+
+    $NiagaraGetIdPath = Join-Path $NiagaraOnlyRootPath "query_get_id.json"
+    $NiagaraGetIdArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=get", "-DumpRoot=$NiagaraOnlyRootPath", "-Asset=$NiagaraAssetPath", "-EntityId=$SelectedNiagaraModuleId", "-Output=$NiagaraGetIdPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraGetIdArguments -StepName "P2-N4 Niagara Get EntityId" -LogPath (Join-Path $HostLogRootPath "06ge_p2n4_get_id.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraGetIdPath -ExpectedReportKind "entity_query"))
+    $NiagaraGetId = Read-JsonFile -PathText $NiagaraGetIdPath
+
+    $NiagaraGetKeyPath = Join-Path $NiagaraOnlyRootPath "query_get_key.json"
+    $NiagaraGetKeyArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=get", "-DumpRoot=$NiagaraOnlyRootPath", "-Asset=$NiagaraAssetPath", "-StableKey=$SelectedNiagaraModuleKey", "-Output=$NiagaraGetKeyPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraGetKeyArguments -StepName "P2-N4 Niagara Get StableKey" -LogPath (Join-Path $HostLogRootPath "06gf_p2n4_get_key.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraGetKeyPath -ExpectedReportKind "entity_query"))
+    $NiagaraGetKey = Read-JsonFile -PathText $NiagaraGetKeyPath
+    $NiagaraSelectorEqualityPassed = @($NiagaraGetId.entities).Count -eq 1 -and @($NiagaraGetKey.entities).Count -eq 1 -and (($NiagaraGetId.entities[0] | ConvertTo-Json -Depth 100 -Compress) -ceq ($NiagaraGetKey.entities[0] | ConvertTo-Json -Depth 100 -Compress))
+
+    $NiagaraExpandPath = Join-Path $NiagaraOnlyRootPath "query_expand.json"
+    $NiagaraExpandArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$NiagaraOnlyRootPath", "-Asset=$NiagaraAssetPath", "-EntityId=$SelectedNiagaraModuleId", "-Direction=both", "-MaxDepth=2", "-MaxEntities=512", "-MaxRelations=2048", "-MaxBytes=1048576", "-Output=$NiagaraExpandPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraExpandArguments -StepName "P2-N4 Niagara Expand" -LogPath (Join-Path $HostLogRootPath "06gg_p2n4_expand.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraExpandPath -ExpectedReportKind "entity_query"))
+    $NiagaraExpand = Read-JsonFile -PathText $NiagaraExpandPath
+
+    $NiagaraContextPath = Join-Path $NiagaraOnlyRootPath "context_native.json"
+    $NiagaraContextArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$NiagaraExpandPath", "-Output=$NiagaraContextPath", "-MaxItems=512", "-MaxBytes=1048576", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraContextArguments -StepName "P2-N4 Niagara Context Native" -LogPath (Join-Path $HostLogRootPath "06gh_p2n4_context.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraContextPath -ExpectedReportKind "entity_context"))
+    $NiagaraContext = Read-JsonFile -PathText $NiagaraContextPath
+    $NiagaraExpandEntityMap = @{}
+    foreach ($Entity in @($NiagaraExpand.entities)) { $NiagaraExpandEntityMap[[string]$Entity.entity_id] = $Entity }
+    $NiagaraExpandRelationMap = @{}
+    foreach ($Relation in @($NiagaraExpand.relations)) { $NiagaraExpandRelationMap[[string]$Relation.relation_id] = $Relation }
+    $NiagaraContextNativeEqualityPassed = $true
+    foreach ($ContextItem in @($NiagaraContext.items)) {
+        $ExpectedNative = if ([string]$ContextItem.item_kind -eq "entity") { $NiagaraExpandEntityMap[[string]$ContextItem.native_id] } else { $NiagaraExpandRelationMap[[string]$ContextItem.native_id] }
+        if ($null -eq $ExpectedNative -or (($ExpectedNative | ConvertTo-Json -Depth 100 -Compress) -cne ($ContextItem.data | ConvertTo-Json -Depth 100 -Compress))) { $NiagaraContextNativeEqualityPassed = $false }
+    }
+
+    $NiagaraBoundedPath = Join-Path $NiagaraOnlyRootPath "query_bounded.json"
+    $NiagaraBoundedArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$NiagaraOnlyRootPath", "-Asset=$NiagaraAssetPath", "-EntityKinds=niagara_module", "-MaxEntities=1", "-MaxRelations=0", "-MaxBytes=1048576", "-Output=$NiagaraBoundedPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraBoundedArguments -StepName "P2-N4 Niagara Bounds" -LogPath (Join-Path $HostLogRootPath "06gi_p2n4_bounds.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraBoundedPath -ExpectedReportKind "entity_query"))
+    $NiagaraBounded = Read-JsonFile -PathText $NiagaraBoundedPath
+    $NiagaraCursorPath = Join-Path $NiagaraOnlyRootPath "query_cursor.json"
+    $NiagaraCursorArguments = @($NiagaraBoundedArguments | Where-Object { -not $_.StartsWith("-Output=") }) + @("-Cursor=$($NiagaraBounded.continuation.cursor)", "-Output=$NiagaraCursorPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraCursorArguments -StepName "P2-N4 Niagara Cursor" -LogPath (Join-Path $HostLogRootPath "06gj_p2n4_cursor.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraCursorPath -ExpectedReportKind "entity_query"))
+    $NiagaraCursor = Read-JsonFile -PathText $NiagaraCursorPath
+    $NiagaraCursorPassed = [bool]$NiagaraBounded.bounds.truncated -and [bool]$NiagaraBounded.continuation.has_more -and @($NiagaraBounded.entities).Count -eq 1 -and [int]$NiagaraCursor.query.canonical_offset -eq 1 -and [string]$NiagaraBounded.entities[0].entity_id -ne [string]$NiagaraCursor.entities[0].entity_id
+
+    $NiagaraQueryBytesPath = Join-Path $NiagaraOnlyRootPath "query_max_bytes.json"
+    $NiagaraQueryBytesArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$NiagaraOnlyRootPath", "-Asset=$NiagaraAssetPath", "-EntityKinds=niagara_module_input", "-MaxEntities=1024", "-MaxRelations=0", "-MaxBytes=4096", "-Output=$NiagaraQueryBytesPath", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraQueryBytesArguments -StepName "P2-N4 Niagara Query MaxBytes" -LogPath (Join-Path $HostLogRootPath "06gk_p2n4_query_bytes.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraQueryBytesPath -ExpectedReportKind "entity_query"))
+    $NiagaraQueryBytes = Read-JsonFile -PathText $NiagaraQueryBytesPath
+    $NiagaraQueryByteCount = [System.Text.Encoding]::UTF8.GetByteCount((Get-Content -LiteralPath $NiagaraQueryBytesPath -Raw -Encoding UTF8))
+    $NiagaraQueryBytesPassed = $NiagaraQueryByteCount -le 4096 -and ((-not [bool]$NiagaraQueryBytes.bounds.truncated) -or @($NiagaraQueryBytes.bounds.truncation_reasons) -contains "max_bytes")
+
+    $NiagaraContextItemsPath = Join-Path $NiagaraOnlyRootPath "context_max_items.json"
+    $NiagaraContextItemsArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$NiagaraExpandPath", "-Output=$NiagaraContextItemsPath", "-MaxItems=1", "-MaxBytes=1048576", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraContextItemsArguments -StepName "P2-N4 Niagara Context MaxItems" -LogPath (Join-Path $HostLogRootPath "06gl_p2n4_context_items.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraContextItemsPath -ExpectedReportKind "entity_context"))
+    $NiagaraContextItems = Read-JsonFile -PathText $NiagaraContextItemsPath
+    $NiagaraContextItemsPassed = [bool]$NiagaraContextItems.bounds.truncated -and [int]$NiagaraContextItems.bounds.included_count -eq 1 -and @($NiagaraContextItems.bounds.truncation_reasons) -contains "max_items"
+
+    $NiagaraContextBytesPath = Join-Path $NiagaraOnlyRootPath "context_max_bytes.json"
+    $NiagaraContextBytesArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$NiagaraExpandPath", "-Output=$NiagaraContextBytesPath", "-MaxItems=512", "-MaxBytes=4096", "-unattended", "-nop4", "-NoLogTimes")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraContextBytesArguments -StepName "P2-N4 Niagara Context MaxBytes" -LogPath (Join-Path $HostLogRootPath "06gm_p2n4_context_bytes.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraContextBytesPath -ExpectedReportKind "entity_context"))
+    $NiagaraContextBytes = Read-JsonFile -PathText $NiagaraContextBytesPath
+    $NiagaraContextByteCount = [System.Text.Encoding]::UTF8.GetByteCount((Get-Content -LiteralPath $NiagaraContextBytesPath -Raw -Encoding UTF8))
+    $NiagaraContextBytesPassed = $NiagaraContextByteCount -le 4096 -and ((-not [bool]$NiagaraContextBytes.bounds.truncated) -or @($NiagaraContextBytes.bounds.truncation_reasons) -contains "max_bytes")
+
+    $NiagaraExpandRepeatPath = Join-Path $NiagaraOnlyRootPath "query_expand_repeat.json"
+    $NiagaraExpandRepeatArguments = @($NiagaraExpandArguments | Where-Object { -not $_.StartsWith("-Output=") }) + @("-Output=$NiagaraExpandRepeatPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraExpandRepeatArguments -StepName "P2-N4 Niagara Query Repeat" -LogPath (Join-Path $HostLogRootPath "06gn_p2n4_query_repeat.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraExpandRepeatPath -ExpectedReportKind "entity_query"))
+    $NiagaraExpandRepeat = Read-JsonFile -PathText $NiagaraExpandRepeatPath
+    $NiagaraExpand.generated_time = "<normalized>"
+    $NiagaraExpandRepeat.generated_time = "<normalized>"
+    $NiagaraQueryDeterminismPassed = (($NiagaraExpand | ConvertTo-Json -Depth 100 -Compress) -ceq ($NiagaraExpandRepeat | ConvertTo-Json -Depth 100 -Compress))
+
+    $NiagaraContextRepeatPath = Join-Path $NiagaraOnlyRootPath "context_repeat.json"
+    $NiagaraContextRepeatArguments = @($NiagaraContextArguments | Where-Object { -not $_.StartsWith("-Output=") }) + @("-Output=$NiagaraContextRepeatPath")
+    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $NiagaraContextRepeatArguments -StepName "P2-N4 Niagara Context Repeat" -LogPath (Join-Path $HostLogRootPath "06go_p2n4_context_repeat.log") -UseCompactLog:$CompactLog -ExpectedReportPath $NiagaraContextRepeatPath -ExpectedReportKind "entity_context"))
+    $NiagaraContextRepeat = Read-JsonFile -PathText $NiagaraContextRepeatPath
+    $NiagaraContext.generated_time = "<normalized>"
+    $NiagaraContextRepeat.generated_time = "<normalized>"
+    $NiagaraContextDeterminismPassed = (($NiagaraContext | ConvertTo-Json -Depth 100 -Compress) -ceq ($NiagaraContextRepeat | ConvertTo-Json -Depth 100 -Compress))
+
+    $NiagaraQueryContextMatrixPassed = $NiagaraFilterPassed -and $MixedCoreFilterPassed -and $MixedNiagaraFilterPassed -and $NiagaraSelectorEqualityPassed -and
+        @($NiagaraExpand.entities).Count -gt 0 -and $NiagaraContextNativeEqualityPassed -and $NiagaraCursorPassed -and $NiagaraQueryBytesPassed -and
+        $NiagaraContextItemsPassed -and $NiagaraContextBytesPassed -and $NiagaraQueryDeterminismPassed -and $NiagaraContextDeterminismPassed
+
+    $NiagaraNegativeRootPath = Join-Path $NiagaraClosureRootPath "Negative"
+    New-Item -ItemType Directory -Path $NiagaraNegativeRootPath -Force | Out-Null
+    $NiagaraNegativeSentinelPath = Join-Path $NiagaraNegativeRootPath "sentinel.json"
+    Write-TextFile -PathText $NiagaraNegativeSentinelPath -ContentText '{"sentinel":true}'
+    $NiagaraNegativeResultList = [System.Collections.Generic.List[object]]::new()
+
+    $BlueprintRejectArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$BlueprintOnlyRootPath", "-Asset=$ActorBlueprintPath", "-EntityKinds=niagara_module", "-Output=$NiagaraNegativeSentinelPath", "-unattended", "-nop4", "-NoLogTimes")
+    $NiagaraNegativeResultList.Add((Invoke-ExpectedFailureCommand -FilePath $CommandletPath -Arguments $BlueprintRejectArguments -StepName "P2-N4 Blueprint Rejects Niagara Filter" -ExpectedCode "ADUMP_ENTITY_OPERATION_UNSUPPORTED" -LogPath (Join-Path $HostLogRootPath "06gp_p2n4_negative_filter.log") -ExpectedOutputPath $NiagaraNegativeSentinelPath -UseCompactLog:$CompactLog))
+
+    $NiagaraRegistryCorruptionSpecs = @(
+        [pscustomobject]@{ name = "unknown_registry"; mutate = { param($IndexObject) $IndexObject.entity_kind_registry = @($IndexObject.entity_kind_registry) + @("unknown_entity_kind") } },
+        [pscustomobject]@{ name = "duplicate_registry"; mutate = { param($IndexObject) $IndexObject.relation_kind_registry = @($IndexObject.relation_kind_registry) + @([string]$IndexObject.relation_kind_registry[0]) } },
+        [pscustomobject]@{ name = "wrong_order_registry"; mutate = { param($IndexObject) $Values = @($IndexObject.entity_kind_registry); $IndexObject.entity_kind_registry = @($Values[1], $Values[0]) + @($Values[2..($Values.Count - 1)]) } },
+        [pscustomobject]@{ name = "omitted_used_kind"; mutate = { param($IndexObject) $IndexObject.entity_kind_registry = @($IndexObject.entity_kind_registry | Where-Object { [string]$_ -ne "niagara_module" }) } }
+    )
+    $NiagaraCorruptionIndex = 0
+    foreach ($CorruptionSpec in $NiagaraRegistryCorruptionSpecs) {
+        $CorruptionRootPath = Join-Path $NiagaraNegativeRootPath $CorruptionSpec.name
+        Copy-DirectoryFresh -SourcePath $NiagaraOnlyRootPath -DestinationPath $CorruptionRootPath
+        $CorruptionIndexPath = Join-Path $CorruptionRootPath "entity_index.json"
+        $CorruptionIndexObject = Read-JsonFile -PathText $CorruptionIndexPath
+        & $CorruptionSpec.mutate $CorruptionIndexObject
+        Write-JsonFile -PathText $CorruptionIndexPath -ValueObject $CorruptionIndexObject
+        $CorruptionArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$CorruptionRootPath", "-Asset=$NiagaraAssetPath", "-Output=$NiagaraNegativeSentinelPath", "-unattended", "-nop4", "-NoLogTimes")
+        $NiagaraNegativeResultList.Add((Invoke-ExpectedFailureCommand -FilePath $CommandletPath -Arguments $CorruptionArguments -StepName ("P2-N4 Corrupted Registry " + $CorruptionSpec.name) -ExpectedCode "ADUMP_ENTITY_INDEX_SCHEMA_UNSUPPORTED" -LogPath (Join-Path $HostLogRootPath ("06gq_p2n4_negative_registry_{0:D2}.log" -f $NiagaraCorruptionIndex)) -ExpectedOutputPath $NiagaraNegativeSentinelPath -UseCompactLog:$CompactLog))
+        ++$NiagaraCorruptionIndex
+    }
+    $NiagaraLoadedRegistryNegativePassed = $NiagaraNegativeResultList.Count -eq 5 -and @($NiagaraNegativeResultList | Where-Object { -not $_.succeeded -or -not $_.output_preserved }).Count -eq 0
+
+    $NiagaraPhase2ClosurePassed = $NiagaraFixtureBaselinePassed -and $NiagaraActualDumpPassed -and $NiagaraRegistryMatrixPassed -and $NiagaraQueryContextMatrixPassed -and $NiagaraLoadedRegistryNegativePassed
+    $NiagaraPhase2Closure = [ordered]@{
+        schema_version = "niagara_phase2_closure_v1"
+        fixture_baseline_passed = $NiagaraFixtureBaselinePassed
+        actual_dump_passed = $NiagaraActualDumpPassed
+        actual_entity_count = [int]$NiagaraDumpB.entity_evidence.counts.entity_count
+                actual_relation_count = [int]$NiagaraDumpB.entity_evidence.counts.relation_count
+        observed_entity_kinds = @($NiagaraObservedEntityKinds)
+        observed_relation_kinds = @($NiagaraObservedRelationKinds)
+        observed_relation_registry_subset_passed = $NiagaraObservedRelationRegistrySubsetPassed
+                required_relation_coverage_passed = $NiagaraRequiredRelationCoveragePassed
+        script_graph_unavailable_observed = $NiagaraScriptGraphUnavailableObserved
+        partial_state_contract_passed = $NiagaraPartialStateContractPassed
+        partial_propagation_source_passed = $NiagaraPartialPropagationSourcePassed
+        entity_evidence_repeat_determinism_passed = $NiagaraEvidenceAJson -ceq $NiagaraEvidenceBJson
+        blueprint_registry_exact_passed = $BlueprintRegistryPassed
+        niagara_registry_exact_passed = $NiagaraRegistryPassed
+        mixed_registry_union_passed = $MixedRegistryPassed
+        registry_matrix_passed = $NiagaraRegistryMatrixPassed
+        blueprint_index_determinism_passed = [bool]$IndexResultByName.blueprint.deterministic
+        niagara_index_determinism_passed = [bool]$IndexResultByName.niagara.deterministic
+        mixed_index_determinism_passed = [bool]$IndexResultByName.mixed.deterministic
+        blueprint_index_counts = [ordered]@{ assets = [int]$IndexResultByName.blueprint.index.asset_count; entities = [int]$IndexResultByName.blueprint.index.entity_count; relations = [int]$IndexResultByName.blueprint.index.relation_count }
+        niagara_index_counts = [ordered]@{ assets = [int]$IndexResultByName.niagara.index.asset_count; entities = [int]$IndexResultByName.niagara.index.entity_count; relations = [int]$IndexResultByName.niagara.index.relation_count }
+        mixed_index_counts = [ordered]@{ assets = [int]$IndexResultByName.mixed.index.asset_count; entities = [int]$IndexResultByName.mixed.index.entity_count; relations = [int]$IndexResultByName.mixed.index.relation_count }
+        niagara_filter_passed = $NiagaraFilterPassed
+        mixed_core_filter_passed = $MixedCoreFilterPassed
+        mixed_niagara_filter_passed = $MixedNiagaraFilterPassed
+        selector_equality_passed = $NiagaraSelectorEqualityPassed
+        context_native_equality_passed = $NiagaraContextNativeEqualityPassed
+        cursor_bounds_passed = $NiagaraCursorPassed
+        query_max_bytes = $NiagaraQueryByteCount
+        query_max_bytes_passed = $NiagaraQueryBytesPassed
+        context_max_items_passed = $NiagaraContextItemsPassed
+        context_max_bytes = $NiagaraContextByteCount
+        context_max_bytes_passed = $NiagaraContextBytesPassed
+        query_repeat_determinism_passed = $NiagaraQueryDeterminismPassed
+        context_repeat_determinism_passed = $NiagaraContextDeterminismPassed
+        query_context_matrix_passed = $NiagaraQueryContextMatrixPassed
+        loaded_registry_negative_case_count = $NiagaraNegativeResultList.Count
+        loaded_registry_negative_passed = $NiagaraLoadedRegistryNegativePassed
+        loaded_registry_negative_results = @($NiagaraNegativeResultList)
+        evidence_root = $NiagaraClosureRootPath
+        all_passed = $NiagaraPhase2ClosurePassed
+    }
+    $NiagaraPhase2ClosureReportPath = Join-Path $NiagaraClosureRootPath "niagara_phase2_closure.json"
+    Write-JsonFile -PathText $NiagaraPhase2ClosureReportPath -ValueObject $NiagaraPhase2Closure
+    if (-not $NiagaraPhase2ClosurePassed) { throw "P2-N4 Niagara Phase 2 closure 실패: $NiagaraPhase2ClosureReportPath" }
 
     $HostValidationAfter = New-BinaryManifest -RootPath $HostValidationRootPath
     $HostValidationComparison = Compare-BinaryManifest -BeforeManifest $HostValidationBefore -AfterManifest $HostValidationAfter
@@ -2852,7 +3764,7 @@ $Phase2Passed = $FailureList.Count -eq 0
 $FinalReport = [ordered]@{
     schema_version = "assetdump_standalone_phase2_verification_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-                                                                                                                                                                                                                                                    script_version = "v1.15.2"
+                                                                                                                                                                                                                                                    script_version = "v1.18.1"
     workspace_root = $ResolvedWorkspaceRoot
     engine_root_source = $EngineResolution.source
     engine_root = $ResolvedEngineRoot
@@ -2949,7 +3861,38 @@ $FinalReport = [ordered]@{
     ai_context_bundle_determinism_passed = $null -ne $AIContextBundleEvidence -and [bool]$AIContextBundleEvidence.determinism_passed
     ai_context_bundle_negative_cases_passed = $null -ne $AIContextBundleEvidence -and [bool]$AIContextBundleEvidence.negative_cases_passed
     ai_context_bundle_source_invariance_passed = $null -ne $AIContextBundleEvidence -and [bool]$AIContextBundleEvidence.source_invariance_passed
-    ai_context_bundle_negative_case_count = if ($null -eq $AIContextBundleEvidence) { $null } else { [int]$AIContextBundleEvidence.negative_case_count }
+        ai_context_bundle_negative_case_count = if ($null -eq $AIContextBundleEvidence) { $null } else { [int]$AIContextBundleEvidence.negative_case_count }
+    entity_evidence = $EntityEvidence
+    entity_evidence_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.all_passed
+    entity_evidence_stored_schema_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.stored_schema_passed
+    entity_evidence_registry_exact_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_kind_registry_exact -and [bool]$EntityEvidence.relation_kind_registry_exact
+    entity_evidence_identity_relation_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.stable_identity_passed -and [bool]$EntityEvidence.relation_endpoint_and_provenance_passed
+    entity_index_pointer_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_index_pointer_resolution_passed
+    entity_query_positive_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.list_get_expand_positive_passed
+    entity_query_selector_equivalence_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.selector_equivalence_passed
+    entity_query_bounds_cursor_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.bounds_cursor_truncation_passed
+    entity_context_native_equality_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_context_native_equality_passed
+    entity_context_utf8_bounds_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.exact_utf8_max_bytes_passed
+    entity_negative_matrix_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.negative_matrix_passed
+    entity_stable_failure_registry_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.stable_failure_registry_exact
+        entity_repeat_determinism_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.stored_repeat_determinism_passed -and [bool]$EntityEvidence.entity_index_repeat_determinism_passed -and [bool]$EntityEvidence.entity_query_repeat_determinism_passed -and [bool]$EntityEvidence.entity_context_repeat_determinism_passed
+    entity_asset_selector_equivalence_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.asset_selector_equivalence_passed
+    entity_filter_direction_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_kind_filter_passed -and [bool]$EntityEvidence.facet_filter_passed -and [bool]$EntityEvidence.relation_kind_filter_passed -and [bool]$EntityEvidence.direction_filter_passed
+    entity_query_max_bytes_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_query_max_bytes_passed
+    entity_context_truncation_contract_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_context_max_items_passed -and [bool]$EntityEvidence.entity_context_truncated_native_equality_passed -and [bool]$EntityEvidence.entity_context_source_truncated_passed -and [bool]$EntityEvidence.entity_context_reason_order_passed
+    entity_index_actual_negative_matrix_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.index_actual_negative_matrix_passed
+    entity_query_actual_negative_matrix_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.query_actual_negative_matrix_passed
+    entity_context_actual_negative_matrix_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.context_actual_negative_matrix_passed
+    entity_failure_atomicity_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.failure_atomicity_passed
+    entity_protected_source_invariance_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.protected_entity_source_invariance_passed
+        aire_g2_index_query_context_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.aire_g2_index_query_context_passed
+    niagara_phase2_closure = $NiagaraPhase2Closure
+    niagara_phase2_closure_passed = $null -ne $NiagaraPhase2Closure -and [bool]$NiagaraPhase2Closure.all_passed
+    niagara_actual_dump_passed = $null -ne $NiagaraPhase2Closure -and [bool]$NiagaraPhase2Closure.actual_dump_passed
+    niagara_registry_matrix_passed = $null -ne $NiagaraPhase2Closure -and [bool]$NiagaraPhase2Closure.registry_matrix_passed
+    niagara_query_context_matrix_passed = $null -ne $NiagaraPhase2Closure -and [bool]$NiagaraPhase2Closure.query_context_matrix_passed
+    niagara_loaded_registry_negative_passed = $null -ne $NiagaraPhase2Closure -and [bool]$NiagaraPhase2Closure.loaded_registry_negative_passed
+    niagara_content_invariance_passed = $null -ne $BuildPluginReport -and [bool]$BuildPluginReport.source_validation_invariance.passed -and $null -ne $PackageValidationComparison -and [bool]$PackageValidationComparison.passed -and $null -ne $HostValidationComparison -and [bool]$HostValidationComparison.passed
     plugin_full_asset_count = if ($null -eq $PluginFullReport) { $null } else { [int]$PluginFullReport.asset_count }
     plugin_full_failed_count = if ($null -eq $PluginFullReport) { $null } else { [int]$PluginFullReport.failed_count }
     plugin_changed_only_asset_count = if ($null -eq $PluginChangedOnlyReport) { $null } else { [int]$PluginChangedOnlyReport.asset_count }
@@ -2967,7 +3910,7 @@ $FinalReport = [ordered]@{
     p2b_closure_output_root_source = if ($null -eq $ClosureFallbackReport) { $null } else { $ClosureFallbackReport.output_root_source }
     p2b_cpp_default_output_path = if ($null -eq $DefaultBPDumpReport) { $null } else { Join-Path $HostRootPath "Saved\AssetDump\BPDump\DA_ADumpValues\DA_ADumpValues.dump.json" }
     p2b_read_only_output_fallback_passed = $P2BFallbackPassed
-    phase2_implementation_gate_passed = $Phase2Passed -and $P2BFallbackPassed
+        phase2_implementation_gate_passed = $Phase2Passed -and $P2BFallbackPassed -and $NiagaraPhase2ClosurePassed
         release_contract_accepted = $false
     failure_count = $FailureList.Count
     failure_summary = if ($FailureList.Count -eq 0) { "" } else { @($FailureList) -join " | " }
@@ -2986,6 +3929,10 @@ Write-Host "Dependency Query evidence passed: $($FinalReport.dependency_query_ev
 Write-Host "Query Mode evidence passed: $($FinalReport.query_mode_evidence_passed)"
 Write-Host "Query Result evidence passed: $($FinalReport.query_result_evidence_passed)"
 Write-Host "AI Context Bundle evidence passed: $($FinalReport.ai_context_bundle_evidence_passed)"
+Write-Host "Entity Evidence passed: $($FinalReport.entity_evidence_passed)"
+Write-Host "AIRE-G2 Index Query Context passed: $($FinalReport.aire_g2_index_query_context_passed)"
+Write-Host "P2-N4 Niagara closure passed: $($FinalReport.niagara_phase2_closure_passed)"
+Write-Host "P2-N4 Niagara Content invariance passed: $($FinalReport.niagara_content_invariance_passed)"
 Write-Host "P2B read-only fallback passed: $($FinalReport.p2b_read_only_output_fallback_passed)"
 
 if (-not $FinalReport.phase2_implementation_gate_passed) {

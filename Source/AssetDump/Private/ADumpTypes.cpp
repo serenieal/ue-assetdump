@@ -1,6 +1,11 @@
 // File: ADumpTypes.cpp
-// Version: v0.14.0
+// Version: v0.17.0
 // Changelog:
+// - v0.17.0: P2-N2 Native Niagara Evidence 반영을 위해 extractor version을 2.13.0으로 갱신.
+// - v0.16.0: Niagara typed evidence 도입에 맞춰 extractor version을 2.12.0으로 갱신.
+// Migration:
+// - 기존 schema_version 2.0과 full-mode section 기본값은 유지하며 fingerprint만 새 extractor로 invalidation한다.
+// - v0.15.0: entity_evidence canonical section 이름과 additive registry 순서를 등록.
 // - v0.14.0: bp_search_index section 이름과 extractor 2.11.0을 등록.
 // - v0.13.0: execution_path_preview_v1 도입에 맞춰 extractor를 2.10.0으로 갱신.
 // - v0.12.0: graph_node_role_v1 결과 도입에 맞춰 extractor를 2.9.0으로 갱신.
@@ -20,7 +25,7 @@
 // - v0.3.2: validate 기준 조정 이후 extractor fingerprint invalidation 검증을 위해 extractor version을 2.0.1로 상향.
 // - v0.3.1: graph_type에서 delegate/uber/other를 unknown으로 뭉개지 않고 그대로 보존하도록 조정.
 // - v0.3.0: 2차 개선안 Phase 0 기준선 적용을 위해 schema/extractor 기본 버전을 2.0 계열로 상향.
-// - v0.2.0: 문서 v1.2 기준 schema/source/status/graph enum 문자열과 기본 결과 메타를 정렬.
+// - v0.2.0: 문서 v1.2 기준 schema/source/status/graph enum 문자열과 기본 결과 생성 로직을 정렬.
 // - v0.1.3: 손상된 구현 파일을 복구하고 enum 문자열 변환 및 기본 결과 생성 로직을 복원.
 // - v0.1.0: BPDump 공통 타입 문자열 변환 함수와 기본 결과 생성 함수 추가.
 
@@ -38,7 +43,7 @@ namespace ADumpSchema
 
 	const TCHAR* GetExtractorVersionText()
 	{
-		return TEXT("2.11.0");
+		return TEXT("2.13.0");
 	}
 }
 
@@ -135,6 +140,8 @@ const TCHAR* ToString(EADumpSection InValue)
 		return TEXT("references");
 	case EADumpSection::WidgetDesigner:
 		return TEXT("widget_designer");
+	case EADumpSection::EntityEvidence:
+		return TEXT("entity_evidence");
 	default:
 		return TEXT("unknown");
 	}
@@ -185,7 +192,7 @@ void FADumpSectionSelection::Enable(EADumpSection InSection)
 // GetEnabledNames는 활성 섹션 이름을 레지스트리 순서로 반환한다.
 TArray<FString> FADumpSectionSelection::GetEnabledNames() const
 {
-	// SectionOrder는 JSON 및 fingerprint에서 사용할 고정 섹션 순서다.
+	// SectionOrder는 기존 accepted 순서를 유지하고 additive Entity Evidence를 마지막에 둔다.
 	const EADumpSection SectionOrder[] = {
 		EADumpSection::Summary,
 		EADumpSection::Digest,
@@ -197,12 +204,12 @@ TArray<FString> FADumpSectionSelection::GetEnabledNames() const
 		EADumpSection::BPSearchIndex,
 		EADumpSection::Graphs,
 		EADumpSection::References,
-		EADumpSection::WidgetDesigner
+		EADumpSection::WidgetDesigner,
+		EADumpSection::EntityEvidence
 	};
 
 	// EnabledNameArray는 고정 순서로 수집한 활성 섹션 이름 목록이다.
 	TArray<FString> EnabledNameArray;
-	// Section은 현재 순서에서 활성 여부를 확인할 주요 JSON 섹션이다.
 	for (const EADumpSection Section : SectionOrder)
 	{
 		if (EnabledSections.Contains(Section))

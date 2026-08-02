@@ -1,6 +1,11 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.21.1
+// Version: v0.22.2
 // Changelog:
+// - v0.22.2: BP_ADumpActorFixture에 실제 exec/data graph link와 duplicate Node GUID fallback 원본 증거를 idempotent하게 보장.
+// - v0.22.1: entityquery를 기존 entity_index_v1만 읽는 read-only 경로로 교정.
+// - v0.22.0: entity_evidence section/index registry, entityquery, entitycontext와 additive entity_index_v1 생성 경로를 추가.
+// Migration:
+// - 기존 sectiondump/dependencyquery/query/contextbundle 및 accepted v1 schema 의미는 변경하지 않는다.
 // - v0.21.1: accepted schema-less core section의 빈 section_schema_version 보존을 허용.
 // - v0.21.0: single-query ai_context_bundle_v1 export, item/UTF-8 byte bounds와 stable failures를 추가.
 // - v0.20.0: additive query_result_v1 success envelope과 native default 보존을 추가.
@@ -95,6 +100,10 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Curves/CurveFloat.h"
+#include "EdGraph/EdGraph.h"
+#include "EdGraph/EdGraphNode.h"
+#include "EdGraph/EdGraphPin.h"
+#include "EdGraphSchema_K2.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/DataAsset.h"
@@ -113,6 +122,9 @@
 #include "InputTriggers.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
+#include "K2Node_CallFunction.h"
+#include "K2Node_CustomEvent.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/FileHelper.h"
@@ -163,8 +175,17 @@ namespace
 	// AssetDumpStaticMeshSocketName은 StaticMesh fixture에 생성할 고정 socket 이름이다.
 	constexpr const TCHAR* AssetDumpStaticMeshSocketName = TEXT("ADump_TestSocket");
 
-	// AssetDumpSocketComponentName은 Actor Blueprint fixture에 넣을 StaticMeshComponent 이름이다.
+		// AssetDumpSocketComponentName은 Actor Blueprint fixture에 넣을 StaticMeshComponent 이름이다.
 	constexpr const TCHAR* AssetDumpSocketComponentName = TEXT("SMC_ADumpSocket");
+
+	// AssetDumpAireCoverageEventName은 Entity relation fixture용 Custom Event 함수명이다.
+	constexpr const TCHAR* AssetDumpAireCoverageEventName = TEXT("ADump_AIRE_Coverage");
+
+	// AssetDumpAireEventNodeName은 Entity relation fixture용 Custom Event node object 이름이다.
+	constexpr const TCHAR* AssetDumpAireEventNodeName = TEXT("K2Node_ADumpAIREEvent");
+
+	// AssetDumpAirePrintNodeName은 Entity relation fixture용 Print String node object 이름이다.
+	constexpr const TCHAR* AssetDumpAirePrintNodeName = TEXT("K2Node_ADumpAIREPrintString");
 
 	// AssetDumpWorldFixtureName은 World/Map socket Transform 검증 fixture 자산명이다.
 	constexpr const TCHAR* AssetDumpWorldFixtureName = TEXT("Map_ADumpSocket");
@@ -717,7 +738,8 @@ namespace
 		AddAvailableSection(TEXT("graphs"), bGraphsFileExists || HasMainDumpField(TEXT("graphs")));
 		AddSpecializedSection(TEXT("bp_search_index"));
 		AddAvailableSection(TEXT("references"), bReferencesFileExists || HasMainDumpField(TEXT("references")));
-		AddSpecializedSection(TEXT("widget_designer"));
+				AddSpecializedSection(TEXT("widget_designer"));
+		AddSpecializedSection(TEXT("entity_evidence"));
 
 		const TSharedPtr<FJsonObject> PerfObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("perf"));
 		const int32 GraphCount = GetCommandletIntegerFieldOrDefault(PerfObject, TEXT("graph_count"));
@@ -870,7 +892,7 @@ namespace
 			return false;
 		}
 
-		const TArray<FString> SectionRegistryOrder = {
+				const TArray<FString> SectionRegistryOrder = {
 			TEXT("summary"),
 			TEXT("digest"),
 			TEXT("details"),
@@ -881,7 +903,8 @@ namespace
 			TEXT("graphs"),
 			TEXT("bp_search_index"),
 			TEXT("references"),
-			TEXT("widget_designer")
+			TEXT("widget_designer"),
+			TEXT("entity_evidence")
 		};
 		TMap<FString, int32> SectionRankByName;
 		for (int32 SectionIndex = 0; SectionIndex < SectionRegistryOrder.Num(); ++SectionIndex)
@@ -2697,7 +2720,7 @@ namespace
 	// GetValidSectionNamesText는 -Sections=에서 허용하는 정식 섹션 이름 목록을 반환한다.
 	FString GetValidSectionNamesText()
 	{
-		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,input_summary,component_tree,bp_search_index,graphs,references,widget_designer");
+		return TEXT("summary,digest,details,data_asset_values,data_asset_diff,input_summary,component_tree,bp_search_index,graphs,references,widget_designer,entity_evidence");
 	}
 
 	// GetValidIntentNamesText는 -Intent=에서 허용하는 정식 분석 목적 이름 목록을 반환한다.
@@ -2765,9 +2788,14 @@ namespace
 			OutSection = EADumpSection::References;
 			return true;
 		}
-		if (InSectionName == TEXT("widget_designer"))
+				if (InSectionName == TEXT("widget_designer"))
 		{
 			OutSection = EADumpSection::WidgetDesigner;
+			return true;
+		}
+		if (InSectionName == TEXT("entity_evidence"))
+		{
+			OutSection = EADumpSection::EntityEvidence;
 			return true;
 		}
 		return false;
@@ -4856,7 +4884,141 @@ namespace
 			bComponentTransformNeedsUpdate = true;
 		}
 
-		if (bComponentTransformNeedsUpdate)
+				if (bComponentTransformNeedsUpdate)
+		{
+			FBlueprintEditorUtils::MarkBlueprintAsModified(BlueprintAsset);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+
+		// EventGraph는 AIRE-G1이 실제 exec/data relation과 fallback identity를 관측할 source graph다.
+		UEdGraph* EventGraph = FBlueprintEditorUtils::FindEventGraph(BlueprintAsset);
+		if (!EventGraph)
+		{
+			OutResult.FailureMessage = TEXT("Actor Blueprint fixture EventGraph를 찾지 못했습니다.");
+			return;
+		}
+
+		// ExpectedCoverageNodeGuid는 두 검증 노드에 의도적으로 공유하는 고정 GUID다.
+		const FGuid ExpectedCoverageNodeGuid(0xAD01A1E0, 0x5EED41A1, 0xB10E0001, 0xC0DEFACE);
+
+		// FindCoverageNodeByName은 EventGraph에서 고정 object name의 검증 노드를 찾는다.
+		const auto FindCoverageNodeByName = [EventGraph](const TCHAR* InNodeName) -> UEdGraphNode*
+		{
+			if (!EventGraph)
+			{
+				return nullptr;
+			}
+			for (UEdGraphNode* GraphNode : EventGraph->Nodes)
+			{
+				if (GraphNode && GraphNode->GetFName() == FName(InNodeName))
+				{
+					return GraphNode;
+				}
+			}
+			return nullptr;
+		};
+
+		UK2Node_CustomEvent* CoverageEventNode = Cast<UK2Node_CustomEvent>(FindCoverageNodeByName(AssetDumpAireEventNodeName));
+		UK2Node_CallFunction* CoveragePrintNode = Cast<UK2Node_CallFunction>(FindCoverageNodeByName(AssetDumpAirePrintNodeName));
+		UFunction* PrintStringFunction = UKismetSystemLibrary::StaticClass()->FindFunctionByName(
+			GET_FUNCTION_NAME_CHECKED(UKismetSystemLibrary, PrintString));
+		if (!PrintStringFunction)
+		{
+			OutResult.FailureMessage = TEXT("Actor Blueprint fixture Print String 함수를 찾지 못했습니다.");
+			return;
+		}
+
+		// bCoverageStructureValid는 두 marker node, 함수, 핀과 exec/data link가 정확한지 나타낸다.
+		bool bCoverageStructureValid = CoverageEventNode
+			&& CoveragePrintNode
+			&& CoverageEventNode->CustomFunctionName == FName(AssetDumpAireCoverageEventName)
+			&& CoveragePrintNode->FunctionReference.GetMemberName() == PrintStringFunction->GetFName();
+		if (bCoverageStructureValid)
+		{
+			UEdGraphPin* EventExecPin = CoverageEventNode->FindPin(UEdGraphSchema_K2::PN_Then, EGPD_Output);
+			UEdGraphPin* EventMessagePin = CoverageEventNode->FindPin(TEXT("Message"), EGPD_Output);
+			UEdGraphPin* PrintExecPin = CoveragePrintNode->GetExecPin();
+			UEdGraphPin* PrintStringPin = CoveragePrintNode->FindPin(TEXT("InString"), EGPD_Input);
+			bCoverageStructureValid = EventExecPin
+				&& EventMessagePin
+				&& PrintExecPin
+				&& PrintStringPin
+				&& EventExecPin->LinkedTo.Contains(PrintExecPin)
+				&& EventMessagePin->LinkedTo.Contains(PrintStringPin);
+		}
+
+		// bCoverageGuidValid는 fallback/source_index 원본 증거가 저장돼 있는지 나타낸다.
+		const bool bCoverageGuidValid = CoverageEventNode
+			&& CoveragePrintNode
+			&& CoverageEventNode->NodeGuid == ExpectedCoverageNodeGuid
+			&& CoveragePrintNode->NodeGuid == ExpectedCoverageNodeGuid;
+
+		if (!bCoverageStructureValid)
+		{
+			// StaleCoverageNodeArray는 이전 불완전 marker나 같은 Custom Event를 제거할 목록이다.
+			TArray<UEdGraphNode*> StaleCoverageNodeArray;
+			for (UEdGraphNode* GraphNode : EventGraph->Nodes)
+			{
+				if (!GraphNode)
+				{
+					continue;
+				}
+				const UK2Node_CustomEvent* CustomEventNode = Cast<UK2Node_CustomEvent>(GraphNode);
+				if (GraphNode->GetFName() == FName(AssetDumpAireEventNodeName)
+					|| GraphNode->GetFName() == FName(AssetDumpAirePrintNodeName)
+					|| (CustomEventNode && CustomEventNode->CustomFunctionName == FName(AssetDumpAireCoverageEventName)))
+				{
+					StaleCoverageNodeArray.Add(GraphNode);
+				}
+			}
+			for (UEdGraphNode* StaleNode : StaleCoverageNodeArray)
+			{
+				FBlueprintEditorUtils::RemoveNode(BlueprintAsset, StaleNode, true);
+			}
+
+						FGraphNodeCreator<UK2Node_CustomEvent> EventNodeCreator(*EventGraph);
+			CoverageEventNode = EventNodeCreator.CreateNode();
+			CoverageEventNode->CustomFunctionName = FName(AssetDumpAireCoverageEventName);
+			CoverageEventNode->NodePosX = 320;
+			CoverageEventNode->NodePosY = 320;
+			EventNodeCreator.Finalize();
+			CoverageEventNode->Rename(AssetDumpAireEventNodeName, EventGraph, REN_DontCreateRedirectors | REN_NonTransactional);
+
+			FEdGraphPinType MessagePinType;
+			MessagePinType.PinCategory = UEdGraphSchema_K2::PC_String;
+			CoverageEventNode->CreateUserDefinedPin(TEXT("Message"), MessagePinType, EGPD_Output);
+
+						FGraphNodeCreator<UK2Node_CallFunction> PrintNodeCreator(*EventGraph);
+			CoveragePrintNode = PrintNodeCreator.CreateNode();
+			CoveragePrintNode->SetFromFunction(PrintStringFunction);
+			CoveragePrintNode->NodePosX = 720;
+			CoveragePrintNode->NodePosY = 320;
+			PrintNodeCreator.Finalize();
+			CoveragePrintNode->Rename(AssetDumpAirePrintNodeName, EventGraph, REN_DontCreateRedirectors | REN_NonTransactional);
+
+			UEdGraphPin* EventExecPin = CoverageEventNode->FindPin(UEdGraphSchema_K2::PN_Then, EGPD_Output);
+			UEdGraphPin* EventMessagePin = CoverageEventNode->FindPin(TEXT("Message"), EGPD_Output);
+			UEdGraphPin* PrintExecPin = CoveragePrintNode->GetExecPin();
+			UEdGraphPin* PrintStringPin = CoveragePrintNode->FindPin(TEXT("InString"), EGPD_Input);
+			const UEdGraphSchema* GraphSchema = EventGraph->GetSchema();
+			if (!GraphSchema
+				|| !EventExecPin
+				|| !EventMessagePin
+				|| !PrintExecPin
+				|| !PrintStringPin
+				|| !GraphSchema->TryCreateConnection(EventExecPin, PrintExecPin)
+				|| !GraphSchema->TryCreateConnection(EventMessagePin, PrintStringPin))
+			{
+				OutResult.FailureMessage = TEXT("Actor Blueprint fixture AIRE exec/data graph link 생성에 실패했습니다.");
+				return;
+			}
+
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(BlueprintAsset);
+			OutResult.bUpdated = !OutResult.bCreated;
+			bNeedsSave = true;
+		}
+		else if (!bCoverageGuidValid)
 		{
 			FBlueprintEditorUtils::MarkBlueprintAsModified(BlueprintAsset);
 			OutResult.bUpdated = !OutResult.bCreated;
@@ -4866,12 +5028,33 @@ namespace
 		if (bNeedsSave)
 		{
 			FKismetEditorUtilities::CompileBlueprint(BlueprintAsset, EBlueprintCompileOptions::SkipSave);
+			if (BlueprintAsset->Status == BS_Error)
+			{
+				OutResult.FailureMessage = TEXT("Actor Blueprint fixture AIRE graph 컴파일에 실패했습니다.");
+				return;
+			}
+
+			CoverageEventNode = Cast<UK2Node_CustomEvent>(FindCoverageNodeByName(AssetDumpAireEventNodeName));
+			CoveragePrintNode = Cast<UK2Node_CallFunction>(FindCoverageNodeByName(AssetDumpAirePrintNodeName));
+			if (!CoverageEventNode || !CoveragePrintNode)
+			{
+				OutResult.FailureMessage = TEXT("Actor Blueprint fixture AIRE graph node가 컴파일 후 유지되지 않았습니다.");
+				return;
+			}
+
+			CoverageEventNode->Modify();
+			CoveragePrintNode->Modify();
+			CoverageEventNode->NodeGuid = ExpectedCoverageNodeGuid;
+			CoveragePrintNode->NodeGuid = ExpectedCoverageNodeGuid;
+			FBlueprintEditorUtils::MarkBlueprintAsModified(BlueprintAsset);
+
 			OutResult.bSaved = SaveValidationFixtureAsset(BlueprintAsset, OutResult.SavedFilePath, OutResult.FailureMessage);
 			if (!OutResult.bSaved)
 			{
 				return;
 			}
 		}
+
 
 		FinalizeValidationFixtureResult(OutResult, bNeedsSave);
 	}
@@ -7345,8 +7528,72 @@ namespace
 	}
 }
 
-int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
+int32 UAssetDumpCommandlet::Main(const FString& OriginalCommandLine)
 {
+		// CommandLine은 기존 parser와 전용 Entity command가 함께 읽는 원본 실행 문자열이다.
+	const FString& CommandLine = OriginalCommandLine;
+
+	// RequestedMode는 기존 parser보다 먼저 분리하는 additive Phase 1 command mode다.
+	FString RequestedMode;
+	FParse::Value(*CommandLine, TEXT("Mode="), RequestedMode);
+	RequestedMode.ToLowerInline();
+
+		if (RequestedMode == TEXT("entityquery"))
+	{
+		// EntityErrorCode와 EntityErrorDetail은 기존 entity_index_v1을 읽는 read-only query 실패를 전달한다.
+		FString EntityErrorCode;
+		FString EntityErrorDetail;
+
+		// EntityQueryJsonText는 entity_query_result_v1 success output이다.
+		FString EntityQueryJsonText;
+		if (!ADumpEntityQuery::BuildEntityQueryJson(CommandLine, EntityQueryJsonText, EntityErrorCode, EntityErrorDetail))
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s: %s"), *EntityErrorCode, *EntityErrorDetail);
+			return 1;
+		}
+
+		// EntityOutputPath는 선택적인 atomic output 경로다. 생략하면 JSON을 로그에 출력한다.
+		FString EntityOutputPath;
+		FParse::Value(*CommandLine, TEXT("Output="), EntityOutputPath);
+		if (!EntityOutputPath.IsEmpty())
+		{
+			FString SaveError;
+			if (!ADumpJson::SaveJsonTextToFile(EntityOutputPath, EntityQueryJsonText, SaveError))
+			{
+				UE_LOG(LogTemp, Error, TEXT("JSON_SAVE_FAIL: %s"), *SaveError);
+				return 1;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("%s"), *EntityQueryJsonText);
+		}
+		return 0;
+	}
+
+	if (RequestedMode == TEXT("entitycontext"))
+	{
+		// EntityContextJsonText는 native Entity/Relation object를 data field에 그대로 유지하는 bounded context output이다.
+		FString EntityContextJsonText;
+		FString EntityErrorCode;
+		FString EntityErrorDetail;
+		if (!ADumpEntityQuery::BuildEntityContextJson(CommandLine, EntityContextJsonText, EntityErrorCode, EntityErrorDetail))
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s: %s"), *EntityErrorCode, *EntityErrorDetail);
+			return 1;
+		}
+
+		// EntityOutputPath는 entity_context_bundle_v1의 필수 atomic output 경로다.
+		FString EntityOutputPath;
+		FParse::Value(*CommandLine, TEXT("Output="), EntityOutputPath);
+		FString SaveError;
+		if (!ADumpJson::SaveJsonTextToFile(EntityOutputPath, EntityContextJsonText, SaveError))
+		{
+			UE_LOG(LogTemp, Error, TEXT("JSON_SAVE_FAIL: %s"), *SaveError);
+			return 1;
+		}
+		return 0;
+	}
 				// ModeValue는 list / asset / asset_details / map / bpgraph / bpdump / batchdump / index / sectiondump / dependencyquery / query / validate / makefixtures 중 실행 모드를 고른다.
 	FString ModeValue;
 	// OutputFilePath는 저장할 JSON 파일 경로다.
@@ -7360,7 +7607,7 @@ int32 UAssetDumpCommandlet::Main(const FString& CommandLine)
 
 	if (!GetCmdValue(CommandLine, TEXT("Mode="), ModeValue))
 	{
-								UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|sectiondump|dependencyquery|query|validate|makefixtures"));
+								UE_LOG(LogTemp, Error, TEXT("Missing -Mode=. Use -Mode=list|asset|asset_details|bpgraph|bpdump|batchdump|map|index|sectiondump|dependencyquery|query|contextbundle|entityquery|entitycontext|validate|makefixtures"));
 		return 1;
 	}
 
@@ -9077,10 +9324,28 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(
 	OutDependencyIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("dependency_index.json"));
 	OutAssetIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("asset_index.json"));
 	OutSectionIndexFilePath = FPaths::Combine(NormalizedDumpRootPath, TEXT("section_index.json"));
-	return SaveJsonToFile(OutIndexFilePath, IndexJsonText)
-		&& SaveJsonToFile(OutDependencyIndexFilePath, DependencyJsonText)
-		&& SaveJsonToFile(OutAssetIndexFilePath, AssetIndexJsonText)
-		&& SaveJsonToFile(OutSectionIndexFilePath, SectionIndexJsonText);
+		if (!SaveJsonToFile(OutIndexFilePath, IndexJsonText)
+		|| !SaveJsonToFile(OutDependencyIndexFilePath, DependencyJsonText)
+		|| !SaveJsonToFile(OutAssetIndexFilePath, AssetIndexJsonText)
+		|| !SaveJsonToFile(OutSectionIndexFilePath, SectionIndexJsonText))
+	{
+		return false;
+	}
+
+	// EntityIndexFilePath는 additive entity_index_v1 output이며 기존 네 index의 의미를 변경하지 않는다.
+	FString EntityIndexFilePath;
+	FString EntityIndexErrorCode;
+	FString EntityIndexErrorDetail;
+	if (!ADumpEntityQuery::BuildEntityIndex(
+		NormalizedDumpRootPath,
+		EntityIndexFilePath,
+		EntityIndexErrorCode,
+		EntityIndexErrorDetail))
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s: %s"), *EntityIndexErrorCode, *EntityIndexErrorDetail);
+		return false;
+	}
+	return true;
 }
 
 bool UAssetDumpCommandlet::BuildValidationJson(const FString& CommandLine, FString& OutJsonText, int32& OutFailureCount)

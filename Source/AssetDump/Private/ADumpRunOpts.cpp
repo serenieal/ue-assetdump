@@ -1,6 +1,9 @@
 // File: ADumpRunOpts.cpp
-// Version: v0.12.1
+// Version: v0.13.0
 // Changelog:
+// - v0.13.0: explicit entity_evidence 요청에 Component Tree와 Graph prerequisite를 연결하고 builder plan에 전용 단계를 추가.
+// Migration:
+// - prerequisite는 explicit Entity 요청에만 적용하며 기존 full-mode builder 계획은 유지한다.
 // - v0.12.1: bp_search_index가 선행 추가한 graphs builder를 full plan에서 중복 기록하지 않도록 AddUnique로 교정.
 // - v0.12.0: bp_search_index를 full/explicit builder로 등록하고 graphs dependency를 연결.
 // - v0.11.0: BuildRequestInfo가 비mutation output candidate를 사용하도록 분리.
@@ -83,7 +86,8 @@ bool FADumpRunOpts::ShouldBuildComponentTree() const
 {
 	return SectionSelection.IsFullMode()
 		? true
-		: SectionSelection.IsEnabled(EADumpSection::ComponentTree);
+		: (SectionSelection.IsEnabled(EADumpSection::ComponentTree)
+			|| SectionSelection.IsEnabled(EADumpSection::EntityEvidence));
 }
 
 // ShouldBuildBPSearchIndex는 자산별 Blueprint search index builder 실행 여부를 반환한다.
@@ -99,7 +103,9 @@ bool FADumpRunOpts::ShouldBuildGraphs() const
 {
 	return SectionSelection.IsFullMode()
 		? (bIncludeGraphs || ShouldBuildBPSearchIndex())
-		: (SectionSelection.IsEnabled(EADumpSection::Graphs) || ShouldBuildBPSearchIndex());
+		: (SectionSelection.IsEnabled(EADumpSection::Graphs)
+			|| ShouldBuildBPSearchIndex()
+			|| SectionSelection.IsEnabled(EADumpSection::EntityEvidence));
 }
 
 // ShouldBuildReferences는 references builder 실행 여부를 반환한다.
@@ -151,7 +157,7 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 		BuilderSectionNames.AddUnique(TEXT("graphs"));
 		BuilderSectionNames.Add(TEXT("bp_search_index"));
 	}
-		if (ShouldBuildGraphs())
+	if (ShouldBuildGraphs())
 	{
 		BuilderSectionNames.AddUnique(TEXT("graphs"));
 	}
@@ -166,6 +172,10 @@ TArray<FString> FADumpRunOpts::GetBuilderSectionNames() const
 	if (ShouldBuildWidgetDesigner())
 	{
 		BuilderSectionNames.Add(TEXT("widget_designer"));
+	}
+	if (!SectionSelection.IsFullMode() && SectionSelection.IsEnabled(EADumpSection::EntityEvidence))
+	{
+		BuilderSectionNames.Add(TEXT("entity_evidence"));
 	}
 	return BuilderSectionNames;
 }

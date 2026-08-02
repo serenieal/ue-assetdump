@@ -2,19 +2,22 @@
 
 ## Metadata
 
-- document_version: v1.44
+- document_version: v1.46
 - created_at: 2026-07-10
-- updated_at: 2026-07-30
+- updated_at: 2026-07-31
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: shared_registry
 - codex_input: false
 - roadmap: `Documents/Plan/AssetIntelligencePlan/AssetIntelligenceRoadmap_v1.md`
+- role_boundary_policy: `Documents/RoleBoundaryPolicy.md`
 - standalone_policy: `Documents/Plan/StandalonePlan.md`
 
 ## Purpose
 
 This registry defines canonical AssetDump section names, intent-to-section mappings, and section schema policy for future AI-oriented AssetDump work.
+
+`Documents/RoleBoundaryPolicy.md` is applied before this registry. New sections may expose observed facts or allowed deterministic derived evidence, but must not add natural-language interpretation, semantic evaluation, quality/performance scoring, diagnosis or recommendation.
 
 Current Plan documents and implementations should reference this registry rather than redefining section names independently. Historical TaskSource documents remain preserved design records.
 
@@ -24,8 +27,9 @@ Current Plan documents and implementations should reference this registry rather
 2. Section names must be stable once released.
 3. New sections must declare a schema version if they expose structured data.
 4. Section output should be deterministic.
-5. Specialized sections should provide a compact preview when possible.
+5. Specialized sections should provide a compact preview when possible; previews remain structured evidence and do not generate semantic conclusions.
 6. Section names used in commandlet options must match this registry unless the current Plan and implementation explicitly update this registry with compatibility and migration notes.
+7. Every new or meaning-changing section must pass the `Documents/RoleBoundaryPolicy.md` feature-proposal gate before Plan activation.
 
 ## Core Sections
 
@@ -649,6 +653,31 @@ Expected examples:
 
 Requested lower-priority profile or intent metadata may remain visible in the request envelope, but only the highest-priority source controls output and builders.
 
+## AIRE-G0 Reserved Entity Contracts
+
+The following names are approved and reserved by `Documents/Plan/AIResourceEvidenceEntityArchitecture_v1.md`.
+They are not implemented or accepted runtime contracts until AIRE-G1/G2 closure passes.
+
+```text
+section: entity_evidence
+section_schema: entity_evidence_v1
+index_file: entity_index.json
+index_schema: entity_index_v1
+query_mode: entityquery
+query_success_schema: entity_query_result_v1
+context_mode: entitycontext
+context_input_schema: entity_query_result_v1
+context_success_schema: entity_context_bundle_v1
+consumer_acceptance_schema: consumer_acceptance_report_v1
+```
+
+Compatibility rules:
+
+- Existing `query_result_v1`, `ai_context_bundle_v1`, `query` and `contextbundle` meanings remain unchanged.
+- Do not implement the discarded draft names `entity_query_v1`, `query_result_v2` or `ai_context_bundle_v2`.
+- `entity_evidence` is additive and unavailable until Phase 1 implementation and contract validation.
+- Phase 1 may use only Blueprint Entity evidence; Niagara registration begins in Phase 2.
+
 ## Compatibility Policy
 
 1. Default full mode must remain backward compatible.
@@ -672,6 +701,21 @@ full mode remains compatible
 ```
 
 ## Migration
+
+### v1.46 AIRE-G0 Entity Contract Migration
+
+- Existing section, index, query-result and context-bundle consumers require no migration.
+- Reserve `entity_evidence_v1`, `entity_index_v1`, `entity_query_result_v1` and `entity_context_bundle_v1` as additive future contracts.
+- Do not expose reserved contracts as implemented until AIRE-G1/G2 validation passes.
+- Do not implement `entity_query_v1`, `query_result_v2` or `ai_context_bundle_v2` draft names.
+- Phase 1 uses `AIResourceEvidencePhase1Plan_v1.md` and does not register Niagara sections or dependencies.
+
+### v1.45 Role Boundary Migration
+
+- Existing section, index, query-result and context-bundle consumers require no migration.
+- New or meaning-changing sections must pass `Documents/RoleBoundaryPolicy.md` before Current Plan activation.
+- Structured previews may compress evidence but must not add natural-language conclusions, quality/performance scoring, diagnosis or recommendation.
+- Existing `graph_node_role_v1` and `execution_path_preview_v1` remain accepted deterministic derived evidence with their current provenance and bounds.
 
 ### v1.43
 
@@ -715,6 +759,20 @@ No runtime migration is required for this registry. New section work must update
 None.
 
 ## Changelog
+
+### v1.46 - 2026-07-31
+
+- Registered the AIRE-G0 approved Entity evidence/index/query/context names as reserved, not implemented contracts.
+- Preserved accepted `query_result_v1`, `ai_context_bundle_v1`, `query` and `contextbundle` semantics.
+- Recorded the discarded draft names and Phase 1 Blueprint-only registration boundary.
+- Linked implementation ownership to `AIResourceEvidencePhase1Plan_v1.md`.
+
+### v1.45 - 2026-07-31
+
+- Registered `Documents/RoleBoundaryPolicy.md` as the prerequisite product-role policy for section/schema work.
+- Restricted new sections to observed facts and allowed deterministic derived evidence.
+- Prohibited natural-language interpretation, semantic evaluation, scoring, diagnosis and recommendation in section contracts.
+- Preserved accepted Graph Role and Execution Preview contracts with their existing provenance and bounds.
 
 ### v1.43
 

@@ -1,6 +1,9 @@
 // File: ADumpService.cpp
-// Version: v0.12.0
+// Version: v0.13.0
 // Changelog:
+// - v0.13.0: explicit entity_evidence 요청에서 Niagara typed evidence extractor를 실행.
+// Migration:
+// - Niagara extraction은 explicit entity_evidence 요청에만 적용하며 기존 full-mode builder 계획은 유지한다.
 // - v0.12.0: graph extraction 후 bp_search_index_v1 pure builder를 실행.
 // - v0.11.1: 실제 덤프 세션 시작 시 writable output을 한 번만 확정하고 request metadata 생성은 비mutation으로 유지.
 // - v0.11.0: component_tree_v1 builder를 details와 독립된 서비스 단계와 저장 가치 판단에 연결.
@@ -35,6 +38,7 @@
 #include "ADumpGraphExt.h"
 #include "ADumpInput.h"
 #include "ADumpJson.h"
+#include "ADumpNiagara.h"
 #include "ADumpRefExt.h"
 #include "ADumpSummaryExt.h"
 
@@ -161,12 +165,13 @@ namespace
 		return !InResult.Asset.AssetObjectPath.IsEmpty()
 			|| !InResult.Graphs.IsEmpty()
 			|| InResult.Details.ClassDefaults.Num() > 0
-						|| InResult.Details.Components.Num() > 0
+			|| InResult.Details.Components.Num() > 0
 			|| InResult.DataAssetValues.FieldCount > 0
 			|| !InResult.DataAssetDiff.SchemaVersion.IsEmpty()
 			|| !InResult.InputSummary.SchemaVersion.IsEmpty()
 			|| !InResult.ComponentTree.SchemaVersion.IsEmpty()
 			|| !InResult.BPSearchIndex.SchemaVersion.IsEmpty()
+			|| !InResult.NiagaraEvidence.SchemaVersion.IsEmpty()
 			|| InResult.References.Hard.Num() > 0
 			|| InResult.References.Soft.Num() > 0
 			|| !InResult.Summary.ParentClassPath.IsEmpty()
@@ -629,7 +634,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 		return true;
 	}
 
-		if (ActivePhase == EADumpPhase::Details)
+	if (ActivePhase == EADumpPhase::Details)
 	{
 		UpdateProgress(
 			EADumpPhase::Details,
@@ -716,6 +721,16 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 				OutMessage = StatusMessage;
 				return false;
 			}
+		}
+
+		if (!ActiveRunOpts.SectionSelection.IsFullMode()
+			&& ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::EntityEvidence)
+			&& !ADumpNiagara::ExtractNiagaraEvidence(
+				ActiveRunOpts.AssetObjectPath,
+				ActiveResult.NiagaraEvidence,
+				ActiveResult.Issues))
+		{
+			bAllRequestedSectionsSucceeded = false;
 		}
 
 		RecountIssueStats();

@@ -1,7 +1,7 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.9
-- 최근 갱신일: 2026-07-30
+- 문서 버전: v1.15
+- 최근 갱신일: 2026-08-01
 - 문서 상태: Current
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
 
@@ -32,6 +32,7 @@ CarFight와 GoPyMCP를 포함한 Consumer Project의 내부 상태, FeatureQueue
 ```text
 AGENTS.md
 → Documents/Document_Entry.md
+→ Documents/RoleBoundaryPolicy.md
 → Documents/ActiveWork.md
 → Documents/Plan/README.md
 → 선택한 대표 Plan
@@ -45,9 +46,11 @@ AGENTS.md
 | --- | --- |
 | `AGENTS.md` | configured repository 작업 대문, `repository_instructions` 적용·Git 보호·검증 라우팅 |
 | `Documents/Document_Entry.md` | 작업 종류와 진입 경로 선택 |
-| `Documents/ActiveWork.md` | 현재 활성 작업과 마지막 작업 초점 선택 |
+| `Documents/RoleBoundaryPolicy.md` | 제품 책임, 허용되는 결정론적 파생 증거와 금지되는 의미 판단의 SSOT |
+| `Documents/ActiveWork.md` | 현재 lifecycle, 활성 대표 Plan, 보호 기준과 마지막 완료 초점 선택 |
 | `Documents/Plan/README.md` | Plan 폴더와 대표 진입 문서 색인 |
-| `Documents/Plan/AssetIntelligencePlan/` | Asset Intelligence 로드맵, 공개 계약, 검증 정책과 보존된 작업지시서 이력 |
+| `Documents/Plan/AIResourceEvidencePlan.md`와 동반 문서 | Current AI Consumer 제품 목표, Entity Architecture, Niagara 계약, Consumer 검증과 Roadmap |
+| `Documents/Plan/AssetIntelligencePlan/` | accepted v0.7.1-v1.0.2 공개 계약, 검증 정책과 구현 이력 |
 | `Source/`, `Scripts/`, `Content/` | 실제 구현과 검증 입력 |
 | `Dumped/` | commandlet 출력, 로그와 machine-readable 증거 |
 | `Documents/Plan/Archive/` | 현재 활성 기준에서 내려온 과거 Plan |
@@ -58,11 +61,16 @@ AGENTS.md
 
 | 작업 종류 | 첫 진입 문서 | 다음 확인 대상 |
 | --- | --- | --- |
-| 이전 세션 복원 또는 활성 작업 전환 | `Documents/ActiveWork.md` | 대표 Plan, Git 상태와 실제 구현 |
+| 이전 세션 복원, 유지보수 상태 확인 또는 기능 개발 재활성화 | `Documents/ActiveWork.md` | lifecycle 상태, 대표 Plan, Git 상태와 실제 구현 |
+| 제품 역할, 새 기능 범위 또는 분석 책임 판정 | `Documents/RoleBoundaryPolicy.md` | 관측 사실·결정론적 파생 증거·의미 판단 분류와 기능 제안 역할 게이트 |
 | Browser MCP 정책 적용 감사 | 루트 `AGENTS.md` | target-scoped `repository_instructions`, `nearest_by_target`, SHA-256와 cache 동작 |
-| Asset Intelligence 현재 계획 확인 | `Documents/Plan/README.md` | `AssetIntelligencePlan/README.md` |
+| AI Resource Evidence 현재 개발 계획 확인 | `Documents/Plan/README.md` | `AIResourceEvidencePlan.md`와 활성 Phase Plan |
+| Phase 2 Niagara MVP Adapter accepted contract 확인 | `Documents/Plan/AIResourceEvidencePhase2Plan_v1.md` | P2-N0~P2-N4 canonical evidence, registry·fixture·Content invariance와 final acceptance |
+| Phase 3 GoPyMCP Consumer Integration 계획 | `Documents/ActiveWork.md` | Phase 2 accepted baseline, AIRE-G3/G4 경계와 별도 사용자 승인 여부 |
+| accepted Asset Intelligence 기반 계약 확인 | `Documents/Plan/AssetIntelligencePlan/README.md` | `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
 | DataAsset Diff Report Contract 이력 확인 | `Documents/ActiveWork.md` | 완료 TaskSource 이력, 스크립트와 canonical closure report |
-| 새 코드·스크립트 구현 | `AGENTS.md` | 대표 Plan의 범위·보호 계약 확인 후 Browser가 허용 파일을 직접 수정하고 가능한 검증을 수행 |
+| 유지보수 코드·스크립트 수정 | `Documents/ActiveWork.md` | accepted baseline 보호, 유지보수 분류와 위험 기반 검증 확인 후 `AGENTS.md` 절차 적용 |
+| 새 기능·public schema·command mode 개발 | `Documents/ActiveWork.md` | 명시적 재활성화, 새 Current Plan과 Plan Index 등록 후에만 `AGENTS.md` 구현 절차 적용 |
 | Standalone 독립성 후속 작업 또는 재검토 | `Documents/Plan/StandalonePlan.md` | 선택한 Current Plan, `StandaloneValidationPolicy.md`와 완료 Work Order 이력 |
 | Standalone 검증 강도 결정 | `Documents/Plan/StandaloneValidationPolicy.md` | Change Check, Task Close, Phase Close, Release 기준 |
 | 빌드 목적·엔진 경로·Editor Target 판정 | `Documents/Plan/StandaloneValidationPolicy.md` | Build identity 기준과 실제 build report |
@@ -82,12 +90,13 @@ AGENTS.md
 1. assetdump_repo Git 상태 확인
 2. AGENTS.md 확인
 3. Documents/Document_Entry.md 확인
-4. Documents/ActiveWork.md 확인
-5. 선택한 대표 Plan 확인
-6. 실제 코드·스크립트와 필요한 과거 TaskSource 이력 확인
-7. 최신 report와 로그 확인
-8. Browser 직접 구현과 실행 가능한 검증, 외부 보완 검증을 분리
-9. 완료 범위, 미검증 범위와 다음 작업을 보고한 뒤 재개
+4. Documents/RoleBoundaryPolicy.md 확인
+5. Documents/ActiveWork.md 확인
+6. 선택한 대표 Plan 확인
+7. 실제 코드·스크립트와 필요한 과거 TaskSource 이력 확인
+8. 최신 report와 로그 확인
+9. Browser 직접 구현과 실행 가능한 검증, 외부 보완 검증을 분리
+10. 완료 범위, 미검증 범위와 다음 작업을 보고한 뒤 재개
 ```
 
 ### 4.2 구현 상태를 판단할 때
@@ -181,6 +190,43 @@ Browser MCP 문서·코드 작업은 다음을 확인한다.
 
 ## 7. Changelog
 
+### v1.15 - 2026-08-01
+
+- Phase 2 Niagara MVP Adapter를 `Completed / Accepted` 라우팅으로 전환했다.
+- P2-N4 canonical Phase 2 v1.18.1과 Phase 1 Matrix v1.4 evidence 확인 경로를 Phase 2 Plan으로 고정했다.
+- 다음 Phase 3 GoPyMCP Consumer Integration을 별도 계획·승인이 필요한 Not Started 경로로 추가했다.
+- Product Source·Content와 공개 command/schema 라우팅은 변경하지 않았다.
+
+### v1.14 - 2026-08-01
+
+- `AIResourceEvidencePhase2Plan_v1.md`를 Phase 2 Niagara 구현 라우팅으로 등록했다.
+- UE 5.8 source-engine foundation spike와 exact implementation allowlist 진입 경로를 추가했다.
+- lifecycle 복원 기준을 Phase 2 Implementation Authorized 상태로 전환했다.
+
+### v1.13 - 2026-07-31
+
+- Migration에 남아 있던 과거 maintenance-default 문구를 현재 `ADUMP-v1.2.0-AIRE` 재활성화 상태로 교정.
+- ActiveWork 책임 설명을 현재 lifecycle과 활성 대표 Plan 기준으로 정렬.
+
+### v1.12 - 2026-07-31
+
+- `Documents/Plan/AIResourceEvidencePlan.md`과 동반 문서를 새 Current feature-development Plan으로 등록.
+- Browser GPT·GoPyMCP·Niagara Golden Consumer Journey의 문서 라우팅을 추가.
+- 기존 `AssetIntelligencePlan/`을 accepted foundation과 구현 이력 영역으로 재분류.
+
+### v1.11 - 2026-07-31
+
+- `Documents/RoleBoundaryPolicy.md`를 전체 문서 흐름과 작업별 라우팅에 등록.
+- 제품 역할·분석 책임·새 기능 범위 판단이 Current Plan 선택보다 먼저 수행되도록 기본 읽기 순서를 교정.
+- 기존 lifecycle, 검증과 역사 증거 라우팅은 유지.
+
+### v1.10 - 2026-07-30
+
+- Registered AssetDump's default lifecycle as maintenance after completion of the accepted bounded-query objective.
+- Added separate routing for maintenance corrections and explicit feature-development reactivation.
+- Required `ActiveWork.md`, a newly selected Current Plan and Plan Index registration before new public functionality can start.
+- Preserved existing implementation, validation and historical-evidence routing.
+
 ### v1.9 - 2026-07-30
 
 - 루트 `AGENTS.md`에서 분리된 build identity 상세 라우팅을 `StandaloneValidationPolicy.md`로 직접 교정.
@@ -243,6 +289,15 @@ Browser MCP 문서·코드 작업은 다음을 확인한다.
 
 ## 8. Migration
 
+- 새 feature-development 세션은 `Documents/Plan/AIResourceEvidencePlan.md`를 Current 대표 Plan으로 사용한다.
+- `Documents/Plan/AssetIntelligencePlan/`은 기존 accepted command/schema와 검증 이력을 확인할 때 선택적으로 읽는다.
+- 제품 역할, 새 기능 범위 또는 분석 책임 판단은 `Documents/RoleBoundaryPolicy.md`를 먼저 적용한다.
+- 새 public 기능은 역할 게이트를 통과하지 못하면 Current Plan 후보로 등록하지 않는다.
+- 기존 accepted 결정론적 파생 계약은 정책 도입만으로 제거하거나 의미 판단 기능으로 재해석하지 않는다.
+- 현재 lifecycle은 `Feature Development Reactivated / Phase 2 Completed / Niagara MVP Adapter Accepted / Phase 3 Not Started`이며 세션 복원은 `Documents/ActiveWork.md`, `Documents/Plan/AIResourceEvidencePlan.md`와 `Documents/Plan/AIResourceEvidencePhase2Plan_v1.md`의 accepted evidence를 확인한다.
+- `AIRE-G0`, Phase 1 G1/G2와 Phase 2 P2-N0~P2-N4는 PASS다. Phase 2 accepted Source·Content는 보존하며 Phase 3는 별도 Current Plan과 사용자 승인 전까지 시작하지 않는다.
+- defect correction, engine/toolchain compatibility, packaging, validation, documentation과 security hardening은 accepted baseline을 보존하는 별도 유지보수로 계속 라우팅한다.
+- 새 public command mode, schema, section 또는 기능은 역할 게이트와 Current Plan의 Consumer Acceptance 기준을 우회하지 않는다.
 - 기존 `Documents/Plan/AssetIntelligencePlan/` 문서와 파일 경로는 변경하지 않는다.
 - 기존 TaskSource와 generated Codex YAML은 삭제하지 않고 완료 이력으로 보존한다.
 - 새 작업은 비노출 Plan surface를 찾지 않고 `AGENTS.md`의 Browser 구현·검증 경계를 따른다.

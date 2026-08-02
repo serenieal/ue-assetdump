@@ -1,6 +1,9 @@
 // File: ADumpJson.cpp
-// Version: v2.6.0
+// Version: v2.7.0
 // Changelog:
+// - v2.7.0: explicit section 선택에서 entity_evidence_v1 stored object를 additive 직렬화.
+// Migration:
+// - full-mode에는 entity_evidence를 자동 방출하지 않아 기존 accepted JSON 기본 surface를 보존한다.
 // - v2.6.0: bp_search_index_v1 section과 symbol array를 직렬화.
 // - v2.5.0: graph별 execution_path_preview_v1 object를 additive 직렬화.
 // - v2.4.0: 모든 graph node에 graph_node_role_v1 object를 additive 직렬화.
@@ -1975,7 +1978,7 @@ namespace ADumpJson
 		// SectionSelection은 전체 호환 모드 또는 명시적 주요 섹션 선택값이다.
 		const FADumpSectionSelection& SectionSelection = InDumpResult.Request.SectionSelection;
 
-		// bIsFullMode는 -Sections=가 생략되어 기존 최상위 필드를 모두 유지할지 나타낸다.
+				// bIsFullMode는 -Sections=가 생략되어 기존 최상위 필드를 모두 유지할지 나타낸다.
 		const bool bIsFullMode = SectionSelection.IsFullMode();
 
 		// RootObject는 최소 식별 envelope와 활성 주요 섹션을 담는 최상위 object다.
@@ -2059,9 +2062,13 @@ namespace ADumpJson
 			{
 				RootObject->SetObjectField(TEXT("references"), MakeReferencesObject(InDumpResult.References));
 			}
-			if (SectionSelection.IsEnabled(EADumpSection::WidgetDesigner))
+						if (SectionSelection.IsEnabled(EADumpSection::WidgetDesigner))
 			{
 				RootObject->SetObjectField(TEXT("widget_designer"), MakeWidgetDesignerObject(InDumpResult.Summary.WidgetDesigner));
+			}
+			if (SectionSelection.IsEnabled(EADumpSection::EntityEvidence))
+			{
+				RootObject->SetObjectField(TEXT("entity_evidence"), ADumpEntityEvidence::BuildEntityEvidenceObject(InDumpResult));
 			}
 		}
 		RootObject->SetArrayField(TEXT("warnings"), MakeIssuesArray(InDumpResult.Issues, false));
