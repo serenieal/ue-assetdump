@@ -1,9 +1,40 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.15
-- 최근 갱신일: 2026-08-01
-- 문서 상태: Current
+- 문서 버전: v1.35
+- 최근 갱신일: 2026-08-07
+- 문서 상태: Current / P4-N4 P4_N4_PASS / Revised Exact 40 40 PASS / 0 FAIL
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
+
+## v1.35 Changelog / Migration
+
+- r4 revised exact 40 terminal 40 PASS / 0 FAIL과 `P4_N4_PASS`를 Current router에 반영했다.
+- success-only FX Report, Acceptance JSON과 external machine evidence 3개를 라우팅했다.
+- `AIREP4N4Result.md` v1.4, Phase 4 Plan v1.20과 상위 Plan v1.31로 진입점을 갱신했다.
+- r2/r3 failed-protection attempts는 historical evidence로 유지했다.
+- P4-N4를 Closed로 전환하고 AIRE-G5/G6는 별도 승인 Gate로 유지했다.
+
+## v1.34 Changelog / Migration
+
+- r3 revised exact 40 latest attempt와 repeated 39 PASS / 1 FAIL을 Current router에 반영했다.
+- r2 mismatch 8은 Historical, r3 `UEMCP_COV_Result.md` mismatch 1은 Latest로 분리했다.
+- `AIREP4N4Result.md` v1.3, Phase 4 Plan v1.19와 상위 Plan v1.30으로 진입점을 갱신했다.
+- concurrent GoPyMCP document work 종료 전 추가 rerun 중지를 next route로 고정했다.
+
+## v1.33 Changelog / Migration
+
+- revised exact 40 v1.1 actual 39 PASS / 1 FAIL과 terminal `FAILED_PROTECTION`을 라우팅했다.
+- public evidence predicate 39개 PASS와 concurrent GoPyMCP worktree mismatch 기반 D08 failure를 분리했다.
+- `AIREP4N4Result.md` v1.2와 Phase 4 Plan v1.18을 Current 진입점으로 갱신했다.
+- next route를 stable protected baseline 확인 뒤 fresh complete rerun으로 전환했다.
+
+## v1.32 Changelog / Migration
+
+- original P4-N4 v1.0 authorization과 registration-blocked result를 historical route로 보존했다.
+- provider registration, server identity와 exact provider-root match를 current evidence로 반영했다.
+- query schema ownership과 zero-instance fixture mismatch를 `BLOCKED_AUTHORIZATION_CONTRACT`로 라우팅했다.
+- `AIResourceEvidencePhase4P4N4AuthorizationRevision.md` v1.0을 revised exact 40 v1.1 진입점으로 추가했다.
+- 다음 실행은 GoPyMCP 수정이 아니라 fresh B/C/D group registrations 뒤 revised matrix를 수행하는 단계다.
+
 
 ---
 
@@ -66,7 +97,25 @@ AGENTS.md
 | Browser MCP 정책 적용 감사 | 루트 `AGENTS.md` | target-scoped `repository_instructions`, `nearest_by_target`, SHA-256와 cache 동작 |
 | AI Resource Evidence 현재 개발 계획 확인 | `Documents/Plan/README.md` | `AIResourceEvidencePlan.md`와 활성 Phase Plan |
 | Phase 2 Niagara MVP Adapter accepted contract 확인 | `Documents/Plan/AIResourceEvidencePhase2Plan_v1.md` | P2-N0~P2-N4 canonical evidence, registry·fixture·Content invariance와 final acceptance |
-| Phase 3 GoPyMCP Consumer Integration 계획 | `Documents/ActiveWork.md` | Phase 2 accepted baseline, AIRE-G3/G4 경계와 별도 사용자 승인 여부 |
+| Phase 3 GoPyMCP Consumer Integration 완료 계약 | `Documents/Plan/AIResourceEvidencePhase3Plan_v1.md` | AIRE-G3/G4와 Consumer closure 증거 |
+| Phase 4 Niagara Deep 계약과 현재 Gate 확인 | `Documents/Plan/AIResourceEvidencePhase4Plan_v1.md` | P4-N0R GO_REDUCED, P4-N1/P4-N2 Source와 tracked Content PASS, P4-N3/P4-N4 authorization boundary |
+| P4-N0 frozen actual 결과 확인 | `Documents/Plan/AIResourceEvidencePhase4SpikeResult.md` | UE 5.8 frozen capability·factory/save/reload·byte identity evidence |
+| Revised contract와 P4-N0R 결과 확인 | `Documents/Plan/AIResourceEvidencePhase4ContractRevision.md` | partial provenance, conditional Static Switch와 semantic determinism SSOT |
+| P4-N0R actual closure 확인 | `Documents/Plan/AIREP4N0RResult.md` | GO_REDUCED evidence, diagnostics와 hashes |
+| P4-N1 승인 후보와 구현 경계 이력 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N1AuthorizationReview.md` | exercised 8-file Source candidate, dirty protection과 historical authorization boundary |
+| P4-N1 actual 결과 확인 | `Documents/Plan/AIREP4N1Result.md` | P4_N1_PASS, fresh Phase 2/1, registry matrix와 exact 12-file Content invariance |
+| P4-N2 Source 승인 경계 이력 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N2SourceAuthorizationReview.md` | exercised exact 3 Product Source, runner와 Temp rehearsal boundary |
+| P4-N2 Source actual 결과 확인 | `Documents/Plan/AIREP4N2SourceResult.md` | P4_N2_SOURCE_PASS, runner correction, exact-five Temp closure와 repository invariance |
+| P4-N2 tracked Content 승인 경계 이력 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N2ContentAuthorizationGate.md` | exercised exact-five authorization, 보호 범위와 12→17 전환 계약 |
+| P4-N2 tracked Content actual 결과 확인 | `Documents/Plan/AIREP4N2ContentResult.md` | P4_N2_CONTENT_PASS, exact-five SHA-256, exact-12 invariance와 exact-17 accepted baseline |
+| P4-N3 validation 승인 경계 이력 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N3AuthorizationReview.md` | exercised runner-only allowlist와 historical failure boundary |
+| P4-N3 actual 결과 확인 | `Documents/Plan/AIREP4N3Result.md` | P4_N3_PASS 60/60, clean-staged BuildPlugin, exact 17와 repository protection PASS |
+| P4-N4 original 승인 경계 이력 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N4ControlledConsumerAuthorizationReview.md` | original exact 40과 first-attempt registration fail-closed 경계 |
+| P4-N4 revised 실행 계약 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N4AuthorizationRevision.md` | 31/9 satisfiability audit, presence-or-absence predicates와 B/C/D group-scoped execution |
+| P4-N4 current 결과 확인 | `Documents/Plan/AIREP4N4Result.md` | r4 40 PASS / 0 FAIL, protection PASS와 terminal `P4_N4_PASS` |
+| P4-N4 FX 보고서 확인 | `Documents/Plan/AIResourceEvidenceP4N4FXReport.md` | Evidence ID, zero-instance equality, bounds·negative·determinism과 보호 결과 |
+| P4-N4 Acceptance JSON 확인 | `Documents/Plan/AIResourceEvidenceP4N4Acceptance.json` | machine-readable 40/40 Consumer acceptance와 artifact manifest |
+| P4-N3 exact 10 Source correction 승인 후보 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N3SourceDefectAuthorizationReview.md` | exact 3 Source allowlist, reason registry ownership, observation/projection, dirty protection과 60-case rerun Gate |
 | accepted Asset Intelligence 기반 계약 확인 | `Documents/Plan/AssetIntelligencePlan/README.md` | `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
 | DataAsset Diff Report Contract 이력 확인 | `Documents/ActiveWork.md` | 완료 TaskSource 이력, 스크립트와 canonical closure report |
 | 유지보수 코드·스크립트 수정 | `Documents/ActiveWork.md` | accepted baseline 보호, 유지보수 분류와 위험 기반 검증 확인 후 `AGENTS.md` 절차 적용 |
@@ -294,8 +343,8 @@ Browser MCP 문서·코드 작업은 다음을 확인한다.
 - 제품 역할, 새 기능 범위 또는 분석 책임 판단은 `Documents/RoleBoundaryPolicy.md`를 먼저 적용한다.
 - 새 public 기능은 역할 게이트를 통과하지 못하면 Current Plan 후보로 등록하지 않는다.
 - 기존 accepted 결정론적 파생 계약은 정책 도입만으로 제거하거나 의미 판단 기능으로 재해석하지 않는다.
-- 현재 lifecycle은 `Feature Development Reactivated / Phase 2 Completed / Niagara MVP Adapter Accepted / Phase 3 Not Started`이며 세션 복원은 `Documents/ActiveWork.md`, `Documents/Plan/AIResourceEvidencePlan.md`와 `Documents/Plan/AIResourceEvidencePhase2Plan_v1.md`의 accepted evidence를 확인한다.
-- `AIRE-G0`, Phase 1 G1/G2와 Phase 2 P2-N0~P2-N4는 PASS다. Phase 2 accepted Source·Content는 보존하며 Phase 3는 별도 Current Plan과 사용자 승인 전까지 시작하지 않는다.
+- 현재 lifecycle은 `Feature Development Reactivated / P4-N4 Closed / P4_N4_PASS / 40 PASS / 0 FAIL`이다. 세션 복원은 `Documents/ActiveWork.md`, `AIResourceEvidencePlan.md`, Phase 4 Plan, Authorization Revision과 `AIREP4N4Result.md` v1.4를 확인한다.
+- authoritative P4-N4 current state는 `MATCHED_PROVIDER_ROOT / public matrix 40 PASS / protected mismatch 0 / P4_N4_PASS`다. P4-N4 재실행은 필요 없으며 Product·GoPyMCP 수정과 CarFight 접근은 없었다. AIRE-G5/G6는 별도 Plan·승인 전에는 시작하지 않는다.
 - defect correction, engine/toolchain compatibility, packaging, validation, documentation과 security hardening은 accepted baseline을 보존하는 별도 유지보수로 계속 라우팅한다.
 - 새 public command mode, schema, section 또는 기능은 역할 게이트와 Current Plan의 Consumer Acceptance 기준을 우회하지 않는다.
 - 기존 `Documents/Plan/AssetIntelligencePlan/` 문서와 파일 경로는 변경하지 않는다.

@@ -1,9 +1,71 @@
 # AI Resource Evidence Consumer Workflow
 
-- 문서 버전: v1.1
-- 최근 갱신일: 2026-07-31
-- 문서 상태: Current / AIRE-G0 Approved / Workflow Frozen
+- 문서 버전: v1.13
+- 최근 갱신일: 2026-08-07
+- 문서 상태: Current / Golden Journey Accepted / P4-N4 P4_N4_PASS / Revised Journey 40 of 40
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
+
+## Phase 4 Deep Consumer Extension — 2026-08-07
+
+P4-N3와 exact 17 baseline은 accepted 상태다. external Deep provider registration과 same-server identity는 후속 runtime에서 PASS했고 registered root도 authoritative P4-N3 `Outputs\Deep`와 일치했다.
+
+Original v1.0 journey는 다음 contract mismatch로 종료한다.
+
+```text
+query schema가 소유하지 않는 profile/registry 요구
+selected asset expected count=0 feature에 positive Entity 요구
+request ID당 16-call lane에서 single-ID exact matrix 구성
+```
+
+Revised journey actual:
+
+```text
+r4 B/C/D group-scoped registrations=PASS
+contract-aligned public discover/query/context/dependency chain=PASS
+presence-or-absence feature equality=PASS
+bounds and canonical reason transport=PASS
+Evidence-ID traceability=PASS
+stable negative and determinism=PASS
+final protection=PASS / mismatch 0
+r2 protection mismatch=8 / Historical
+r3 protection mismatch=1 / Historical
+r4 accounting=40 PASS / 0 FAIL
+classification=P4_N4_PASS
+```
+
+기존 AIRE-G4 Golden Journey와 public GoPyMCP tool contract는 계속 Accepted다. P4-N4 revision은 GoPyMCP 변경 없이 existing public operation을 사용한다.
+
+### v1.13 Changelog / Migration
+
+- COV 작업 중단 후 동일 preflight baseline을 두 번 확인했다.
+- r4 revised Consumer journey를 fresh registrations와 28 public calls로 완주했다.
+- discovery, continuation, zero-instance equality, Module Output, bounds, negative, context/dependency와 determinism을 모두 통과했다.
+- final protection mismatch 0과 prohibited call 0을 확인했다.
+- success-only FX Report와 Acceptance JSON을 생성하고 `P4_N4_PASS`로 닫았다.
+- r2/r3 failed-protection journeys는 historical로 보존한다.
+
+### v1.12 Changelog / Migration
+
+- r3 revised journey를 fresh registrations와 28 public calls로 다시 실행했다.
+- discovery, zero-instance equality, Module Output, bounds, negative, context/dependency와 determinism 39개 predicate를 반복 PASS했다.
+- latest final protection mismatch를 `UEMCP_COV_Result.md` 1개로 갱신하고 r2 mismatch 8개를 historical로 보존했다.
+- concurrent GoPyMCP document work 종료 전 추가 journey rerun을 중지한다.
+
+### v1.11 Changelog / Migration
+
+- revised Consumer journey를 28 public calls로 실행하고 39개 predicate PASS를 기록했다.
+- exact discovery, continuation, zero-instance equality, Module Output, bounds, context/dependency와 determinism을 통과했다.
+- final protection에서 r2 concurrent GoPyMCP worktree mismatch 8개가 발생해 D08만 실패했다.
+- success-only Evidence-ID FX Report는 생성하지 않고 complete fresh rerun을 next workflow로 지정했다.
+
+### v1.10 Changelog / Migration
+
+- registration PASS와 provider-root match를 workflow에 반영했다.
+- list relation semantics와 query-owned metadata boundary를 교정했다.
+- zero-instance Deep feature를 부재 정확성으로 검증하는 revised journey를 정의했다.
+- B/C/D group별 16-call 이하 plan을 연결해 GoPyMCP budget 변경 필요성을 제거했다.
+- revised Consumer workflow r4는 40 PASS / 0 FAIL로 Accepted됐고 success-only FX Report, Acceptance JSON과 external machine artifacts를 생성했다. r2/r3 39/40 attempts는 historical이다.
+
 
 ---
 
@@ -123,7 +185,7 @@ state/completeness
 
 Module Input, User Parameter, Dynamic Input, Rapid Iteration, Static Switch와 binding provenance를 조회한다.
 
-MVP는 directly observable Module Input과 Parameter Binding을 조회한다. Dynamic Input recursive tree, Rapid Iteration resolution과 Static Switch branch resolution은 `unsupported` 또는 `unavailable`로 표시하며 추정하지 않는다.
+MVP 요청은 directly observable Module Input과 Parameter Binding을 조회하고 Dynamic Input recursive tree, Rapid Iteration resolution과 Static Switch branch resolution을 `unsupported` 또는 `unavailable`로 유지한다. Phase 4 구현 이후 exact `Profile=niagara_deep_evidence` 요청만 Deep resolution evidence를 조회하며 증명되지 않은 값이나 branch는 계속 추정하지 않는다.
 
 ### Step 7 — Renderer and Resource Inspection
 
@@ -141,6 +203,7 @@ contains
 executes_before
 binds_to
 reads_attribute
+reads_parameter
 writes_parameter
 references
 uses_script
@@ -264,6 +327,7 @@ consumer_acceptance_report.json
 
 ## 10. Migration
 
-- 기존 commandlet 직접 사용자는 영향을 받지 않는다.
-- GoPyMCP 통합은 기존 section/dependency tool을 유지하면서 새 Entity 기능을 additive하게 노출한다.
+- 기존 commandlet 직접 사용자와 MVP Consumer는 영향을 받지 않는다.
+- Phase 4 Deep workflow는 exact `niagara_deep_evidence` Profile과 `niagara_deep_v1` provider evidence가 구현된 뒤에만 실행한다.
+- GoPyMCP 통합은 기존 public evidence tool을 유지하며 Phase 4 때문에 executable/runtime 변경을 요구하지 않는다.
 - Consumer Acceptance는 tool 이름보다 의미적 기능, 실제 호출 증거와 수동 우회 금지를 기준으로 판정한다.

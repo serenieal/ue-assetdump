@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.34
+- document_version: v1.35
 - created_at: 2026-07-10
-- updated_at: 2026-07-30
+- updated_at: 2026-08-03
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: validation_policy
@@ -447,7 +447,10 @@ Required structural checks:
 - output paths are dump-root-relative and slash-normalized
 - no absolute Host, Engine, Plugin or Consumer path is serialized
 - available_sections follow the fixed section registry order
-- section_schema_versions agree with actual serialized section objects
+- full-mode `summary`, `details`, `graphs` and `references` compatibility placeholders are excluded when the matching manifest `run.include_*` field is false and no actual sidecar exists
+- explicit section mode continues to use actual serialized top-level field presence
+- specialized sections are available only when the actual section object has a non-empty `schema_version`
+- section_schema_versions agree with actual available specialized section objects
 - reference counts agree with references.json when present
 - missing_files agree with generated_files and current filesystem state
 ```
@@ -473,6 +476,19 @@ malformed manifest ignored and counted
 missing selected main dump yields an incomplete entry
 removing the selected manifest removes the entry on rebuild
 repeated output is equal after normalizing generated_time only
+```
+
+Required placeholder-availability coverage:
+
+```text
+full mode + include_details=false excludes details even though the compatibility key exists
+full mode + include_graphs=false excludes graphs even though the compatibility key exists
+full mode + include_references=false excludes references even though the compatibility key exists
+full mode + include_summary=false excludes summary and empty widget_designer placeholders
+explicit details/references selection remains discoverable from actual serialized fields
+specialized object with empty schema_version is excluded
+specialized object with a non-empty schema_version is included and recorded in section_schema_versions
+rebuilt section_index_v1 contains exactly the corrected asset_index_v1 available_sections
 ```
 
 For v0.9.0 acceptance:
@@ -1296,6 +1312,15 @@ The failed NQAC Phase 2 report is historical evidence and is not a repair, retry
 
 ## Migration
 
+### v1.35 Asset Index Placeholder Availability Correction
+
+- Treat this as a maintenance correction to the accepted `asset_index_v1` meaning, not a new schema version.
+- Rebuild asset and section indexes after the corrected commandlet is installed; old index files may retain false-positive placeholder sections.
+- Keep explicit section retrieval, fixed registry ordering, stable error codes and legacy index files unchanged.
+- Validation must include disabled full-mode core sections and empty specialized placeholders, not only the default all-enabled fixture profile.
+
+
+
 ### v1.33
 
 - Classify the fresh report as accepted-compatibility PASS plus partial NQAC runtime evidence, not canonical Phase 2 PASS.
@@ -1341,6 +1366,14 @@ No unresolved standalone validation-policy blocker remains.
 The historical Consumer Project `DA_Cam_Default reference_count_min` assertion remains a separate non-blocking validation-policy cleanup candidate. It must not be resolved by changing Consumer assets solely to satisfy AssetDump acceptance.
 
 ## Changelog
+
+### v1.35 - 2026-08-03
+
+- Added required coverage for full-mode compatibility placeholders and specialized empty-schema objects.
+- Required exact propagation of corrected `asset_index_v1.available_sections` into `section_index_v1`.
+- Preserved the existing schema identifiers and treated the change as a contract-conformance correction.
+
+
 
 ### v1.33
 

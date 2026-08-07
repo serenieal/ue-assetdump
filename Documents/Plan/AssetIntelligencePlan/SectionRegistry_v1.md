@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.46
+- document_version: v1.48
 - created_at: 2026-07-10
-- updated_at: 2026-07-31
+- updated_at: 2026-08-05
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: shared_registry
@@ -248,7 +248,9 @@ local ID: asset_0000 sequential after object_path sort
 source: latest valid manifest per object_path plus actual dump/sidecar files
 paths: dump-root-relative and slash-normalized
 available_sections: actual emitted/retrievable sections in fixed registry order
-specialized section schemas: recorded from actual section objects
+full-mode core placeholder rule: summary/details/graphs/references top-level compatibility placeholders are not available unless the matching run.include_* flag is true or an actual sidecar file exists
+specialized section rule: a top-level object is available only when it exposes a non-empty schema_version; an empty compatibility placeholder is not a section
+specialized section schemas: recorded from actual available section objects
 file states: ready, missing_dump, malformed_dump
 duplicate and malformed manifests: counted and excluded from selected entries
 stale behavior: full reconstruction from currently present manifests
@@ -626,8 +628,11 @@ AssetDump v0.6.3 defines the initial profile contract as named selection presets
 | `summary_only` | `summary` |
 | `digest_only` | `summary,digest` |
 | `ai_context` | `summary,digest` unless an explicit Intent has higher priority |
+| `niagara_deep_evidence` | `entity_evidence`; Phase 4 exact Deep extraction opt-in |
 
 `ai_context` is a compact selection profile. It is not the future `ai_context_bundle_v1` export planned for v1.0.2.
+
+`niagara_deep_evidence` is an accepted Phase 4 contract value but is not implemented until P4-N0 and implementation authorization. Deep activation requires `profile=niagara_deep_evidence`, `section_source=profile` and effective `entity_evidence`. Explicit Sections or Intent override the Profile and keep MVP behavior.
 
 ### Global Selection Precedence
 
@@ -652,6 +657,25 @@ Expected examples:
 ```
 
 Requested lower-priority profile or intent metadata may remain visible in the request envelope, but only the highest-priority source controls output and builders.
+
+Phase 4 compatibility examples:
+
+```text
+-Profile=niagara_deep_evidence
+  section_source: profile
+  sections: entity_evidence
+  adapter_profile: niagara_deep_v1 after implementation
+
+-Profile=niagara_deep_evidence -Sections=entity_evidence
+  section_source: sections
+  adapter_profile: niagara_mvp_v1
+
+-Profile=niagara_deep_evidence -Intent=quick_overview
+  section_source: intent
+  deep extraction: disabled
+```
+
+Existing implicit full, Profiles, Intents and explicit entity_evidence requests require no migration.
 
 ## AIRE-G0 Reserved Entity Contracts
 
@@ -701,6 +725,16 @@ full mode remains compatible
 ```
 
 ## Migration
+
+### v1.47 Asset Index Availability Correction Migration
+
+- `asset_index_v1.available_sections` keeps its accepted meaning: actual emitted/retrievable evidence only.
+- Consumers must not interpret full-mode placeholder keys as generated sections when the matching `run.include_*` value is false.
+- Specialized sections, including `widget_designer`, require a non-empty `schema_version` before they are indexed.
+- Existing field names, registry order, `asset_index_v1` schema version and `section_index_v1` source contract remain unchanged.
+- Rebuild `asset_index.json` and `section_index.json` after upgrading so previously indexed placeholder entries are removed.
+
+
 
 ### v1.46 AIRE-G0 Entity Contract Migration
 
@@ -759,6 +793,21 @@ No runtime migration is required for this registry. New section work must update
 None.
 
 ## Changelog
+
+### v1.48 - 2026-08-05
+
+- Registered `niagara_deep_evidence` as the accepted but not-yet-implemented Phase 4 Profile value.
+- Preserved `Sections > Intent > Profile > implicit full` and required exact profile ownership before Deep extraction.
+- Kept existing explicit `entity_evidence` and all existing Profiles on Niagara MVP behavior.
+- Linked implementation ownership to `AIResourceEvidencePhase4Plan_v1.md` v1.1 and its Contract Review.
+
+### v1.47 - 2026-08-03
+
+- Clarified that `available_sections` excludes full-mode compatibility placeholders whose matching include option was disabled.
+- Required a non-empty specialized section schema before recording specialized availability.
+- Preserved the existing `asset_index_v1` schema identifier and fixed section registry order as a maintenance correction.
+
+
 
 ### v1.46 - 2026-07-31
 

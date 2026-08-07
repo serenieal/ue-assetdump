@@ -1,9 +1,68 @@
 # Consumer Validation Plan
 
-- 문서 버전: v1.3
-- 최근 갱신일: 2026-07-31
-- 문서 상태: Current / AIRE-G0~G2 Passed / G3~G6 Not Started
+- 문서 버전: v1.20
+- 최근 갱신일: 2026-08-07
+- 문서 상태: Current / AIRE-G0~G4 Passed / P4-N4 P4_N4_PASS / G5~G6 Not Started
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
+
+## Current Gate Override — 2026-08-07
+
+```text
+AIRE-G0~G4: PASS
+P4-N0 frozen contract actual: COMPLETED / NO_GO
+Phase 4 Contract Revision: ACCEPTED
+P4-N0R: COMPLETED / GO_REDUCED / failure_count=0
+P4-N1: COMPLETED / P4_N1_PASS / failure_count=0
+P4-N2 Source: COMPLETED / P4_N2_SOURCE_PASS / failure_count=0
+P4-N2 Content: COMPLETED / P4_N2_CONTENT_PASS / Exact 17 Accepted
+P4-N3: COMPLETED / P4_N3_PASS / 60 of 60 / failure_count=0 / Protection PASS
+P4-N4 original Authorization: EXERCISED / HISTORICAL
+P4-N4 original result: BLOCKED_PROVIDER_REGISTRATION / HISTORICAL
+P4-N4 provider registration: PASS at verification time
+P4-N4 provider root: MATCHED_PROVIDER_ROOT
+P4-N4 original exact 40: BLOCKED_AUTHORIZATION_CONTRACT
+P4-N4 Authorization Revision: REVIEW COMPLETE / revised contract v1.1 / Executed
+P4-N4 revised exact 40 r2: 39 PASS / 1 FAIL / Historical mismatch 8
+P4-N4 revised exact 40 r3: 39 PASS / 1 FAIL / Historical mismatch 1
+P4-N4 revised exact 40 r4: 40 PASS / 0 FAIL / Protection PASS
+P4-N4 terminal classification: P4_N4_PASS
+GoPyMCP modification required: false
+AIRE-G5: Not Started
+AIRE-G6: Not Started
+```
+
+P4-N4 revised v1.1은 r4 public matrix에서 profile/registry ownership, zero-instance equality, positive Module Output, bounds, stable negatives와 determinism을 검증해 40개 predicate를 모두 통과했다. public calls 전후 AssetDump·GoPyMCP 보호 기준선과 지정 COV 파일도 동일해 D08 protection predicate가 PASS했다.
+
+### v1.20 Changelog / Migration
+
+- COV 작업 중단 후 두 번의 동일 기준선으로 quiescent window를 확정했다.
+- fresh r4 registrations와 28 public calls로 revised exact 40을 40/40 통과했다.
+- Provider·Transport·Consumer·Protection failure_count 0을 기록했다.
+- success-only FX Report, Acceptance JSON과 machine artifacts를 생성했다.
+- r2/r3 failed-protection attempts는 historical로 보존하고 P4-N4를 Closed로 전환했다.
+- AIRE-G5/G6는 별도 validation Gate로 계속 Not Started다.
+
+### v1.19 Changelog / Migration
+
+- r3 full exact 40 rerun에서도 public semantic predicate 39개 PASS를 반복 확인했다.
+- latest D08 mismatch를 external GoPyMCP 문서 1개로 갱신하고 r2 mismatch 8개를 historical로 분리했다.
+- two-attempt FAILED_PROTECTION 뒤 quiescent protection window 전 재실행 중지를 Validation Gate로 추가했다.
+
+### v1.18 Changelog / Migration
+
+- revised exact 40 v1.1 actual 39 PASS / 1 FAIL을 validation current state에 반영했다.
+- B/C/D 28-call matrix의 positive, bounds, negative와 determinism PASS를 기록했다.
+- D08 protection mismatch를 `FAILED_PROTECTION`으로 분류하고 success-only report 생성을 차단했다.
+- next validation Gate를 stable protected baseline 아래 complete fresh rerun으로 전환했다.
+
+### v1.17 Changelog / Migration
+
+- registration blocker 해소와 exact provider-root match를 반영했다.
+- native/public schema audit에서 transport mismatch가 없음을 확정했다.
+- v1.0 31 satisfiable / 9 unsatisfiable 결과를 `BLOCKED_AUTHORIZATION_CONTRACT`로 기록했다.
+- revised exact 40 v1.1과 group-scoped request budget contract를 validation entry로 연결했다.
+- Product와 GoPyMCP 변경 없이 재실행 가능한 상태지만 execution은 아직 시작하지 않았다.
+
 
 ---
 
@@ -32,8 +91,8 @@ UE Asset
 | `AIRE-G0` | Product Contract Freeze | `PASS — 2026-07-31`, scope/schema/DoD/Phase 1 allowlist 확정 |
 | `AIRE-G1` | Native Evidence Contract | `PASS — 2026-07-31`, fixture extraction, schema, determinism, relation/fallback evidence |
 | `AIRE-G2` | Index Query Context | `PASS — 2026-07-31`, discovery, nested locator, filters, bounds, continuation, context, 26 actual failures and Level 3 closure |
-| `AIRE-G3` | MCP Exposure | GoPyMCP tool 목록, actual calls, stable transport errors |
-| `AIRE-G4` | Consumer Workflow | Browser GPT Golden Consumer Journey와 report 생성 |
+| `AIRE-G3` | MCP Exposure | `PASS — 2026-08-05`, Browser full chain, multi-kind transport, native equality, runtime canary, `failure_count=0` |
+| `AIRE-G4` | Consumer Workflow | `PASS — 2026-08-05`, Golden Journey 12/12, reports, continuation, traceability, no manual file access |
 | `AIRE-G5` | Real Project Acceptance | 사용자 지정 실제 Niagara asset 성공 |
 | `AIRE-G6` | Release Hardening | BuildPlugin, Generic Host, matrices, invariance, migration |
 
@@ -250,6 +309,19 @@ accepted v1 contracts regressed
 
 ## 12. Changelog
 
+### v1.7 - 2026-08-05
+
+- Phase 4 Contract Review PASS와 Plan v1.1 compatibility corrections를 Current validation 기준으로 등록했다.
+- exact `niagara_deep_evidence` Profile activation, MVP default preservation, 18/12 Deep와 22/14 mixed registry 검증을 요구한다.
+- primary/auxiliary multi-facet mapping과 MaxMvp/MaxDeep/MaxTotal relation boundaries를 P4-N0~P4-N3 matrix에 연결했다.
+- P4-N0 실행과 Product implementation은 승인하지 않았다.
+
+### v1.4 - 2026-08-05
+
+- Browser actual full chain, multi-kind transport, native equality, runtime canary와 `failure_count=0`을 AIRE-G3 완료 증거로 등록했다.
+- AIRE-G3를 PASS로 전환하고 AIRE-G4 Golden Consumer Journey를 Current Gate로 지정했다.
+- Migration: AIRE-G4는 공개 GoPyMCP evidence tool만 사용하고 로컬 dump/index 직접 접근과 수동 JSON 복사를 허용하지 않는다.
+
 ### v1.3 - 2026-07-31
 
 - AIRE-G1 Native Evidence와 AIRE-G2 Index Query Context를 PASS로 기록.
@@ -279,8 +351,10 @@ accepted v1 contracts regressed
 
 ## 13. Migration
 
-- Phase 1 Provider-native acceptance는 완료됐지만 MCP·Browser·실프로젝트 acceptance를 대체하지 않는다.
-- 다음 Consumer-facing 상태 전환은 G3 MCP Exposure의 actual tool discovery와 호출 증거부터 시작한다.
-- 기존 Contract Accepted 상태는 과거 accepted 기능에 유효하다.
-- `ADUMP-v1.2.0-AIRE`와 이후 Consumer-facing 기능은 추가 Consumer Acceptance Gate를 적용한다.
-- 기존 Phase 1/2 검증을 제거하지 않고 Entity/Niagara/Consumer case를 additive하게 확장한다.
+- AIRE-G0~G4와 Phase 4 P4-P0 Contract Review는 완료·승인 이력으로 유지된다.
+- Frozen P4-N0 actual은 `Completed / NO_GO`, Accepted Revision 기반 P4-N0R actual은 `Completed / GO_REDUCED`다.
+- linked partial provenance, Static Switch conditional exactness와 semantic fixture determinism은 revised contract로 승인·검증됐다.
+- existing MVP Consumer와 accepted Phase 1~3 검증은 Phase 4 결과 때문에 재해석하거나 제거하지 않는다.
+- P4-N1, P4-N2 Source+Content와 P4-N3 validation은 완료됐고 P4-N3는 `P4_N3_PASS / 60 of 60 / failure_count=0`이다.
+- P4-N4 original v1.0과 r2/r3 protection failures는 historical이다. revised exact 40 v1.1 r4는 `P4_N4_PASS / 40 PASS / 0 FAIL / protection PASS`다. AIRE-G5/G6는 Not Started / Not Authorized다.
+- `ADUMP-v1.2.0-AIRE` 최종 완료에는 별도 Phase 4 Consumer closure, AIRE-G5 Real Project Acceptance와 AIRE-G6 Release Hardening이 필요하다.

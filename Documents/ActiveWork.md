@@ -1,10 +1,48 @@
 # AssetDump Active Work
 
-- 문서 버전: v1.90
-- 최근 갱신일: 2026-08-02
-- 문서 상태: Current
+- 문서 버전: v3.5
+- 최근 갱신일: 2026-08-07
+- 문서 상태: Current / P4-N4 P4_N4_PASS / r4 40 PASS / 0 FAIL
 
 - 역할: AssetDump 독립 저장소의 현재 feature lifecycle, 활성 대표 Plan과 최근 완료 체크포인트를 연결하는 세션 복원 색인
+
+## v3.5 Changelog / Migration
+
+- COV 작업 중단 후 AssetDump·GoPyMCP와 지정 COV 3개 파일의 동일 기준선을 두 번 확인해 quiescent window를 확정했다.
+- fresh r4 B/C/D registrations와 28 public calls로 revised exact 40 전체를 실행했다.
+- Group A 8/8, B 16/16, C 8/8, D 8/8과 protected mismatch 0을 달성했다.
+- terminal classification을 `P4_N4_PASS / 40 of 40 / failure_count=0`으로 전환했다.
+- success-only FX Report, Acceptance JSON과 external machine artifacts 3개를 생성했다.
+- r2/r3 `FAILED_PROTECTION` attempts는 historical evidence로 보존한다.
+- P4-N4는 Closed이며 AIRE-G5/G6는 별도 승인 전까지 시작하지 않는다.
+
+## v3.4 Changelog / Migration
+
+- quiescent baseline 후보 아래 fresh r3 B/C/D registrations로 revised exact 40 전체를 재실행했다.
+- r3에서도 Group A 8/8, B 16/16, C 8/8, D 7/8과 public predicate 39개 PASS를 동일하게 재현했다.
+- r3 중 `Workspace/docs/plan/UEMCP_COV_Result.md` 한 파일이 baseline 이후 수정되어 D08 protection이 다시 실패했다.
+- latest failure report SHA-256 `0d92fffada2476635c51752465d4ffc1d4d6bae12154ae2b3268377bea1acfb1`을 등록했다.
+- r2 mismatch 8건은 historical attempt로 보존하고 current blocker를 r3 mismatch 1건으로 갱신했다.
+- concurrent GoPyMCP document work가 종료된 quiescent window 전에는 추가 exact 40 재실행을 중단한다.
+
+## v3.3 Changelog / Migration
+
+- revised exact 40 v1.1을 fresh B/C/D registrations와 28 public calls로 실행했다.
+- Group A 8/8, B 16/16, C 8/8, D 7/8로 총 39 PASS / 1 FAIL을 기록했다.
+- public provider/query/context/dependency predicate 39개는 충족했고 Product·Transport·Consumer defect는 관측되지 않았다.
+- calls 진행 중 이 세션 외부의 GoPyMCP COV/policy worktree 상태 8개가 추가되어 `P4N4-D08 protected mismatch 0`이 실패했다.
+- terminal classification을 `FAILED_PROTECTION`으로 전환하고 success-only artifacts는 생성하지 않았다.
+- 다음 실행은 concurrent GoPyMCP 작업 종료 후 new registrations와 new result refs로 exact 40 전체를 재실행한다.
+
+## v3.2 Changelog / Migration
+
+- 후속 runtime external provider registration과 Browser server-instance equality를 반영했다.
+- authoritative P4-N3 report와 registered `Outputs\Deep`를 대조해 `MATCHED_PROVIDER_ROOT`를 확정했다.
+- native selected asset 26 Entity / 38 Relation과 zero-instance Deep feature shape를 기록했다.
+- original exact 40 v1.0을 `31 satisfiable / 9 unsatisfiable`로 감사하고 current 상태를 `BLOCKED_AUTHORIZATION_CONTRACT`로 교정했다.
+- `AIResourceEvidencePhase4P4N4AuthorizationRevision.md` v1.0을 revised execution contract v1.1의 Current 진입점으로 등록했다.
+- GoPyMCP Source/schema/config 변경 필요성을 false로 확정하고 revised exact 40은 아직 시작하지 않았다.
+
 
 ---
 
@@ -26,36 +64,56 @@ ActiveWork = 현재 lifecycle, 활성 대표 Plan과 마지막 완료 초점
 
 ## 2. 현재 수명주기 상태
 
-현재 AssetDump는 `Feature Development Reactivated / Phase 2 Completed / Niagara MVP Adapter Accepted / Phase 3 P3-P2A Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / P3-P2B Runtime Validation Blocked` 상태다. `AIRE-G0 Product Contract Freeze`, Phase 1 `AIRE-G1/G2`와 Phase 2 `P2-N0~P2-N4`가 canonical 증거로 통과했다. UE 5.8 native Niagara evidence, active registry compatibility, entity index/query/context와 controlled 12-file validation baseline은 Accepted다. GoPyMCP Browser-side source audit, Static Contract Review, exact code Blueprint와 accepted-schema synthetic Vector 교정은 완료됐고 executable source implementation, actual runtime integration과 Browser Consumer acceptance는 시작하지 않았다.
+현재 AssetDump는 `Feature Development Reactivated / P4-N4 Closed / P4_N4_PASS` 상태다. fresh r4 registrations 아래 revised exact 40 v1.1 전체가 40 PASS / 0 FAIL로 종료됐고 public call 28회, protected mismatch 0, prohibited call 0을 확인했다. r2/r3의 39/40 결과는 concurrent GoPyMCP worktree 변화가 있던 historical failed-protection attempts로 보존한다.
 
 ### 현재 활성 계획
 
 ```text
-active feature lifecycle: ADUMP-v1.2.0-AIRE / Phase 3 Planning
-active feature task: ADUMP-v1.2.0-AIRE-P3
-representative current Plan: Documents/Plan/AIResourceEvidencePhase3Plan_v1.md
-representative accepted baseline: Documents/Plan/AIResourceEvidencePhase2Plan_v1.md
-completed phase: Phase 0 — Product and Consumer Contract
+active feature lifecycle: ADUMP-v1.2.0-AIRE / Phase 4 P4-N4 Closed / P4_N4_PASS
+active feature task: ADUMP-v1.2.0-AIRE-P4-N4 / Completed / P4_N4_PASS / 40 of 40
+representative current Plan: Documents/Plan/AIResourceEvidencePhase4Plan_v1.md v1.20
+contract review: Documents/Plan/AIResourceEvidencePhase4ContractReview.md v1.9
+contract revision: Documents/Plan/AIResourceEvidencePhase4ContractRevision.md v1.2 / Accepted
+P4-N1 result: Documents/Plan/AIREP4N1Result.md v1.0 / PASS
+P4-N2 Source result: Documents/Plan/AIREP4N2SourceResult.md v1.0 / P4_N2_SOURCE_PASS / failure_count=0
+P4-N2 Content result: Documents/Plan/AIREP4N2ContentResult.md v1.0 / P4_N2_CONTENT_PASS / Exact 17 Accepted
+P4-N3 Authorization Review: Documents/Plan/AIResourceEvidencePhase4P4N3AuthorizationReview.md v1.1 / Authorization Exercised / Historical
+P4-N3 result: Documents/Plan/AIREP4N3Result.md v2.0 / P4_N3_PASS / 60 of 60 / failure_count=0 / Protection PASS
+P4-N4 original Authorization Review: Documents/Plan/AIResourceEvidencePhase4P4N4ControlledConsumerAuthorizationReview.md v1.0 / Authorization Exercised / Historical
+P4-N4 Authorization Revision: Documents/Plan/AIResourceEvidencePhase4P4N4AuthorizationRevision.md v1.0 / revised contract v1.1 / Exercised / Historical contract
+P4-N4 result: Documents/Plan/AIREP4N4Result.md v1.4 / P4_N4_PASS / 40 PASS / 0 FAIL
+P4-N3 Source Defect Authorization Review: Documents/Plan/AIResourceEvidencePhase4P4N3SourceDefectAuthorizationReview.md v1.0 / Authorization Exercised / Historical
+P4-N0 result: Documents/Plan/AIResourceEvidencePhase4SpikeResult.md v1.1 / NO_GO under frozen contract
+P4-N0R result: Documents/Plan/AIREP4N0RResult.md v1.0 / GO_REDUCED
 completed phase: Phase 1 — Entity Evidence Core / Native Entity Core Accepted
 completed phase: Phase 2 — Niagara MVP Adapter / Completed / Accepted
-completed gate: AIRE-G1 Native Evidence Contract — PASS / Contract Accepted
-completed gate: AIRE-G2 Index Query Context — PASS / Contract Accepted
-completed gate: P2-N4 Phase Close — PASS / Niagara MVP Adapter Accepted
-completed planning gate: P3-P0 Public Contract Audit — PASS / Planning Evidence
-completed gate: P3-P1 Cross-Repository Contract Freeze / PASS / Contract Accepted
-current gate: P3-P2A Offline Source Implementation / Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented
-blocked gate: P3-P2B Runtime Integration and Actual Validation / R87 Parked Until Runtime Validation
-current phase: Phase 3 — GoPyMCP Consumer Integration / Static Contract QA Complete
-role gate: PASS
-AIRE-G0: PASS / 2026-07-31
-AIRE-G3: Blocked / Runtime Publication Pending
-AIRE-G4: Not Started
+completed phase: Phase 3 — GoPyMCP Consumer Integration / Completed / Consumer Workflow Accepted
+completed gate: AIRE-G1 Native Evidence Contract — PASS
+completed gate: AIRE-G2 Index Query Context — PASS
+completed gate: AIRE-G3 MCP Exposure — PASS / 2026-08-05
+completed gate: AIRE-G4 Consumer Workflow — PASS / 2026-08-05
+completed gate: P4-N0R — GO_REDUCED / failure_count=0 / 2026-08-05
+completed gate: P4-N1 — P4_N1_PASS / failure_count=0 / 2026-08-05
+completed gate: P4-N2 Source — P4_N2_SOURCE_PASS / failure_count=0 / 2026-08-06
+completed gate: P4-N2 Content — P4_N2_CONTENT_PASS / Exact 17 Accepted / 2026-08-06
+completed validation: P4-N3 — P4_N3_PASS / 60 PASS / 0 FAIL / blocked 0 / skipped 0 / failure_count=0 / 2026-08-07
+P4-N4 fresh provider preparation: P4_N3_PASS / 60 of 60 / protection PASS / 2026-08-07
+P4-N4 provider registration: PASS at verification time / active explicit / same server instance
+P4-N4 provider root: MATCHED_PROVIDER_ROOT
+P4-N4 original exact 40: BLOCKED_AUTHORIZATION_CONTRACT / 31 satisfiable / 9 unsatisfiable
+P4-N4 revised exact 40 v1.1: r2 39/40 Historical / r3 39/40 Historical / r4 40/40 Accepted
+current gate: P4-N4 Closed / AIRE-G5+G6 remain Not Started and separately authorized
+current phase: Phase 4 — Niagara Deep Evidence / Completed / P4_N4_PASS
+role gate: PASS / AssetDump feature candidate
+AIRE-G0~G4: PASS
+AIRE-G5: Not Started
+AIRE-G6: Not Started
 primary consumer: Browser GPT / AI Agent
 transport boundary: GoPyMCP
-first product vertical slice: Niagara FX Evidence
-implementation authorization: GoPyMCP Plan v1.2.1 / Static Review v1.0.0 / Work Order v1.2.1 / Blueprint v1.0.1 / Vectors v1.0.1 Ready
-implementation state: Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / Runtime Validation Blocked
-final completion state: Completed / Consumer Accepted
+implementation authorization: P4-N4 terminal reports and current-state routing documents complete; Product/Script/Content/Config and GoPyMCP changes none
+implementation state: native provider PASS / registration PASS / public exact 40 PASS / protection PASS
+next decision: close P4-N4; start AIRE-G5/G6 only through a separate Plan and user authorization
+final completion state: Completed / Consumer Accepted only after AIRE-G5+G6
 accepted foundation: ADUMP-v1.0.2-AICB and accepted v0.7.1-v1.0.2 contracts
 ```
 
@@ -63,11 +121,13 @@ accepted foundation: ADUMP-v1.0.2-AICB and accepted v0.7.1-v1.0.2 contracts
 - 확정 schema는 `entity_evidence_v1`, `entity_index_v1`, `entity_query_result_v1`, `entity_context_bundle_v1`이다.
 - Phase 1은 기존 Blueprint Component·Graph·Node·Pin 증거로 Entity Core를 검증한다.
 - Phase 2 변경은 `AIResourceEvidencePhase2Plan_v1.md`의 exact implementation/validation/Content allowlist를 따른다.
-- controlled Content baseline은 기존 AIRE-G1 fixture를 포함한 10개 파일에 P2-N2 `NE_ADumpMvp.uasset`와 `NS_ADumpMvp.uasset`를 추가한 정확히 12개 파일이다.
+- controlled Content baseline은 기존 exact 12에 P4-N2 Deep fixture exact five를 추가한 정확히 17개 binary files다. 기존 12의 path/length/SHA-256은 보존됐고 신규 5개 baseline은 `AIREP4N2ContentResult.md`가 소유한다.
 - 기존 accepted command/schema의 default 의미와 NQAC 취소 결정을 보존한다.
 - `entity_evidence_v1`, `entity_index_v1`, `entityquery`, `entitycontext` Source와 focused runner evidence가 exact allowlist 안에서 구현됐다.
 - AIRE-G1 기준 fresh BuildPlugin, Generic Host build/runtime와 first acceptance `makefixtures` 0/0/0이 PASS했다.
 - AIRE-G2 validation-only closure에서 canonical Phase 2 v1.17.0과 Phase 1 Matrix v1.3이 PASS했다.
+- 2026-08-04 Phase 2 maintenance에서 comma-list CLI가 첫 항목에서 잘리던 `ADumpEntityQuery` 결함을 v1.3.1로 교정하고 fresh BuildPlugin과 canonical Phase 2 v1.18.13을 재통과했다. report SHA-256은 `0399beae972753c5cc0ac623f8a740ce74f7cfa3dfcd4d0e9aa24e94c5542852`이며 Entity Evidence, AIRE-G2, Niagara closure, Content invariance와 P2B가 모두 PASS다.
+
 - AIRE-G1 fixture는 실제 exec/data graph link와 duplicate Node GUID 기반 `quality=fallback` / `source=source_index` 증거를 제공한다.
 - AIRE-G1과 AIRE-G2는 Contract Accepted이며 Phase 1은 `Completed / Native Entity Core Accepted`다.
 - AIRE-G2는 Product Source와 Content 변경 없이 26개 stable failure actual matrix, selector/filter/direction, query/context bounds·repeat와 Level 3 closure를 통과했다.
@@ -90,7 +150,15 @@ accepted foundation: ADUMP-v1.0.2-AICB and accepted v0.7.1-v1.0.2 contracts
 - P2-N2 materialization report SHA-256은 `7f50992231238048fd8d85bc032b1a97b831c009b843992abf2c834aea55048b`다.
 - P2-N2 packaged runtime report SHA-256은 `31843389c28a7ed44de3a0c28e2e704b50ec603c69ee8bfd9ab1f848b191c38f`다.
 - exact 구현·fixture·validation 계약은 `Documents/Plan/AIResourceEvidencePhase2Plan_v1.md`가 소유한다.
-- GoPyMCP Integration과 Browser Consumer Acceptance는 시작하지 않았다.
+- GoPyMCP `ue.assetdump_evidence_safe` 구현, Browser exact 18 publication과 structured discover transport는 실제 확인됐다.
+- 직전 managed smoke는 `class_filter=Blueprint`, `max_assets=1`, `rebuild_index=false`였으며 이 partial output에서 NiagaraSystem 0건과 `entity_index_v1` missing이 관측됐다.
+- Phase 2 accepted Niagara fixture와 entity index/query/context evidence가 존재하므로 현재 현상을 Product Source 결함으로 단정하지 않는다.
+- Provider Readiness PR0은 managed fingerprint `4bf4529a11a0699f8932929a6ec93bc13c53b765fcabf54f60f83cad7e0216ba`의 10-asset root가 partial/stale preparation이며 query-ready `entity_evidence_v1` 입력이 아님을 확인했다.
+- PR1 job `7c5196d45b70435eb3a5611fbe3f2b3f`은 fresh Niagara evidence 380/599, asset/entity index와 filtered list query 3 Entity를 deterministic하게 PASS했다.
+- provider report SHA-256은 `9888b7b0093613f0cc30ccd8e1b8a189d5155c75ab4e9279928fd21ad797681b`, closure summary SHA-256은 `ee1a590060f50f05be850e96c3e468b644ec25e9ed28e0edb35058d9fea4fefa`다.
+- PR2는 `A. No product defect / preparation mismatch`, PR3 Product 변경 없음, PR4 Provider Ready로 완료됐다.
+- GoPyMCP Browser actual full chain은 fresh source fingerprint `d86d4aad5dfc18e91dcf390245a05cbb345e519eaced2642543ec817ed42f584`, discover/list/get/expand/context/dependency PASS, native equality PASS, runtime canary PASS와 `failure_count=0`으로 AIRE-G3를 통과했다.
+- AIRE-G4 process-local result_ref/cursor는 완료 증거이며 재사용하지 않는다. Phase 4 구현·검증은 새 task identity와 fresh fixture/provider를 사용한다.
 - v0.7.2 Enhanced Input Summary의 human release review와 기존 maintenance 범위는 별도 항목으로 유지한다.
 
 
@@ -596,21 +664,23 @@ ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 
 ## 3. 마지막 완료 작업 초점
 
-- 작업 ID: `ADUMP-v1.2.0-AIRE-P1`
-- 완료 체크포인트: `AIRE-G1 Native Evidence Contract`
-- 최종 상태: `Completed / Native Entity Core Accepted`
-- 대표 Plan: `Documents/Plan/AIResourceEvidencePhase1Plan_v1.md`
-- controlled fixture: `Content/Validation/BP_ADumpActorFixture.uasset`
-- canonical AIRE-G2 Phase 2 job: `689f823f5212462a802a689b10bebdd3`
-- canonical Phase 2 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260731_140131_972_636c8e31\Reports\phase2_report.json`
-- Phase 2 report SHA-256: `fd7714acbdc6c1f7a51c7624758e67fe0d9c945570b9993e101eebc35e6a14b5`
-- canonical AIRE-G2 Phase 1 job: `335c8f99a67744a98d1a97153f210108`
-- canonical Phase 1 report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260731_234915_045_40fc7523\Reports\phase1_matrix_report.json`
-- Phase 1 report SHA-256: `3fd7cd93f4e56ca46bca48dfbc43e48dff9022770e6b583c61d495cd20e98e53`
-- Phase 1 closure: `Documents/Plan/AIResourceEvidencePhase1Close_v1.md`
+- 작업 ID: `ADUMP-v1.2.0-AIRE-P4-N2-SOURCE`
+- 완료 체크포인트: `P4-N2 Native Deep Evidence Source-only Closure`
+- 최종 상태: `Completed / P4_N2_SOURCE_PASS / failure_count=0`
+- 대표 Plan: `Documents/Plan/AIResourceEvidencePhase4Plan_v1.md` v1.11
+- authoritative Source result: `Documents/Plan/AIREP4N2SourceResult.md` v1.0
+- authoritative Content result: `Documents/Plan/AIREP4N2ContentResult.md` v1.0
+- final process job: `08e5781c9a0e4a96938eec7a7eaab6c1`
+- final report: `C:\Users\chaeksong\AppData\Local\Temp\AssetDumpP4N2SourceReports\p4_n2_source_report_20260806_045423_584_3f6a0e31.json`
+- final report SHA-256: `c40f91b61365b71ac709878b0492b014803c147829b838343a1bf4122cb0c914`
+- canonical Phase 2 SHA-256: `c457eefe06ab334c398beaba05c133dc80f7add9edd1d5b77f0fc0e3c097b2be`
+- canonical Phase 1 Matrix SHA-256: `f659a2b9173026f53fa7ad4a6a83bf437993f886a87f903d0f18c80c6a30f5b0`
+- Source closure 시 repository Content: exact 12 before/after / tracked write 0
+- 후속 Content closure: exact five accepted / exact 17 / P4_N2_CONTENT_PASS
+- 다음 사용자 결정: P4-N3/P4-N4 범위와 authorization 별도 검토
 - 마지막 완결 공개 기능 계약은 계속 `ADUMP-v1.0.2-AICB Completed / Contract Accepted`다.
 
-상세 AIRE-G1 계약과 canonical 검증 증거는 2절과 4절을 따른다.
+상세 Source closure와 runner finalization correction은 `AIREP4N2SourceResult.md` v1.0, tracked Content closure와 exact-five baseline은 `AIREP4N2ContentResult.md` v1.0을 따른다.
 
 ---
 
@@ -619,27 +689,69 @@ ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 현재 상태:
 
 ```text
-lifecycle: Feature Development Reactivated / Phase 2 Accepted / Phase 3 Not Started
+lifecycle: Feature Development Reactivated / P4-N4 Closed / P4_N4_PASS / 40 PASS / 0 FAIL
 active_feature: ADUMP-v1.2.0-AIRE
-active_subtask: none / Phase 3 not authorized
-completed_subtask: ADUMP-v1.2.0-AIRE-P2
+completed_subtask: ADUMP-v1.2.0-AIRE-P4-N2-CONTENT / P4_N2_CONTENT_PASS
+completed_source_subtask: ADUMP-v1.2.0-AIRE-P4-N2-SOURCE / P4_N2_SOURCE_PASS
 parent_feature: ADUMP-v1.2.0-AIRE
 completed_phase: Phase 1 — Entity Evidence Core / Native Entity Core Accepted
 completed_phase_2: Phase 2 — Niagara MVP Adapter / Completed / Accepted
-current_phase: Phase 3 — GoPyMCP Consumer Integration / Not Started
+completed_phase_3: Phase 3 — GoPyMCP Consumer Integration / Completed
+current_phase: Phase 4 — Niagara Deep Evidence / Completed / P4_N4_PASS
 completed_gate_AIRE_G1: PASS / Contract Accepted
 completed_gate_AIRE_G2: PASS / Contract Accepted
 completed_gate_P2_N1: PASS / Source Change Check
 completed_gate_P2_N2: PASS / Native Niagara Evidence
 completed_gate_P2_N3: PASS / Index Query Context
 completed_gate_P2_N4: PASS / Phase Close / Niagara MVP Adapter Accepted
-next_gate: AIRE-G3/G4 — GoPyMCP Consumer Integration / Not Started
-representative_plan: Documents/Plan/AIResourceEvidencePhase2Plan_v1.md
+completed_gate_PROVIDER_READY: PASS / Classification A / 2026-08-04
+completed_gate_P3_P2B: PASS / Browser Actual Full Chain / 2026-08-05
+completed_gate_AIRE_G3: PASS / failure_count=0 / 2026-08-05
+completed_gate_AIRE_G4: PASS / 12 of 12 / failure_count=0 / 2026-08-05
+completed_gate_P4_P0_PLANNING: PASS / 2026-08-05
+completed_gate_P4_P0_CONTRACT_REVIEW: PASS / Accepted / 2026-08-05
+completed_gate_P4_N0: NO_GO under frozen contract / 2026-08-05
+completed_gate_P4_CR1: Accepted Revised Contract / 2026-08-05
+completed_gate_P4_N0R: GO_REDUCED / failure_count=0 / 2026-08-05
+completed_gate_P4_N1: PASS / P4_N1_PASS / failure_count=0 / 2026-08-05
+completed_gate_P4_N2_SOURCE: PASS / P4_N2_SOURCE_PASS / failure_count=0 / 2026-08-06
+completed_gate_P4_N2_CONTENT: PASS / P4_N2_CONTENT_PASS / failure_count=0 / Exact 17 Accepted / 2026-08-06
+completed_validation_P4_N3: P4_N3_PASS / 60 of 60 / failure_count=0 / protection PASS / 2026-08-07
+completed_review_P4_N3_SOURCE_DEFECT_AUTH: Authorization Exercised / Historical / 2026-08-06
+P4_N4_original_authorization: Documents/Plan/AIResourceEvidencePhase4P4N4ControlledConsumerAuthorizationReview.md v1.0 / Exercised / Historical
+P4_N4_authorization_revision: Documents/Plan/AIResourceEvidencePhase4P4N4AuthorizationRevision.md v1.0 / revised contract v1.1 / Exercised / Historical contract
+P4_N4_result: Documents/Plan/AIREP4N4Result.md v1.4 / P4_N4_PASS / r4 40 PASS / 0 FAIL
+P4_N4_fresh_preparation: P4_N3_PASS / 60 of 60 / protection PASS
+P4_N4_provider_registration: PASS at verification time
+P4_N4_provider_root: MATCHED_PROVIDER_ROOT
+P4_N4_revised_exact_40: r2 39/40 Historical / r3 39/40 Historical / r4 40/40 Accepted
+current_gate: P4-N4 Closed / AIRE-G5 and AIRE-G6 remain separate authorization gates
+representative_plan: Documents/Plan/AIResourceEvidencePhase4Plan_v1.md v1.20
+contract_review: Documents/Plan/AIResourceEvidencePhase4ContractReview.md v1.9
+contract_revision: Documents/Plan/AIResourceEvidencePhase4ContractRevision.md v1.2
+authorization_review: Documents/Plan/AIResourceEvidencePhase4P4N1AuthorizationReview.md v1.1 / Authorization Exercised
+P4_N1_result: Documents/Plan/AIREP4N1Result.md v1.0 / PASS
+P4_N2_source_authorization: Documents/Plan/AIResourceEvidencePhase4P4N2SourceAuthorizationReview.md v1.1 / Authorization Exercised / Historical
+P4_N2_source_result: Documents/Plan/AIREP4N2SourceResult.md v1.0 / P4_N2_SOURCE_PASS / failure_count=0
+P4_N2_content_gate: Documents/Plan/AIResourceEvidencePhase4P4N2ContentAuthorizationGate.md v1.3 / Authorization Exercised / Historical
+P4_N2_content_result: Documents/Plan/AIREP4N2ContentResult.md v1.0 / P4_N2_CONTENT_PASS / failure_count=0 / Exact 17 Accepted
+P4_N3_authorization: Documents/Plan/AIResourceEvidencePhase4P4N3AuthorizationReview.md v1.1 / Authorization Exercised / Historical
+P4_N3_result: Documents/Plan/AIREP4N3Result.md v2.0 / P4_N3_PASS / 60 of 60 / failure_count=0 / protection PASS
+P4_N3_source_defect_authorization_review: Documents/Plan/AIResourceEvidencePhase4P4N3SourceDefectAuthorizationReview.md v1.0 / Authorization Exercised / Historical
+P4_N0_result: Documents/Plan/AIResourceEvidencePhase4SpikeResult.md v1.1 / NO_GO
+P4_N0R_result: Documents/Plan/AIREP4N0RResult.md v1.0 / GO_REDUCED
+P4_N0R_report_sha256: e8a03870bd8b7ef05bcb76dcf99642079ffa192037857b02a40263115ec60ec2
+P4_N0R_summary_sha256: 97339a1f0a7f2b76d0cde4ad23cf894aff7f9532e2caa31bf88cfc08e7a8114b
+consumer_result: Documents/Plan/AIResourceEvidenceG4Result.md v1.0
+provider_closure: Documents/Plan/AIREP3ProviderReady.md v1.1.0
 AIRE_G0: PASS / Contract Frozen / 2026-07-31
 AIRE_G1: PASS / Contract Accepted / 2026-07-31
 AIRE_G2: PASS / Contract Accepted / 2026-07-31
-implementation_authorization: Phase 2 Completed / Phase 3 Not Authorized
-implementation_state: Completed / Niagara MVP Adapter Accepted / MCP Integration Pending
+AIRE_G3: PASS / Browser full chain / native equality / runtime canary / failure_count=0
+AIRE_G4: PASS / Golden Consumer Journey / reports / no manual file access
+implementation_authorization: terminal P4-N4 result/current routing only; Product/Script/Content/Config and GoPyMCP change none
+implementation_state: native provider PASS / registration PASS / root matched / public exact 40 PASS / protection PASS
+next_decision: keep P4-N4 closed; start AIRE-G5/G6 only after separate Plan and user authorization
 Phase_2_foundation_spike: PASS / GO_FOUNDATION
 Phase_2_spike_job: 7de87ae6632b447598e869656c297f4e
 Phase_2_spike_report_sha256: 4c644bd9238a7e339913d9561e16882c2ae309d67d3091aca87ae8124bb5aa45
@@ -703,22 +815,20 @@ P2_N4_Content: source-package-host 12-file exact invariance PASS
 P2_N4_legacy_output_root: absent
 P2_N4_product_source_change: none
 P2_N4_content_change: none
-last_accepted_checkpoint: ADUMP-v1.2.0-AIRE-P2 / Niagara MVP Adapter Accepted
+last_accepted_checkpoint: ADUMP-v1.2.0-AIRE-P3-G4 / Consumer Workflow Accepted
 last_completed_public_contract: ADUMP-v1.0.2-AICB
 accepted_baseline: v0.7.1-v1.0.2 preserved
 role_gate: PASS
 primary_consumer: Browser GPT / AI Agent
 transport_boundary: GoPyMCP
-first_product_vertical_slice: Niagara FX Evidence / Native Adapter Accepted / MCP Integration Pending
+first_product_vertical_slice: Niagara FX Evidence / Browser Consumer Accepted
 nqac_status: Cancelled / Superseded by MCP Direct Query Orchestration / Contract Not Accepted
 phase0_validation: PASS / documentation readback, naming, compatibility, allowlist and Git diff review
 Phase_1_source: Implemented / exact allowlist plus approved single fixture exception
-PowerShell_5_1_self_tests: PASS / Phase 2 v1.18.1 and Phase 1 Matrix v1.4
+PowerShell_5_1_self_tests: PASS / Phase 2 v1.18.13 and Phase 1 Matrix v1.4
 BuildPlugin: PASS / fresh compile and package
-canonical_Phase_2: PASS / v1.18.1 / exit_code=0 / failure_count=0 / P2-N4 Accepted
-canonical_Phase_2_job: 18aa66e698c84477a6a017299dd3cbd2
-canonical_Phase_2_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase2\Run_20260801_063022_733_9e22ff33\Reports\phase2_report.json
-canonical_Phase_2_sha256: 02de5574ba9b0cf2945fe11f96d2270a84c14663790adfda2ea47115e63de56f
+canonical_Phase_2: PASS / v1.18.13 / failure_count=0 / maintenance re-accepted
+canonical_Phase_2_report_sha256: 0399beae972753c5cc0ac623f8a740ce74f7cfa3dfcd4d0e9aa24e94c5542852
 AIRE_G1_Level_2: PASS / five entity kinds, five relation kinds and fallback/source_index
 AIRE_G2_Index_Query_Context: PASS / 26 actual stable failures, filters, bounds, continuation, context and repeat determinism
 Phase_1_matrix: PASS / v1.4 / Phase 2 Niagara evidence reused / exit_code=0 / failure_count=0
@@ -726,7 +836,7 @@ Phase_1_matrix_job: 82eaa9e6c07a4ebabc6aa8aac0cbb08a
 Phase_1_matrix_report: C:\Users\chaeksong\AppData\Local\Temp\AssetDumpStandalonePhase1Matrix\Run_20260801_164615_104_1defaff8\Reports\phase1_matrix_report.json
 Phase_1_matrix_sha256: 3f62df54341b4462945cff67fbb3d6c9f0fb50ae6d0e89adce0c8288698968a5
 Phase_1_close: Documents/Plan/AIResourceEvidencePhase1Close_v1.md
-Consumer_Integration: P3-P1 Accepted / P3-P2A Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / P3-P2B R87 Parked
+Consumer_Integration: Completed / AIRE-G3+G4 PASS / Browser Consumer Accepted / failure_count=0
 ```
 
 과거 NQAC 구현·BuildPlugin·실패 report의 세부 수치는 `ImplementationResultLog_v1.md`의 역사 기록에서만 확인한다.
@@ -761,7 +871,7 @@ validation exact invariance: PASS
 git diff --check: PASS
 binary fixture changes: none
 closure report: Documents/Plan/AssetIntelligencePlan/v1_0_2_AIContextBundleClose_v1.md
-next_candidate: local executor availability, then AssetDumpEvidenceMCPPlan.md v1.2.1 + AssetDumpEvidenceStaticReview.md v1.0.0 + Codex_AssetDumpEvidenceMCP.md v1.2.1 P3-P2A source implementation
+next_candidate: new request identity + fresh managed provider registration + discover/entity_query/entity_context/dependency_query actual chain
 ```
 
 v0.7.2 Enhanced Input Summary human release review와 이전 accepted closures는 별도 완료 이력으로 유지한다.
@@ -803,6 +913,35 @@ validation-content exact restoration 계약
 ---
 
 ## 7. Changelog
+
+### v1.94 - 2026-08-05
+
+- GoPyMCP Browser actual discover/list/get/expand/entity_context/dependency_query full chain과 multi-kind transport를 PASS로 반영했다.
+- native stable-field equality, endpoint closure, bounds·fingerprint·provenance, runtime canary와 actual Consumer `failure_count=0`을 근거로 AIRE-G3를 PASS로 전환했다.
+- current gate를 P3-P4 AIRE-G4 Golden Consumer Journey로 이동했다.
+- AssetDump Source·tracked Scripts·Content와 accepted schema 추가 변경은 없었다.
+
+### v1.93 - 2026-08-04
+
+- Provider Readiness PR0~PR4 actual closure와 Classification A 판정을 반영했다.
+- current managed 10-asset root의 partial preparation과 AssetDump Product defect를 분리했다.
+- isolated fresh Niagara evidence/index/query, repeat determinism과 source/host 12-file Content invariance PASS를 기록했다.
+- `ADUMP-v1.2.0-AIRE-P3-PR`을 Completed / Provider Ready로 닫고 current gate를 GoPyMCP actual Consumer validation으로 전환했다.
+- AIRE-G3는 Provider Ready만으로 PASS 처리하지 않고 full public chain 전까지 Partial Actual / Not Accepted로 유지했다.
+
+### v1.92 - 2026-08-04
+
+- `EntityKinds`, `RelationKinds`, `Facets` comma-list가 첫 항목에서 잘리던 provider CLI 결함을 `ADumpEntityQuery.cpp` v1.3.1로 교정한 maintenance closure를 기록했다.
+- fresh BuildPlugin과 canonical Phase 2 v1.18.13에서 filtered relation coverage, endpoint closure, Entity Evidence, AIRE-G2, Niagara, Content invariance와 P2B 전체 PASS를 반영했다.
+- provider readiness의 NiagaraSystem 0건/entity index missing 조사와 이번 comma-list parser 결함을 별개 원인으로 유지했다.
+- 현재 활성 작업 `ADUMP-v1.2.0-AIRE-P3-PR`과 AIRE-G3/G4 상태는 변경하지 않았다.
+
+### v1.91 - 2026-08-03
+
+- GoPyMCP facade 구현·Browser 18 publication·discover transport PASS와 AssetDump provider dataset blocker를 현재 상태에 반영했다.
+- 직전 Blueprint-only one-asset no-rebuild smoke를 Product Source defect 증거로 사용하지 않도록 교정했다.
+- `ADUMP-v1.2.0-AIRE-P3-PR`과 `Documents/Plan/AIREP3ProviderReady.md`를 현재 AssetDump 작업으로 등록했다.
+- PR0 read-only baseline, PR1 isolated preparation과 PR2 원인 분류 전에는 Source·Scripts·Content 수정을 금지했다.
 
 ### v1.90 - 2026-08-02
 
@@ -1476,6 +1615,30 @@ validation-content exact restoration 계약
 ---
 
 ## 8. Migration
+
+### v1.94 AIRE-G3 acceptance 및 AIRE-G4 이관 안내
+
+- AIRE-G3는 GoPyMCP Browser actual full chain, native equality, runtime canary와 `failure_count=0`으로 PASS다.
+- AIRE-G3 재검증이 목적이 아닌 다음 세션은 P3-P4 AIRE-G4 Golden Consumer Journey에서 시작한다.
+- process-local result_ref/cursor는 세션 간 재사용하지 않고 새 `client_request_id`와 fresh discover부터 실행한다.
+- AIRE-G4는 공개 GoPyMCP 도구만 사용하며 로컬 dump/index 파일 직접 접근, `repo.read_batch` 우회와 수동 JSON 복사를 금지한다.
+- AssetDump Product Source·tracked Scripts·Content와 accepted schema는 AIRE-G4를 위해 변경하지 않는다.
+
+### v1.93 Provider Ready handoff 안내
+
+- `ADUMP-v1.2.0-AIRE-P3-PR`은 Completed / Provider Ready / Classification A다.
+- Current 실행 진입점은 `Documents/Plan/AIResourceEvidencePhase3Plan_v1.md`이며 Provider Plan은 closure 증거다.
+- GoPyMCP actual validation은 새 request identity와 fresh managed provider registration을 사용한다.
+- managed fingerprint `4bf4529a...`의 10-asset root와 이전 result_ref/cursor는 재사용하지 않는다.
+- AssetDump Product Source, tracked Scripts, Content와 accepted schema는 추가 변경하지 않는다.
+
+### v1.91 Provider Readiness 이관 안내
+
+- 다음 AssetDump 세션은 `Documents/Plan/AIREP3ProviderReady.md`에서 시작한다.
+- GoPyMCP facade와 Browser publication은 완료 증거로 보존하며 AssetDump 저장소에서 다시 구현하지 않는다.
+- 직전 Blueprint-only partial managed output을 Phase 2 accepted Niagara baseline의 실패로 해석하지 않는다.
+- fresh Niagara `asset_index_v1`, valid `entity_index_v1`과 `entityquery list` positive를 확보한 뒤 GoPyMCP actual Consumer chain으로 돌려보낸다.
+- PR2에서 실제 결함 범주가 확정되기 전에는 Source·Scripts·Content exact allowlist를 열지 않는다.
 
 ### v1.79 Phase 1 Native Entity Core closure 안내
 

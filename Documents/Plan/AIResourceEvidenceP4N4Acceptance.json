@@ -1,0 +1,140 @@
+{
+  "schema_version": "p4_n4_consumer_acceptance_v1",
+  "task_id": "ADUMP-v1.2.0-AIRE-P4-N4",
+  "attempt": "r4",
+  "authorization_contract": "P4-N4 revised exact 40 v1.1",
+  "workflow": "niagara_deep_fx_report_v1",
+  "consumer": "browser_gpt",
+  "transport": "gopymcp",
+  "mcp_surface": "ue.assetdump_evidence_safe",
+  "client_request_ids": [
+    "assetdump-p4-n4-r4-b-20260807",
+    "assetdump-p4-n4-r4-c-20260807",
+    "assetdump-p4-n4-r4-d-20260807"
+  ],
+  "provider_profile": "niagara_deep_evidence",
+  "adapter_profile": "niagara_deep_v1",
+  "asset_object_path": "/AssetDump/Validation/NS_ADumpDeep.NS_ADumpDeep",
+  "source_fingerprint": "5DF4597A",
+  "provider_registration": {
+    "registration_state": "active",
+    "selected_provider": "explicit",
+    "provider_fingerprint": "ecdda1d89deb3ea536d40d8347d5955760d20c230bdae181560b67db2985bb3d",
+    "server_instance_id": "b1ad6a1129a65b32bbf4e8f4f40d1f88",
+    "registration_ids": [
+      "adprov_v1_58342987cb6173c1cbad1d17b002767f",
+      "adprov_v1_ea380875cf289313ad813eb50b2dfb8d",
+      "adprov_v1_1f0ceda2e85b42a296359fe9f8d6c226"
+    ],
+    "evidence_path": "C:\\Users\\chaeksong\\AppData\\Local\\Temp\\AssetDumpP4N4Registration\\p4_n4_r4_registration_20260807_045618_708.json",
+    "evidence_sha256": "8160f73a543021d550b8dfcae65415be7c68ec2c6ee9f509b114f6a097d21272"
+  },
+  "case_accounting": {
+    "required_case_count": 40,
+    "passed_case_count": 40,
+    "failed_case_count": 0,
+    "blocked_case_count": 0,
+    "skipped_case_count": 0,
+    "failure_count": 0,
+    "groups": {
+      "A": {"passed": 8, "required": 8},
+      "B": {"passed": 16, "required": 16},
+      "C": {"passed": 8, "required": 8},
+      "D": {"passed": 8, "required": 8}
+    }
+  },
+  "public_execution": {
+    "actual_call_count": 28,
+    "successful_positive_call_count": 24,
+    "intentional_negative_call_count": 4,
+    "unexpected_failure_count": 0,
+    "group_call_counts": {"B": 11, "C": 7, "D": 10}
+  },
+  "native_equality": {
+    "native_entity_count": 26,
+    "native_relation_count": 38,
+    "public_full_list_entity_count": 26,
+    "public_full_list_relation_count": 0,
+    "module_output_count": 4,
+    "zero_instance_case_count": 8,
+    "passed": true
+  },
+  "evidence_traceability": {
+    "system_entity_id": "entity_000001",
+    "module_output_entity_id": "entity_000022",
+    "writes_parameter_relation_id": "relation_000034",
+    "parameter_endpoint_entity_id": "entity_000015",
+    "explicit_zero_count_records": 8,
+    "unresolvable_evidence_ref_count": 0,
+    "passed": true
+  },
+  "bounds_and_reason_transport": {
+    "max_entities_passed": true,
+    "max_relations_passed": true,
+    "query_max_bytes_passed": true,
+    "context_max_items_passed": true,
+    "context_max_bytes_passed": true,
+    "source_truncation_reason_order_equal": true,
+    "continuation_recovery_passed": true,
+    "no_false_truncation_passed": true,
+    "passed": true
+  },
+  "negative_and_determinism": {
+    "stale_result_ref_code": "ue_assetdump_evidence_result_ref_stale",
+    "foreign_cursor_provider_code": "ADUMP_ENTITY_CURSOR_STALE",
+    "missing_selector_code": "ue_assetdump_evidence_input_invalid",
+    "unknown_kind_provider_code": "ADUMP_ENTITY_OPERATION_UNSUPPORTED",
+    "repeat_get_stable_fields_equal": true,
+    "repeat_list_stable_fields_equal": true,
+    "repeat_context_stable_fields_equal": true,
+    "generated_time_compared": false,
+    "result_ref_compared": false,
+    "passed": true
+  },
+  "protection": {
+    "assetdump_protected_mismatch_count": 0,
+    "gopymcp_protected_mismatch_count": 0,
+    "specified_cov_file_mismatch_count": 0,
+    "prohibited_call_count": 0,
+    "manual_file_access_used": false,
+    "product_source_changed": false,
+    "exact_17_changed": false,
+    "gopymcp_source_changed": false,
+    "carfight_accessed": false,
+    "runtime_restarted": false,
+    "destructive_git_operation_count": 0,
+    "commit_push_count": 0,
+    "passed": true
+  },
+  "artifacts": {
+    "fx_report_path": "Documents/Plan/AIResourceEvidenceP4N4FXReport.md",
+    "native_equality": {
+      "path": "C:\\Users\\chaeksong\\AppData\\Local\\Temp\\AssetDumpP4N4Reports\\P4N4R4_20260807_050827_015\\p4_n4_native_equality.json",
+      "size_bytes": 21913,
+      "sha256": "174190f5860b7b78d988db9723f0c1ec788d689f2d3179373e11556163bfd8c5"
+    },
+    "consumer_session": {
+      "path": "C:\\Users\\chaeksong\\AppData\\Local\\Temp\\AssetDumpP4N4Reports\\P4N4R4_20260807_050827_015\\p4_n4_consumer_session.json",
+      "size_bytes": 11480,
+      "sha256": "063a04d5c024baec097635f383bd41d035f25f912df38450653d7d50256415e6"
+    },
+    "summary": {
+      "path": "C:\\Users\\chaeksong\\AppData\\Local\\Temp\\AssetDumpP4N4Reports\\P4N4R4_20260807_050827_015\\p4_n4_summary.json",
+      "size_bytes": 15947,
+      "sha256": "9d18033086a261a4edbe03fca3dbfffa3ede535f618f11e07ab25147788ecf12"
+    }
+  },
+  "required_case_count": 40,
+  "passed_case_count": 40,
+  "failure_count": 0,
+  "native_equality_passed": true,
+  "evidence_traceability_passed": true,
+  "bounds_and_reason_transport_passed": true,
+  "manual_file_access_used": false,
+  "product_source_changed": false,
+  "exact_17_changed": false,
+  "gopymcp_source_changed": false,
+  "carfight_accessed": false,
+  "classification": "P4_N4_PASS",
+  "passed": true
+}

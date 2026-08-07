@@ -1,19 +1,52 @@
 # Niagara Evidence Contract
 
-- 문서 버전: v1.2
-- 최근 갱신일: 2026-08-01
-- 문서 상태: Current / MVP Scope Frozen / UE 5.8 Foundation Spike Passed / Implementation Authorized
+- 문서 버전: v1.8
+- 최근 갱신일: 2026-08-05
+- 문서 상태: Current / MVP Accepted / Phase 4 Accepted Revised Contract / P4-N0R GO_REDUCED / Implementation Not Authorized
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
+
+## Phase 4 Reduced Validation Override — 2026-08-05
+
+```text
+Phase 2 MVP: Completed / Accepted
+Phase 3 Consumer Workflow: Completed / AIRE-G3+G4 Passed
+P4-N0 frozen contract actual: Completed / NO_GO
+Contract Revision: Accepted / v1.2
+P4-N0R: Completed / GO_REDUCED / failure_count=0
+linked parameter: partial provenance validated
+Static Switch: conditional exactness and explicit partial validated
+fixture determinism: semantic identity + reload topology + normalized evidence PASS
+package byte identity: FAIL 5/5 / diagnostic only
+Phase 4 Product implementation: Not Authorized
+representative Plan: AIResourceEvidencePhase4Plan_v1.md v1.6
+review: AIResourceEvidencePhase4ContractReview.md v1.5
+frozen result: AIResourceEvidencePhase4SpikeResult.md v1.1
+reduced result: AIREP4N0RResult.md v1.0
+revision: AIResourceEvidencePhase4ContractRevision.md v1.2
+```
+
+Phase 4 Deep registry와 Facet contract는 validation 가능한 Accepted Revised Contract다. 아직 Product implementation이나 runtime output은 존재하지 않으며 MVP contract와 output은 변경하지 않는다.
+
+```text
+activation Profile contract: niagara_deep_evidence
+adapter profile contract: niagara_deep_v1 / exact 18 Entity / 12 Relation
+new Entity contract: exact 6 / append-only
+new Relation contract: reads_parameter, writes_parameter / append-only
+new top-level schema/command/option name: none
+```
+
+### v1.8 Changelog / Migration
+
+- actual UE 5.8 P4-N0R `GO_REDUCED`를 Niagara Deep contract 상태에 반영했다.
+- linked partial provenance, Static Switch explicit partial과 semantic/reload/evidence determinism PASS를 등록했다.
+- package byte mismatch는 diagnostic으로 보존했다.
+- Product 구현은 별도 P4-N1 승인 전까지 시작하지 않는다.
 
 ---
 
 ## 1. 현재 기준선
 
-현재 AssetDump Source에는 Niagara 전용 Adapter, `UNiagaraSystem` 처리, Niagara module dependency와 공개 Niagara section/schema가 없다.
-
-이 문서는 구현 완료 상태가 아니라 `AIRE-G0`에서 승인한 Niagara MVP 제품 계약이다.
-
-Phase 2 시작 전에 대상 UE 버전의 Niagara Editor API, versioned emitter data, stack entry, input store와 Rapid Iteration 접근 가능성을 spike로 검증한다.
+Phase 2 Niagara MVP Adapter와 Phase 3 Browser Consumer workflow는 완료·승인 상태다. Frozen P4-N0는 `NO_GO`였고, 사용자 승인으로 수정된 Deep 계약은 actual P4-N0R에서 `GO_REDUCED`로 검증됐다. 이는 Product 구현 전제의 기술 검증이며 Source·tracked Content 구현은 아직 승인되지 않았다.
 
 ---
 
@@ -65,8 +98,8 @@ niagara_dynamic_input
 niagara_static_switch
 niagara_rapid_iteration_value
 niagara_module_output
-niagara_parameter_write
 niagara_parameter_read
+niagara_parameter_write
 ```
 
 Dynamic Input의 존재·script reference는 MVP Module Input에서 관측할 수 있지만 중첩 tree 전체는 Deep Evidence다.

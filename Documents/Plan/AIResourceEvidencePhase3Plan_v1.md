@@ -1,14 +1,37 @@
 # AI Resource Evidence Phase 3 — GoPyMCP Consumer Integration Plan v1
 
-- 문서 버전: v1.5
-- 최근 갱신일: 2026-08-02
-- 문서 상태: Current / P3-P2A Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / P3-P2B Runtime Validation Blocked
+- 문서 버전: v1.11
+- 최근 갱신일: 2026-08-05
+- 문서 상태: Completed / AIRE-G3+G4 Passed / Consumer Workflow Accepted
 - 작업 ID: `ADUMP-v1.2.0-AIRE-P3`
 - 상위 작업: `ADUMP-v1.2.0-AIRE`
 - 선행 상태: `Phase 2 Completed / Niagara MVP Adapter Accepted`
 - 대상 Gate: `AIRE-G3 MCP Exposure`, `AIRE-G4 Consumer Workflow`
-- AssetDump 변경 범위: Documents only
-- GoPyMCP 변경 범위: 이 문서 승인 후 별도 GoPyMCP Plan·구현 작업이 소유
+- AssetDump 변경 범위: Provider readiness closure와 Consumer acceptance documentation
+- GoPyMCP 변경 범위: Facade 구현·publication·actual Consumer validation 완료
+
+## Final Phase 3 Acceptance — 2026-08-05
+
+```text
+P3-P2B Runtime Integration: PASS
+P3-P3 AIRE-G3 MCP Exposure: PASS
+P3-P4 AIRE-G4 Consumer Workflow: PASS
+accepted G4 request: aire-g4-final-20260805-1050-kst
+public calls: 12 / 12 succeeded
+continuation / result-ref chain / required evidence coverage: PASS
+stable-field determinism: PASS
+manual_file_access_used: false
+failure_count: 0
+Phase 3: Completed / Consumer Workflow Accepted
+```
+
+Authoritative G4 Result는 `AIResourceEvidenceG4Result.md` v1.0이다. Result references와 cursors는 process-local evidence로 보존하며 후속 세션에서 재사용하지 않는다.
+
+### v1.11 Changelog / Migration
+
+- AIRE-G4 reports와 actual 12-call journey를 수용해 Phase 3를 완료했다.
+- 아래의 과거 Ready/Pending/Not Accepted 기록은 실행 이력이며 이 Final Acceptance가 현재 판정을 소유한다.
+- 후속 Phase 4는 별도 task identity와 사용자 승인 전에는 시작하지 않는다.
 
 ---
 
@@ -44,7 +67,7 @@ dependency_trace_query_v1: accepted
 Blueprint-only registry: exact 5 Entity / 5 Relation
 Niagara adapter registry: accepted additive registry
 controlled Content/Validation baseline: exact 12 files
-canonical Phase 2 v1.18.1: failure_count=0
+canonical Phase 2 v1.18.13 maintenance re-acceptance: failure_count=0
 canonical Phase 1 Matrix v1.4: failure_count=0
 ```
 
@@ -248,11 +271,12 @@ ue.assetdump_evidence_safe
 상태:
 
 ```text
-contract candidate
-review ready
-not implemented
-not exposed
-not accepted
+implemented in GoPyMCP
+Browser-only exact 18 published
+actual discover transport PASS
+AssetDump provider readiness PASS / Classification A
+full entity/context/dependency chain pending
+AIRE-G3 not accepted
 ```
 
 설계 이유:
@@ -608,79 +632,65 @@ P3-P1은 완료됐다. 후속 구현은 P3-P2A Offline Implementation과 P3-P2B 
 
 ### P3-P2A — Offline Source Implementation
 
-상태: `Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented`
+상태: `Complete / Offline Contract Passed`
 
-GoPyMCP 저장소와 독립 로컬 Codex가 소유한다.
+GoPyMCP 저장소에서 Browser-only facade, closed schema, immutable argv, result reference/cursor, response bounds, provider error projection과 mocked/static compatibility tests가 구현됐다.
 
-허용 범위:
-
-- Browser-only public schema와 registry integration source
-- operation-specific validation
-- immutable provider argv builder
-- managed result reference store와 discovery cursor
-- response byte accounting과 stable failure envelope
-- exact `ADUMP_*` provider error projection
-- mocked subprocess, synthetic index와 fixture 기반 unit/integration/compatibility tests
-- Browser 18 / existing 17 preservation / Compatibility 152 static verification
-- public contract, Golden Path, Error Guide와 implementation result 문서
-
-P3-P2A 금지 범위:
-
-- R87 수정
-- runtime config 변경
-- 실제 UnrealEditor-Cmd process 실행
-- 실제 `ue.batchdump_safe` 또는 evidence tool smoke
-- current-session Browser tools/list 18개 주장
-- connector refresh 또는 AIRE-G3 PASS 주장
-
-P3-P2A 완료 상태:
+완료 증거:
 
 ```text
-GPMCP-ADUMP-EVIDENCE
-= Source Implemented / Offline Contract Passed / Runtime Validation Blocked
+Browser source count: 18
+existing Browser 17 subset: preserved
+Compatibility 152: preserved
+mandatory offline vectors: PASS
+actual Browser publication: 별도 P3-P2B에서 확인
 ```
+
+이 단계는 완료 이력으로 보존하며 AssetDump 저장소에서 재구현하지 않는다.
 
 ### P3-P2B — Runtime Integration and Actual Validation
 
-상태: `Blocked / R87 Runtime Recovery Unavailable`
+상태: `Completed / Browser Actual Full Chain PASS / 2026-08-05`
 
-R87가 해결된 이후에만 다음을 수행한다.
+완료된 실제 증거:
 
-- dedicated AssetDump environment actual resolution
-- actual `ue.batchdump_safe` Windows smoke
-- UnrealEditor-Cmd child process와 fresh provider output
-- discover/query/context/dependency actual operation matrix
-- direct native JSON equality
-- running Browser App publication과 connector refresh
+- dedicated AssetDump environment와 fresh managed provider registration
+- Browser exact 18 publication과 current runtime reload
+- `ue.assetdump_evidence_safe` discover/list/get/expand/entity_context/dependency_query full chain
+- comma-list multi-kind transport preservation
+- expand endpoint closure와 query→context result-ref chain
+- bounds·fingerprint·provenance·truncation 일관성
+- native stable-field equality
+- runtime canary와 actual Consumer `failure_count=0`
 
-AssetDump Source·Content는 P3-P2A와 P3-P2B 모두 변경 대상이 아니다.
+AssetDump provider readiness는 `AIREP3ProviderReady.md`가 소유하며 `Classification A / No Product Defect`다. P3-P2B에서 AssetDump Source·Scripts·Content 추가 변경은 없었다.
 
 ### P3-P3 — AIRE-G3 MCP Exposure
 
-상태: `Not Started`
+상태: `PASS / Browser Actual Full Chain / 2026-08-05`
 
-통과 조건:
+통과 증거:
 
 ```text
-actual tools/list contains approved canonical surface
-actual input schema equals approved contract
-dedicated AssetDump environment diagnostics PASS
-actual ue.batchdump_safe Windows smoke PASS
-actual discover PASS
-actual entity_query list/get/expand PASS
-actual entity_context PASS
-actual dependency_query PASS
-provider native equality PASS
-transport/provider error separation PASS
-result_ref valid/stale/invalid matrix PASS
-continuation and response bound PASS
+actual tools/list approved canonical surface: PASS
+actual input schema approved contract: PASS
+dedicated AssetDump environment diagnostics: PASS
+fresh provider registration and discover: PASS
+entity_query list/get/expand: PASS
+entity_context: PASS
+dependency_query: PASS
+provider native equality: PASS
+multi-kind transport and endpoint closure: PASS
+continuation/result-ref/response bounds: PASS
 manual_file_access_used = false
-AssetDump Source/Content diff = 0
+AssetDump Source/Content additional change = 0
+runtime canary = PASS
+failure_count = 0
 ```
 
 ### P3-P4 — AIRE-G4 Consumer Workflow
 
-상태: `Not Started`
+상태: `Ready / Golden Consumer Journey Not Yet Executed`
 
 통과 조건:
 
@@ -1004,6 +1014,63 @@ R87가 Accepted되지 않아도 Work Order는 P3-P2A Source·static/mock contrac
 
 ---
 
+## 12.2 Actual Integration 상태와 Provider Readiness 분리
+
+2026-08-03 actual 결과로 GoPyMCP transport와 AssetDump provider 준비를 분리한다.
+
+```text
+GoPyMCP facade source: Implemented
+Offline contract tests: PASS
+Browser Action count: exact 18
+ue.assetdump_evidence_safe publication: PASS
+bounded ue.batchdump_safe: PASS / UnrealEditor-Cmd return code 0
+structured discover transport: PASS
+NiagaraSystem matched_count: 0
+entity_index_status: missing
+entity_query/context/dependency actual: Not Run
+AIRE-G3: Not Accepted
+AIRE-G4: Not Started
+```
+
+직전 managed smoke는 다음과 같이 partial output을 의도한 호출이었다.
+
+```text
+class_filter: Blueprint
+max_assets: 1
+rebuild_index: false
+```
+
+따라서 후속 Niagara discover 0건과 entity index missing은 AssetDump Product Source defect의 충분한 증거가 아니다. Phase 2 accepted baseline에는 controlled `NS_ADumpMvp.uasset`, `NE_ADumpMvp.uasset`, Niagara-only/mixed `entity_index_v1`과 entityquery/entitycontext actual PASS가 존재한다.
+
+2026-08-04 maintenance에서 이 provider-readiness blocker와 별개인 comma-list CLI 결함을 확인했다. `EntityKinds`, `RelationKinds`, `Facets`가 첫 항목에서 잘리던 `ADumpEntityQuery` parser를 v1.3.1로 교정했고 fresh BuildPlugin과 canonical Phase 2 v1.18.13에서 Entity Evidence, AIRE-G2, Niagara closure, Content invariance와 P2B 전체 PASS를 재확인했다. 이 maintenance acceptance는 NiagaraSystem 0건/entity index missing의 원인 판정을 변경하지 않는다.
+
+현재 AssetDump 작업은 다음 문서가 소유한다.
+
+```text
+Documents/Plan/AIREP3ProviderReady.md
+work ID: ADUMP-v1.2.0-AIRE-P3-PR
+state: Investigation Ready / Source Defect Not Proven
+```
+
+AssetDump는 isolated provider preparation에서 fresh Niagara `asset_index_v1`, valid `entity_index_v1`과 entityquery list positive를 확보했다.
+
+```text
+Provider Readiness: PASS / Classification A
+job: 7c5196d45b70435eb3a5611fbe3f2b3f
+report SHA-256: 9888b7b0093613f0cc30ccd8e1b8a189d5155c75ab4e9279928fd21ad797681b
+summary SHA-256: ee1a590060f50f05be850e96c3e468b644ec25e9ed28e0edb35058d9fea4fefa
+object_path: /AssetDump/Validation/NS_ADumpMvp.NS_ADumpMvp
+asset_id: asset_0000
+fingerprint: 454F9F22
+entity evidence/index: 380 entities / 599 relations
+filtered list query: 3 entities / succeeded / deterministic
+Source/tracked Scripts/Content correction: none
+```
+
+기존 managed fingerprint `4bf4529a11a0699f8932929a6ec93bc13c53b765fcabf54f60f83cad7e0216ba`의 10-asset dataset은 partial preparation으로 분류하며 actual Consumer input으로 재사용하지 않는다. GoPyMCP는 새 request identity와 fresh managed provider registration으로 entity query/context/dependency chain을 재개한다.
+
+---
+
 ## 13. 변경 허용 범위
 
 ### 이번 planning 작업
@@ -1069,28 +1136,65 @@ GoPyMCP executable/runtime files
 Phase 2 baseline: Accepted / Protected
 P3-P0 Public Contract Audit: PASS / Planning Evidence
 P3-P1 Cross-Repository Contract Freeze: PASS / Contract Accepted
-P3-P2A Offline Source Implementation: Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented
-P3-P2B Runtime Integration and Actual Validation: Blocked / R87 Parked Until Runtime Validation
-AIRE-G3 MCP Exposure: Blocked / Runtime Publication Pending
+P3-P2A GoPyMCP Offline Source Implementation: Complete / Offline Contract Passed
+P3-P2B Runtime Integration: Browser Publication and Discover Transport PASS / AssetDump Provider Ready / Full Entity Chain Pending
+AIRE-G3 MCP Exposure: Partial Actual / Provider Ready / Not Accepted
 AIRE-G4 Consumer Workflow: Not Started
 exact MCP tool: ue.assetdump_evidence_safe
-GoPyMCP implementation Plan: AssetDumpEvidenceMCPPlan.md v1.2.1
-Static Contract Review: AssetDumpEvidenceStaticReview.md v1.0.0
-independent Codex Work Order: Codex_AssetDumpEvidenceMCP.md v1.2.1
-mechanical code blueprint: AssetDumpEvidenceBlueprint.md v1.0.1
-synthetic test vectors: AssetDumpEvidenceVectors.md v1.0.1
-R87 status: Runtime Reload Required / does not block P3-P2A
-AssetDump Source change: none
-AssetDump Content change: none
+Browser Action count: exact 18
+GoPyMCP Result: AssetDumpEvidenceMCPResult.md v1.4.0+
+AssetDump Provider Closure: AIREP3ProviderReady.md v1.1.0 / PASS / Classification A
+R87 status: bounded batchdump actual PASS / raw WinError 87 absent
+AssetDump Provider Readiness: PASS / no product defect / preparation mismatch
+Provider report SHA-256: 9888b7b0093613f0cc30ccd8e1b8a189d5155c75ab4e9279928fd21ad797681b
+Provider closure summary SHA-256: ee1a590060f50f05be850e96c3e468b644ec25e9ed28e0edb35058d9fea4fefa
+Phase 2 maintenance correction: ADumpEntityQuery v1.3.1 / canonical Phase 2 v1.18.13 PASS / report SHA-256 0399beae972753c5cc0ac623f8a740ce74f7cfa3dfcd4d0e9aa24e94c5542852
+AssetDump Source/tracked Scripts/Content correction for Provider Readiness: none
 GoPyMCP executable source/config change by this document task: none
 Commit / Push: Not Authorized
 ```
 
-P3-P1 contract는 승인됐고 P3-P2A Browser-side source audit, exact insertion-point 검토, Static Contract QA와 Mechanical Code Blueprint·accepted-schema Synthetic Test Vector 교정도 완료됐다. 현재 상태는 `Ready for Local Source Implementation / Source Not Implemented`다. 다음 전환은 로컬 실행 주체를 사용할 수 있을 때 Plan/Work Order v1.2.1, Static Review v1.0.0과 Blueprint/Vector v1.0.1로 executable source와 offline tests를 구현하는 것이다. R87은 P3-P2B와 AIRE-G3 actual acceptance 시점까지 parked 상태로 유지한다.
+P3-P1 contract와 P3-P2A GoPyMCP facade 구현·offline tests는 완료됐고 Browser exact 18 publication과 discover transport도 actual 확인됐다. AssetDump Provider Readiness는 fresh native chain으로 PASS했으며 `Classification A / No Product Defect`다. 현재 상태는 `Provider Ready / GoPyMCP Actual Consumer Validation Ready / AIRE-G3 Not Accepted`다. 다음 전환은 새 request identity와 fresh managed provider registration으로 discover→entity_query→entity_context→dependency_query public actual chain을 실행하는 것이다. GoPyMCP source/schema와 AssetDump Product Source는 추가 변경하지 않는다.
 
 ---
 
 ## 16. Changelog
+
+### v1.10 - 2026-08-05
+
+- fresh managed provider registration과 Browser actual discover/list/get/expand/entity_context/dependency_query full chain PASS를 반영했다.
+- multi-kind transport, endpoint closure, context result-ref chain, bounds·fingerprint·provenance, native equality와 runtime canary를 PASS로 확정했다.
+- actual Consumer `failure_count=0`을 근거로 P3-P2B와 AIRE-G3를 완료하고 Current gate를 P3-P4 AIRE-G4로 이동했다.
+- AssetDump Source·Scripts·Content와 GoPyMCP executable/schema 추가 변경은 없었다.
+- Migration: AIRE-G4는 새 `client_request_id`와 fresh discover부터 시작하고 과거 process-local result_ref/cursor를 재사용하지 않는다.
+
+### v1.9 - 2026-08-04
+
+- AssetDump Provider Readiness PR0~PR4 PASS와 Classification A를 Phase 3 actual 상태에 반영했다.
+- managed 10-asset partial dataset과 fresh Niagara provider evidence를 분리하고 Product Source defect가 아님을 확정했다.
+- fresh entity evidence/index 380/599, filtered list query 3 Entity, 전체 repeat determinism과 12-file invariance를 기록했다.
+- P3-P2B를 Provider Ready / full public entity chain pending으로 전환했다.
+- AIRE-G3는 full GoPyMCP actual chain 전까지 Partial Actual / Not Accepted로 유지했다.
+
+### v1.8 - 2026-08-04
+
+- Provider Readiness blocker와 별개인 AssetDump comma-list CLI 결함의 maintenance closure를 기록했다.
+- `ADumpEntityQuery` v1.3.1과 canonical Phase 2 v1.18.13에서 filtered relation closure, Entity Evidence, AIRE-G2, Niagara, Content invariance와 P2B 전체 PASS를 baseline에 반영했다.
+- NiagaraSystem 0건/entity index missing의 Product Source 원인은 계속 미증명으로 유지하고 P3-PR·AIRE-G3/G4 상태는 변경하지 않았다.
+
+### v1.7 - 2026-08-03
+
+- P3-P2A를 GoPyMCP offline implementation 완료 상태로, P3-P2B를 transport PASS·provider readiness blocked 상태로 교정했다.
+- P3-P3 AIRE-G3를 Not Started가 아니라 Partial Actual / Not Accepted로 정규화했다.
+- AssetDump Current provider plan과 충돌하던 R87·Source Not Implemented 상태 문구를 완료 증거에 맞게 제거했다.
+- Provider Ready 전에는 남은 entity/context/dependency chain을 재개하지 않는 경계를 유지했다.
+
+### v1.6 - 2026-08-03
+
+- GoPyMCP facade 구현, Browser exact 18 publication과 discover transport PASS를 actual 상태로 반영했다.
+- NiagaraSystem 0건과 entity index missing을 Product Source defect로 단정하지 않고 Blueprint-only partial managed dataset 가능성을 기록했다.
+- `AIREP3ProviderReady.md`를 AssetDump provider readiness 조사·조건부 교정 진입점으로 연결했다.
+- Provider Ready closure 전에는 GoPyMCP entity chain과 AIRE-G3/G4 acceptance를 재개하지 않도록 경계를 교정했다.
 
 ### v1.5 - 2026-08-02
 
@@ -1152,6 +1256,15 @@ P3-P1 contract는 승인됐고 P3-P2A Browser-side source audit, exact insertion
 
 ## 17. Migration
 
+- v1.9 이후 AssetDump Provider Readiness는 완료 선행조건이며 GoPyMCP actual chain은 새 request identity와 fresh managed provider registration을 사용한다.
+- managed fingerprint `4bf4529a...`의 10-asset root와 old result_ref/cursor는 AIRE-G3 입력으로 재사용하지 않는다.
+- v1.7은 P3-P2A/P3-P2B/P3-P3의 Current 상태를 actual evidence와 Provider Readiness 분리에 맞춰 정규화한다.
+- 과거 v1.5 이하의 `Source Not Implemented`, `R87 blocked`, `AIRE-G3 Not Started` 문구는 역사 기록이며 현재 착수 지시가 아니다.
+- v1.6 이후 AssetDump 후속 작업은 `AIREP3ProviderReady.md`에서 시작한다.
+- GoPyMCP facade implementation과 Browser publication을 AssetDump 저장소에서 재구현하지 않는다.
+- 직전 Blueprint-only partial managed output은 Phase 2 accepted Niagara contract 실패 증거가 아니다.
+- fresh Niagara asset index, entity index와 entityquery positive closure 후 GoPyMCP actual Consumer chain으로 복귀한다.
+- PR2 원인 분류 전에는 AssetDump Source·Scripts·Content exact allowlist를 열지 않는다.
 - P3-P1 Contract Accepted는 기존 AssetDump command/schema migration을 요구하지 않는다.
 - 신규 tool은 Browser-only additive facade이며 기존 Browser 17개와 Compatibility 152개 이름을 변경하지 않는다.
 - `ue.assetdump_evidence_safe`는 구현·runtime reload·actual tools/list 전에는 현재 호출 가능한 tool로 가정하지 않는다.

@@ -1,9 +1,34 @@
 # Entity Evidence Architecture
 
-- 문서 버전: v1.1
-- 최근 갱신일: 2026-07-31
-- 문서 상태: Current / AIRE-G0 Approved / Contract Frozen
+- 문서 버전: v1.7
+- 최근 갱신일: 2026-08-05
+- 문서 상태: Current / v1 Core Accepted / Phase 4 Revised Architecture Validated / Product Implementation Not Authorized
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
+
+## Phase 4 Validated Architecture Override — 2026-08-05
+
+```text
+top-level schemas: unchanged v1 family
+activation Profile contract: niagara_deep_evidence
+adapter profile contract: niagara_deep_v1 / exact 18 Entity / 12 Relation
+Entity/Relation append order: unchanged
+Facet key mapping: unchanged
+linked provenance exactness: item-level complete | partial | unavailable / validated
+Static Switch selection: item-level resolved | partial | unavailable | unsupported / validated
+fixture determinism: semantic identity + reload topology + normalized evidence / PASS
+P4-N0 actual: NO_GO under frozen contract
+P4-N0R actual: GO_REDUCED under accepted revision
+implementation: not authorized
+```
+
+Core/MVP architecture와 existing query transport는 accepted 상태를 유지한다. Revised architecture는 validation 가능성이 확인됐지만 Product Entity/Relation/Facet projection은 아직 구현되지 않았다.
+
+### v1.7 Changelog / Migration
+
+- actual P4-N0R을 통해 Entity/Facet별 partial exactness와 explicit reason 계약을 검증했다.
+- semantic fixture와 normalized evidence projection determinism을 PASS했다.
+- package bytes는 architecture identity가 아닌 diagnostic임을 실제 결과로 확인했다.
+- Product registry/Facet 구현은 별도 P4-N1 승인 전까지 시작하지 않는다.
 
 ---
 
@@ -353,7 +378,7 @@ exactness
 }
 ```
 
-Core relation kinds:
+Core relation vocabulary:
 
 ```text
 owns
@@ -372,6 +397,8 @@ depends_on
 uses_script
 renders_with
 ```
+
+이 목록은 architecture-level vocabulary다. Runtime active registry는 source adapter profile이 소유하며 `writes_parameter`와 `reads_parameter`는 Phase 4 `niagara_deep_v1`에서 처음 활성화된다.
 
 규칙:
 

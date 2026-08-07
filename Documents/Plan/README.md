@@ -1,8 +1,53 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.66
-- 최근 갱신일: 2026-08-02
-- 문서 상태: Current
+- 문서 버전: v1.91
+- 최근 갱신일: 2026-08-07
+- 문서 상태: Current / P4-N4 P4_N4_PASS / Revised Exact 40 40 PASS / 0 FAIL
+
+## Current Index Override — 2026-08-07
+
+- `AIResourceEvidencePlan.md` v1.31: P4-N4 terminal closure와 후속 Phase routing.
+- `AIResourceEvidencePhase4Plan_v1.md` v1.20: r4 revised exact 40 `P4_N4_PASS / 40 of 40` closure.
+- `AIResourceEvidencePhase4P4N4ControlledConsumerAuthorizationReview.md` v1.0: original authorization exercised / historical execution boundary.
+- `AIResourceEvidencePhase4P4N4AuthorizationRevision.md` v1.0: revised execution contract v1.1 / 31 satisfiable + 9 corrected predicates / Exercised.
+- `AIREP4N4Result.md` v1.4: authoritative `P4_N4_PASS / r4 40 PASS / 0 FAIL / protection PASS` result.
+- `AIResourceEvidenceP4N4FXReport.md` v1.0: accepted Evidence-ID FX report.
+- `AIResourceEvidenceP4N4Acceptance.json`: machine-readable P4-N4 Consumer acceptance.
+- `AIREP4N3Result.md` v2.0: authoritative `P4_N3_PASS / 60 of 60 / failure_count=0 / protection PASS` result.
+- `AIREP4N2SourceResult.md` v1.0: authoritative `P4_N2_SOURCE_PASS / failure_count=0` result.
+- `AIREP4N2ContentResult.md` v1.0: authoritative `P4_N2_CONTENT_PASS / Exact 17 Accepted` result.
+- P4-N4는 Closed다. 다음 Gate는 별도 승인된 AIRE-G5 Real Project Acceptance 또는 AIRE-G6 Release Hardening이며 자동 시작하지 않는다.
+
+### v1.91 Changelog / Migration
+
+- r4 revised exact 40 `40 PASS / 0 FAIL / P4_N4_PASS`를 Current index에 반영했다.
+- success-only FX Report, Acceptance JSON과 external machine artifact 3개를 등록했다.
+- `AIREP4N4Result.md` v1.4, Phase 4 Plan v1.20과 상위 Plan v1.31로 라우팅을 갱신했다.
+- r2/r3 failed-protection attempts는 historical로 유지하고 P4-N4를 Closed로 전환했다.
+- AIRE-G5/G6는 별도 Plan과 승인 전에는 시작하지 않는다.
+
+### v1.90 Changelog / Migration
+
+- r3 latest full rerun과 repeated 39 PASS / 1 FAIL을 Current index에 반영했다.
+- r2 mismatch 8은 Historical, r3 mismatch 1은 Latest로 분리했다.
+- `AIREP4N4Result.md` v1.3, Phase 4 Plan v1.19와 상위 Plan v1.30으로 라우팅을 갱신했다.
+- concurrent GoPyMCP document work 종료 전 추가 rerun 중지를 next Gate로 등록했다.
+
+### v1.89 Changelog / Migration
+
+- revised exact 40 v1.1 actual 39 PASS / 1 FAIL을 Current index에 반영했다.
+- public provider/transport evidence 39개 PASS와 D08 protection mismatch failure를 분리했다.
+- `AIREP4N4Result.md` v1.2와 Phase 4 Plan v1.18을 authoritative route로 전환했다.
+- success-only artifacts 미생성과 stable baseline 아래 full fresh rerun Gate를 기록했다.
+
+### v1.88 Changelog / Migration
+
+- external provider registration PASS와 same-server identity를 Current index에 반영했다.
+- `MATCHED_PROVIDER_ROOT`, native 26/38 shape와 public query contract 일치를 기록했다.
+- original v1.0 exact 40의 9개 unsatisfiable predicate를 authorization-contract mismatch로 분리했다.
+- presence-or-absence matrix와 group-scoped call plan을 소유하는 Authorization Revision을 추가했다.
+- GoPyMCP Source/schema/config modification required를 false로 고정했다.
+
 
 - 역할: `assetdump_repo`의 Plan 폴더와 대표 진입 문서를 연결하는 색인
 
@@ -31,8 +76,29 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 | `P1ARuntimeVerificationAudit.md` | `P1A Plugin Runtime Contract Accepted / Host Invariance Pending` | Codex strict 결과, v1.6.1 diff, regression blocker와 Host binary attribution 감사 | `P1ARuntimeVerificationAudit.md` |
 | `P1BRuntimeVerificationCodexWorkOrder.md` | `Executed / Browser Scoped Audit Accepted` | P1B parser·self-test·Plugin isolation·restoration과 Project routing 증거 실행 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | `P2ABuildPluginVerificationWorkOrder.md` | `Superseded / Historical P2A-1 Contract` | Phase 묶음 도입 전 P2A-1 단독 실행 계약 이력 | `P2ABuildPluginVerificationWorkOrder.md` |
-| `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / Phase 3 Planning Complete / Contract Review Ready` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
-| `AIResourceEvidencePhase3Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P3 / P3-P2A Static Contract QA Complete / Ready for Local Source Implementation / Source Not Implemented / P3-P2B R87 Parked` | exact Browser-only evidence tool, Static Review·Blueprint·Vector, offline implementation, runtime validation split과 AIRE-G3/G4 Roadmap | `AIResourceEvidencePhase3Plan_v1.md` |
+| `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / P4-N4 Closed / P4_N4_PASS` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
+| `AIREP3ProviderReady.md` | `ADUMP-v1.2.0-AIRE-P3-PR / Completed / Provider Ready / Classification A` | managed partial dataset 진단, fresh Niagara asset/entity index와 query closure 및 GoPyMCP handoff 증거 | `AIREP3ProviderReady.md` |
+| `AIResourceEvidencePhase3Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P3 / Completed / AIRE-G3+G4 Passed / Consumer Workflow Accepted` | Browser-only evidence tool, actual transport, native equality와 Golden Consumer Journey 완료 계약 | `AIResourceEvidencePhase3Plan_v1.md` |
+| `AIResourceEvidenceG4Result.md` | `ADUMP-v1.2.0-AIRE-P3-G4 / Completed / AIRE-G4 Passed` | 12/12 actual public call, continuation, context chain, reports와 final acceptance | `AIResourceEvidenceG4Result.md` |
+| `AIResourceEvidencePhase4Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P4 / Completed / P4_N4_PASS` | Niagara Deep native acceptance, r4 40/40 Consumer closure와 protection PASS | `AIResourceEvidencePhase4Plan_v1.md` |
+| `AIResourceEvidencePhase4P4N4ControlledConsumerAuthorizationReview.md` | `ADUMP-v1.2.0-AIRE-P4-N4-AUTH / Authorization Exercised / Historical` | original exact 40 matrix와 first-attempt fail-closed boundary | `AIResourceEvidencePhase4P4N4ControlledConsumerAuthorizationReview.md` |
+| `AIResourceEvidencePhase4P4N4AuthorizationRevision.md` | `ADUMP-v1.2.0-AIRE-P4-N4-AUTH-R1 / Exercised / revised contract v1.1` | 31/9 satisfiability audit, presence-or-absence predicates와 group-scoped execution contract | `AIResourceEvidencePhase4P4N4AuthorizationRevision.md` |
+| `AIREP4N4Result.md` | `ADUMP-v1.2.0-AIRE-P4-N4 / P4_N4_PASS / r4 40 of 40` | public 28-call execution, exact accounting, protection PASS와 terminal artifacts | `AIREP4N4Result.md` |
+| `AIResourceEvidenceP4N4FXReport.md` | `Current / P4-N4 Accepted FX Report` | Evidence ID, zero-instance equality, Module Output, bounds, negative와 determinism report | `AIResourceEvidenceP4N4FXReport.md` |
+| `AIResourceEvidenceP4N4Acceptance.json` | `Current / passed=true` | machine-readable 40/40 Consumer acceptance와 artifact manifest | `AIResourceEvidenceP4N4Acceptance.json` |
+| `AIResourceEvidencePhase4ContractReview.md` | `ADUMP-v1.2.0-AIRE-P4-CR / P4-N2 Source+Content Completed / Exact 17 Accepted` | planning, frozen NO_GO, revised validation, P4-N1/P4-N2 Source+Content PASS와 authorization separation | `AIResourceEvidencePhase4ContractReview.md` |
+| `AIResourceEvidencePhase4SpikeResult.md` | `ADUMP-v1.2.0-AIRE-P4-N0 / Completed / NO_GO` | frozen contract actual UE 5.8 result | `AIResourceEvidencePhase4SpikeResult.md` |
+| `AIResourceEvidencePhase4ContractRevision.md` | `ADUMP-v1.2.0-AIRE-P4-CR1 / Accepted Revised Contract / P4-N0R Completed` | partial provenance, conditional Static Switch와 semantic determinism SSOT | `AIResourceEvidencePhase4ContractRevision.md` |
+| `AIREP4N0RResult.md` | `ADUMP-v1.2.0-AIRE-P4-N0R / Completed / GO_REDUCED` | actual reduced contract validation, diagnostics와 report hashes | `AIREP4N0RResult.md` |
+| `AIResourceEvidencePhase4P4N1AuthorizationReview.md` | `ADUMP-v1.2.0-AIRE-P4-N1-AUTH / Authorization Exercised / Historical Scope Record` | exact Product Source candidate, dirty protection과 approval boundary 이력 | `AIResourceEvidencePhase4P4N1AuthorizationReview.md` |
+| `AIREP4N1Result.md` | `ADUMP-v1.2.0-AIRE-P4-N1 / Completed / P4_N1_PASS` | exact Source, fresh BuildPlugin/Phase 2/1, registry matrix와 Content invariance authoritative result | `AIREP4N1Result.md` |
+| `AIResourceEvidencePhase4P4N2SourceAuthorizationReview.md` | `ADUMP-v1.2.0-AIRE-P4-N2-SOURCE-AUTH / Authorization Exercised / Historical` | exact 3 Product Source, Phase 4 runner와 Temp rehearsal approval boundary | `AIResourceEvidencePhase4P4N2SourceAuthorizationReview.md` |
+| `AIREP4N2SourceResult.md` | `ADUMP-v1.2.0-AIRE-P4-N2-SOURCE / Completed / P4_N2_SOURCE_PASS` | canonical regression reuse, actual Deep/exact-five closure, runner correction와 repository invariance | `AIREP4N2SourceResult.md` |
+| `AIResourceEvidencePhase4P4N2ContentAuthorizationGate.md` | `ADUMP-v1.2.0-AIRE-P4-N2-CONTENT-AUTH / Authorization Exercised / Historical` | exact-five tracked Content와 12→17 baseline authorization boundary | `AIResourceEvidencePhase4P4N2ContentAuthorizationGate.md` |
+| `AIREP4N2ContentResult.md` | `ADUMP-v1.2.0-AIRE-P4-N2-CONTENT / Completed / P4_N2_CONTENT_PASS` | exact-five SHA-256, exact-12 invariance, exact-17 baseline과 repository allowlist authoritative result | `AIREP4N2ContentResult.md` |
+| `AIResourceEvidencePhase4P4N3AuthorizationReview.md` | `ADUMP-v1.2.0-AIRE-P4-N3-AUTH / Authorization Exercised / Historical` | exercised runner-only allowlist와 exact 60-case failure boundary | `AIResourceEvidencePhase4P4N3AuthorizationReview.md` |
+| `AIREP4N3Result.md` | `ADUMP-v1.2.0-AIRE-P4-N3 / Completed / P4_N3_PASS / 60 of 60` | authoritative final report, Product correction, clean staging, BuildPlugin와 protection evidence | `AIREP4N3Result.md` |
+| `AIResourceEvidencePhase4P4N3SourceDefectAuthorizationReview.md` | `ADUMP-v1.2.0-AIRE-P4-N3-SOURCE-DEFECT-AUTH / Review Complete / Decision Ready` | exact 3 Product Source allowlist, reason observation/projection, dirty protection와 immutable rerun Gate | `AIResourceEvidencePhase4P4N3SourceDefectAuthorizationReview.md` |
 | `AIResourceEvidencePhase2Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P2 / Completed / Niagara MVP Adapter Accepted` | UE 5.8 foundation, P2-N1~P2-N4 구현·검증, canonical report와 accepted native contract | `AIResourceEvidencePhase2Plan_v1.md` |
 | `AIResourceEvidencePhase1Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P1 / Completed / Native Entity Core Accepted` | Blueprint Entity Core의 exact implementation, G1/G2 검증 계약과 accepted baseline | `AIResourceEvidencePhase1Plan_v1.md` |
 | `AIResourceEvidencePhase1Close_v1.md` | `Completed / Authoritative Closure` | G1/G2 canonical jobs, reports, hashes, zero-diff와 final acceptance 증거 | `AIResourceEvidencePhase1Close_v1.md` |
@@ -46,7 +112,7 @@ Documents/ActiveWork.md
 Documents/Plan/AIResourceEvidencePlan.md
 ```
 
-`AIRE-G0`, Phase 1 `AIRE-G1/G2`와 Phase 2 `P2-N0~P2-N4`는 PASS다. `ADUMP-v1.2.0-AIRE-P1`은 `Completed / Native Entity Core Accepted`이며 authoritative evidence는 `AIResourceEvidencePhase1Close_v1.md`가 소유한다. `ADUMP-v1.2.0-AIRE-P2`는 canonical Phase 2 v1.18.1과 Phase 1 Matrix v1.4를 failure_count=0으로 통과한 `Completed / Niagara MVP Adapter Accepted` 상태다. Phase 3 P3-P2A Browser 준비, Static Contract QA와 기계 실행 Blueprint·synthetic Vector 교정은 완료됐으며 현재 `Ready for Local Source Implementation / Source Not Implemented` 상태다. P3-P2B runtime integration과 Browser Consumer 단계는 R87을 해결할 수 있을 때까지 parked 상태다.
+`AIRE-G0~G4`, Phase 1~3, P4-N0R, P4-N1, P4-N2 Source+Content, P4-N3와 P4-N4는 PASS다. P4-N4 r4는 revised exact 40 v1.1을 40 PASS / 0 FAIL, protected mismatch 0, prohibited call 0으로 닫았다. original v1.0과 r2/r3 failed-protection attempts는 historical evidence이며 P4-N4 Product·GoPyMCP 변경과 CarFight access는 0이다.
 
 ---
 
@@ -65,6 +131,8 @@ Documents/Plan/AIResourceEvidencePlan.md
 | Entity·Provenance·Relation 공통 설계 | `AIResourceEvidenceEntityArchitecture_v1.md` |
 | Niagara Evidence 범위와 계약 | `AIResourceEvidenceNiagaraContract_v1.md` |
 | Phase 2 exact 구현·registry·fixture·검증 계약 | `AIResourceEvidencePhase2Plan_v1.md` |
+| Phase 4 accepted Deep 계약 | `AIResourceEvidencePhase4Plan_v1.md`, `AIResourceEvidencePhase4ContractReview.md` |
+| P4-N0 actual 결과와 Contract Revision 조건 | `AIResourceEvidencePhase4SpikeResult.md` |
 | Consumer Acceptance와 검증 Gate | `AIResourceEvidenceConsumerValidation_v1.md` |
 | Phase 0~6 Roadmap | `AIResourceEvidenceRoadmap_v1.md` |
 | 저장소·Host Project 완전 독립화 | `StandalonePlan.md` |
@@ -131,6 +199,33 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 6. Changelog
+
+### v1.70 - 2026-08-05
+
+- GoPyMCP Browser actual full chain과 AIRE-G3 PASS를 Current Plan 색인에 반영했다.
+- `AIResourceEvidencePhase3Plan_v1.md`의 다음 Gate를 P3-P4 AIRE-G4 Golden Consumer Journey로 전환했다.
+- Migration: 표와 과거 기록의 `Full Actual Chain Pending`, `AIRE-G3 Not Accepted`는 Superseded이며 상단 Current override가 우선한다.
+
+### v1.69 - 2026-08-04
+
+- `AIREP3ProviderReady.md` PR0~PR4를 Completed / Provider Ready / Classification A로 전환했다.
+- existing managed 10-asset root를 partial preparation으로 분류하고 fresh Niagara native closure와 구분했다.
+- provider report SHA-256 `9888b7b0093613f0cc30ccd8e1b8a189d5155c75ab4e9279928fd21ad797681b`와 closure summary SHA-256 `ee1a590060f50f05be850e96c3e468b644ec25e9ed28e0edb35058d9fea4fefa`를 색인했다.
+- Current 실행 진입점을 Phase 3 GoPyMCP actual Consumer validation으로 전환했다.
+- AIRE-G3/G4는 full public actual chain 전까지 Not Accepted / Not Started로 유지했다.
+
+### v1.68 - 2026-08-04
+
+- `ADumpEntityQuery` comma-list CLI maintenance v1.3.1과 canonical Phase 2 v1.18.13 전체 PASS를 Phase 2 accepted baseline에 반영했다.
+- filtered relation coverage·endpoint closure, Entity Evidence, AIRE-G2, Niagara closure, Content invariance와 P2B PASS 및 report SHA-256 `0399beae972753c5cc0ac623f8a740ce74f7cfa3dfcd4d0e9aa24e94c5542852`를 기록했다.
+- 현재 대표 작업은 계속 `AIREP3ProviderReady.md`이며 Provider Readiness blocker와 maintenance parser 결함을 별개 원인으로 유지했다.
+
+### v1.67 - 2026-08-03
+
+- `AIREP3ProviderReady.md`를 AssetDump provider readiness의 Current Plan으로 등록했다.
+- GoPyMCP facade 구현·Browser 18 publication·discover transport PASS를 Phase 3 actual 상태에 반영했다.
+- Blueprint-only one-asset no-rebuild smoke의 partial dataset 가능성을 기록하고 Product Source defect 미확정 상태를 고정했다.
+- fresh Niagara asset index, entity index와 entityquery positive closure 후 GoPyMCP actual chain으로 복귀하도록 라우팅했다.
 
 ### v1.66 - 2026-08-02
 
@@ -560,6 +655,20 @@ CarFight를 포함한 소비 프로젝트는 공개 commandlet, report schema, �
 ---
 
 ## 7. Migration
+
+### v1.69 Provider Ready handoff 안내
+
+- `AIREP3ProviderReady.md`는 completed closure 증거이며 현재 실행 진입점은 `AIResourceEvidencePhase3Plan_v1.md`다.
+- GoPyMCP actual chain은 새 request identity와 fresh managed provider registration을 사용한다.
+- managed fingerprint `4bf4529a...`의 10-asset root와 old result_ref/cursor는 재사용하지 않는다.
+- AssetDump Source, tracked Scripts, Content와 accepted schema는 추가 변경하지 않는다.
+
+### v1.67 Provider Readiness 적용 안내
+
+- 다음 AssetDump 작업은 `AIREP3ProviderReady.md`를 대표 진입점으로 사용한다.
+- GoPyMCP public facade와 result-ref/cursor 구현을 AssetDump에 복사하거나 재구현하지 않는다.
+- PR0/PR1에서 partial managed dataset과 실제 provider defect를 분리한 뒤에만 Source·Scripts·Content 수정 범위를 연다.
+- provider closure 전에는 AIRE-G3/G4를 PASS로 전환하지 않고 GoPyMCP actual entity chain도 반복하지 않는다.
 
 ### v1.59 Phase 2 구현 진입 적용 안내
 
