@@ -1,6 +1,26 @@
 ﻿# File: RunStandalonePhase2Verification.ps1
-# Version: v1.18.2
+# Version: v1.18.22
 # Changelog:
+# - v1.18.22: bare 저장소명 `ue-assetdump`를 process ownership 기준에서 제거하고 실제 runner/Temp workspace/Host 식별자만 충돌로 판정해 GitHub CLI 등 무관 프로세스 오인을 방지.
+# - v1.18.21: Phase 4 read-only inspection/recovery 모드를 충돌 preflight에서 제외해 관찰 프로세스가 실행 중 Phase 2를 중단시키지 않도록 교정.
+# - v1.18.20: `Start-Process` exit-code 손실을 제거하고 `.NET Process` + `cmd.exe` 파일 리디렉션으로 wrapper의 실제 종료 코드를 authoritative하게 수집.
+# - v1.18.19: bounded disk process를 encoded PowerShell wrapper로 실행해 기존 direct invocation의 실제 `$LASTEXITCODE`를 보존하면서 timeout·process-tree 정리와 디스크 스트리밍을 유지.
+# - v1.18.18: 외부 Generic Host CI build에 `-NoHotReloadFromIDE`를 적용해 열린 Consumer Editor의 Live Coding 세션과 독립적으로 빌드.
+# - v1.18.17: exit code 0이어도 `Result: Failed`, `BUILD FAILED`, `OtherCompilationError`가 관측되면 외부 build/command를 실패로 판정하고 self-test로 고정.
+# - v1.18.16: 자식 process가 관측 직후 자연 종료되는 정리 경쟁 조건을 허용하고, taskkill stderr를 억제하며 강제 정리 후 실제 잔존 트리를 다시 조회.
+# - v1.18.15: 충돌 preflight를 AssetDump 소유 runner, Temp workspace, Generic Host와 P4 Host 프로세스로 한정해 무관한 Consumer Automation UnrealEditor-Cmd를 오인하지 않도록 교정.
+# - v1.18.14: 외부 프로세스 출력을 메모리에 누적하지 않고 파일로 스트리밍하며, 단계/전체 제한시간, 중복 Unreal 작업 차단, timeout·잔존 자식 process-tree 강제 정리를 추가.
+# - v1.18.13: filtered query 응답의 정규화된 EntityKinds/RelationKinds와 output 경로를 focused probe에 노출.
+# - v1.18.12: focused probe에서 동일 root의 unfiltered expand와 filtered expand를 함께 기록해 traversal/filter 원인을 분리.
+# - v1.18.11: focused closure probe를 BP_ADumpComponentTree actual list/expand로 전환해 relationful fixture 가능성을 검증.
+# - v1.18.10: focused probe에 source/package ADumpEntityQuery.cpp SHA-256 identity 진단을 추가.
+# - v1.18.9: focused probe의 Actor fixture object path를 canonical BP_ADumpActorFixture와 정렬.
+# - v1.18.8: 기존 Generic Host EntityEvidence workspace를 재사용하는 focused filtered-closure probe 모드를 추가.
+# - v1.18.7: selector 검증용 graph node와 filtered-closure용 graph fixture를 분리해 실제 graph→node Relation coverage를 결정론적으로 검증.
+# - v1.18.6: filtered-expand 후보별 actual query 결과, 최종 failure detail과 final report SHA-256을 compact process log에 노출.
+# - v1.18.5: actual filtered expand fixture/closure 결과를 AIRE-G2와 Entity Evidence 필수 gate에 연결하고 진단 patch 들여쓰기와 UTF-8 source readback을 정리.
+# - v1.18.4: entity_list의 graph node 후보를 실제 filtered expand로 탐색해 relation coverage와 endpoint closure를 만족하는 fixture를 선택하고 시도 진단을 report에 추가.
+# - v1.18.3: filtered expand closure fixture를 실제 허용 Relation이 연결된 graph node로 결정하고 relation coverage와 endpoint closure 진단을 분리.
 # - v1.18.2: filtered expand endpoint 폐쇄성, zero-relation cursor 전진과 Niagara Script Graph partial 전파 회귀 검증을 추가.
 # - v1.18.1: P2-N4 actual Relation 검증을 frozen registry subset + 필수 observed coverage로 정렬하고 조건부 inherits_from 출현 강제를 제거.
 # - v1.18.0: P2-N4 packaged Niagara actual dump, Blueprint/Niagara/mixed active registry union, loaded-index query/context와 corruption atomicity closure를 canonical Phase 2 gate에 추가.
@@ -47,6 +67,14 @@
 # - JSON report read는 Windows PowerShell 5.1에서도 BOM 유무와 무관하게 UTF-8로 해석하며 report schema와 출력 형식은 변경하지 않는다.
 # - AIRE-G2 actual corruption과 duplicate case는 저장소 밖 workspace의 isolated synthetic dump root에서만 실행한다.
 # - AIRE-G2 validation은 Product Source, public schema, Plugin Content와 AIRE-G1 fixture bytes를 변경하지 않는다.
+# - v1.18.6은 검증 predicate와 report schema를 바꾸지 않고 기존 진단값을 process log에 추가 노출한다.
+# - v1.18.7은 기존 get/expand selector fixture를 유지하고 filtered endpoint closure fixture만 graph→node 관계로 교체한다.
+# - v1.18.8 focused probe는 기존 외부 workspace의 EntityEvidence index/list를 읽고 별도 probe output/report만 추가한다.
+# - v1.18.9 focused probe는 canonical Actor fixture object path를 그대로 재사용한다.
+# - v1.18.10은 재사용 package가 현재 Entity Query source와 동일한지 명시적으로 보고한다.
+# - v1.18.11 focused probe는 Actor selector 경로와 분리된 ComponentTree closure fixture를 사용한다.
+# - v1.18.12는 unfiltered entity/relation kind와 count를 probe report에 추가하며 canonical acceptance predicate는 변경하지 않는다.
+# - v1.18.13은 command line list parsing 결과를 query envelope에서 readback해 진단한다.
 
 [CmdletBinding()]
 param(
@@ -65,11 +93,27 @@ param(
     # KeepWorkspace는 성공 후 workspace를 유지한다. 현재 기본 동작도 증거 보존을 위해 유지이며 향후 cleanup option과 구분하기 위한 명시 플래그다.
     [switch]$KeepWorkspace,
 
-                                            # RunSelfTests는 엔진 없이 Generic Host template, path guard와 report helper를 검사한다.
-    [switch]$RunSelfTests
+        # RunSelfTests는 엔진 없이 Generic Host template, path guard와 report helper를 검사한다.
+    [switch]$RunSelfTests,
+
+    # RunFocusedEntityClosure는 기존 Generic Host workspace의 EntityEvidence index/list를 재사용해 filtered closure만 검증한다.
+    [switch]$RunFocusedEntityClosure,
+
+        # FocusedEntityWorkspaceRoot는 focused closure가 재사용할 기존 Phase 2 workspace다.
+    [string]$FocusedEntityWorkspaceRoot = "",
+
+    # ExternalStepTimeoutSeconds는 개별 UAT/UBT/Editor/child harness의 절대 제한시간이다.
+    [ValidateRange(60, 3600)]
+    [int]$ExternalStepTimeoutSeconds = 1200,
+
+    # OverallTimeoutSeconds는 전체 Phase 2 runner의 wall-clock 상한이다.
+    [ValidateRange(300, 10800)]
+    [int]$OverallTimeoutSeconds = 5400
 )
 
 $ErrorActionPreference = "Stop"
+$script:ExternalStepTimeoutSeconds = $ExternalStepTimeoutSeconds
+$script:OverallDeadlineUtc = (Get-Date).ToUniversalTime().AddSeconds($OverallTimeoutSeconds)
 
 function New-Utf8NoBomEncoding {
     return [System.Text.UTF8Encoding]::new($false)
@@ -514,6 +558,231 @@ function New-TreeManifest {
     }
 }
 
+# Test-IsAssetDumpReadOnlyObserverCommandLine은 build/runtime를 시작하지 않는 Phase 4 관찰 모드를 식별한다.
+function Test-IsAssetDumpReadOnlyObserverCommandLine {
+    param([string]$CommandLineText)
+    return -not [string]::IsNullOrWhiteSpace($CommandLineText) -and
+        $CommandLineText -match "(?i)RunStandalonePhase4Verification\.ps1.*-(InspectPhase2Runtime|InspectLatestPhase2Report|InspectP4N2CompileProbe|RecoverP4N2CompileProbe|WaitLatestPhase2Report|SummarizeReportPath)(?:\s|$)"
+}
+
+# Test-IsAssetDumpOwnedCommandLine은 실제 runner, Temp workspace, Generic/P4 Host process만 식별한다.
+function Test-IsAssetDumpOwnedCommandLine {
+    param([string]$CommandLineText)
+    return -not [string]::IsNullOrWhiteSpace($CommandLineText) -and
+        $CommandLineText -match "(?i)(AssetDumpStandalone|AssetDumpBuildPlugin|AssetDumpP4N|AssetDumpGenericHost|P4N0Host|RunStandalonePhase[124]Verification\.ps1|RunBuildPluginVerification\.ps1)"
+}
+
+# Get-AssetDumpProcessRecords는 충돌 가능한 AssetDump/UAT/UBT/commandlet 프로세스를 bounded 조회한다.
+function Get-AssetDumpProcessRecords {
+    param([int[]]$ExcludeProcessIds = @())
+
+    $RecordList = [System.Collections.Generic.List[object]]::new()
+    foreach ($ProcessRecord in @(Get-CimInstance Win32_Process -ErrorAction Stop)) {
+        $ProcessId = [int]$ProcessRecord.ProcessId
+        if ($ExcludeProcessIds -contains $ProcessId) { continue }
+        $CommandLineText = [string]$ProcessRecord.CommandLine
+        if ([string]::IsNullOrWhiteSpace($CommandLineText)) { continue }
+                                                                $IsAssetDumpOwned = Test-IsAssetDumpOwnedCommandLine -CommandLineText $CommandLineText
+        $IsReadOnlyObserver = Test-IsAssetDumpReadOnlyObserverCommandLine -CommandLineText $CommandLineText
+        if ($IsAssetDumpOwned -and -not $IsReadOnlyObserver) {
+            $RecordList.Add([pscustomobject]@{
+                process_id = $ProcessId
+                parent_process_id = [int]$ProcessRecord.ParentProcessId
+                name = [string]$ProcessRecord.Name
+                command_line = $CommandLineText.Substring(0, [Math]::Min(2048, $CommandLineText.Length))
+            })
+        }
+    }
+    return @($RecordList)
+}
+
+# Assert-NoConflictingAssetDumpProcess는 현재 runner 외의 기존 장시간 작업이 있으면 신규 실행을 거부한다.
+function Assert-NoConflictingAssetDumpProcess {
+    param([string]$StepName)
+
+    $ConflictArray = @(Get-AssetDumpProcessRecords -ExcludeProcessIds @($PID))
+    if ($ConflictArray.Count -gt 0) {
+        $ConflictText = @($ConflictArray | ForEach-Object { "$($_.process_id)|$($_.name)|$($_.command_line)" }) -join " || "
+                throw "$StepName 시작 거부: 기존 AssetDump 소유 runner/build/commandlet 프로세스가 실행 중입니다. $ConflictText"
+    }
+}
+
+# Get-DescendantProcessRecords는 종료된 부모 PID도 seed로 사용해 현재 남은 자식 트리를 찾는다.
+function Get-DescendantProcessRecords {
+    param([int]$RootProcessId)
+
+    $AllProcessArray = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $PendingIdList = [System.Collections.Generic.List[int]]::new()
+    $KnownIdSet = [System.Collections.Generic.HashSet[int]]::new()
+    $DescendantList = [System.Collections.Generic.List[object]]::new()
+    $PendingIdList.Add($RootProcessId)
+    [void]$KnownIdSet.Add($RootProcessId)
+    while ($PendingIdList.Count -gt 0) {
+        $ParentId = $PendingIdList[0]
+        $PendingIdList.RemoveAt(0)
+        foreach ($ProcessRecord in @($AllProcessArray | Where-Object { [int]$_.ParentProcessId -eq $ParentId })) {
+            $ChildId = [int]$ProcessRecord.ProcessId
+            if ($KnownIdSet.Contains($ChildId)) { continue }
+            [void]$KnownIdSet.Add($ChildId)
+            $PendingIdList.Add($ChildId)
+            $DescendantList.Add([pscustomobject]@{
+                process_id = $ChildId
+                parent_process_id = [int]$ProcessRecord.ParentProcessId
+                name = [string]$ProcessRecord.Name
+                command_line = [string]$ProcessRecord.CommandLine
+            })
+        }
+    }
+    return @($DescendantList)
+}
+
+# Stop-ProcessTree는 이미 종료된 PID를 성공으로 취급하고 남아 있는 tree만 강제 종료한다.
+function Stop-ProcessTree {
+    param([int]$RootProcessId)
+
+    if ($null -eq (Get-Process -Id $RootProcessId -ErrorAction SilentlyContinue)) { return }
+    $TaskKillPath = Join-Path $env:SystemRoot "System32\taskkill.exe"
+    try {
+        if (Test-Path -LiteralPath $TaskKillPath -PathType Leaf) {
+            & $TaskKillPath /PID $RootProcessId /T /F 1>$null 2>$null
+        } else {
+            Stop-Process -Id $RootProcessId -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+        if ($null -ne (Get-Process -Id $RootProcessId -ErrorAction SilentlyContinue)) { throw }
+    }
+}
+
+# Merge-ProcessLogFiles는 stdout/stderr 임시 파일을 메모리에 적재하지 않고 최종 로그로 복사한다.
+function Merge-ProcessLogFiles {
+    param(
+        [string]$StandardOutputPath,
+        [string]$StandardErrorPath,
+        [string]$LogPath
+    )
+
+    $ParentPath = Split-Path -Parent $LogPath
+    if (-not (Test-Path -LiteralPath $ParentPath -PathType Container)) { New-Item -ItemType Directory -Path $ParentPath -Force | Out-Null }
+    $DestinationStream = [System.IO.File]::Open($LogPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+    try {
+        foreach ($SourcePath in @($StandardOutputPath, $StandardErrorPath)) {
+            if (-not (Test-Path -LiteralPath $SourcePath -PathType Leaf)) { continue }
+            $SourceStream = [System.IO.File]::Open($SourcePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+            try { $SourceStream.CopyTo($DestinationStream) } finally { $SourceStream.Dispose() }
+            $NewLineBytes = [System.Text.Encoding]::UTF8.GetBytes([Environment]::NewLine)
+            $DestinationStream.Write($NewLineBytes, 0, $NewLineBytes.Length)
+        }
+    } finally {
+        $DestinationStream.Dispose()
+    }
+}
+
+# ConvertTo-PowerShellSingleQuotedLiteral은 wrapper command에서 임의 path/argument를 안전하게 literal로 만든다.
+function ConvertTo-PowerShellSingleQuotedLiteral {
+    param([AllowEmptyString()][string]$ValueText)
+    return "'" + $ValueText.Replace("'", "''") + "'"
+}
+
+# Invoke-BoundedDiskProcess는 출력을 디스크로 스트리밍하고 timeout·잔존 자식 트리를 정리한다.
+function Invoke-BoundedDiskProcess {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments,
+        [string]$StepName,
+        [string]$LogPath,
+        [switch]$UseCompactLog,
+        [int]$TimeoutSeconds = $script:ExternalStepTimeoutSeconds
+    )
+
+    $RemainingSeconds = [int][Math]::Floor(($script:OverallDeadlineUtc - (Get-Date).ToUniversalTime()).TotalSeconds)
+    if ($RemainingSeconds -le 0) { throw "$StepName 시작 전 Phase 2 전체 제한시간이 만료됐습니다." }
+    $EffectiveTimeoutSeconds = [Math]::Max(1, [Math]::Min($TimeoutSeconds, $RemainingSeconds))
+    Assert-NoConflictingAssetDumpProcess -StepName $StepName
+
+    $LogParentPath = Split-Path -Parent $LogPath
+    if (-not (Test-Path -LiteralPath $LogParentPath -PathType Container)) { New-Item -ItemType Directory -Path $LogParentPath -Force | Out-Null }
+    $StandardOutputPath = "$LogPath.stdout.$PID.tmp"
+    $StandardErrorPath = "$LogPath.stderr.$PID.tmp"
+    Remove-Item -LiteralPath $StandardOutputPath, $StandardErrorPath -Force -ErrorAction SilentlyContinue
+
+    $StartedUtc = (Get-Date).ToUniversalTime()
+    Write-Host "PROCESS_START=$StepName timeout_seconds=$EffectiveTimeoutSeconds"
+    $Process = $null
+    $ProcessId = $null
+    $TimedOut = $false
+    $ExitCode = 125
+        $OrphanProcessArray = @()
+    try {
+        $InvocationTokenList = [System.Collections.Generic.List[string]]::new()
+        $InvocationTokenList.Add("& " + (ConvertTo-PowerShellSingleQuotedLiteral -ValueText $FilePath))
+        foreach ($ArgumentText in $Arguments) { $InvocationTokenList.Add((ConvertTo-PowerShellSingleQuotedLiteral -ValueText ([string]$ArgumentText))) }
+        $InvocationScript = ($InvocationTokenList -join " ") + "; exit `$LASTEXITCODE"
+        $EncodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($InvocationScript))
+                $WrapperPowerShellPath = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+        $CommandProcessorPath = if ([string]::IsNullOrWhiteSpace($env:ComSpec)) { Join-Path $env:SystemRoot "System32\cmd.exe" } else { $env:ComSpec }
+        $CommandProcessorCommand = '""' + $WrapperPowerShellPath + '" -NoProfile -NonInteractive -EncodedCommand ' + $EncodedCommand + ' 1>"' + $StandardOutputPath + '" 2>"' + $StandardErrorPath + '""'
+        $ProcessStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $ProcessStartInfo.FileName = $CommandProcessorPath
+        $ProcessStartInfo.Arguments = "/d /s /c $CommandProcessorCommand"
+        $ProcessStartInfo.UseShellExecute = $false
+        $ProcessStartInfo.CreateNoWindow = $true
+        $Process = [System.Diagnostics.Process]::new()
+        $Process.StartInfo = $ProcessStartInfo
+        if (-not $Process.Start()) { throw "$StepName process 시작 실패: $FilePath" }
+        $ProcessId = [int]$Process.Id
+        $Exited = $Process.WaitForExit([int]($EffectiveTimeoutSeconds * 1000))
+        if (-not $Exited) {
+            $TimedOut = $true
+            Stop-ProcessTree -RootProcessId $ProcessId
+            [void]$Process.WaitForExit(10000)
+            $ExitCode = 124
+        } else {
+            $Process.WaitForExit()
+            $ExitCode = [int]$Process.ExitCode
+        }
+
+        $OrphanDeadline = (Get-Date).AddSeconds(10)
+        do {
+            $OrphanProcessArray = @(Get-DescendantProcessRecords -RootProcessId $ProcessId)
+            if ($OrphanProcessArray.Count -eq 0) { break }
+            Start-Sleep -Milliseconds 500
+        } while ((Get-Date) -lt $OrphanDeadline)
+                if ($OrphanProcessArray.Count -gt 0) {
+            foreach ($OrphanProcess in $OrphanProcessArray) { Stop-ProcessTree -RootProcessId ([int]$OrphanProcess.process_id) }
+            $CleanupDeadline = (Get-Date).AddSeconds(5)
+            do {
+                $OrphanProcessArray = @(Get-DescendantProcessRecords -RootProcessId $ProcessId)
+                if ($OrphanProcessArray.Count -eq 0) { break }
+                Start-Sleep -Milliseconds 250
+            } while ((Get-Date) -lt $CleanupDeadline)
+            if ($OrphanProcessArray.Count -gt 0 -and -not $TimedOut) { $ExitCode = 125 }
+        }
+    } finally {
+        if ($null -ne $Process) { $Process.Dispose() }
+        Merge-ProcessLogFiles -StandardOutputPath $StandardOutputPath -StandardErrorPath $StandardErrorPath -LogPath $LogPath
+        Remove-Item -LiteralPath $StandardOutputPath, $StandardErrorPath -Force -ErrorAction SilentlyContinue
+    }
+
+    $OutputTail = if (Test-Path -LiteralPath $LogPath -PathType Leaf) { @(Get-Content -LiteralPath $LogPath -Encoding UTF8 -Tail 4000 -ErrorAction SilentlyContinue) } else { @() }
+    foreach ($LineText in $OutputTail) {
+        if (-not $UseCompactLog -or (Test-CompactLogLine -LineText ([string]$LineText))) { Write-Host ([string]$LineText) }
+    }
+    $DurationSeconds = [Math]::Round(((Get-Date).ToUniversalTime() - $StartedUtc).TotalSeconds, 3)
+    Write-Host "PROCESS_END=$StepName exit_code=$ExitCode timed_out=$TimedOut orphan_count=$($OrphanProcessArray.Count) duration_seconds=$DurationSeconds"
+    return [pscustomobject]@{
+        step_name = $StepName
+        process_id = $ProcessId
+        exit_code = $ExitCode
+        timed_out = $TimedOut
+        orphan_process_count = $OrphanProcessArray.Count
+        orphan_processes = @($OrphanProcessArray)
+        timeout_seconds = $EffectiveTimeoutSeconds
+        duration_seconds = $DurationSeconds
+        log_path = $LogPath
+        output_tail = @($OutputTail)
+    }
+}
+
 function Invoke-ExpectedFailureCommand {
     param(
         [string]$FilePath,
@@ -529,16 +798,9 @@ function Invoke-ExpectedFailureCommand {
     $OutputHashBefore = if ($OutputExistedBefore) { Get-FileSha256 -PathText $ExpectedOutputPath } else { $null }
     $OutputLengthBefore = if ($OutputExistedBefore) { (Get-Item -LiteralPath $ExpectedOutputPath).Length } else { $null }
 
-    $OutputLineList = [System.Collections.Generic.List[string]]::new()
-    & $FilePath @Arguments 2>&1 | ForEach-Object {
-        $LineText = $_.ToString()
-        $OutputLineList.Add($LineText)
-        if (-not $UseCompactLog -or (Test-CompactLogLine -LineText $LineText)) { Write-Host $LineText }
-    }
-    $ExitCode = $LASTEXITCODE
-    Write-TextFile -PathText $LogPath -ContentText (($OutputLineList.ToArray() -join [Environment]::NewLine) + [Environment]::NewLine)
-
-    $StableCodeObserved = @($OutputLineList.ToArray() | Where-Object { $_.Contains($ExpectedCode) }).Count -gt 0
+    $ProcessRun = Invoke-BoundedDiskProcess -FilePath $FilePath -Arguments $Arguments -StepName $StepName -LogPath $LogPath -UseCompactLog:$UseCompactLog
+    $ExitCode = [int]$ProcessRun.exit_code
+    $StableCodeObserved = [bool](Select-String -LiteralPath $LogPath -SimpleMatch $ExpectedCode -Quiet -ErrorAction SilentlyContinue)
     $OutputExistsAfter = -not [string]::IsNullOrWhiteSpace($ExpectedOutputPath) -and (Test-Path -LiteralPath $ExpectedOutputPath -PathType Leaf)
     $OutputPreserved = if ([string]::IsNullOrWhiteSpace($ExpectedOutputPath)) {
         $true
@@ -548,7 +810,7 @@ function Invoke-ExpectedFailureCommand {
         -not $OutputExistsAfter
     }
 
-    $Succeeded = $ExitCode -ne 0 -and $StableCodeObserved -and $OutputPreserved
+    $Succeeded = -not [bool]$ProcessRun.timed_out -and [int]$ProcessRun.orphan_process_count -eq 0 -and $ExitCode -ne 0 -and $StableCodeObserved -and $OutputPreserved
     $ResultObject = [pscustomobject]@{
         step_name = $StepName
         command_text = "$FilePath $($Arguments -join ' ')"
@@ -556,14 +818,18 @@ function Invoke-ExpectedFailureCommand {
         expected_code = $ExpectedCode
         stable_code_observed = $StableCodeObserved
         output_preserved = $OutputPreserved
+        timed_out = [bool]$ProcessRun.timed_out
+        orphan_process_count = [int]$ProcessRun.orphan_process_count
+        timeout_seconds = [int]$ProcessRun.timeout_seconds
+        duration_seconds = [double]$ProcessRun.duration_seconds
         log_path = $LogPath
         succeeded = $Succeeded
     }
     if (-not $Succeeded) {
-        $TailText = @($OutputLineList.ToArray() | Select-Object -Last 10) -join " || "
-        throw "$StepName expected-failure contract failed: exit=$ExitCode code=$ExpectedCode observed=$StableCodeObserved output_preserved=$OutputPreserved log=$LogPath tail=$TailText"
+        $TailText = @($ProcessRun.output_tail | Select-Object -Last 10) -join " || "
+        throw "$StepName expected-failure contract failed: exit=$ExitCode timed_out=$($ProcessRun.timed_out) orphan_count=$($ProcessRun.orphan_process_count) code=$ExpectedCode observed=$StableCodeObserved output_preserved=$OutputPreserved log=$LogPath tail=$TailText"
     }
-        return $ResultObject
+    return $ResultObject
 }
 
 # ConvertTo-EntityNormalizedJson은 generated_time만 제외해 query/context repeat 결정을 비교한다.
@@ -962,7 +1228,8 @@ function Get-ExternalErrorClassification {
     $ZeroErrorSuccessPattern = "(?i)\bSuccess\s*-\s*0\s+error\(s\)(?:\s*,\s*\d+\s+warning\(s\))?"
     $ErrorLineArray = @($OutputLineArray | Where-Object { $_ -match "(?i)(\berror\b|fatal|exception|assertion|access violation|crash)" })
     $HasKnownPortConflict = @($OutputLineArray | Where-Object { $_.Contains($KnownPortConflict) }).Count -gt 0
-    $HasDisallowed = @($OutputLineArray | Where-Object { $_ -match "(?i)(Fatal error|Unhandled Exception|Assertion failed|Access violation|LogAssetDump: Error|Commandlet.*crash)" }).Count -gt 0
+        $HasDisallowed = @($OutputLineArray | Where-Object { $_ -match "(?i)(Fatal error|Unhandled Exception|Assertion failed|Access violation|LogAssetDump: Error|Commandlet.*crash)" }).Count -gt 0
+    $HasFailedResult = @($OutputLineArray | Where-Object { $_ -match "(?i)(Result:\s*Failed|BUILD\s+FAILED|OtherCompilationError)" }).Count -gt 0
     $HasUnknown = @($ErrorLineArray | Where-Object {
         -not $_.Contains($KnownPortConflict) -and
         -not ($_ -match $ZeroErrorSuccessPattern) -and
@@ -970,8 +1237,8 @@ function Get-ExternalErrorClassification {
         -not ($HasKnownPortConflict -and $_.Contains($KnownPortFailureSummary))
     }).Count -gt 0
 
-    if ($HasKnownPortConflict -and -not $HasDisallowed -and -not $HasUnknown) { return "http_listener_port_conflict" }
-    if ($HasDisallowed -or $HasUnknown) { return "unexpected_error" }
+        if ($HasKnownPortConflict -and -not $HasDisallowed -and -not $HasUnknown -and -not $HasFailedResult) { return "http_listener_port_conflict" }
+    if ($HasDisallowed -or $HasUnknown -or $HasFailedResult) { return "unexpected_error" }
     return "none"
 }
 
@@ -1066,24 +1333,19 @@ function Invoke-ExternalCommand {
         [string[]]$Arguments,
         [string]$StepName,
         [string]$LogPath,
-                [switch]$UseCompactLog,
+        [switch]$UseCompactLog,
         [string]$ExpectedReportPath = "",
-                                [ValidateSet("", "fixture", "validation", "batch", "regression_summary", "data_asset_closure", "bpdump", "lazy_dump", "dependency_query", "query_result", "context_bundle", "entity_query", "entity_context")]
+        [ValidateSet("", "fixture", "validation", "batch", "regression_summary", "data_asset_closure", "bpdump", "lazy_dump", "dependency_query", "query_result", "context_bundle", "entity_query", "entity_context")]
         [string]$ExpectedReportKind = "",
         [switch]$ReportAuthoritative
     )
 
     $BeforeReportSnapshot = if ([string]::IsNullOrWhiteSpace($ExpectedReportPath)) { $null } else { Get-FileSnapshot -PathText $ExpectedReportPath }
-    $OutputLineList = [System.Collections.Generic.List[string]]::new()
-    & $FilePath @Arguments 2>&1 | ForEach-Object {
-        $LineText = $_.ToString()
-        $OutputLineList.Add($LineText)
-        if (-not $UseCompactLog -or (Test-CompactLogLine -LineText $LineText)) { Write-Host $LineText }
-    }
-    $ExitCode = $LASTEXITCODE
+    $ProcessRun = Invoke-BoundedDiskProcess -FilePath $FilePath -Arguments $Arguments -StepName $StepName -LogPath $LogPath -UseCompactLog:$UseCompactLog
+    $OutputLineArray = @($ProcessRun.output_tail)
+    $ExitCode = [int]$ProcessRun.exit_code
 
-    Write-TextFile -PathText $LogPath -ContentText (($OutputLineList.ToArray() -join [Environment]::NewLine) + [Environment]::NewLine)
-    $ErrorClassification = Get-ExternalErrorClassification -OutputLineArray $OutputLineList.ToArray()
+    $ErrorClassification = if ([bool]$ProcessRun.timed_out) { "timeout" } elseif ([int]$ProcessRun.orphan_process_count -gt 0) { "orphan_process" } else { Get-ExternalErrorClassification -OutputLineArray $OutputLineArray }
     $ReportContract = $null
     $ReportUpdated = $null
     if (-not [string]::IsNullOrWhiteSpace($ExpectedReportPath)) {
@@ -1092,34 +1354,37 @@ function Invoke-ExternalCommand {
         if ($ReportUpdated) { $ReportContract = Test-ReportContract -ReportPath $ExpectedReportPath -ReportKind $ExpectedReportKind }
     }
 
-        $ReportPassed = if ($null -eq $ReportContract) { [string]::IsNullOrWhiteSpace($ExpectedReportPath) } else { [bool]$ReportContract.passed }
-    $ProcessAccepted = Test-IsExternalResultAccepted -ExitCode $ExitCode -ErrorClassification $ErrorClassification -ReportUpdated ([bool]$ReportUpdated) -ReportPassed $ReportPassed -ReportAuthoritative:$ReportAuthoritative
+    $ReportPassed = if ($null -eq $ReportContract) { [string]::IsNullOrWhiteSpace($ExpectedReportPath) } else { [bool]$ReportContract.passed }
+    $ProcessAccepted = -not [bool]$ProcessRun.timed_out -and [int]$ProcessRun.orphan_process_count -eq 0 -and (Test-IsExternalResultAccepted -ExitCode $ExitCode -ErrorClassification $ErrorClassification -ReportUpdated ([bool]$ReportUpdated) -ReportPassed $ReportPassed -ReportAuthoritative:$ReportAuthoritative)
     $Succeeded = $ProcessAccepted -and $ReportPassed -and ([string]::IsNullOrWhiteSpace($ExpectedReportPath) -or $ReportUpdated)
 
     $ResultObject = [pscustomobject]@{
         step_name = $StepName
         command_text = "$FilePath $($Arguments -join ' ')"
+        process_id = $ProcessRun.process_id
         exit_code = $ExitCode
+        timed_out = [bool]$ProcessRun.timed_out
+        orphan_process_count = [int]$ProcessRun.orphan_process_count
+        timeout_seconds = [int]$ProcessRun.timeout_seconds
+        duration_seconds = [double]$ProcessRun.duration_seconds
         error_classification = $ErrorClassification
         report_path = if ([string]::IsNullOrWhiteSpace($ExpectedReportPath)) { $null } else { $ExpectedReportPath }
         report_updated = $ReportUpdated
-                report_passed = $ReportPassed
+        report_passed = $ReportPassed
         report_authoritative = [bool]$ReportAuthoritative
         log_path = $LogPath
         succeeded = $Succeeded
     }
 
-        if (-not $Succeeded) {
-                        $FailureSignatureLineArray = @($OutputLineList.ToArray() | Where-Object { $_ -match "(?i)(error|failed|unable|exception|live coding|locked|used by|could not|cannot|result:)" } | Select-Object -Last 10)
-        if ($FailureSignatureLineArray.Count -eq 0) {
-            $FailureSignatureLineArray = @($OutputLineList.ToArray() | Select-Object -Last 6)
-        }
+    if (-not $Succeeded) {
+        $FailureSignatureLineArray = @($OutputLineArray | Where-Object { $_ -match "(?i)(error|failed|unable|exception|live coding|locked|used by|could not|cannot|result:)" } | Select-Object -Last 10)
+        if ($FailureSignatureLineArray.Count -eq 0) { $FailureSignatureLineArray = @($OutputLineArray | Select-Object -Last 6) }
         $FailureTailLineArray = @($FailureSignatureLineArray | ForEach-Object {
             $FailureLineText = [string]$_
             if ($FailureLineText.Length -gt 240) { $FailureLineText.Substring(0, 240) + "..." } else { $FailureLineText }
         })
         $FailureTailText = $FailureTailLineArray -join " || "
-        throw "$StepName 실패: exit=$ExitCode error_classification=$ErrorClassification report=$ExpectedReportPath log=$LogPath tail=$FailureTailText"
+        throw "$StepName 실패: exit=$ExitCode timed_out=$($ProcessRun.timed_out) orphan_count=$($ProcessRun.orphan_process_count) error_classification=$ErrorClassification report=$ExpectedReportPath log=$LogPath tail=$FailureTailText"
     }
 
     return $ResultObject
@@ -1249,9 +1514,35 @@ function Invoke-SelfTests {
         if (Test-IsExternalResultAccepted -ExitCode 0 -ErrorClassification "unexpected_error" -ReportUpdated $true -ReportPassed $false -ReportAuthoritative) {
             throw "self test 실패: authoritative child report 실패를 승인함"
         }
-        if (Test-IsExternalResultAccepted -ExitCode 0 -ErrorClassification "unexpected_error" -ReportUpdated $true -ReportPassed $true) {
+                        if (Test-IsExternalResultAccepted -ExitCode 0 -ErrorClassification "unexpected_error" -ReportUpdated $true -ReportPassed $true) {
             throw "self test 실패: 일반 command의 unexpected error를 승인함"
         }
+                if ((Get-ExternalErrorClassification -OutputLineArray @("Result: Failed (OtherCompilationError)")) -ne "unexpected_error") {
+            throw "self test 실패: exit 0 failed-result classifier"
+        }
+        if (-not (Test-IsAssetDumpReadOnlyObserverCommandLine -CommandLineText "powershell.exe -File RunStandalonePhase4Verification.ps1 -InspectPhase2Runtime")) {
+            throw "self test 실패: read-only inspector classification"
+        }
+                if (Test-IsAssetDumpReadOnlyObserverCommandLine -CommandLineText "powershell.exe -File RunStandalonePhase4Verification.ps1 -RunP4N2SourceCheck") {
+            throw "self test 실패: mutating/runtime Phase 4 mode classified as observer"
+        }
+        if (Test-IsAssetDumpOwnedCommandLine -CommandLineText '"C:\Program Files\GitHub CLI\gh.exe" pr list --repo serenieal/ue-assetdump') {
+            throw "self test 실패: GitHub CLI repository argument classified as AssetDump runtime"
+        }
+        if (-not (Test-IsAssetDumpOwnedCommandLine -CommandLineText "powershell.exe -File RunStandalonePhase2Verification.ps1")) {
+            throw "self test 실패: Phase 2 runner ownership classification"
+        }
+
+        $WindowsPowerShellPath = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+        $TimeoutSelfTestLogPath = Join-Path $TemporaryRootPath "process_timeout.log"
+                $TimeoutSelfTest = Invoke-BoundedDiskProcess -FilePath $WindowsPowerShellPath -Arguments @("-NoProfile", "-Command", "Start-Sleep -Seconds 8") -StepName "Phase2 Process Timeout Self Test" -LogPath $TimeoutSelfTestLogPath -UseCompactLog -TimeoutSeconds 2
+        if (-not [bool]$TimeoutSelfTest.timed_out -or [int]$TimeoutSelfTest.exit_code -ne 124 -or [int]$TimeoutSelfTest.orphan_process_count -ne 0) {
+            throw "self test 실패: timeout/process-tree cleanup"
+        }
+                if (-not (Test-Path -LiteralPath $TimeoutSelfTestLogPath -PathType Leaf)) { throw "self test 실패: disk streamed process log" }
+        $ExitCodeSelfTest = Invoke-BoundedDiskProcess -FilePath $WindowsPowerShellPath -Arguments @("-NoProfile", "-Command", "exit 7") -StepName "Phase2 Exit Code Propagation Self Test" -LogPath (Join-Path $TemporaryRootPath "process_exit_code.log") -UseCompactLog -TimeoutSeconds 30
+        if ([int]$ExitCodeSelfTest.exit_code -ne 7 -or [bool]$ExitCodeSelfTest.timed_out -or [int]$ExitCodeSelfTest.orphan_process_count -ne 0) { throw "self test 실패: wrapped LASTEXITCODE propagation" }
+        Stop-ProcessTree -RootProcessId 2147483000
 
         Write-Host "Standalone Phase 2 self tests: passed"
     } finally {
@@ -1261,6 +1552,134 @@ function Invoke-SelfTests {
 
 if ($RunSelfTests) {
     Invoke-SelfTests
+    return
+}
+
+if ($RunFocusedEntityClosure) {
+    if ([string]::IsNullOrWhiteSpace($FocusedEntityWorkspaceRoot)) {
+        throw "RunFocusedEntityClosure에는 -FocusedEntityWorkspaceRoot가 필요합니다."
+    }
+
+    $FocusedWorkspaceRoot = Convert-PathToFullPath -PathText $FocusedEntityWorkspaceRoot.Trim().Trim('"')
+    $FocusedHostRootPath = Join-Path $FocusedWorkspaceRoot "GenericHost"
+    $FocusedProjectFilePath = Resolve-RequiredFile -PathText (Join-Path $FocusedHostRootPath "AssetDumpGenericHost.uproject") -Label "focused Generic Host project"
+    $FocusedEngineResolution = Resolve-EngineRoot -ExplicitEngineRoot $EngineRoot
+    $FocusedCommandletPath = Resolve-RequiredFile -PathText (Join-Path $FocusedEngineResolution.engine_root "Engine\Binaries\Win64\UnrealEditor-Cmd.exe") -Label "focused UnrealEditor-Cmd.exe"
+    $FocusedEntityRootPath = Join-Path $FocusedHostRootPath "Saved\AssetDumpPhase2\EntityEvidence"
+        $FocusedEntityListPath = Join-Path $FocusedEntityRootPath "component_entity_list_probe.json"
+        [void](Resolve-RequiredFile -PathText (Join-Path $FocusedEntityRootPath "entity_index.json") -Label "focused entity_index.json")
+    $FocusedSourceQueryPath = Resolve-RequiredFile -PathText (Join-Path $PSScriptRoot "..\Source\AssetDump\Private\ADumpEntityQuery.cpp") -Label "source ADumpEntityQuery.cpp"
+    $FocusedPackagedQueryPath = Resolve-RequiredFile -PathText (Join-Path $FocusedHostRootPath "Plugins\AssetDump\Source\AssetDump\Private\ADumpEntityQuery.cpp") -Label "packaged ADumpEntityQuery.cpp"
+    $FocusedSourceQuerySha256 = Get-FileSha256 -PathText $FocusedSourceQueryPath
+    $FocusedPackagedQuerySha256 = Get-FileSha256 -PathText $FocusedPackagedQueryPath
+    $FocusedQuerySourceIdentityPassed = $FocusedSourceQuerySha256 -eq $FocusedPackagedQuerySha256
+    Write-Host "Focused Entity Query source SHA-256: $FocusedSourceQuerySha256"
+    Write-Host "Focused Entity Query package SHA-256: $FocusedPackagedQuerySha256"
+    Write-Host "Focused Entity Query source identity passed: $FocusedQuerySourceIdentityPassed"
+        $FocusedTargetBlueprintPath = "/AssetDump/Validation/BP_ADumpComponentTree.BP_ADumpComponentTree"
+    $FocusedListArguments = @($FocusedProjectFilePath, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$FocusedEntityRootPath", "-Asset=$FocusedTargetBlueprintPath", "-Output=$FocusedEntityListPath", "-unattended", "-nop4", "-NoLogTimes")
+    [void](Invoke-ExternalCommand -FilePath $FocusedCommandletPath -Arguments $FocusedListArguments -StepName "Focused Entity Component List" -LogPath (Join-Path $FocusedWorkspaceRoot "Logs\FocusedEntityClosure\component_list.log") -UseCompactLog:$CompactLog)
+    $FocusedEntityList = Read-JsonFile -PathText $FocusedEntityListPath
+    $FocusedCandidateArray = @($FocusedEntityList.entities | Where-Object { [string]$_.entity_kind -eq "blueprint_graph" } | Sort-Object { [string]$_.entity_id })
+    if ($FocusedCandidateArray.Count -eq 0) {
+        throw "Focused Entity closure fixture가 blueprint_graph를 제공하지 않습니다: $FocusedEntityListPath"
+    }
+
+    $FocusedLogRootPath = Join-Path $FocusedWorkspaceRoot "Logs\FocusedEntityClosure"
+    $FocusedReportRootPath = Join-Path $FocusedWorkspaceRoot "Reports"
+    New-Item -ItemType Directory -Path $FocusedLogRootPath, $FocusedReportRootPath -Force | Out-Null
+    $FocusedAttemptList = [System.Collections.Generic.List[object]]::new()
+    $FocusedSelectedIndex = $null
+    $FocusedSelectedEntityId = ""
+    $FocusedSelectedRelationId = ""
+    $FocusedSelectedOutputPath = ""
+
+    for ($FocusedCandidateIndex = 0; $FocusedCandidateIndex -lt $FocusedCandidateArray.Count; ++$FocusedCandidateIndex) {
+                $FocusedCandidate = $FocusedCandidateArray[$FocusedCandidateIndex]
+        $FocusedCandidateEntityId = [string]$FocusedCandidate.entity_id
+        $FocusedUnfilteredOutputPath = Join-Path $FocusedEntityRootPath ("entity_expand_unfiltered_probe_{0:D4}.json" -f $FocusedCandidateIndex)
+        $FocusedUnfilteredArguments = @($FocusedProjectFilePath, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$FocusedEntityRootPath", "-Asset=$FocusedTargetBlueprintPath", "-EntityId=$FocusedCandidateEntityId", "-Direction=both", "-MaxDepth=1", "-MaxEntities=256", "-MaxRelations=1024", "-Output=$FocusedUnfilteredOutputPath", "-unattended", "-nop4", "-NoLogTimes")
+        [void](Invoke-ExternalCommand -FilePath $FocusedCommandletPath -Arguments $FocusedUnfilteredArguments -StepName ("Focused Entity Unfiltered Candidate {0:D4}" -f $FocusedCandidateIndex) -LogPath (Join-Path $FocusedLogRootPath ("candidate_unfiltered_{0:D4}.log" -f $FocusedCandidateIndex)) -UseCompactLog:$CompactLog)
+        $FocusedUnfilteredResult = Read-JsonFile -PathText $FocusedUnfilteredOutputPath
+        $FocusedUnfilteredEntityKinds = @($FocusedUnfilteredResult.entities | ForEach-Object { [string]$_.entity_kind } | Sort-Object -Unique)
+        $FocusedUnfilteredRelationKinds = @($FocusedUnfilteredResult.relations | ForEach-Object { [string]$_.relation_kind } | Sort-Object -Unique)
+        Write-Host ("Focused unfiltered expand candidate: index={0} entity={1} entities={2} relations={3} entity_kinds={4} relation_kinds={5}" -f $FocusedCandidateIndex, $FocusedCandidateEntityId, @($FocusedUnfilteredResult.entities).Count, @($FocusedUnfilteredResult.relations).Count, ($FocusedUnfilteredEntityKinds -join ','), ($FocusedUnfilteredRelationKinds -join ','))
+        $FocusedOutputPath = Join-Path $FocusedEntityRootPath ("entity_expand_filtered_probe_{0:D4}.json" -f $FocusedCandidateIndex)
+        $FocusedArguments = @($FocusedProjectFilePath, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$FocusedEntityRootPath", "-Asset=$FocusedTargetBlueprintPath", "-EntityId=$FocusedCandidateEntityId", "-Direction=both", "-MaxDepth=1", "-EntityKinds=blueprint_graph,blueprint_graph_node", "-MaxEntities=256", "-MaxRelations=1024", "-Output=$FocusedOutputPath", "-unattended", "-nop4", "-NoLogTimes")
+        [void](Invoke-ExternalCommand -FilePath $FocusedCommandletPath -Arguments $FocusedArguments -StepName ("Focused Entity Filtered Closure Candidate {0:D4}" -f $FocusedCandidateIndex) -LogPath (Join-Path $FocusedLogRootPath ("candidate_{0:D4}.log" -f $FocusedCandidateIndex)) -UseCompactLog:$CompactLog)
+                $FocusedResult = Read-JsonFile -PathText $FocusedOutputPath
+        $FocusedParsedEntityKinds = @($FocusedResult.query.entity_kinds | ForEach-Object { [string]$_ })
+        $FocusedParsedRelationKinds = @($FocusedResult.query.relation_kinds | ForEach-Object { [string]$_ })
+        $FocusedEntityIdSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($FocusedEntity in @($FocusedResult.entities)) { [void]$FocusedEntityIdSet.Add([string]$FocusedEntity.entity_id) }
+        $FocusedRelationCoveragePassed = @($FocusedResult.relations).Count -gt 0
+        $FocusedEndpointClosureOnlyPassed = $true
+        foreach ($FocusedRelation in @($FocusedResult.relations)) {
+            if (-not $FocusedEntityIdSet.Contains([string]$FocusedRelation.from_entity_id) -or -not $FocusedEntityIdSet.Contains([string]$FocusedRelation.to_entity_id)) {
+                $FocusedEndpointClosureOnlyPassed = $false
+            }
+        }
+        $FocusedClosurePassed = $FocusedRelationCoveragePassed -and $FocusedEndpointClosureOnlyPassed
+        $FocusedFirstRelationId = if (@($FocusedResult.relations).Count -gt 0) { [string]$FocusedResult.relations[0].relation_id } else { "" }
+        $FocusedAttemptList.Add([pscustomobject]@{
+            candidate_index = $FocusedCandidateIndex
+            entity_id = $FocusedCandidateEntityId
+                        entity_kind = [string]$FocusedCandidate.entity_kind
+            unfiltered_entity_count = @($FocusedUnfilteredResult.entities).Count
+            unfiltered_relation_count = @($FocusedUnfilteredResult.relations).Count
+            unfiltered_entity_kinds = $FocusedUnfilteredEntityKinds
+            unfiltered_relation_kinds = $FocusedUnfilteredRelationKinds
+            unfiltered_output = $FocusedUnfilteredOutputPath
+                        parsed_entity_kinds = $FocusedParsedEntityKinds
+            parsed_relation_kinds = $FocusedParsedRelationKinds
+            entity_count = @($FocusedResult.entities).Count
+            relation_count = @($FocusedResult.relations).Count
+            relation_coverage_passed = $FocusedRelationCoveragePassed
+            endpoint_closure_only_passed = $FocusedEndpointClosureOnlyPassed
+            endpoint_closure_passed = $FocusedClosurePassed
+            first_relation_id = $FocusedFirstRelationId
+            output = $FocusedOutputPath
+        })
+                Write-Host ("Focused filtered expand candidate: index={0} entity={1} parsed_entity_kinds={2} parsed_relation_kinds={3} entities={4} relations={5} coverage={6} closure_only={7} closure={8} output={9}" -f $FocusedCandidateIndex, $FocusedCandidateEntityId, ($FocusedParsedEntityKinds -join ','), ($FocusedParsedRelationKinds -join ','), @($FocusedResult.entities).Count, @($FocusedResult.relations).Count, $FocusedRelationCoveragePassed, $FocusedEndpointClosureOnlyPassed, $FocusedClosurePassed, $FocusedOutputPath)
+        if ($FocusedClosurePassed) {
+            $FocusedSelectedIndex = $FocusedCandidateIndex
+            $FocusedSelectedEntityId = $FocusedCandidateEntityId
+            $FocusedSelectedRelationId = $FocusedFirstRelationId
+            $FocusedSelectedOutputPath = $FocusedOutputPath
+            break
+        }
+    }
+
+    $FocusedPassed = $null -ne $FocusedSelectedIndex
+    $FocusedReportPath = Join-Path $FocusedReportRootPath "focused_entity_closure_report.json"
+                                                $FocusedReport = [ordered]@{
+        schema_version = "entity_filtered_closure_probe_v1"
+        generated_time = [DateTime]::UtcNow.ToString("o")
+                        script_version = "v1.18.22"
+        workspace_root = $FocusedWorkspaceRoot
+        entity_root = $FocusedEntityRootPath
+        target_asset = $FocusedTargetBlueprintPath
+        source_query_path = $FocusedSourceQueryPath
+        packaged_query_path = $FocusedPackagedQueryPath
+        source_query_sha256 = $FocusedSourceQuerySha256
+        packaged_query_sha256 = $FocusedPackagedQuerySha256
+        query_source_identity_passed = $FocusedQuerySourceIdentityPassed
+        candidate_count = $FocusedCandidateArray.Count
+        attempt_count = $FocusedAttemptList.Count
+        selected_candidate_index = $FocusedSelectedIndex
+        selected_entity_id = $FocusedSelectedEntityId
+        selected_relation_id = $FocusedSelectedRelationId
+        selected_output = if ($FocusedSelectedOutputPath -eq "") { $null } else { $FocusedSelectedOutputPath }
+        attempts = @($FocusedAttemptList)
+        all_passed = $FocusedPassed
+    }
+    Write-JsonFile -PathText $FocusedReportPath -ValueObject $FocusedReport
+    Write-Host "Focused Entity closure report: $FocusedReportPath"
+    Write-Host "Focused Entity closure report SHA-256: $(Get-FileSha256 -PathText $FocusedReportPath)"
+    Write-Host "Focused Entity closure passed: $FocusedPassed"
+    if (-not $FocusedPassed) {
+        throw "Focused Entity filtered closure 검증 실패: $FocusedReportPath"
+    }
     return
 }
 
@@ -1367,7 +1786,7 @@ try {
         throw "Generic Host에 설치한 Content/Validation count가 package와 다릅니다. package=$($PackageValidationBefore.file_count) host=$($HostValidationBefore.file_count)"
     }
 
-        $BuildArguments = @($HostInfo.editor_target, "Win64", "Development", $HostInfo.project_file, "-WaitMutex", "-FromMsBuild")
+                $BuildArguments = @($HostInfo.editor_target, "Win64", "Development", $HostInfo.project_file, "-WaitMutex", "-FromMsBuild", "-NoHotReloadFromIDE")
     $StepResultList.Add((Invoke-ExternalCommand -FilePath $BuildBatPath -Arguments $BuildArguments -StepName "Generic Host Editor Build" -LogPath (Join-Path $HostLogRootPath "01_build.log") -UseCompactLog:$CompactLog))
     Assert-LegacyPluginDumpRootAbsent -PluginRootPath $HostPluginRootPath -CompletedStepName "Generic Host Editor Build"
 
@@ -3038,10 +3457,115 @@ try {
     $EntityQueryListArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-Output=$EntityQueryListPath", "-unattended", "-nop4", "-NoLogTimes")
     $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityQueryListArguments -StepName "Entity Query List" -LogPath (Join-Path $HostLogRootPath "06eh_entity_list.log") -UseCompactLog:$CompactLog))
     $EntityQueryList = Read-JsonFile -PathText $EntityQueryListPath
-    $SelectedEntity = @($EntityQueryList.entities | Where-Object { $_.entity_kind -eq "blueprint_graph_node" } | Select-Object -First 1)
-    if ($SelectedEntity.Count -ne 1) { throw "Entity Query selector fixture가 blueprint_graph_node를 제공하지 않습니다." }
+
+        # 기존 selector/get/expand 검증 후보는 entity_list의 graph node를 entity_id 오름차순으로 고정한다.
+    $SelectorCandidateArray = @($EntityQueryList.entities | Where-Object { [string]$_.entity_kind -eq "blueprint_graph_node" } | Sort-Object { [string]$_.entity_id })
+    if ($SelectorCandidateArray.Count -eq 0) { throw "Entity Query selector fixture가 blueprint_graph_node를 제공하지 않습니다." }
+
+    # filtered endpoint closure 후보는 graph→node contains 관계를 실제 query할 graph entity로 고정한다.
+    $FilteredExpandCandidateArray = @($EntityQueryList.entities | Where-Object { [string]$_.entity_kind -eq "blueprint_graph" } | Sort-Object { [string]$_.entity_id })
+    if ($FilteredExpandCandidateArray.Count -eq 0) { throw "Entity Query filtered expand fixture가 blueprint_graph를 제공하지 않습니다." }
+
+    # 기존 selector/get/expand 검증은 결정론적 첫 graph node를 계속 사용한다.
+    $SelectedEntity = @($SelectorCandidateArray | Select-Object -First 1)
+    # 기존 EntityId selector 검증에 사용할 entity ID다.
     $SelectedEntityId = [string]$SelectedEntity[0].entity_id
+    # 기존 StableKey selector 검증에 사용할 stable key다.
     $SelectedStableKey = [string]$SelectedEntity[0].stable_identity.stable_key
+
+    # 후보별 actual filtered expand 결과를 child report에 기록한다.
+    $FilteredExpandAttemptList = [System.Collections.Generic.List[object]]::new()
+    # 선택된 후보의 0-based 결정론적 index다.
+    $FilteredExpandSelectedCandidateIndex = $null
+    # 선택된 filtered expand root entity ID다.
+    $FilteredExpandRootEntityId = ""
+    # 선택된 actual query relation 중 첫 relation ID다.
+    $FilteredExpandFixtureRelationId = ""
+    # 선택된 actual filtered expand 출력 경로다.
+    $EntityFilteredExpandPath = ""
+    # 선택된 actual filtered expand 결과 객체다.
+    $EntityFilteredExpand = $null
+
+    for ($FilteredExpandCandidateIndex = 0; $FilteredExpandCandidateIndex -lt $FilteredExpandCandidateArray.Count; ++$FilteredExpandCandidateIndex) {
+        # 현재 검사할 graph node 후보다.
+        $FilteredExpandCandidateEntity = $FilteredExpandCandidateArray[$FilteredExpandCandidateIndex]
+        # 현재 후보의 entity ID다.
+        $FilteredExpandCandidateEntityId = [string]$FilteredExpandCandidateEntity.entity_id
+        # 현재 후보의 고유 query 출력 경로다.
+        $FilteredExpandCandidatePath = Join-Path $EntityEvidenceRootPath ("entity_expand_filtered_candidate_{0:D4}.json" -f $FilteredExpandCandidateIndex)
+        # 현재 후보를 실제 indexed entityquery expand로 검증하는 인수다.
+                $FilteredExpandCandidateArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$FilteredExpandCandidateEntityId", "-Direction=both", "-MaxDepth=1", "-EntityKinds=blueprint_graph,blueprint_graph_node", "-MaxEntities=256", "-MaxRelations=1024", "-Output=$FilteredExpandCandidatePath", "-unattended", "-nop4", "-NoLogTimes")
+        # 현재 후보의 commandlet 실행 결과를 공통 step report에 추가한다.
+        $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $FilteredExpandCandidateArguments -StepName ("Entity Query Filtered Endpoint Closure Candidate {0:D4}" -f $FilteredExpandCandidateIndex) -LogPath (Join-Path $HostLogRootPath ("06ek1_entity_filtered_expand_{0:D4}.log" -f $FilteredExpandCandidateIndex)) -UseCompactLog:$CompactLog))
+        # 현재 후보의 actual query JSON 결과다.
+        $FilteredExpandCandidateResult = Read-JsonFile -PathText $FilteredExpandCandidatePath
+        # 현재 후보 결과에 포함된 entity ID 집합이다.
+        $FilteredExpandCandidateEntityIdSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($FilteredExpandCandidateResultEntity in @($FilteredExpandCandidateResult.entities)) { [void]$FilteredExpandCandidateEntityIdSet.Add([string]$FilteredExpandCandidateResultEntity.entity_id) }
+        # 현재 후보가 하나 이상의 relation을 반환했는지 나타낸다.
+        $FilteredExpandCandidateRelationCoveragePassed = @($FilteredExpandCandidateResult.relations).Count -gt 0
+        # 현재 후보의 모든 relation endpoint가 반환 entities에 존재하는지 나타낸다.
+        $FilteredExpandCandidateEndpointClosureOnlyPassed = $true
+        foreach ($FilteredExpandCandidateRelation in @($FilteredExpandCandidateResult.relations)) {
+            if (-not $FilteredExpandCandidateEntityIdSet.Contains([string]$FilteredExpandCandidateRelation.from_entity_id) -or -not $FilteredExpandCandidateEntityIdSet.Contains([string]$FilteredExpandCandidateRelation.to_entity_id)) {
+                $FilteredExpandCandidateEndpointClosureOnlyPassed = $false
+            }
+        }
+        # 현재 후보가 fixture 선택의 두 조건을 모두 만족하는지 나타낸다.
+        $FilteredExpandCandidateEndpointClosurePassed = $FilteredExpandCandidateRelationCoveragePassed -and $FilteredExpandCandidateEndpointClosureOnlyPassed
+        # 현재 후보에서 실제 반환된 첫 relation ID다.
+        $FilteredExpandCandidateRelationId = if (@($FilteredExpandCandidateResult.relations).Count -gt 0) { [string]$FilteredExpandCandidateResult.relations[0].relation_id } else { "" }
+
+                $FilteredExpandAttemptList.Add([pscustomobject]@{
+                        candidate_index = $FilteredExpandCandidateIndex
+            entity_id = $FilteredExpandCandidateEntityId
+            entity_kind = [string]$FilteredExpandCandidateEntity.entity_kind
+            entity_count = @($FilteredExpandCandidateResult.entities).Count
+            relation_count = @($FilteredExpandCandidateResult.relations).Count
+            relation_coverage_passed = $FilteredExpandCandidateRelationCoveragePassed
+            endpoint_closure_only_passed = $FilteredExpandCandidateEndpointClosureOnlyPassed
+            endpoint_closure_passed = $FilteredExpandCandidateEndpointClosurePassed
+            first_relation_id = $FilteredExpandCandidateRelationId
+            output = $FilteredExpandCandidatePath
+        })
+                Write-Host ("Filtered expand candidate: index={0} entity={1} kind={2} entities={3} relations={4} coverage={5} closure_only={6} closure={7} first_relation={8} output={9}" -f $FilteredExpandCandidateIndex, $FilteredExpandCandidateEntityId, [string]$FilteredExpandCandidateEntity.entity_kind, @($FilteredExpandCandidateResult.entities).Count, @($FilteredExpandCandidateResult.relations).Count, $FilteredExpandCandidateRelationCoveragePassed, $FilteredExpandCandidateEndpointClosureOnlyPassed, $FilteredExpandCandidateEndpointClosurePassed, $FilteredExpandCandidateRelationId, $FilteredExpandCandidatePath)
+
+        if ($FilteredExpandCandidateEndpointClosurePassed) {
+            $FilteredExpandSelectedCandidateIndex = $FilteredExpandCandidateIndex
+            $FilteredExpandRootEntityId = $FilteredExpandCandidateEntityId
+            $FilteredExpandFixtureRelationId = $FilteredExpandCandidateRelationId
+                        $EntityFilteredExpandPath = $FilteredExpandCandidatePath
+            $EntityFilteredExpand = $FilteredExpandCandidateResult
+            Write-Host ("Filtered expand selected: index={0} entity={1} relation={2} output={3}" -f $FilteredExpandSelectedCandidateIndex, $FilteredExpandRootEntityId, $FilteredExpandFixtureRelationId, $EntityFilteredExpandPath)
+            break
+        }
+    }
+
+    if ($null -eq $FilteredExpandSelectedCandidateIndex) {
+        # fixture discovery 실패 시에도 후보와 실제 query 시도를 보존할 child report 경로다.
+        $FilteredExpandFailureReportPath = Join-Path $EntityEvidenceRootPath "entity_evidence_phase2_evidence.json"
+        # fixture discovery 실패를 구조화해 남기는 최소 child report다.
+        $FilteredExpandFailureReport = [ordered]@{
+            schema_version = "entity_evidence_phase2_evidence_v1"
+            filtered_expand_fixture_discovery_passed = $false
+            filtered_expand_candidate_count = $FilteredExpandCandidateArray.Count
+            filtered_expand_attempt_count = $FilteredExpandAttemptList.Count
+            filtered_expand_selected_candidate_index = $null
+            filtered_expand_candidate_entity_ids = @($FilteredExpandCandidateArray | ForEach-Object { [string]$_.entity_id })
+            filtered_expand_root_entity_id = ""
+            filtered_expand_entity_count = 0
+            filtered_expand_relation_count = 0
+            filtered_expand_relation_coverage_passed = $false
+            filtered_expand_endpoint_closure_only_passed = $false
+            filtered_expand_endpoint_closure_passed = $false
+            filtered_expand_output = $null
+            filtered_expand_attempts = @($FilteredExpandAttemptList)
+            failure_summary = "filtered expand fixture discovery failed"
+            all_passed = $false
+        }
+        Write-JsonFile -PathText $FilteredExpandFailureReportPath -ValueObject $FilteredExpandFailureReport
+        throw "Entity Query filtered expand fixture discovery 실패: candidates=$($FilteredExpandCandidateArray.Count) attempts=$($FilteredExpandAttemptList.Count) report=$FilteredExpandFailureReportPath"
+    }
 
     $EntityGetIdPath = Join-Path $EntityEvidenceRootPath "entity_get_id.json"
     $EntityGetIdArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=get", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Output=$EntityGetIdPath", "-unattended", "-nop4", "-NoLogTimes")
@@ -3056,12 +3580,7 @@ try {
     $EntityExpandPath = Join-Path $EntityEvidenceRootPath "entity_expand.json"
     $EntityExpandArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Direction=both", "-MaxDepth=2", "-MaxEntities=256", "-MaxRelations=1024", "-Output=$EntityExpandPath", "-unattended", "-nop4", "-NoLogTimes")
     $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityExpandArguments -StepName "Entity Query Expand" -LogPath (Join-Path $HostLogRootPath "06ek_entity_expand.log") -UseCompactLog:$CompactLog))
-        $EntityExpand = Read-JsonFile -PathText $EntityExpandPath
-
-    $EntityFilteredExpandPath = Join-Path $EntityEvidenceRootPath "entity_expand_filtered.json"
-    $EntityFilteredExpandArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Direction=both", "-MaxDepth=1", "-EntityKinds=blueprint_graph_node,blueprint_graph_pin", "-MaxEntities=256", "-MaxRelations=1024", "-Output=$EntityFilteredExpandPath", "-unattended", "-nop4", "-NoLogTimes")
-    $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityFilteredExpandArguments -StepName "Entity Query Filtered Endpoint Closure" -LogPath (Join-Path $HostLogRootPath "06ek1_entity_filtered_expand.log") -UseCompactLog:$CompactLog))
-    $EntityFilteredExpand = Read-JsonFile -PathText $EntityFilteredExpandPath
+    $EntityExpand = Read-JsonFile -PathText $EntityExpandPath
 
     $EntityNoRelationsPath = Join-Path $EntityEvidenceRootPath "entity_expand_no_relations.json"
     $EntityNoRelationsArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entityquery", "-Operation=expand", "-DumpRoot=$EntityEvidenceRootPath", "-Asset=$ActorBlueprintPath", "-EntityId=$SelectedEntityId", "-Direction=both", "-MaxDepth=2", "-MaxEntities=1024", "-MaxRelations=0", "-MaxBytes=1048576", "-Output=$EntityNoRelationsPath", "-unattended", "-nop4", "-NoLogTimes")
@@ -3086,7 +3605,7 @@ try {
     $EntityContextBytesArguments = @($HostInfo.project_file, "-run=AssetDump", "-Mode=entitycontext", "-Input=$EntityExpandPath", "-Output=$EntityContextBytesPath", "-MaxItems=512", "-MaxBytes=4096", "-unattended", "-nop4", "-NoLogTimes")
     $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityContextBytesArguments -StepName "Entity Context UTF8 Bounds" -LogPath (Join-Path $HostLogRootPath "06eo_entity_context_bytes.log") -UseCompactLog:$CompactLog))
     $EntityContextBytes = Read-JsonFile -PathText $EntityContextBytesPath
-        $EntityContextUtf8Bytes = [System.Text.Encoding]::UTF8.GetByteCount((Get-Content -LiteralPath $EntityContextBytesPath -Raw -Encoding UTF8))
+    $EntityContextUtf8Bytes = [System.Text.Encoding]::UTF8.GetByteCount((Get-Content -LiteralPath $EntityContextBytesPath -Raw -Encoding UTF8))
 
     $ActorEntityIndexAssetEntryArray = @($EntityIndexB.assets | Where-Object { [string]$_.object_path -eq $ActorBlueprintPath })
     if ($ActorEntityIndexAssetEntryArray.Count -ne 1) { throw "AIRE-G2 Actor entity index asset entry가 정확히 하나가 아닙니다." }
@@ -3160,24 +3679,25 @@ try {
     $StepResultList.Add((Invoke-ExternalCommand -FilePath $CommandletPath -Arguments $EntityContextRepeatArguments -StepName "Entity Context Repeat" -LogPath (Join-Path $HostLogRootPath "06f2_entity_context_repeat.log") -UseCompactLog:$CompactLog))
     $EntityContextRepeat = Read-JsonFile -PathText $EntityContextRepeatPath
 
-
-        $SelectorEquivalencePassed = @($EntityGetId.entities).Count -eq 1 -and @($EntityGetKey.entities).Count -eq 1 -and (($EntityGetId.entities[0] | ConvertTo-Json -Depth 100 -Compress) -ceq ($EntityGetKey.entities[0] | ConvertTo-Json -Depth 100 -Compress))
+    $SelectorEquivalencePassed = @($EntityGetId.entities).Count -eq 1 -and @($EntityGetKey.entities).Count -eq 1 -and (($EntityGetId.entities[0] | ConvertTo-Json -Depth 100 -Compress) -ceq ($EntityGetKey.entities[0] | ConvertTo-Json -Depth 100 -Compress))
     $AssetSelectorEquivalencePassed = (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryList) -ceq (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryAssetId)
     $EntityKindFilterPassed = @($EntityKindFilter.entities).Count -gt 0 -and @($EntityKindFilter.entities | Where-Object { [string]$_.entity_kind -ne "blueprint_graph_node" }).Count -eq 0
     $FacetFilterPassed = @($EntityFacetFilter.entities).Count -gt 0 -and @($EntityFacetFilter.entities | Where-Object { $_.facets.PSObject.Properties.Name -notcontains $SelectedFacetName }).Count -eq 0
     $QueryRepeatDeterminismPassed = (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryList) -ceq (ConvertTo-EntityNormalizedJson -ValueObject $EntityQueryRepeat)
     $QueryPositivePassed = $EntityQueryList.schema_version -eq "entity_query_result_v1" -and $EntityGetId.schema_version -eq "entity_query_result_v1" -and $EntityExpand.schema_version -eq "entity_query_result_v1" -and $EntityQueryList.operation -eq "list" -and $EntityGetId.operation -eq "get" -and $EntityExpand.operation -eq "expand" -and $null -ne $EntityQueryList.resolved_asset -and $null -eq $EntityQueryList.root_entity -and $null -ne $EntityGetId.root_entity -and $null -ne $EntityExpand.root_entity -and -not [string]::IsNullOrWhiteSpace([string]$EntityQueryList.query.normalized_query) -and @($EntityQueryList.entities).Count -gt 1 -and @($EntityExpand.entities).Count -ge 1
     $BoundsCursorPassed = [bool]$EntityBounded.bounds.truncated -and [bool]$EntityBounded.continuation.has_more -and [string]$EntityBounded.continuation.cursor -match '^ec1\.' -and @($EntityBounded.entities).Count -eq 1 -and [int]$EntityBounded.bounds.available_entity_count -eq ([int]$EntityBounded.bounds.included_entity_count + [int]$EntityBounded.bounds.omitted_entity_count) -and [int]$EntityCursor.query.canonical_offset -eq 1 -and [string]$EntityBounded.entities[0].entity_id -ne [string]$EntityCursor.entities[0].entity_id
-        $QueryMaxBytesPassed = $EntityQueryMaxBytesUtf8Bytes -le 4096 -and [bool]$EntityQueryMaxBytes.bounds.truncated -and @($EntityQueryMaxBytes.bounds.truncation_reasons) -contains "max_bytes"
+    $QueryMaxBytesPassed = $EntityQueryMaxBytesUtf8Bytes -le 4096 -and [bool]$EntityQueryMaxBytes.bounds.truncated -and @($EntityQueryMaxBytes.bounds.truncation_reasons) -contains "max_bytes"
 
     $FilteredExpandEntityIdSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     foreach ($Entity in @($EntityFilteredExpand.entities)) { [void]$FilteredExpandEntityIdSet.Add([string]$Entity.entity_id) }
-    $FilteredExpandEndpointClosurePassed = @($EntityFilteredExpand.relations).Count -gt 0
+    $FilteredExpandRelationCoveragePassed = @($EntityFilteredExpand.relations).Count -gt 0
+    $FilteredExpandEndpointClosureOnlyPassed = $true
     foreach ($Relation in @($EntityFilteredExpand.relations)) {
         if (-not $FilteredExpandEntityIdSet.Contains([string]$Relation.from_entity_id) -or -not $FilteredExpandEntityIdSet.Contains([string]$Relation.to_entity_id)) {
-            $FilteredExpandEndpointClosurePassed = $false
+            $FilteredExpandEndpointClosureOnlyPassed = $false
         }
     }
+    $FilteredExpandEndpointClosurePassed = $FilteredExpandRelationCoveragePassed -and $FilteredExpandEndpointClosureOnlyPassed
     $ZeroRelationCursorProgressPassed = @($EntityNoRelations.relations).Count -eq 0 -and
         [int]$EntityNoRelations.bounds.available_relation_count -gt 0 -and
         [bool]$EntityNoRelations.bounds.truncated -and
@@ -3217,10 +3737,9 @@ try {
     $ContextReasonOrderPassed = (Test-EntityTruncationReasonOrder -ReasonArray @($EntityContextMaxItems.bounds.truncation_reasons)) -and (Test-EntityTruncationReasonOrder -ReasonArray @($EntityContextSource.bounds.truncation_reasons)) -and (Test-EntityTruncationReasonOrder -ReasonArray @($EntityContextBytes.bounds.truncation_reasons))
     $ContextRepeatDeterminismPassed = (ConvertTo-EntityNormalizedJson -ValueObject $EntityContext) -ceq (ConvertTo-EntityNormalizedJson -ValueObject $EntityContextRepeat)
     $Utf8BoundsPassed = $EntityContextUtf8Bytes -le 4096 -and [int]$EntityContextBytes.limits.max_bytes -eq 4096 -and ((-not [bool]$EntityContextBytes.bounds.truncated) -or @($EntityContextBytes.bounds.truncation_reasons) -contains "max_bytes")
-        $AireG2PositivePassed = $AssetSelectorEquivalencePassed -and $EntityKindFilterPassed -and $FacetFilterPassed -and $DirectionFilterPassed -and $RelationKindFilterPassed -and $FilteredExpandEndpointClosurePassed -and $ZeroRelationCursorProgressPassed -and $QueryRepeatDeterminismPassed -and $QueryMaxBytesPassed -and $ContextMaxItemsPassed -and $ContextMaxItemsNativeEqualityPassed -and $ContextSourceTruncatedPassed -and $ContextReasonOrderPassed -and $ContextRepeatDeterminismPassed
+    $AireG2PositivePassed = $AssetSelectorEquivalencePassed -and $EntityKindFilterPassed -and $FacetFilterPassed -and $DirectionFilterPassed -and $RelationKindFilterPassed -and $FilteredExpandEndpointClosurePassed -and $ZeroRelationCursorProgressPassed -and $QueryRepeatDeterminismPassed -and $QueryMaxBytesPassed -and $ContextMaxItemsPassed -and $ContextMaxItemsNativeEqualityPassed -and $ContextSourceTruncatedPassed -and $ContextReasonOrderPassed -and $ContextRepeatDeterminismPassed
 
-
-        $EntitySentinelPath = Join-Path $EntityEvidenceRootPath "entity_failure_sentinel.json"
+    $EntitySentinelPath = Join-Path $EntityEvidenceRootPath "entity_failure_sentinel.json"
     Write-TextFile -PathText $EntitySentinelPath -ContentText '{"sentinel":true}'
     $EntityProtectedPathArray = @($ComponentEntityDumpPath, $ActorEntityDumpPath, (Join-Path $EntityEvidenceRootPath "asset_index.json"), (Join-Path $EntityEvidenceRootPath "section_index.json"), $EntityIndexPath)
     $EntityProtectedHashBefore = @{}
@@ -3331,7 +3850,7 @@ try {
         ++$NegativeIndex
     }
 
-        $ActualFailureCoverageText = @($EntityNegativeResultList | ForEach-Object { [string]$_.expected_code } | Sort-Object) -join "|"
+    $ActualFailureCoverageText = @($EntityNegativeResultList | ForEach-Object { [string]$_.expected_code } | Sort-Object) -join "|"
     $ExpectedFailureCoverageText = @($EntityNegativeSpecs | ForEach-Object { [string]$_.code } | Sort-Object) -join "|"
     $EntityIndexNegativePassed = @($EntityNegativeResultList | Where-Object { $_.category -eq "index" -and -not $_.succeeded }).Count -eq 0 -and @($EntityNegativeResultList | Where-Object { $_.category -eq "index" }).Count -eq 8
     $EntityQueryNegativePassed = @($EntityNegativeResultList | Where-Object { $_.category -eq "query" -and -not $_.succeeded }).Count -eq 0 -and @($EntityNegativeResultList | Where-Object { $_.category -eq "query" }).Count -eq 11
@@ -3349,46 +3868,59 @@ try {
         "ADUMP_ENTITY_INDEX_NOT_FOUND", "ADUMP_ENTITY_INDEX_JSON_INVALID", "ADUMP_ENTITY_INDEX_SCHEMA_UNSUPPORTED", "ADUMP_ENTITY_SOURCE_FILE_NOT_FOUND", "ADUMP_ENTITY_SOURCE_JSON_INVALID", "ADUMP_ENTITY_POINTER_INVALID", "ADUMP_ENTITY_POINTER_NOT_FOUND", "ADUMP_ENTITY_FINGERPRINT_MISMATCH", "ADUMP_ENTITY_ASSET_SELECTOR_REQUIRED", "ADUMP_ENTITY_ASSET_SELECTOR_CONFLICT", "ADUMP_ENTITY_ASSET_NOT_FOUND", "ADUMP_ENTITY_OPERATION_UNSUPPORTED", "ADUMP_ENTITY_SELECTOR_REQUIRED", "ADUMP_ENTITY_SELECTOR_CONFLICT", "ADUMP_ENTITY_NOT_FOUND", "ADUMP_ENTITY_DUPLICATE", "ADUMP_ENTITY_BOUNDS_INVALID", "ADUMP_ENTITY_CURSOR_INVALID", "ADUMP_ENTITY_CURSOR_STALE", "ADUMP_ENTITY_CONTEXT_INPUT_REQUIRED", "ADUMP_ENTITY_CONTEXT_INPUT_NOT_FOUND", "ADUMP_ENTITY_CONTEXT_INPUT_JSON_INVALID", "ADUMP_ENTITY_CONTEXT_INPUT_SCHEMA_UNSUPPORTED", "ADUMP_ENTITY_CONTEXT_SOURCE_FAILED", "ADUMP_ENTITY_CONTEXT_OUTPUT_REQUIRED", "ADUMP_ENTITY_CONTEXT_OUTPUT_TOO_SMALL"
     )
     $PackagedEntityQuerySourcePath = Join-Path $HostPluginRootPath "Source\AssetDump\Private\ADumpEntityQuery.cpp"
-    $ActualFailureCodeArray = @([regex]::Matches((Get-Content -LiteralPath $PackagedEntityQuerySourcePath -Raw), 'ADUMP_ENTITY_[A-Z0-9_]+') | ForEach-Object { $_.Value } | Sort-Object -Unique)
+    $ActualFailureCodeArray = @([regex]::Matches((Get-Content -LiteralPath $PackagedEntityQuerySourcePath -Raw -Encoding UTF8), 'ADUMP_ENTITY_[A-Z0-9_]+') | ForEach-Object { $_.Value } | Sort-Object -Unique)
     $FailureRegistryExactPassed = (@($ExpectedFailureCodeArray | Sort-Object) -join "|") -ceq ($ActualFailureCodeArray -join "|")
 
-                $AireG2IndexQueryContextPassed = $EntityIndexSchemaPassed -and $EntityIndexRecordContractPassed -and $EntityIndexDeterminismPassed -and $EntityPointerResolutionPassed -and $AireG2PositivePassed -and $EntityIndexNegativePassed -and $EntityQueryNegativePassed -and $EntityContextNegativePassed -and $EntityFailureAtomicityPassed -and $EntityProtectedSourceInvariancePassed -and $FailureRegistryExactPassed
-    $EntityEvidencePassed = $StoredSchemaPassed -and $ExplicitOmissionPassed -and $AcceptedFullDefaultPassed -and $CapabilityContractPassed -and $EntityKindRegistryPassed -and $RelationKindRegistryPassed -and $FiveEntityKindsPassed -and $FiveRelationKindsPassed -and $CompletenessPassed -and $FacetContractPassed -and $StableIdentityPassed -and $FallbackDisclosurePassed -and $EntityOrderPassed -and $RelationContractPassed -and $CountContractPassed -and $RootBoundsPassed -and $StoredDeterminismPassed -and $EntityAssetIndexContractPassed -and $EntitySectionIndexContractPassed -and $EntityIndexSchemaPassed -and $EntityIndexRecordContractPassed -and $EntityIndexDeterminismPassed -and $EntityPointerResolutionPassed -and $QueryPositivePassed -and $SelectorEquivalencePassed -and $BoundsCursorPassed -and $ContextNativeEqualityPassed -and $Utf8BoundsPassed -and $EntityNegativePassed -and $FailureRegistryExactPassed -and $AireG2IndexQueryContextPassed
+    $AireG2IndexQueryContextPassed = $EntityIndexSchemaPassed -and $EntityIndexRecordContractPassed -and $EntityIndexDeterminismPassed -and $EntityPointerResolutionPassed -and $AireG2PositivePassed -and $FilteredExpandRelationCoveragePassed -and $FilteredExpandEndpointClosureOnlyPassed -and $FilteredExpandEndpointClosurePassed -and $ZeroRelationCursorProgressPassed -and $EntityIndexNegativePassed -and $EntityQueryNegativePassed -and $EntityContextNegativePassed -and $EntityFailureAtomicityPassed -and $EntityProtectedSourceInvariancePassed -and $FailureRegistryExactPassed
+    $EntityEvidencePassed = $StoredSchemaPassed -and $ExplicitOmissionPassed -and $AcceptedFullDefaultPassed -and $CapabilityContractPassed -and $EntityKindRegistryPassed -and $RelationKindRegistryPassed -and $FiveEntityKindsPassed -and $FiveRelationKindsPassed -and $CompletenessPassed -and $FacetContractPassed -and $StableIdentityPassed -and $FallbackDisclosurePassed -and $EntityOrderPassed -and $RelationContractPassed -and $CountContractPassed -and $RootBoundsPassed -and $StoredDeterminismPassed -and $EntityAssetIndexContractPassed -and $EntitySectionIndexContractPassed -and $EntityIndexSchemaPassed -and $EntityIndexRecordContractPassed -and $EntityIndexDeterminismPassed -and $EntityPointerResolutionPassed -and $QueryPositivePassed -and $SelectorEquivalencePassed -and $BoundsCursorPassed -and $FilteredExpandRelationCoveragePassed -and $FilteredExpandEndpointClosureOnlyPassed -and $FilteredExpandEndpointClosurePassed -and $ZeroRelationCursorProgressPassed -and $ContextNativeEqualityPassed -and $Utf8BoundsPassed -and $EntityNegativePassed -and $FailureRegistryExactPassed -and $AireG2IndexQueryContextPassed
     $EntityEvidence = [ordered]@{
         schema_version = "entity_evidence_phase2_evidence_v1"
         stored_schema_passed = $StoredSchemaPassed
         explicit_prerequisite_omission_passed = $ExplicitOmissionPassed
         accepted_full_default_preserved = $AcceptedFullDefaultPassed
         entity_kind_registry_exact = $EntityKindRegistryPassed
-                relation_kind_registry_exact = $RelationKindRegistryPassed
+        relation_kind_registry_exact = $RelationKindRegistryPassed
         capability_contract_passed = $CapabilityContractPassed
         five_entity_kinds_passed = $FiveEntityKindsPassed
         five_relation_kinds_passed = $FiveRelationKindsPassed
-                completeness_registry_passed = $CompletenessPassed
+        completeness_registry_passed = $CompletenessPassed
         facet_contract_passed = $FacetContractPassed
         stable_identity_passed = $StableIdentityPassed
         fallback_identity_disclosure_passed = $FallbackDisclosurePassed
         fallback_identity_count = @($FallbackEntityArray).Count
         entity_canonical_and_semantic_order_passed = $EntityOrderPassed
         relation_endpoint_and_provenance_passed = $RelationContractPassed
-                count_contract_passed = $CountContractPassed
+        count_contract_passed = $CountContractPassed
         root_bounds_contract_passed = $RootBoundsPassed
-                stored_repeat_determinism_passed = $StoredDeterminismPassed
+        stored_repeat_determinism_passed = $StoredDeterminismPassed
         asset_index_entity_section_contract_passed = $EntityAssetIndexContractPassed
         section_index_entity_section_contract_passed = $EntitySectionIndexContractPassed
-                entity_index_schema_passed = $EntityIndexSchemaPassed
+        entity_index_schema_passed = $EntityIndexSchemaPassed
         entity_index_record_contract_passed = $EntityIndexRecordContractPassed
         entity_index_repeat_determinism_passed = $EntityIndexDeterminismPassed
         entity_index_pointer_resolution_passed = $EntityPointerResolutionPassed
         list_get_expand_positive_passed = $QueryPositivePassed
         selector_equivalence_passed = $SelectorEquivalencePassed
-                bounds_cursor_truncation_passed = $BoundsCursorPassed
+        bounds_cursor_truncation_passed = $BoundsCursorPassed
         asset_selector_equivalence_passed = $AssetSelectorEquivalencePassed
         entity_kind_filter_passed = $EntityKindFilterPassed
         facet_filter_passed = $FacetFilterPassed
-                relation_kind_filter_passed = $RelationKindFilterPassed
+        relation_kind_filter_passed = $RelationKindFilterPassed
         direction_filter_passed = $DirectionFilterPassed
+        filtered_expand_fixture_discovery_passed = $null -ne $FilteredExpandSelectedCandidateIndex
+        filtered_expand_candidate_count = $FilteredExpandCandidateArray.Count
+        filtered_expand_attempt_count = $FilteredExpandAttemptList.Count
+        filtered_expand_selected_candidate_index = $FilteredExpandSelectedCandidateIndex
+        filtered_expand_candidate_entity_ids = @($FilteredExpandCandidateArray | ForEach-Object { [string]$_.entity_id })
+        filtered_expand_relation_coverage_passed = $FilteredExpandRelationCoveragePassed
+        filtered_expand_endpoint_closure_only_passed = $FilteredExpandEndpointClosureOnlyPassed
         filtered_expand_endpoint_closure_passed = $FilteredExpandEndpointClosurePassed
+        filtered_expand_root_entity_id = $FilteredExpandRootEntityId
+        filtered_expand_fixture_relation_id = $FilteredExpandFixtureRelationId
+        filtered_expand_entity_count = @($EntityFilteredExpand.entities).Count
+        filtered_expand_relation_count = @($EntityFilteredExpand.relations).Count
+        filtered_expand_output = $EntityFilteredExpandPath
+        filtered_expand_attempts = @($FilteredExpandAttemptList)
         zero_relation_cursor_progress_passed = $ZeroRelationCursorProgressPassed
         entity_query_max_bytes_passed = $QueryMaxBytesPassed
         entity_query_repeat_determinism_passed = $QueryRepeatDeterminismPassed
@@ -3400,7 +3932,7 @@ try {
         entity_context_repeat_determinism_passed = $ContextRepeatDeterminismPassed
         exact_utf8_max_bytes_passed = $Utf8BoundsPassed
         exact_utf8_byte_count = $EntityContextUtf8Bytes
-                negative_matrix_passed = $EntityNegativePassed
+        negative_matrix_passed = $EntityNegativePassed
         negative_case_count = @($EntityNegativeResultList).Count
         index_actual_negative_matrix_passed = $EntityIndexNegativePassed
         query_actual_negative_matrix_passed = $EntityQueryNegativePassed
@@ -3426,7 +3958,7 @@ try {
     }
     $EntityEvidenceReportPath = Join-Path $EntityEvidenceRootPath "entity_evidence_phase2_evidence.json"
     Write-JsonFile -PathText $EntityEvidenceReportPath -ValueObject $EntityEvidence
-        if (-not $EntityEvidencePassed) { throw "AIRE Phase 1 Entity Evidence focused Generic Host evidence 실패: $EntityEvidenceReportPath" }
+    if (-not $EntityEvidencePassed) { throw "AIRE Phase 1 Entity Evidence focused Generic Host evidence 실패: $EntityEvidenceReportPath" }
 
     # P2-N4 Niagara closure는 packaged controlled fixtures를 읽기만 하며 Blueprint-only, Niagara-only와 mixed-root index/query/context를 검증한다.
     $NiagaraClosureRootPath = Join-Path $HostEvidenceRootPath "NiagaraPhase2Closure"
@@ -3764,7 +4296,7 @@ $Phase2Passed = $FailureList.Count -eq 0
 $FinalReport = [ordered]@{
     schema_version = "assetdump_standalone_phase2_verification_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-                                                                                                                                                                                                                                                    script_version = "v1.18.1"
+                                                script_version = "v1.18.22"
     workspace_root = $ResolvedWorkspaceRoot
     engine_root_source = $EngineResolution.source
     engine_root = $ResolvedEngineRoot
@@ -3875,9 +4407,12 @@ $FinalReport = [ordered]@{
     entity_context_utf8_bounds_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.exact_utf8_max_bytes_passed
     entity_negative_matrix_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.negative_matrix_passed
     entity_stable_failure_registry_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.stable_failure_registry_exact
-        entity_repeat_determinism_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.stored_repeat_determinism_passed -and [bool]$EntityEvidence.entity_index_repeat_determinism_passed -and [bool]$EntityEvidence.entity_query_repeat_determinism_passed -and [bool]$EntityEvidence.entity_context_repeat_determinism_passed
+    entity_repeat_determinism_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.stored_repeat_determinism_passed -and [bool]$EntityEvidence.entity_index_repeat_determinism_passed -and [bool]$EntityEvidence.entity_query_repeat_determinism_passed -and [bool]$EntityEvidence.entity_context_repeat_determinism_passed
     entity_asset_selector_equivalence_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.asset_selector_equivalence_passed
     entity_filter_direction_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_kind_filter_passed -and [bool]$EntityEvidence.facet_filter_passed -and [bool]$EntityEvidence.relation_kind_filter_passed -and [bool]$EntityEvidence.direction_filter_passed
+    entity_filtered_expand_relation_coverage_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.filtered_expand_relation_coverage_passed
+    entity_filtered_expand_endpoint_closure_only_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.filtered_expand_endpoint_closure_only_passed
+    entity_filtered_expand_endpoint_closure_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.filtered_expand_endpoint_closure_passed
     entity_query_max_bytes_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_query_max_bytes_passed
     entity_context_truncation_contract_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.entity_context_max_items_passed -and [bool]$EntityEvidence.entity_context_truncated_native_equality_passed -and [bool]$EntityEvidence.entity_context_source_truncated_passed -and [bool]$EntityEvidence.entity_context_reason_order_passed
     entity_index_actual_negative_matrix_passed = $null -ne $EntityEvidence -and [bool]$EntityEvidence.index_actual_negative_matrix_passed
@@ -3934,6 +4469,12 @@ Write-Host "AIRE-G2 Index Query Context passed: $($FinalReport.aire_g2_index_que
 Write-Host "P2-N4 Niagara closure passed: $($FinalReport.niagara_phase2_closure_passed)"
 Write-Host "P2-N4 Niagara Content invariance passed: $($FinalReport.niagara_content_invariance_passed)"
 Write-Host "P2B read-only fallback passed: $($FinalReport.p2b_read_only_output_fallback_passed)"
+Write-Host "Final report SHA-256: $(Get-FileSha256 -PathText $FinalReportPath)"
+if ($FailureList.Count -gt 0) {
+    foreach ($FailureDetail in $FailureList) {
+        Write-Host "Failure detail: $FailureDetail"
+    }
+}
 
 if (-not $FinalReport.phase2_implementation_gate_passed) {
     throw "Standalone Phase 2 verification failed. report=$FinalReportPath failures=$($FailureList.Count)"

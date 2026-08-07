@@ -1,6 +1,7 @@
 ﻿# File: RunBuildPluginVerification.ps1
-# Version: v1.2
+# Version: v1.3
 # Changelog:
+# - v1.3: repository-external explicit-allowlist clean input staging, source/staging manifest, Dumped/·비허용 Script 차단과 additive report evidence를 추가.
 # - v1.2: P2B packaged runtime에 필요한 regression/closure PowerShell harness 포함을 package contract와 self-test에 추가.
 # - v1.1: BuildPlugin 표준 PluginRoot/Intermediate를 허용·기록하고 다른 위치의 Intermediate는 계속 차단하며, descriptor와 FilterPlugin.ini 전후 불변성을 추가.
 # - v1.0: RunUAT BuildPlugin 실행, 외부 package root 강제, package contents 검사, source Content/Validation 불변성과 machine-readable report를 추가.
@@ -14,6 +15,8 @@
 # - Plugin root 밖 또는 중첩 위치의 Intermediate, Dumped, Saved, .git, .vs와 runtime evidence는 계속 금지한다.
 # - source AssetDump.uplugin과 Config/FilterPlugin.ini는 BuildPlugin 전후 exact equality를 요구한다.
 # - package에는 P2B runtime이 직접 실행하는 Scripts/RunBPDumpRegression.ps1과 Scripts/RunDataAssetDiffClosure.ps1가 모두 필요하다.
+# - fresh BuildPlugin 입력은 repository-external clean staging에서 만들며 AssetDump.uplugin, Config/FilterPlugin.ini, Source/**, Content/**와 exact two harness만 materialize한다.
+# - source Dumped/, Binaries/, Intermediate/, Saved/, Documents/와 다른 Scripts는 읽거나 수정하지 않고 staging 입력에서 제외한다.
 
 [CmdletBinding()]
 param(
@@ -123,6 +126,235 @@ function Get-FileSha256 {
         }
     } finally {
         $FileStream.Dispose()
+    }
+}
+
+# New-ExplicitFileManifest는 지정된 relative file set의 path/length/SHA-256 manifest를 만든다.
+function New-ExplicitFileManifest {
+    param(
+        [string]$RootPath,
+        [string[]]$RelativePaths
+    )
+
+    $RecordList = [System.Collections.Generic.List[object]]::new()
+    foreach ($RelativePath in @($RelativePaths | Sort-Object -Unique)) {
+        $AbsolutePath = Join-Path $RootPath ($RelativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+        if (-not (Test-Path -LiteralPath $AbsolutePath -PathType Leaf)) {
+            continue
+        }
+        $FileInfo = Get-Item -LiteralPath $AbsolutePath
+        $RecordList.Add([pscustomobject][ordered]@{
+            relative_path = $RelativePath.Replace('\', '/')
+            length = [Int64]$FileInfo.Length
+            sha256 = Get-FileSha256 -PathText $AbsolutePath
+        })
+    }
+
+    return [pscustomobject][ordered]@{
+        root_path = $RootPath
+        file_count = $RecordList.Count
+        files = @($RecordList)
+    }
+}
+
+# Compare-ExplicitFileManifest는 path/length/SHA-256 equality를 검사한다.
+function Compare-ExplicitFileManifest {
+    param(
+        [psobject]$SourceManifest,
+        [psobject]$StagingManifest
+    )
+
+    $SourceMap = @{}
+    foreach ($Record in @($SourceManifest.files)) { $SourceMap[[string]$Record.relative_path] = $Record }
+    $StagingMap = @{}
+    foreach ($Record in @($StagingManifest.files)) { $StagingMap[[string]$Record.relative_path] = $Record }
+    $MismatchList = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($RelativePath in @($SourceMap.Keys | Sort-Object)) {
+        if (-not $StagingMap.ContainsKey($RelativePath)) {
+            $MismatchList.Add([pscustomobject]@{ relative_path = $RelativePath; mismatch_kind = "missing_staging" })
+            continue
+        }
+        $SourceRecord = $SourceMap[$RelativePath]
+        $StagingRecord = $StagingMap[$RelativePath]
+        if ([Int64]$SourceRecord.length -ne [Int64]$StagingRecord.length -or [string]$SourceRecord.sha256 -ne [string]$StagingRecord.sha256) {
+            $MismatchList.Add([pscustomobject]@{
+                relative_path = $RelativePath
+                mismatch_kind = "changed"
+                source_length = [Int64]$SourceRecord.length
+                staging_length = [Int64]$StagingRecord.length
+                source_sha256 = [string]$SourceRecord.sha256
+                staging_sha256 = [string]$StagingRecord.sha256
+            })
+        }
+    }
+    foreach ($RelativePath in @($StagingMap.Keys | Sort-Object)) {
+        if (-not $SourceMap.ContainsKey($RelativePath)) {
+            $MismatchList.Add([pscustomobject]@{ relative_path = $RelativePath; mismatch_kind = "unexpected_staging" })
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        source_file_count = [int]$SourceManifest.file_count
+        staging_file_count = [int]$StagingManifest.file_count
+        mismatch_count = $MismatchList.Count
+        passed = ($MismatchList.Count -eq 0)
+        mismatches = @($MismatchList)
+    }
+}
+
+# Get-CleanInputRelativePaths는 BuildPlugin staging에 허용된 현재 product file set을 반환한다.
+function Get-CleanInputRelativePaths {
+    param([string]$PluginRootPath)
+
+    $RelativePathList = [System.Collections.Generic.List[string]]::new()
+    foreach ($RequiredFile in @(
+        "AssetDump.uplugin",
+        "Config/FilterPlugin.ini",
+        "Scripts/RunBPDumpRegression.ps1",
+        "Scripts/RunDataAssetDiffClosure.ps1"
+    )) {
+        $RequiredPath = Join-Path $PluginRootPath ($RequiredFile.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+        if (-not (Test-Path -LiteralPath $RequiredPath -PathType Leaf)) {
+            throw "clean staging 필수 파일이 없습니다: $RequiredFile"
+        }
+        $RequiredInfo = Get-Item -LiteralPath $RequiredPath -Force
+        if (($RequiredInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "clean staging은 reparse file을 허용하지 않습니다: $RequiredFile"
+        }
+        $RelativePathList.Add($RequiredFile)
+    }
+
+    foreach ($AllowedDirectory in @("Source", "Content")) {
+        $AllowedRootPath = Join-Path $PluginRootPath $AllowedDirectory
+        if (-not (Test-Path -LiteralPath $AllowedRootPath -PathType Container)) {
+            throw "clean staging 필수 directory가 없습니다: $AllowedDirectory"
+        }
+        foreach ($ItemInfo in @(Get-ChildItem -LiteralPath $AllowedRootPath -Recurse -Force | Sort-Object FullName)) {
+            if (($ItemInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                $RelativePath = Get-RelativePathFromRoot -RootPath $PluginRootPath -ChildPath $ItemInfo.FullName
+                throw "clean staging은 reparse item을 허용하지 않습니다: $RelativePath"
+            }
+            if (-not $ItemInfo.PSIsContainer) {
+                $RelativePathList.Add((Get-RelativePathFromRoot -RootPath $PluginRootPath -ChildPath $ItemInfo.FullName))
+            }
+        }
+    }
+
+    $DuplicateSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($RelativePath in $RelativePathList) {
+        if (-not $DuplicateSet.Add($RelativePath)) {
+            throw "clean staging case-insensitive duplicate path: $RelativePath"
+        }
+    }
+    return @($RelativePathList | Sort-Object)
+}
+
+# Test-CleanInputHygiene는 staged tree의 top-level과 Script allowlist를 검사한다.
+function Test-CleanInputHygiene {
+    param([string]$StagedPluginRootPath)
+
+    $FailureList = [System.Collections.Generic.List[string]]::new()
+    $ForbiddenPathList = [System.Collections.Generic.List[string]]::new()
+    $AllowedTopLevelSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($AllowedTopLevel in @("AssetDump.uplugin", "Config", "Source", "Content", "Scripts")) { [void]$AllowedTopLevelSet.Add($AllowedTopLevel) }
+    $AllowedScriptSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($AllowedScript in @("Scripts/RunBPDumpRegression.ps1", "Scripts/RunDataAssetDiffClosure.ps1")) { [void]$AllowedScriptSet.Add($AllowedScript) }
+    $ForbiddenSegmentSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($ForbiddenSegment in @("Dumped", "Binaries", "Intermediate", "DerivedDataCache", "Saved", "Documents", ".git", ".vs", "__pycache__")) { [void]$ForbiddenSegmentSet.Add($ForbiddenSegment) }
+
+    $AllFiles = if (Test-Path -LiteralPath $StagedPluginRootPath -PathType Container) {
+        @(Get-ChildItem -LiteralPath $StagedPluginRootPath -Recurse -File -Force | Sort-Object FullName)
+    } else { @() }
+    foreach ($FileInfo in $AllFiles) {
+        $RelativePath = Get-RelativePathFromRoot -RootPath $StagedPluginRootPath -ChildPath $FileInfo.FullName
+        $Segments = @($RelativePath -split '/')
+        $TopLevel = if ($Segments.Count -gt 0) { $Segments[0] } else { "" }
+        if (-not $AllowedTopLevelSet.Contains($TopLevel)) {
+            $ForbiddenPathList.Add($RelativePath)
+            continue
+        }
+        if (@($Segments | Where-Object { $ForbiddenSegmentSet.Contains($_) }).Count -gt 0) {
+            $ForbiddenPathList.Add($RelativePath)
+            continue
+        }
+        if ($TopLevel -ieq "Scripts" -and -not $AllowedScriptSet.Contains($RelativePath)) {
+            $ForbiddenPathList.Add($RelativePath)
+        }
+    }
+    if ($ForbiddenPathList.Count -gt 0) {
+        $FailureList.Add("clean staging에 금지된 path가 있습니다. count=$($ForbiddenPathList.Count)")
+    }
+
+    return [pscustomobject][ordered]@{
+        staged_file_count = $AllFiles.Count
+        forbidden_path_count = $ForbiddenPathList.Count
+        forbidden_paths = @($ForbiddenPathList)
+        passed = ($FailureList.Count -eq 0)
+        failures = @($FailureList)
+    }
+}
+
+# New-CleanInputStaging은 explicit allowlist만 repository-external plugin tree에 byte-identical materialize한다.
+function New-CleanInputStaging {
+    param(
+        [string]$PluginRootPath,
+        [string]$StagingRootPath
+    )
+
+    if (Test-IsPathWithin -ParentPath $PluginRootPath -ChildPath $StagingRootPath) {
+        throw "clean staging root는 AssetDump repository 밖이어야 합니다: $StagingRootPath"
+    }
+    if (Test-Path -LiteralPath $StagingRootPath) {
+        throw "clean staging root가 이미 존재합니다: $StagingRootPath"
+    }
+
+    $StagedPluginRootPath = Join-Path $StagingRootPath "InputPlugin\AssetDump"
+    New-Item -ItemType Directory -Path $StagedPluginRootPath -Force | Out-Null
+    $AllowedRelativePaths = @(Get-CleanInputRelativePaths -PluginRootPath $PluginRootPath)
+    $SourceManifest = New-ExplicitFileManifest -RootPath $PluginRootPath -RelativePaths $AllowedRelativePaths
+    if ([int]$SourceManifest.file_count -ne $AllowedRelativePaths.Count) {
+        throw "clean staging source manifest가 allowlist를 완전히 포함하지 못했습니다. expected=$($AllowedRelativePaths.Count) actual=$($SourceManifest.file_count)"
+    }
+
+    foreach ($RelativePath in $AllowedRelativePaths) {
+        $SourcePath = Join-Path $PluginRootPath ($RelativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+        $DestinationPath = Join-Path $StagedPluginRootPath ($RelativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+        $DestinationParentPath = Split-Path -Parent $DestinationPath
+        if (-not (Test-Path -LiteralPath $DestinationParentPath -PathType Container)) {
+            New-Item -ItemType Directory -Path $DestinationParentPath -Force | Out-Null
+        }
+        [System.IO.File]::Copy($SourcePath, $DestinationPath, $false)
+        $SourceInfo = Get-Item -LiteralPath $SourcePath
+        $DestinationInfo = Get-Item -LiteralPath $DestinationPath
+        $DestinationInfo.LastWriteTimeUtc = $SourceInfo.LastWriteTimeUtc
+    }
+
+    $StagedRelativePaths = @(
+        Get-ChildItem -LiteralPath $StagedPluginRootPath -Recurse -File -Force |
+            Sort-Object FullName |
+            ForEach-Object { Get-RelativePathFromRoot -RootPath $StagedPluginRootPath -ChildPath $_.FullName }
+    )
+    $StagingManifest = New-ExplicitFileManifest -RootPath $StagedPluginRootPath -RelativePaths $StagedRelativePaths
+    $ManifestComparison = Compare-ExplicitFileManifest -SourceManifest $SourceManifest -StagingManifest $StagingManifest
+    $Hygiene = Test-CleanInputHygiene -StagedPluginRootPath $StagedPluginRootPath
+    $SourceValidationManifest = New-ValidationManifest -ValidationRootPath (Join-Path $PluginRootPath "Content\Validation")
+    $StagingValidationManifest = New-ValidationManifest -ValidationRootPath (Join-Path $StagedPluginRootPath "Content\Validation")
+    $ValidationComparison = Compare-ValidationManifest -BeforeManifest $SourceValidationManifest -AfterManifest $StagingValidationManifest
+    $Passed = [bool]$ManifestComparison.passed -and [bool]$Hygiene.passed -and [bool]$ValidationComparison.passed
+
+    return [pscustomobject][ordered]@{
+        executed = $true
+        staging_root = $StagingRootPath
+        staged_plugin_root = $StagedPluginRootPath
+        staged_plugin_descriptor = Join-Path $StagedPluginRootPath "AssetDump.uplugin"
+        allowed_roots = @("AssetDump.uplugin", "Config/FilterPlugin.ini", "Source/**", "Content/**", "Scripts/RunBPDumpRegression.ps1", "Scripts/RunDataAssetDiffClosure.ps1")
+        source_manifest = $SourceManifest
+        staging_manifest = $StagingManifest
+        manifest_comparison = $ManifestComparison
+        hygiene = $Hygiene
+        exact_validation_identity = $ValidationComparison
+        passed = $Passed
     }
 }
 
@@ -513,10 +745,17 @@ function Invoke-BuildPlugin {
     }
     [System.IO.File]::WriteAllLines($BuildLogPath, $OutputLineList.ToArray(), (New-Utf8NoBomEncoding))
 
+        $DiagnosticLineArray = @(
+        $OutputLineList |
+            Where-Object { [string]$_ -match "(?i)(fatal error|\berror\s+[A-Z]+[0-9]+\b|error:|OtherCompilationError|BUILD FAILED|Exception:|\.cpp\([0-9]+\)|\.h\([0-9]+\))" } |
+            Select-Object -Last 200
+    )
     return [pscustomobject]@{
         command_text = "$RunUatPath $($BuildArgumentArray -join ' ')"
         process_exit_code = $ProcessExitCode
         log_path = $BuildLogPath
+        diagnostic_line_count = $DiagnosticLineArray.Count
+        diagnostic_lines = @($DiagnosticLineArray | ForEach-Object { [string]$_ })
         succeeded = ($ProcessExitCode -eq 0)
     }
 }
@@ -586,8 +825,41 @@ function Invoke-BuildPluginVerificationSelfTests {
         if (Test-IsPathWithin -ParentPath $FakeSourceRootPath -ChildPath $FakePackageRootPath) {
             throw "self test 실패: external package path guard"
         }
-        if (-not (Test-IsPathWithin -ParentPath $FakeSourceRootPath -ChildPath (Join-Path $FakeSourceRootPath "NestedPackage"))) {
+                if (-not (Test-IsPathWithin -ParentPath $FakeSourceRootPath -ChildPath (Join-Path $FakeSourceRootPath "NestedPackage"))) {
             throw "self test 실패: internal package path guard"
+        }
+
+        $FakeStagingSourceRootPath = Join-Path $TemporaryRootPath "CleanStagingSource"
+        New-Item -ItemType Directory -Path (Join-Path $FakeStagingSourceRootPath "Config") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $FakeStagingSourceRootPath "Source\AssetDump") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $FakeStagingSourceRootPath "Content\Validation") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $FakeStagingSourceRootPath "Scripts") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $FakeStagingSourceRootPath "Dumped\BPDump") -Force | Out-Null
+        Write-JsonFile -PathText (Join-Path $FakeStagingSourceRootPath "AssetDump.uplugin") -ValueObject $DescriptorObject
+        [System.IO.File]::WriteAllText((Join-Path $FakeStagingSourceRootPath "Config\FilterPlugin.ini"), "[FilterPlugin]", (New-Utf8NoBomEncoding))
+        [System.IO.File]::WriteAllText((Join-Path $FakeStagingSourceRootPath "Source\AssetDump\Fake.cpp"), "// fake source", (New-Utf8NoBomEncoding))
+        [System.IO.File]::WriteAllBytes((Join-Path $FakeStagingSourceRootPath "Content\Validation\Fixture.uasset"), [byte[]](7, 8, 9))
+        [System.IO.File]::WriteAllText((Join-Path $FakeStagingSourceRootPath "Scripts\RunBPDumpRegression.ps1"), "# allowed", (New-Utf8NoBomEncoding))
+        [System.IO.File]::WriteAllText((Join-Path $FakeStagingSourceRootPath "Scripts\RunDataAssetDiffClosure.ps1"), "# allowed", (New-Utf8NoBomEncoding))
+        [System.IO.File]::WriteAllText((Join-Path $FakeStagingSourceRootPath "Scripts\RepositoryOnly.ps1"), "# forbidden", (New-Utf8NoBomEncoding))
+        [System.IO.File]::WriteAllText((Join-Path $FakeStagingSourceRootPath "Dumped\BPDump\runtime.json"), "{}", (New-Utf8NoBomEncoding))
+
+        $FakeInputStagingRootPath = Join-Path $TemporaryRootPath "CleanInputStaging"
+        $CleanStagingResult = New-CleanInputStaging -PluginRootPath $FakeStagingSourceRootPath -StagingRootPath $FakeInputStagingRootPath
+        if (-not $CleanStagingResult.passed -or $CleanStagingResult.hygiene.forbidden_path_count -ne 0 -or $CleanStagingResult.exact_validation_identity.mismatch_count -ne 0) {
+            throw "self test 실패: clean input staging PASS"
+        }
+        if (Test-Path -LiteralPath (Join-Path $CleanStagingResult.staged_plugin_root "Dumped") -PathType Container) {
+            throw "self test 실패: source Dumped exclusion"
+        }
+        if (Test-Path -LiteralPath (Join-Path $CleanStagingResult.staged_plugin_root "Scripts\RepositoryOnly.ps1") -PathType Leaf) {
+            throw "self test 실패: non-allowlisted Script exclusion"
+        }
+        [System.IO.File]::WriteAllText((Join-Path $CleanStagingResult.staged_plugin_root "Source\AssetDump\Fake.cpp"), "// changed", (New-Utf8NoBomEncoding))
+        $AlteredStagingManifest = New-ExplicitFileManifest -RootPath $CleanStagingResult.staged_plugin_root -RelativePaths @($CleanStagingResult.source_manifest.files | ForEach-Object { [string]$_.relative_path })
+        $AlteredComparison = Compare-ExplicitFileManifest -SourceManifest $CleanStagingResult.source_manifest -StagingManifest $AlteredStagingManifest
+        if ($AlteredComparison.passed -or $AlteredComparison.mismatch_count -ne 1) {
+            throw "self test 실패: source/staging mismatch detection"
         }
 
         Write-Host "BuildPlugin verification self tests: passed"
@@ -633,8 +905,9 @@ $ResolvedLogPath = if ([string]::IsNullOrWhiteSpace($LogPath)) {
 } else {
     Convert-PathToFullPath -PathText $LogPath.Trim().Trim('"')
 }
+$ResolvedInputStagingRootPath = Join-Path (Join-Path $TemporaryBaseRootPath "Staging") ("AssetDump_" + $RunId)
 
-foreach ($ExternalOutputPath in @($ResolvedPackageRootPath, $ResolvedReportPath, $ResolvedLogPath)) {
+foreach ($ExternalOutputPath in @($ResolvedPackageRootPath, $ResolvedReportPath, $ResolvedLogPath, $ResolvedInputStagingRootPath)) {
     if (Test-IsPathWithin -ParentPath $PluginRootPath -ChildPath $ExternalOutputPath) {
         throw "BuildPlugin output은 AssetDump 저장소 밖이어야 합니다: $ExternalOutputPath"
     }
@@ -644,6 +917,13 @@ foreach ($EvidenceOutputPath in @($ResolvedReportPath, $ResolvedLogPath)) {
     if (Test-IsPathWithin -ParentPath $ResolvedPackageRootPath -ChildPath $EvidenceOutputPath) {
         throw "BuildPlugin report/log는 package root 밖이어야 합니다: package=$ResolvedPackageRootPath evidence=$EvidenceOutputPath"
     }
+    if (Test-IsPathWithin -ParentPath $ResolvedInputStagingRootPath -ChildPath $EvidenceOutputPath) {
+        throw "BuildPlugin report/log는 input staging root 밖이어야 합니다: staging=$ResolvedInputStagingRootPath evidence=$EvidenceOutputPath"
+    }
+}
+if ((Test-IsPathWithin -ParentPath $ResolvedPackageRootPath -ChildPath $ResolvedInputStagingRootPath) -or
+    (Test-IsPathWithin -ParentPath $ResolvedInputStagingRootPath -ChildPath $ResolvedPackageRootPath)) {
+    throw "BuildPlugin package root와 input staging root는 서로 분리돼야 합니다. package=$ResolvedPackageRootPath staging=$ResolvedInputStagingRootPath"
 }
 
 if ($SkipBuild) {
@@ -669,14 +949,35 @@ $BuildResult = [pscustomobject]@{
     command_text = $null
     process_exit_code = $null
     log_path = $ResolvedLogPath
+    diagnostic_line_count = 0
+    diagnostic_lines = @()
     succeeded = $null
 }
+$InputStagingResult = [pscustomobject][ordered]@{
+    executed = $false
+    staging_root = $ResolvedInputStagingRootPath
+    staged_plugin_root = $null
+    staged_plugin_descriptor = $null
+    allowed_roots = @()
+    source_manifest = $null
+    staging_manifest = $null
+    manifest_comparison = $null
+    hygiene = $null
+    exact_validation_identity = $null
+    passed = $null
+}
+$BuildPluginDescriptorPath = $PluginDescriptorPath
 $PackageInspection = $null
 try {
-    if (-not $SkipBuild) {
+        if (-not $SkipBuild) {
+        $InputStagingResult = New-CleanInputStaging -PluginRootPath $PluginRootPath -StagingRootPath $ResolvedInputStagingRootPath
+        if (-not $InputStagingResult.passed) {
+            throw "BuildPlugin clean input staging failed."
+        }
+        $BuildPluginDescriptorPath = Resolve-RequiredFile -PathText $InputStagingResult.staged_plugin_descriptor -Label "staged AssetDump.uplugin"
         $EngineResolution = Resolve-EngineRoot -ExplicitEngineRoot $EngineRoot
         $RunUatPath = Resolve-RequiredFile -PathText (Join-Path $EngineResolution.engine_root "Engine\Build\BatchFiles\RunUAT.bat") -Label "RunUAT.bat"
-        $BuildResult = Invoke-BuildPlugin -RunUatPath $RunUatPath -PluginDescriptorPath $PluginDescriptorPath -PackageRootPath $ResolvedPackageRootPath -ExpectedTargetPlatform $TargetPlatform -BuildLogPath $ResolvedLogPath -UseCompactLog:$CompactLog
+        $BuildResult = Invoke-BuildPlugin -RunUatPath $RunUatPath -PluginDescriptorPath $BuildPluginDescriptorPath -PackageRootPath $ResolvedPackageRootPath -ExpectedTargetPlatform $TargetPlatform -BuildLogPath $ResolvedLogPath -UseCompactLog:$CompactLog
         if (-not $BuildResult.succeeded) {
             $FailureList.Add("RunUAT BuildPlugin process failed. exit=$($BuildResult.process_exit_code)")
         }
@@ -706,15 +1007,31 @@ if (-not $SourcePackageContractComparison.passed) {
 }
 
 $BuildPassed = if ($SkipBuild) { $null } else { [bool]$BuildResult.succeeded }
-$OverallPassed = ($FailureList.Count -eq 0 -and [bool]$PackageInspection.passed -and [bool]$SourceValidationComparison.passed -and [bool]$SourcePackageContractComparison.passed -and ($SkipBuild -or $BuildPassed))
+$InputStagingPassed = if ($SkipBuild) { $null } else { [bool]$InputStagingResult.passed }
+$OverallPassed = ($FailureList.Count -eq 0 -and [bool]$PackageInspection.passed -and [bool]$SourceValidationComparison.passed -and [bool]$SourcePackageContractComparison.passed -and ($SkipBuild -or ($BuildPassed -and $InputStagingPassed)))
+$InputStagingCleanupStatus = if ($SkipBuild) { "not_executed" } elseif (-not (Test-Path -LiteralPath $ResolvedInputStagingRootPath)) { "missing" } elseif ($OverallPassed) {
+    try {
+        Remove-Item -LiteralPath $ResolvedInputStagingRootPath -Recurse -Force
+        "removed_after_pass"
+    } catch {
+        "preserved_cleanup_error: $($_.Exception.Message)"
+    }
+} else { "preserved_after_failure" }
 
 $VerificationReport = [ordered]@{
     schema_version = "assetdump_buildplugin_verification_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-            script_version = "v1.2"
+                        script_version = "v1.3"
     plugin_root = $PluginRootPath
     plugin_descriptor = $PluginDescriptorPath
+    repository_plugin_descriptor = $PluginDescriptorPath
+    staged_plugin_descriptor = if ($SkipBuild) { $null } else { $BuildPluginDescriptorPath }
     filter_plugin = $FilterPluginPath
+    input_staging_executed = (-not $SkipBuild)
+    input_staging_root = if ($SkipBuild) { $null } else { $ResolvedInputStagingRootPath }
+    input_staging_manifest = $InputStagingResult
+    input_staging_passed = $InputStagingPassed
+    input_staging_cleanup_status = $InputStagingCleanupStatus
     target_platform = $TargetPlatform
     skip_build = [bool]$SkipBuild
     buildplugin_executed = (-not $SkipBuild)
@@ -723,9 +1040,11 @@ $VerificationReport = [ordered]@{
     attempted_engine_candidates = if ($null -eq $EngineResolution) { @() } else { @($EngineResolution.attempted_candidates) }
     run_uat_path = $RunUatPath
     build_command = $BuildResult.command_text
-    build_process_exit_code = $BuildResult.process_exit_code
+        build_process_exit_code = $BuildResult.process_exit_code
     build_passed = $BuildPassed
     build_log = $ResolvedLogPath
+    build_diagnostic_line_count = [int]$BuildResult.diagnostic_line_count
+    build_diagnostics = @($BuildResult.diagnostic_lines | ForEach-Object { [string]$_ })
     package_root = $ResolvedPackageRootPath
     package_inspection = $PackageInspection
         source_validation_before_file_count = $SourceValidationManifestBefore.file_count
@@ -746,6 +1065,7 @@ Write-JsonFile -PathText $ResolvedReportPath -ValueObject $VerificationReport
 
 Write-Host "BuildPlugin verification report: $ResolvedReportPath"
 Write-Host "Package root: $ResolvedPackageRootPath"
+Write-Host "Clean input staging passed: $InputStagingPassed"
 Write-Host "Compile/package gate passed: $OverallPassed"
 Write-Host "Generic Host runtime: Not Run"
 
