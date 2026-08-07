@@ -1,13 +1,18 @@
 // File: ADumpNiagara.cpp
-// Version: v0.3.0
+// Version: v0.6.0
 // Changelog:
+// - v0.6.0: P4-N3 source type mismatch, resolution/Dynamic Input cycle와 depth/children/step/stage-access bounds의 canonical observation reason을 구현.
+// - v0.5.0: P4-N2 Rapid Iteration, Dynamic Input, Static Switch, Module Output, parameter access와 DI/stage/renderer Deep native observation을 구현.
+// - v0.4.0: P4-N1 exact Deep activation을 typed evidence에 기록하고 P4-N2 미착수 capability를 unavailable로 fail-closed 공개.
 // - v0.3.0: Script Graph 관측 실패를 warning과 partial state로 전파해 empty/complete 오표기를 차단.
 // - v0.2.0: UE 5.8 public Niagara API와 editor graph를 사용해 P2-N2 native evidence와 fixed bounds를 구현.
 // - v0.1.1: P2-N1에서 세부 emitter를 아직 투영하지 않는 non-empty System을 partial/omitted evidence로 명시.
 // - v0.1.0: UNiagaraSystem 타입, System Spawn/Update script와 emitter count의 P2-N1 typed observation을 구현.
 // Migration:
 // - P2-N2는 직접 관측한 identity, source order, pin link와 parameter store만 기록한다.
-// - dynamic input recursive expansion, final override resolution, write/output flow와 runtime inference는 수행하지 않는다.
+// - P4-N2는 직접 관측된 graph/store/property endpoint만 기록하며 선택 branch, runtime value와 미관측 terminal source를 추론하지 않는다.
+// - P4-N3 production reachability: max_dynamic_depth, max_dynamic_input_children, max_resolution_steps,
+//   max_stage_accesses, max_deep_relations, max_total_relations, max_bytes.
 
 #include "ADumpNiagara.h"
 
@@ -66,6 +71,193 @@ namespace
 		InValue.ReplaceInline(TEXT("\r"), TEXT(" "), ESearchCase::CaseSensitive);
 		InValue.ReplaceInline(TEXT("\n"), TEXT(" "), ESearchCase::CaseSensitive);
 		return InValue;
+	}
+
+			bool IsParameterMapPin(const UEdGraphPin* InPin);
+
+	// GetObservedPinTypeIdentity는 직접 관측한 graph pin type identity를 안정 문자열로 만든다.
+	FString GetObservedPinTypeIdentity(const UEdGraphPin* InPin)
+	{
+		if (!InPin)
+		{
+			return FString();
+		}
+		return InPin->PinType.PinCategory.ToString() + TEXT("|") + InPin->PinType.PinSubCategory.ToString();
+	}
+
+	// GetObservedPinStableIdentity는 branch-local cycle 판정에 사용할 node/pin identity를 만든다.
+	FString GetObservedPinStableIdentity(const UEdGraphPin* InPin)
+	{
+		if (!InPin)
+		{
+			return FString();
+		}
+		const UEdGraphNode* OwnerNode = InPin->GetOwningNode();
+		const FString NodeIdentity = OwnerNode && OwnerNode->NodeGuid.IsValid()
+			? GuidText(OwnerNode->NodeGuid)
+			: (OwnerNode ? OwnerNode->GetName() : TEXT("<no_node>"));
+		const FString PinIdentity = InPin->PinId.IsValid()
+			? GuidText(InPin->PinId)
+			: InPin->PinName.ToString();
+		return NodeIdentity + TEXT("#") + PinIdentity;
+	}
+
+	// IsDynamicInputNode는 directly observed FunctionCall usage만 Dynamic Input branch로 인정한다.
+	bool IsDynamicInputNode(const UEdGraphNode* InNode)
+	{
+		const UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(InNode);
+		return FunctionNode
+			&& FunctionNode->FunctionScript
+			&& FunctionNode->FunctionScript->GetUsage() == ENiagaraScriptUsage::DynamicInput;
+	}
+
+	// ObserveResolutionBranch는 linked source branch를 step cap과 branch-local visited set으로 관측한다.
+	bool ObserveResolutionBranch(
+		const UEdGraphPin* InSourcePin,
+		int32& InOutObservedStepCount,
+		TSet<FString>& InOutBranchVisited,
+		FString& OutReason)
+	{
+		if (!InSourcePin)
+		{
+			return true;
+		}
+		if (InOutObservedStepCount >= FADumpNiagaraEvidence::MaxResolutionStepsPerValue)
+		{
+			OutReason = ADumpNiagaraReason::MaxResolutionSteps;
+			return false;
+		}
+
+		const FString StableIdentity = GetObservedPinStableIdentity(InSourcePin);
+		if (!StableIdentity.IsEmpty() && InOutBranchVisited.Contains(StableIdentity))
+		{
+			OutReason = ADumpNiagaraReason::ResolutionCycle;
+			return false;
+		}
+		if (!StableIdentity.IsEmpty())
+		{
+			InOutBranchVisited.Add(StableIdentity);
+		}
+		++InOutObservedStepCount;
+
+		bool bComplete = true;
+		const UEdGraphNode* SourceNode = InSourcePin->GetOwningNode();
+		if (SourceNode)
+		{
+			for (const UEdGraphPin* CandidatePin : SourceNode->Pins)
+			{
+				if (!CandidatePin || CandidatePin->Direction != EGPD_Input || IsParameterMapPin(CandidatePin))
+				{
+					continue;
+				}
+				for (const UEdGraphPin* LinkedPin : CandidatePin->LinkedTo)
+				{
+					if (!ObserveResolutionBranch(LinkedPin, InOutObservedStepCount, InOutBranchVisited, OutReason))
+					{
+						bComplete = false;
+						break;
+					}
+				}
+				if (!bComplete)
+				{
+					break;
+				}
+			}
+		}
+		if (!StableIdentity.IsEmpty())
+		{
+			InOutBranchVisited.Remove(StableIdentity);
+		}
+		return bComplete;
+	}
+
+	// ObserveDynamicInputBranch는 Dynamic Input recursion의 depth, child 총량과 branch-local cycle을 관측한다.
+	bool ObserveDynamicInputBranch(
+		const UEdGraphNode* InNode,
+		int32 InDepth,
+		int32& InOutChildCount,
+		int32& InOutMaxDepth,
+		TSet<FString>& InOutBranchVisited,
+		FString& OutReason)
+	{
+		if (!InNode)
+		{
+			return true;
+		}
+		if (InDepth > FADumpNiagaraEvidence::MaxTraversalDepth)
+		{
+			OutReason = ADumpNiagaraReason::MaxDynamicDepth;
+			return false;
+		}
+		InOutMaxDepth = FMath::Max(InOutMaxDepth, InDepth);
+		const FString NodeIdentity = InNode->NodeGuid.IsValid()
+			? GuidText(InNode->NodeGuid)
+			: InNode->GetName();
+		if (!NodeIdentity.IsEmpty() && InOutBranchVisited.Contains(NodeIdentity))
+		{
+			OutReason = ADumpNiagaraReason::DynamicInputCycle;
+			return false;
+		}
+		if (!NodeIdentity.IsEmpty())
+		{
+			InOutBranchVisited.Add(NodeIdentity);
+		}
+
+		bool bComplete = true;
+		for (const UEdGraphPin* InputPin : InNode->Pins)
+		{
+			if (!InputPin || InputPin->Direction != EGPD_Input || IsParameterMapPin(InputPin))
+			{
+				continue;
+			}
+			for (const UEdGraphPin* LinkedPin : InputPin->LinkedTo)
+			{
+				const UEdGraphNode* ChildNode = LinkedPin ? LinkedPin->GetOwningNode() : nullptr;
+				if (!IsDynamicInputNode(ChildNode))
+				{
+					continue;
+				}
+				++InOutChildCount;
+				if (InOutChildCount > FADumpNiagaraEvidence::MaxDynamicInputChildren)
+				{
+					OutReason = ADumpNiagaraReason::MaxDynamicInputChildren;
+					bComplete = false;
+					break;
+				}
+				if (!ObserveDynamicInputBranch(ChildNode, InDepth + 1, InOutChildCount, InOutMaxDepth, InOutBranchVisited, OutReason))
+				{
+					bComplete = false;
+					break;
+				}
+			}
+			if (!bComplete)
+			{
+				break;
+			}
+		}
+		if (!NodeIdentity.IsEmpty())
+		{
+			InOutBranchVisited.Remove(NodeIdentity);
+		}
+		return bComplete;
+	}
+
+	// ApplyResolutionReason은 관측 실패를 fail-closed provenance 상태로 투영한다.
+	void ApplyResolutionReason(FADumpNiagaraValueResolutionEvidence& InOutResolution, const FString& InReason, int32 InObservedStepCount)
+	{
+		if (InReason.IsEmpty())
+		{
+			return;
+		}
+		InOutResolution.ResolutionStatus = InReason == ADumpNiagaraReason::ResolutionCycle
+			? TEXT("cycle")
+			: (InReason == ADumpNiagaraReason::MaxResolutionSteps ? TEXT("max_depth") : TEXT("partial"));
+		InOutResolution.State = TEXT("partial");
+		InOutResolution.Exactness = TEXT("observed_partial");
+		InOutResolution.TerminalSourceStableKey.Reset();
+		InOutResolution.AppliedStepIndex = INDEX_NONE;
+		InOutResolution.OmittedStepCount = FMath::Max(1, InObservedStepCount - InOutResolution.ObservedSteps.Num());
+		InOutResolution.Reason = InReason;
 	}
 
 	// ScriptUsageText는 engine enum 이름을 deterministic lower-case usage text로 변환한다.
@@ -133,6 +325,141 @@ namespace
 		++OutOmittedCount;
 		MarkTruncated(OutEvidence, InReason);
 		return false;
+	}
+
+		// ReadObservedPropertyText는 UObject shallow property를 직접 직렬화하며 실패 시 값을 비워 둔다.
+	bool ReadObservedPropertyText(
+		const UObject* InObject,
+		const FName InPropertyName,
+		FString& OutValueText,
+		FString& OutTypeName)
+	{
+		OutValueText.Reset();
+		OutTypeName.Reset();
+		if (!InObject)
+		{
+			return false;
+		}
+		const FProperty* Property = InObject->GetClass()->FindPropertyByName(InPropertyName);
+		if (!Property)
+		{
+			return false;
+		}
+		OutTypeName = Property->GetClass()->GetName();
+		const void* ValueAddress = Property->ContainerPtrToValuePtr<void>(InObject);
+		Property->ExportTextItem_Direct(
+			OutValueText,
+			ValueAddress,
+			nullptr,
+			const_cast<UObject*>(InObject),
+			PPF_None);
+		if (OutValueText.Len() > 1024)
+		{
+			OutValueText.LeftInline(1024, EAllowShrinking::No);
+		}
+		return true;
+	}
+
+	// CollectShallowPropertyEvidence는 DI와 stage의 bounded serializable setting inventory를 만든다.
+	void CollectShallowPropertyEvidence(
+		const UObject* InObject,
+		TArray<FADumpNiagaraPropertyEvidence>& OutProperties,
+		FADumpNiagaraEvidence& OutEvidence)
+	{
+		if (!InObject)
+		{
+			return;
+		}
+		for (TFieldIterator<FProperty> It(InObject->GetClass(), EFieldIteratorFlags::IncludeSuper); It; ++It)
+		{
+			const FProperty* Property = *It;
+			if (!Property || Property->HasAnyPropertyFlags(CPF_Transient | CPF_Deprecated))
+			{
+				continue;
+			}
+			++OutEvidence.Bounds.AvailableDataInterfacePropertyCount;
+			if (OutProperties.Num() >= FADumpNiagaraEvidence::MaxDataInterfaceProperties)
+			{
+				++OutEvidence.Bounds.OmittedDataInterfacePropertyCount;
+				MarkTruncated(OutEvidence, TEXT("max_data_interface_properties"));
+				continue;
+			}
+			FADumpNiagaraPropertyEvidence Evidence;
+			Evidence.PropertyPath = Property->GetName();
+			Evidence.TypeName = Property->GetClass()->GetName();
+			Evidence.SemanticOrder = OutProperties.Num();
+			const void* ValueAddress = Property->ContainerPtrToValuePtr<void>(InObject);
+			Property->ExportTextItem_Direct(
+				Evidence.ValueText,
+				ValueAddress,
+				nullptr,
+				const_cast<UObject*>(InObject),
+				PPF_None);
+			if (Evidence.ValueText.Len() > 1024)
+			{
+				Evidence.ValueText.LeftInline(1024, EAllowShrinking::No);
+				Evidence.State = TEXT("partial");
+				Evidence.Reason = TEXT("property_text_truncated");
+			}
+			if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+			{
+				if (const UObject* ValueObject = ObjectProperty->GetObjectPropertyValue_InContainer(InObject))
+				{
+					Evidence.ObjectPath = ValueObject->GetPathName();
+				}
+			}
+			OutProperties.Add(MoveTemp(Evidence));
+		}
+	}
+
+	// MakeObservedResolution은 직접 관측한 첫 step과 미관측 terminal 구간을 fail-closed로 표현한다.
+	FADumpNiagaraValueResolutionEvidence MakeObservedResolution(
+		const FString& InSourceKind,
+		const FString& InSourceStableKey,
+		const FString& InNodeGuid,
+		const FString& InPinGuid,
+		const FString& InParameterHandle,
+		const FString& InTypeName,
+		const FString& InValueText,
+		const FString& InSourceProperty,
+		bool bTerminalObserved)
+	{
+		FADumpNiagaraValueResolutionEvidence Resolution;
+		Resolution.ResolutionStatus = bTerminalObserved ? TEXT("resolved") : TEXT("partial");
+		Resolution.State = bTerminalObserved ? TEXT("complete") : TEXT("partial");
+		Resolution.Exactness = bTerminalObserved ? TEXT("exact") : TEXT("observed_partial");
+		Resolution.Source = TEXT("direct_observation");
+		Resolution.MaxDepth = FADumpNiagaraEvidence::MaxTraversalDepth;
+		Resolution.Reason = bTerminalObserved ? FString() : TEXT("terminal_source_unavailable");
+		if (bTerminalObserved)
+		{
+			Resolution.TerminalSourceStableKey = InSourceStableKey;
+			Resolution.AppliedStepIndex = 0;
+		}
+		else
+		{
+			Resolution.MissingSegments = { TEXT("intermediate_source"), TEXT("terminal_source"), TEXT("applied_step") };
+		}
+		FADumpNiagaraProvenanceStepEvidence Step;
+		Step.SourceKind = InSourceKind;
+		Step.SourceStableKey = InSourceStableKey;
+		Step.SourceNodeGuid = InNodeGuid;
+		Step.SourcePinGuid = InPinGuid;
+		Step.ParameterHandle = InParameterHandle;
+		Step.TypeName = InTypeName;
+		Step.ValueText = InValueText;
+		Step.SourceProperty = InSourceProperty;
+		Step.State = TEXT("complete");
+		Step.Exactness = TEXT("exact");
+		Step.SemanticOrder = 0;
+		Resolution.ObservedSteps.Add(MoveTemp(Step));
+		return Resolution;
+	}
+
+	// IsParameterMapPin은 parameter-map transport pin을 Deep value/access evidence에서 제외한다.
+	bool IsParameterMapPin(const UEdGraphPin* InPin)
+	{
+		return InPin && InPin->PinType.PinCategory.ToString().Contains(TEXT("ParameterMap"), ESearchCase::IgnoreCase);
 	}
 
 	// AddReferenceEvidence는 owner/object/role별 unique asset_reference evidence를 추가한다.
@@ -264,8 +591,18 @@ namespace
 			Evidence.OwnerStableKey = InOwnerStableKey;
 			Evidence.VariableName = DataInterface->GetName();
 			Evidence.ObjectPath = ObjectPath;
-			Evidence.ClassPath = DataInterface->GetClass()->GetPathName();
+						Evidence.ClassPath = DataInterface->GetClass()->GetPathName();
 			Evidence.SourceIndex = DataInterfaceIndex;
+			if (OutEvidence.bDeepEvidenceRequested)
+			{
+				CollectShallowPropertyEvidence(DataInterface, Evidence.Properties, OutEvidence);
+				Evidence.SettingsState = OutEvidence.Bounds.OmittedDataInterfacePropertyCount > 0
+					? TEXT("truncated")
+					: TEXT("complete");
+				Evidence.SettingsReason = OutEvidence.Bounds.OmittedDataInterfacePropertyCount > 0
+					? TEXT("max_data_interface_properties")
+					: FString();
+			}
 			AddBounded(
 				OutEvidence.DataInterfaces,
 				MoveTemp(Evidence),
@@ -278,7 +615,80 @@ namespace
 		}
 	}
 
-	// AddScriptEvidence는 script usage group, module graph, inputs, bindings와 rapid-iteration evidence를 관측한다.
+		// AddRapidIterationDeepEvidence는 script-owned parameter store entry를 typed terminal source로 직접 관측한다.
+	void AddRapidIterationDeepEvidence(
+		FADumpNiagaraEvidence& OutEvidence,
+		const FString& InGroupStableKey,
+		UNiagaraScript* InScript)
+	{
+		if (!OutEvidence.bDeepEvidenceRequested || !InScript)
+		{
+			return;
+		}
+		TArray<FNiagaraVariable> Variables;
+		InScript->RapidIterationParameters.GetParameters(Variables);
+		for (int32 VariableIndex = 0; VariableIndex < Variables.Num(); ++VariableIndex)
+		{
+			const FNiagaraVariable& Variable = Variables[VariableIndex];
+			FADumpNiagaraRapidIterationEvidence Evidence;
+			Evidence.OwnerStableKey = InGroupStableKey;
+			Evidence.ParameterHandle = Variable.GetName().ToString();
+			Evidence.TypeName = Variable.GetType().GetName();
+			Evidence.ScriptUsage = ScriptUsageText(InScript->GetUsage());
+			Evidence.UsageId = GuidText(InScript->GetUsageId());
+			Evidence.SourceStoreIdentity = InScript->GetPathName() + TEXT(".RapidIterationParameters");
+			Evidence.SemanticOrder = VariableIndex;
+			Evidence.StableKey = FString::Printf(
+				TEXT("niagara_rapid_iteration_value:%s#%s:%s"),
+				*MakeStableToken(InGroupStableKey),
+				*MakeStableToken(Evidence.ParameterHandle),
+				*MakeStableToken(Evidence.TypeName));
+			Evidence.RawValueSize = Variable.GetSizeInBytes();
+			const uint8* RawData = InScript->RapidIterationParameters.GetParameterData(Variable);
+			if (RawData && Evidence.RawValueSize > 0)
+			{
+				Evidence.ValueText = BytesToHex(RawData, FMath::Min(Evidence.RawValueSize, 64));
+				Evidence.State = TEXT("complete");
+				Evidence.Exactness = TEXT("exact");
+				Evidence.Provenance = MakeObservedResolution(
+					TEXT("rapid_iteration_store"),
+					Evidence.StableKey,
+					FString(),
+					FString(),
+					Evidence.ParameterHandle,
+					Evidence.TypeName,
+					Evidence.ValueText,
+					TEXT("UNiagaraScript::RapidIterationParameters"),
+					true);
+			}
+			else
+			{
+				Evidence.State = TEXT("partial");
+				Evidence.Exactness = TEXT("observed_partial");
+				Evidence.Reason = TEXT("rapid_iteration_value_bytes_unavailable");
+				Evidence.Provenance = MakeObservedResolution(
+					TEXT("rapid_iteration_store"),
+					Evidence.StableKey,
+					FString(),
+					FString(),
+					Evidence.ParameterHandle,
+					Evidence.TypeName,
+					FString(),
+					TEXT("UNiagaraScript::RapidIterationParameters"),
+					false);
+			}
+			AddBounded(
+				OutEvidence.RapidIterationValues,
+				MoveTemp(Evidence),
+				FADumpNiagaraEvidence::MaxRapidIterationValues,
+				OutEvidence.Bounds.AvailableRapidIterationValueCount,
+				OutEvidence.Bounds.OmittedRapidIterationValueCount,
+				OutEvidence,
+				TEXT("max_rapid_iteration_values"));
+		}
+	}
+
+	// AddScriptEvidence는 script usage group, module graph, inputs, bindings와 Deep graph evidence를 관측한다.
 		bool AddScriptEvidence(
 		FADumpNiagaraEvidence& OutEvidence,
 		TSet<FString>& InOutParameterKeys,
@@ -323,7 +733,7 @@ namespace
 		}
 
 		AddReferenceEvidence(OutEvidence, InOutReferenceKeys, GroupStableKey, InScript, TEXT("execution_script"));
-		AddParameterStoreEvidence(
+				AddParameterStoreEvidence(
 			OutEvidence,
 			InOutParameterKeys,
 			InOutDataInterfaceKeys,
@@ -331,6 +741,7 @@ namespace
 			GroupStableKey,
 			InScript->RapidIterationParameters,
 			TEXT("rapid_iteration"));
+		AddRapidIterationDeepEvidence(OutEvidence, GroupStableKey, InScript);
 
 						FVersionedNiagaraScriptData* ScriptData = InScript->GetScriptData(FGuid());
 		UNiagaraScriptSource* ScriptSource = ScriptData
@@ -349,7 +760,8 @@ namespace
 			return false;
 		}
 
-				TSet<FString> SeenModuleNodeGuids;
+						TMap<const UEdGraphPin*, FString> InputStableByPin;
+		TSet<FString> SeenModuleNodeGuids;
 		for (int32 NodeIndex = 0; NodeIndex < Graph->Nodes.Num(); ++NodeIndex)
 		{
 			UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Graph->Nodes[NodeIndex]);
@@ -421,7 +833,7 @@ namespace
 					TEXT("niagara_module_input:%s#%s"),
 					*MakeStableToken(ModuleStableKey),
 					*MakeStableToken(bInputIdentityFallback ? FString::Printf(TEXT("source_index=%d:%s"), PinIndex, *Input.ParameterHandle) : PinGuid));
-				const FString InputStableKey = Input.StableKey;
+								const FString InputStableKey = Input.StableKey;
 				if (!AddBounded(
 					OutEvidence.ModuleInputs,
 					MoveTemp(Input),
@@ -431,8 +843,9 @@ namespace
 					OutEvidence,
 					TEXT("max_module_inputs")))
 				{
-					continue;
+										continue;
 				}
+				InputStableByPin.Add(Pin, InputStableKey);
 
 				for (int32 LinkIndex = 0; LinkIndex < Pin->LinkedTo.Num(); ++LinkIndex)
 				{
@@ -473,6 +886,287 @@ namespace
 						TEXT("max_bindings"));
 				}
 			}
+				}
+
+		if (OutEvidence.bDeepEvidenceRequested)
+		{
+			for (int32 NodeIndex = 0; NodeIndex < Graph->Nodes.Num(); ++NodeIndex)
+			{
+				UEdGraphNode* Node = Graph->Nodes[NodeIndex];
+				if (!Node)
+				{
+					continue;
+				}
+				const FString NodeClassName = Node->GetClass()->GetName();
+				const FString NodeGuid = GuidText(Node->NodeGuid);
+
+				if (UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Node))
+				{
+					if (FunctionNode->FunctionScript && FunctionNode->FunctionScript->GetUsage() == ENiagaraScriptUsage::DynamicInput)
+					{
+												const UEdGraphPin* SourcePin = nullptr;
+						const UEdGraphPin* TargetPin = nullptr;
+						FString TargetInputStableKey;
+						int32 InputCount = 0;
+						int32 OutputCount = 0;
+						for (const UEdGraphPin* Pin : FunctionNode->Pins)
+						{
+							if (!Pin || IsParameterMapPin(Pin))
+							{
+								continue;
+							}
+							if (Pin->Direction == EGPD_Input)
+							{
+								++InputCount;
+							}
+							else
+							{
+								++OutputCount;
+								if (!SourcePin)
+								{
+									SourcePin = Pin;
+								}
+								for (const UEdGraphPin* LinkedPin : Pin->LinkedTo)
+								{
+									const FString Candidate = InputStableByPin.FindRef(LinkedPin);
+									if (!Candidate.IsEmpty())
+									{
+																				TargetInputStableKey = Candidate;
+										TargetPin = LinkedPin;
+										break;
+									}
+								}
+							}
+						}
+						FADumpNiagaraDynamicInputEvidence DynamicInput;
+						DynamicInput.OwnerStableKey = TargetInputStableKey.IsEmpty() ? GroupStableKey : TargetInputStableKey;
+						DynamicInput.DisplayName = FunctionNode->GetFunctionName();
+						DynamicInput.ScriptPath = FunctionNode->FunctionScript->GetPathName();
+						DynamicInput.Usage = ScriptUsageText(FunctionNode->FunctionScript->GetUsage());
+						DynamicInput.UsageId = GuidText(FunctionNode->FunctionScript->GetUsageId());
+						DynamicInput.NodeGuid = NodeGuid;
+						DynamicInput.PinGuid = SourcePin ? GuidText(SourcePin->PinId) : FString();
+						DynamicInput.InputCount = InputCount;
+						DynamicInput.OutputCount = OutputCount;
+						DynamicInput.bEnabled = ReadEnabledState(FunctionNode, true);
+						DynamicInput.SemanticOrder = NodeIndex;
+						const bool bFallback = NodeGuid.IsEmpty();
+						DynamicInput.IdentityQuality = bFallback ? TEXT("fallback") : TEXT("exact");
+						DynamicInput.IdentitySource = bFallback ? TEXT("source_index") : TEXT("engine_guid");
+						DynamicInput.StableKey = FString::Printf(
+							TEXT("niagara_dynamic_input:%s#%s"),
+							*MakeStableToken(GroupStableKey),
+							*MakeStableToken(bFallback ? FString::Printf(TEXT("source_index=%d"), NodeIndex) : NodeGuid));
+												FString ObservationReason = TargetInputStableKey.IsEmpty() ? TEXT("source_target_missing") : FString();
+						const FString SourceTypeIdentity = GetObservedPinTypeIdentity(SourcePin);
+						const FString TargetTypeIdentity = GetObservedPinTypeIdentity(TargetPin);
+						if (ObservationReason.IsEmpty()
+							&& !SourceTypeIdentity.IsEmpty()
+							&& !TargetTypeIdentity.IsEmpty()
+							&& SourceTypeIdentity != TargetTypeIdentity)
+						{
+							ObservationReason = ADumpNiagaraReason::SourceTypeMismatch;
+						}
+
+						int32 ObservedResolutionStepCount = 0;
+						if (ObservationReason.IsEmpty() && SourcePin)
+						{
+							TSet<FString> ResolutionBranchVisited;
+							ObserveResolutionBranch(SourcePin, ObservedResolutionStepCount, ResolutionBranchVisited, ObservationReason);
+						}
+
+						int32 DynamicInputChildCount = 0;
+						int32 DynamicInputMaxDepth = 0;
+						if (ObservationReason.IsEmpty())
+						{
+							TSet<FString> DynamicInputBranchVisited;
+							ObserveDynamicInputBranch(FunctionNode, 0, DynamicInputChildCount, DynamicInputMaxDepth, DynamicInputBranchVisited, ObservationReason);
+						}
+						DynamicInput.Depth = DynamicInputMaxDepth;
+						DynamicInput.State = ObservationReason.IsEmpty() ? TEXT("complete") : TEXT("partial");
+						DynamicInput.Exactness = ObservationReason.IsEmpty() ? TEXT("exact") : TEXT("observed_partial");
+						DynamicInput.Reason = ObservationReason;
+						DynamicInput.Provenance = MakeObservedResolution(
+							TEXT("dynamic_input_node"),
+							DynamicInput.StableKey,
+							DynamicInput.NodeGuid,
+							DynamicInput.PinGuid,
+							SourcePin ? SourcePin->PinName.ToString() : FString(),
+							SourceTypeIdentity,
+							FString(),
+														TEXT("UNiagaraNodeFunctionCall::FunctionScript"),
+							false);
+						ApplyResolutionReason(DynamicInput.Provenance, ObservationReason, ObservedResolutionStepCount);
+						if (ObservationReason == ADumpNiagaraReason::DynamicInputCycle
+							|| ObservationReason == ADumpNiagaraReason::ResolutionCycle
+							|| ObservationReason.StartsWith(TEXT("max_"), ESearchCase::CaseSensitive))
+						{
+							MarkTruncated(OutEvidence, *ObservationReason);
+						}
+						AddBounded(
+							OutEvidence.DynamicInputs,
+							MoveTemp(DynamicInput),
+							FADumpNiagaraEvidence::MaxDynamicInputs,
+							OutEvidence.Bounds.AvailableDynamicInputCount,
+							OutEvidence.Bounds.OmittedDynamicInputCount,
+							OutEvidence,
+							TEXT("max_dynamic_inputs"));
+					}
+				}
+
+				if (NodeClassName.Contains(TEXT("NiagaraNodeStaticSwitch"), ESearchCase::CaseSensitive))
+				{
+					const UEdGraphPin* IdentityPin = nullptr;
+					for (const UEdGraphPin* Pin : Node->Pins)
+					{
+						if (Pin && !IsParameterMapPin(Pin))
+						{
+							IdentityPin = Pin;
+							break;
+						}
+					}
+					FADumpNiagaraStaticSwitchEvidence StaticSwitch;
+					StaticSwitch.OwnerStableKey = GroupStableKey;
+					StaticSwitch.ParameterHandle = IdentityPin ? IdentityPin->PinName.ToString() : Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+					StaticSwitch.TypeName = IdentityPin ? IdentityPin->PinType.PinCategory.ToString() : FString();
+					StaticSwitch.SourceNodeGuid = NodeGuid;
+					StaticSwitch.SourcePinGuid = IdentityPin ? GuidText(IdentityPin->PinId) : FString();
+					StaticSwitch.SelectionSource = TEXT("node_identity");
+					StaticSwitch.SelectionState = TEXT("partial");
+					StaticSwitch.State = TEXT("partial");
+					StaticSwitch.Exactness = TEXT("observed_partial");
+					StaticSwitch.Reason = TEXT("selected_value_unavailable");
+					StaticSwitch.SemanticOrder = NodeIndex;
+					StaticSwitch.StableKey = FString::Printf(
+						TEXT("niagara_static_switch:%s#%s"),
+						*MakeStableToken(GroupStableKey),
+						*MakeStableToken(NodeGuid.IsEmpty() ? FString::Printf(TEXT("source_index=%d"), NodeIndex) : NodeGuid));
+					StaticSwitch.Provenance = MakeObservedResolution(
+						TEXT("static_switch_node"),
+						StaticSwitch.StableKey,
+						StaticSwitch.SourceNodeGuid,
+						StaticSwitch.SourcePinGuid,
+						StaticSwitch.ParameterHandle,
+						StaticSwitch.TypeName,
+						FString(),
+						TEXT("UNiagaraNodeStaticSwitch"),
+						false);
+					AddBounded(
+						OutEvidence.StaticSwitches,
+						MoveTemp(StaticSwitch),
+						FADumpNiagaraEvidence::MaxStaticSwitches,
+						OutEvidence.Bounds.AvailableStaticSwitchCount,
+						OutEvidence.Bounds.OmittedStaticSwitchCount,
+						OutEvidence,
+						TEXT("max_static_switches"));
+				}
+
+				if (NodeClassName.Contains(TEXT("NiagaraNodeOutput"), ESearchCase::CaseSensitive))
+				{
+					for (int32 PinIndex = 0; PinIndex < Node->Pins.Num(); ++PinIndex)
+					{
+						const UEdGraphPin* Pin = Node->Pins[PinIndex];
+						if (!Pin || IsParameterMapPin(Pin))
+						{
+							continue;
+						}
+						FADumpNiagaraModuleOutputEvidence Output;
+						Output.OwnerStableKey = GroupStableKey;
+						Output.OutputHandle = Pin->PinName.ToString();
+						Output.Namespace = ParameterNamespace(Output.OutputHandle);
+						Output.TypeName = Pin->PinType.PinCategory.ToString();
+						Output.NodeGuid = NodeGuid;
+						Output.PinGuid = GuidText(Pin->PinId);
+						Output.ValueText = Pin->DefaultValue;
+						Output.TargetParameterStableKey = AddParameterEvidence(
+							OutEvidence,
+							InOutParameterKeys,
+							GroupStableKey,
+							Output.OutputHandle,
+							Output.TypeName,
+							TEXT("module_output"));
+						Output.State = TEXT("complete");
+						Output.Exactness = TEXT("exact");
+						Output.SemanticOrder = PinIndex;
+						Output.StableKey = FString::Printf(
+							TEXT("niagara_module_output:%s#%s:%s"),
+							*MakeStableToken(GroupStableKey),
+							*MakeStableToken(NodeGuid.IsEmpty() ? FString::Printf(TEXT("source_index=%d"), NodeIndex) : NodeGuid),
+							*MakeStableToken(Output.PinGuid.IsEmpty() ? Output.OutputHandle : Output.PinGuid));
+						AddBounded(
+							OutEvidence.ModuleOutputs,
+							MoveTemp(Output),
+							FADumpNiagaraEvidence::MaxModuleOutputs,
+							OutEvidence.Bounds.AvailableModuleOutputCount,
+							OutEvidence.Bounds.OmittedModuleOutputCount,
+							OutEvidence,
+							TEXT("max_module_outputs"));
+					}
+				}
+
+				const bool bParameterReadNode = NodeClassName.Contains(TEXT("NiagaraNodeParameterMapGet"), ESearchCase::CaseSensitive);
+				const bool bParameterWriteNode = NodeClassName.Contains(TEXT("NiagaraNodeParameterMapSet"), ESearchCase::CaseSensitive);
+				if (bParameterReadNode || bParameterWriteNode)
+				{
+					for (int32 PinIndex = 0; PinIndex < Node->Pins.Num(); ++PinIndex)
+					{
+						const UEdGraphPin* Pin = Node->Pins[PinIndex];
+						const bool bDirectionMatches = bParameterReadNode
+							? (Pin && Pin->Direction == EGPD_Output)
+							: (Pin && Pin->Direction == EGPD_Input);
+						if (!bDirectionMatches || IsParameterMapPin(Pin))
+						{
+							continue;
+						}
+						FADumpNiagaraParameterAccessEvidence Access;
+						Access.OwnerStableKey = GroupStableKey;
+						Access.ParameterHandle = Pin->PinName.ToString();
+						Access.TypeName = Pin->PinType.PinCategory.ToString();
+						Access.AccessKind = bParameterReadNode ? TEXT("read") : TEXT("write");
+						Access.SourceNodeGuid = NodeGuid;
+						Access.SourcePinGuid = GuidText(Pin->PinId);
+						Access.SourceProperty = bParameterReadNode ? TEXT("UNiagaraNodeParameterMapGet") : TEXT("UNiagaraNodeParameterMapSet");
+						Access.ParameterStableKey = AddParameterEvidence(
+							OutEvidence,
+							InOutParameterKeys,
+							GroupStableKey,
+							Access.ParameterHandle,
+							Access.TypeName,
+							bParameterReadNode ? TEXT("parameter_read") : TEXT("parameter_write"));
+						Access.State = TEXT("complete");
+						Access.Exactness = TEXT("exact");
+						Access.SemanticOrder = PinIndex;
+						Access.StableKey = FString::Printf(
+							TEXT("niagara_parameter_%s:%s#%s:%s"),
+							bParameterReadNode ? TEXT("read") : TEXT("write"),
+							*MakeStableToken(GroupStableKey),
+							*MakeStableToken(NodeGuid.IsEmpty() ? FString::Printf(TEXT("source_index=%d"), NodeIndex) : NodeGuid),
+							*MakeStableToken(Access.SourcePinGuid.IsEmpty() ? Access.ParameterHandle : Access.SourcePinGuid));
+						if (bParameterReadNode)
+						{
+							AddBounded(
+								OutEvidence.ParameterReads,
+								MoveTemp(Access),
+								FADumpNiagaraEvidence::MaxParameterReads,
+								OutEvidence.Bounds.AvailableParameterReadCount,
+								OutEvidence.Bounds.OmittedParameterReadCount,
+								OutEvidence,
+								TEXT("max_parameter_reads"));
+						}
+						else
+						{
+							AddBounded(
+								OutEvidence.ParameterWrites,
+								MoveTemp(Access),
+								FADumpNiagaraEvidence::MaxParameterWrites,
+								OutEvidence.Bounds.AvailableParameterWriteCount,
+								OutEvidence.Bounds.OmittedParameterWriteCount,
+								OutEvidence,
+								TEXT("max_parameter_writes"));
+						}
+					}
+				}
+			}
 		}
 		return true;
 	}
@@ -489,7 +1183,56 @@ namespace
 		OutEvidence.Bounds.IncludedBindingCount = OutEvidence.Bindings.Num();
 		OutEvidence.Bounds.IncludedDataInterfaceCount = OutEvidence.DataInterfaces.Num();
 		OutEvidence.Bounds.IncludedSimulationStageCount = OutEvidence.SimulationStages.Num();
-		OutEvidence.Bounds.IncludedAssetReferenceCount = OutEvidence.References.Num();
+				OutEvidence.Bounds.IncludedAssetReferenceCount = OutEvidence.References.Num();
+		OutEvidence.Bounds.IncludedDynamicInputCount = OutEvidence.DynamicInputs.Num();
+		OutEvidence.Bounds.IncludedStaticSwitchCount = OutEvidence.StaticSwitches.Num();
+		OutEvidence.Bounds.IncludedRapidIterationValueCount = OutEvidence.RapidIterationValues.Num();
+		OutEvidence.Bounds.IncludedModuleOutputCount = OutEvidence.ModuleOutputs.Num();
+		OutEvidence.Bounds.IncludedParameterReadCount = OutEvidence.ParameterReads.Num();
+				OutEvidence.Bounds.IncludedParameterWriteCount = OutEvidence.ParameterWrites.Num();
+		OutEvidence.Bounds.IncludedDataInterfacePropertyCount = 0;
+		for (const FADumpNiagaraDataInterfaceEvidence& DataInterface : OutEvidence.DataInterfaces)
+		{
+			OutEvidence.Bounds.IncludedDataInterfacePropertyCount += DataInterface.Properties.Num();
+		}
+				OutEvidence.Bounds.AvailableSimulationStageAccessCount = 0;
+		OutEvidence.Bounds.IncludedSimulationStageAccessCount = 0;
+		OutEvidence.Bounds.OmittedSimulationStageAccessCount = 0;
+		int32 RemainingStageAccessBudget = FADumpNiagaraEvidence::MaxSimulationStageAccesses;
+		for (FADumpNiagaraStageEvidence& Stage : OutEvidence.SimulationStages)
+		{
+			const int32 AvailableStageAccessCount = Stage.ReadAccessStableKeys.Num() + Stage.WriteAccessStableKeys.Num();
+			OutEvidence.Bounds.AvailableSimulationStageAccessCount += AvailableStageAccessCount;
+
+			const int32 IncludedReadCount = FMath::Min(Stage.ReadAccessStableKeys.Num(), RemainingStageAccessBudget);
+			RemainingStageAccessBudget -= IncludedReadCount;
+			if (IncludedReadCount < Stage.ReadAccessStableKeys.Num())
+			{
+				Stage.ReadAccessStableKeys.SetNum(IncludedReadCount, EAllowShrinking::No);
+			}
+			const int32 IncludedWriteCount = FMath::Min(Stage.WriteAccessStableKeys.Num(), RemainingStageAccessBudget);
+			RemainingStageAccessBudget -= IncludedWriteCount;
+			if (IncludedWriteCount < Stage.WriteAccessStableKeys.Num())
+			{
+				Stage.WriteAccessStableKeys.SetNum(IncludedWriteCount, EAllowShrinking::No);
+			}
+
+			const int32 IncludedStageAccessCount = IncludedReadCount + IncludedWriteCount;
+			OutEvidence.Bounds.IncludedSimulationStageAccessCount += IncludedStageAccessCount;
+			const int32 OmittedStageAccessCount = AvailableStageAccessCount - IncludedStageAccessCount;
+			if (OmittedStageAccessCount > 0)
+			{
+				OutEvidence.Bounds.OmittedSimulationStageAccessCount += OmittedStageAccessCount;
+				Stage.FlowState = TEXT("truncated");
+				Stage.FlowReason = ADumpNiagaraReason::MaxStageAccesses;
+				MarkTruncated(OutEvidence, ADumpNiagaraReason::MaxStageAccesses);
+			}
+		}
+		OutEvidence.Bounds.IncludedRendererBindingCount = 0;
+		for (const FADumpNiagaraRendererEvidence& Renderer : OutEvidence.Renderers)
+		{
+			OutEvidence.Bounds.IncludedRendererBindingCount += Renderer.BindingDetails.Num();
+		}
 		OutEvidence.Bounds.OmittedEntityCount =
 			OutEvidence.Bounds.OmittedEmitterCount
 			+ OutEvidence.Bounds.OmittedExecutionGroupCount
@@ -499,8 +1242,14 @@ namespace
 			+ OutEvidence.Bounds.OmittedParameterCount
 			+ OutEvidence.Bounds.OmittedBindingCount
 			+ OutEvidence.Bounds.OmittedDataInterfaceCount
-			+ OutEvidence.Bounds.OmittedSimulationStageCount
-			+ OutEvidence.Bounds.OmittedAssetReferenceCount;
+						+ OutEvidence.Bounds.OmittedSimulationStageCount
+			+ OutEvidence.Bounds.OmittedAssetReferenceCount
+			+ OutEvidence.Bounds.OmittedDynamicInputCount
+			+ OutEvidence.Bounds.OmittedStaticSwitchCount
+			+ OutEvidence.Bounds.OmittedRapidIterationValueCount
+			+ OutEvidence.Bounds.OmittedModuleOutputCount
+			+ OutEvidence.Bounds.OmittedParameterReadCount
+			+ OutEvidence.Bounds.OmittedParameterWriteCount;
 		OutEvidence.System.IncludedEmitterCount = OutEvidence.Emitters.Num();
 		OutEvidence.State = OutEvidence.Bounds.bTruncated
 			? TEXT("truncated")
@@ -510,14 +1259,18 @@ namespace
 
 namespace ADumpNiagara
 {
-	bool ExtractNiagaraEvidence(
+		bool ExtractNiagaraEvidence(
 		const FString& InAssetObjectPath,
+		bool bInDeepEvidenceRequested,
 		FADumpNiagaraEvidence& OutEvidence,
 		TArray<FADumpIssue>& OutIssues)
 	{
 		OutEvidence = FADumpNiagaraEvidence();
 		OutEvidence.SchemaVersion = TEXT("niagara_native_evidence_v1");
 		OutEvidence.State = TEXT("unsupported");
+		OutEvidence.bDeepEvidenceRequested = bInDeepEvidenceRequested;
+				OutEvidence.DeepState = bInDeepEvidenceRequested ? TEXT("unavailable") : TEXT("not_requested");
+		OutEvidence.DeepReason.Reset();
 
 		UObject* LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *InAssetObjectPath);
 		if (!LoadedObject)
@@ -685,8 +1438,19 @@ namespace ADumpNiagara
 				}
 				FADumpNiagaraRendererEvidence RendererEvidence;
 				RendererEvidence.OwnerStableKey = EmitterStableKey;
-				RendererEvidence.RendererName = Renderer->GetName();
+								RendererEvidence.RendererName = Renderer->GetName();
 				RendererEvidence.RendererClass = Renderer->GetClass()->GetPathName();
+				const FString RendererClassName = Renderer->GetClass()->GetName();
+				RendererEvidence.SupportTier = RendererClassName.Contains(TEXT("Sprite"), ESearchCase::IgnoreCase)
+					|| RendererClassName.Contains(TEXT("Mesh"), ESearchCase::IgnoreCase)
+					|| RendererClassName.Contains(TEXT("Ribbon"), ESearchCase::IgnoreCase)
+					? TEXT("tier_a")
+					: (RendererClassName.Contains(TEXT("Light"), ESearchCase::IgnoreCase)
+						|| RendererClassName.Contains(TEXT("Component"), ESearchCase::IgnoreCase)
+						|| RendererClassName.Contains(TEXT("Decal"), ESearchCase::IgnoreCase)
+						? TEXT("tier_b")
+						: TEXT("bounded_fallback"));
+				RendererEvidence.BindingState = bInDeepEvidenceRequested ? TEXT("complete") : TEXT("not_requested");
 				RendererEvidence.SourceIndex = RendererIndex;
 				RendererEvidence.bEnabled = Renderer->GetIsEnabled();
 				RendererEvidence.StableKey = FString::Printf(
@@ -694,7 +1458,7 @@ namespace ADumpNiagara
 					*MakeStableToken(EmitterStableKey),
 					*MakeStableToken(RendererEvidence.RendererClass),
 					RendererIndex);
-				for (const FNiagaraVariable& BoundAttribute : Renderer->GetBoundAttributes())
+								for (const FNiagaraVariable& BoundAttribute : Renderer->GetBoundAttributes())
 				{
 					const FString AttributeName = BoundAttribute.GetName().ToString();
 					RendererEvidence.BoundAttributes.Add(AttributeName);
@@ -705,6 +1469,29 @@ namespace ADumpNiagara
 						AttributeName,
 						BoundAttribute.GetType().GetName(),
 						TEXT("renderer_binding"));
+					if (bInDeepEvidenceRequested)
+					{
+						++OutEvidence.Bounds.AvailableRendererBindingCount;
+						if (RendererEvidence.BindingDetails.Num() < FADumpNiagaraEvidence::MaxRendererBindings)
+						{
+							FADumpNiagaraRendererBindingDetailEvidence BindingDetail;
+							BindingDetail.SlotName = AttributeName;
+							BindingDetail.SourceMode = TEXT("bound_attribute_accessor");
+							BindingDetail.ParameterHandle = AttributeName;
+							BindingDetail.TypeName = BoundAttribute.GetType().GetName();
+							BindingDetail.SourceNamespace = ParameterNamespace(AttributeName);
+							BindingDetail.SourceProperty = TEXT("UNiagaraRendererProperties::GetBoundAttributes");
+							BindingDetail.SemanticOrder = RendererEvidence.BindingDetails.Num();
+							RendererEvidence.BindingDetails.Add(MoveTemp(BindingDetail));
+						}
+						else
+						{
+							++OutEvidence.Bounds.OmittedRendererBindingCount;
+							RendererEvidence.BindingState = TEXT("truncated");
+							RendererEvidence.BindingReason = TEXT("max_renderer_bindings");
+							MarkTruncated(OutEvidence, TEXT("max_renderer_bindings"));
+						}
+					}
 				}
 				AddBounded(
 					OutEvidence.Renderers,
@@ -728,7 +1515,21 @@ namespace ADumpNiagara
 				StageEvidence.OwnerStableKey = EmitterStableKey;
 				StageEvidence.ObjectName = Stage->GetName();
 				StageEvidence.ScriptPath = Stage->Script ? Stage->Script->GetPathName() : FString();
-				StageEvidence.UsageId = Stage->Script ? GuidText(Stage->Script->GetUsageId()) : FString();
+								StageEvidence.UsageId = Stage->Script ? GuidText(Stage->Script->GetUsageId()) : FString();
+				if (bInDeepEvidenceRequested)
+				{
+					FString PropertyType;
+					ReadObservedPropertyText(Stage, TEXT("IterationSource"), StageEvidence.IterationSource, PropertyType);
+					for (const FName CandidateName : { FName(TEXT("IterationSourceBinding")), FName(TEXT("DataInterface")), FName(TEXT("IterationSourceDataInterface")) })
+					{
+						if (ReadObservedPropertyText(Stage, CandidateName, StageEvidence.IterationSourceParameter, PropertyType))
+						{
+							break;
+						}
+					}
+					StageEvidence.FlowState = TEXT("partial");
+					StageEvidence.FlowReason = TEXT("stage_parameter_access_linkage_unavailable");
+				}
 				StageEvidence.bEnabled = Stage->bEnabled;
 				StageEvidence.SemanticOrder = StageIndex;
 				StageEvidence.StableKey = FString::Printf(
@@ -749,7 +1550,49 @@ namespace ADumpNiagara
 			}
 		}
 
-		FinalizeBounds(OutEvidence, bPartial);
+				FinalizeBounds(OutEvidence, bPartial);
+		if (bInDeepEvidenceRequested)
+		{
+			const bool bHasDeepEvidence = !OutEvidence.DynamicInputs.IsEmpty()
+				|| !OutEvidence.StaticSwitches.IsEmpty()
+				|| !OutEvidence.RapidIterationValues.IsEmpty()
+				|| !OutEvidence.ModuleOutputs.IsEmpty()
+				|| !OutEvidence.ParameterReads.IsEmpty()
+				|| !OutEvidence.ParameterWrites.IsEmpty()
+				|| OutEvidence.Bounds.IncludedDataInterfacePropertyCount > 0
+				|| OutEvidence.Bounds.IncludedRendererBindingCount > 0
+				|| !OutEvidence.SimulationStages.IsEmpty();
+			bool bDeepPartial = bPartial || OutEvidence.Bounds.UnavailableScriptGraphCount > 0;
+			for (const FADumpNiagaraDynamicInputEvidence& Item : OutEvidence.DynamicInputs)
+			{
+				bDeepPartial |= Item.State == TEXT("partial") || Item.State == TEXT("unavailable");
+			}
+			for (const FADumpNiagaraStaticSwitchEvidence& Item : OutEvidence.StaticSwitches)
+			{
+				bDeepPartial |= Item.State == TEXT("partial") || Item.State == TEXT("unavailable");
+			}
+			for (const FADumpNiagaraRapidIterationEvidence& Item : OutEvidence.RapidIterationValues)
+			{
+				bDeepPartial |= Item.State == TEXT("partial") || Item.State == TEXT("unavailable");
+			}
+			if (OutEvidence.Bounds.bTruncated)
+			{
+				OutEvidence.DeepState = TEXT("truncated");
+				OutEvidence.DeepReason = TEXT("deep_bounds_applied");
+			}
+			else if (bDeepPartial)
+			{
+				OutEvidence.DeepState = bHasDeepEvidence ? TEXT("partial") : TEXT("unavailable");
+				OutEvidence.DeepReason = bHasDeepEvidence
+					? TEXT("observed_partial_deep_evidence")
+					: TEXT("deep_graph_unavailable");
+			}
+			else
+			{
+				OutEvidence.DeepState = TEXT("complete");
+				OutEvidence.DeepReason.Reset();
+			}
+		}
 		return true;
 	}
 }

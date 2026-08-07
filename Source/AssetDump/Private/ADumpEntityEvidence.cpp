@@ -1,6 +1,11 @@
 // File: ADumpEntityEvidence.cpp
-// Version: v1.4.0
+// Version: v1.7.1
 // Changelog:
+// - v1.7.1: ApplyFacetDataByteBudget의 dynamic Facet key enumeration/lookup을 UE 5.8 shared-string key와 public FJsonObject::TryGetField API로 교정.
+// - v1.7.0: P4-N3 canonical reason projection, Deep/total relation 원인 분리와 aggregate Facet UTF-8 max_bytes fail-closed projection을 구현.
+// - v1.6.1: UE compile-time format 검사를 만족하도록 parameter access JSON pointer 생성을 명시적 read/write 분기로 교정.
+// - v1.6.0: P4-N2 typed Deep evidence의 6 Entity, 2 Relation과 provenance/properties/execution/bindings Facet projection을 구현.
+// - v1.5.0: P4-N1 exact Deep activation, niagara_deep_v1 18/12 registry와 P4-N2 미착수 capability의 fail-closed projection을 추가.
 // - v1.4.0: Script Graph unavailable 상태를 Module/Input/Parameter/Binding과 관련 capability/relation completeness에 전파.
 // - v1.3.0: P2-N2 Niagara 10개 세부 Entity Kind, deterministic Relation projection, completeness와 relation bounds를 구현.
 // - v1.2.0: Niagara registry, niagara_system typed projection과 adapter profile을 additive하게 추가.
@@ -13,7 +18,11 @@
 
 #include "ADumpFingerprint.h"
 
+#include "Containers/StringConv.h"
 #include "Misc/Paths.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 namespace
 {
@@ -31,8 +40,9 @@ namespace
 		FString JsonPointer;
 		FString Completeness = TEXT("complete");
 		int32 SemanticOrder = INDEX_NONE;
-		TSharedRef<FJsonObject> IdentityComponents = MakeShared<FJsonObject>();
+				TSharedRef<FJsonObject> IdentityComponents = MakeShared<FJsonObject>();
 		TSharedRef<FJsonObject> Facets = MakeShared<FJsonObject>();
+		TSharedRef<FJsonObject> AdditionalFacets = MakeShared<FJsonObject>();
 	};
 
 	// FRelationDraft는 endpoint local ID 치환 전 Relation canonical 정렬 입력이다.
@@ -60,10 +70,166 @@ namespace
 		{
 			JsonValues.Add(MakeShared<FJsonValueString>(Value));
 		}
-		return JsonValues;
+				return JsonValues;
 	}
 
-				// GetEntityFacetName은 Entity kind를 공통 Facet registry 이름으로 매핑한다.
+		// CanonicalizeNiagaraReasons는 observed reason을 Product registry 순서로 unique projection한다.
+	void CanonicalizeNiagaraReasons(TArray<FString>& InOutReasons)
+	{
+		TArray<FString> OrderedReasons;
+		OrderedReasons.Reserve(InOutReasons.Num());
+		for (int32 ReasonIndex = 0; ReasonIndex < ADumpNiagaraReason::CanonicalOrderCount; ++ReasonIndex)
+		{
+			const FString CanonicalReason(ADumpNiagaraReason::CanonicalOrder[ReasonIndex]);
+			if (InOutReasons.Contains(CanonicalReason))
+			{
+				OrderedReasons.Add(CanonicalReason);
+			}
+		}
+		for (const FString& Reason : InOutReasons)
+		{
+			if (!OrderedReasons.Contains(Reason))
+			{
+				OrderedReasons.Add(Reason);
+			}
+		}
+		InOutReasons = MoveTemp(OrderedReasons);
+	}
+
+	// GetCompactJsonUtf8ByteCount는 compact JSON data object의 UTF-8 byte 수를 반환한다.
+	int64 GetCompactJsonUtf8ByteCount(const TSharedRef<FJsonObject>& InObject)
+	{
+		FString JsonText;
+		TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+			TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&JsonText);
+		FJsonSerializer::Serialize(InObject, Writer);
+		Writer->Close();
+		FTCHARToUTF8 Utf8Text(*JsonText);
+		return Utf8Text.Length();
+	}
+
+	// ApplyFacetDataByteBudget는 canonical Facet 순서에서 overflow data만 bounded empty projection으로 바꾼다.
+	bool ApplyFacetDataByteBudget(const TSharedRef<FJsonObject>& InOutFacets, int64& InOutUsedBytes)
+	{
+				TArray<FJsonObject::FStringType> FacetNames;
+		InOutFacets->Values.GetKeys(FacetNames);
+		FacetNames.Sort();
+		bool bTruncated = false;
+		for (const FJsonObject::FStringType& FacetName : FacetNames)
+		{
+			const TSharedPtr<FJsonValue> FacetValue = InOutFacets->TryGetField(FacetName.ToView());
+			const TSharedPtr<FJsonObject> FacetObject = FacetValue.IsValid()
+				? FacetValue->AsObject()
+				: nullptr;
+			if (!FacetObject.IsValid())
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonValue>* DataValue = FacetObject->Values.Find(TEXT("data"));
+			const TSharedPtr<FJsonObject> DataObject = DataValue && DataValue->IsValid()
+				? (*DataValue)->AsObject()
+				: nullptr;
+			if (!DataObject.IsValid())
+			{
+				continue;
+			}
+
+			const int64 DataUtf8Bytes = GetCompactJsonUtf8ByteCount(DataObject.ToSharedRef());
+			if (InOutUsedBytes + DataUtf8Bytes <= FADumpNiagaraEvidence::MaxFacetUtf8Bytes)
+			{
+				InOutUsedBytes += DataUtf8Bytes;
+				continue;
+			}
+
+			FacetObject->SetStringField(TEXT("state"), TEXT("truncated"));
+			FacetObject->SetStringField(TEXT("exactness"), TEXT("observed_partial"));
+			TSharedPtr<FJsonObject> BoundsObject;
+			if (const TSharedPtr<FJsonValue>* BoundsValue = FacetObject->Values.Find(TEXT("bounds")))
+			{
+				BoundsObject = BoundsValue->IsValid() ? (*BoundsValue)->AsObject() : nullptr;
+			}
+			if (!BoundsObject.IsValid())
+			{
+				BoundsObject = MakeShared<FJsonObject>();
+				FacetObject->SetObjectField(TEXT("bounds"), BoundsObject);
+			}
+			BoundsObject->SetBoolField(TEXT("truncated"), true);
+			BoundsObject->SetNumberField(TEXT("available_count"), 1);
+			BoundsObject->SetNumberField(TEXT("included_count"), 0);
+			BoundsObject->SetNumberField(TEXT("omitted_count"), 1);
+			TArray<FString> ByteReasons;
+			ByteReasons.Add(ADumpNiagaraReason::MaxBytes);
+			BoundsObject->SetArrayField(TEXT("reasons"), MakeStringArray(ByteReasons));
+			FacetObject->SetObjectField(TEXT("data"), MakeShared<FJsonObject>());
+			bTruncated = true;
+		}
+		return bTruncated;
+	}
+
+	// MakeProvenanceData는 typed resolution evidence를 niagara_value_resolution_v1 data object로 직렬화한다.
+	TSharedRef<FJsonObject> MakeProvenanceData(const FADumpNiagaraValueResolutionEvidence& InResolution)
+	{
+		TSharedRef<FJsonObject> Data = MakeShared<FJsonObject>();
+		Data->SetStringField(TEXT("resolution_status"), InResolution.ResolutionStatus);
+		Data->SetStringField(TEXT("state"), InResolution.State);
+		Data->SetStringField(TEXT("exactness"), InResolution.Exactness);
+		Data->SetStringField(TEXT("source"), InResolution.Source);
+		if (InResolution.TerminalSourceStableKey.IsEmpty()) Data->SetField(TEXT("terminal_source_stable_key"), MakeShared<FJsonValueNull>());
+		else Data->SetStringField(TEXT("terminal_source_stable_key"), InResolution.TerminalSourceStableKey);
+		if (InResolution.AppliedStepIndex == INDEX_NONE) Data->SetField(TEXT("applied_step_index"), MakeShared<FJsonValueNull>());
+		else Data->SetNumberField(TEXT("applied_step_index"), InResolution.AppliedStepIndex);
+		Data->SetNumberField(TEXT("max_depth"), InResolution.MaxDepth);
+		Data->SetNumberField(TEXT("omitted_step_count"), InResolution.OmittedStepCount);
+		Data->SetStringField(TEXT("reason"), InResolution.Reason);
+		Data->SetArrayField(TEXT("missing_segments"), MakeStringArray(InResolution.MissingSegments));
+		TArray<TSharedPtr<FJsonValue>> StepValues;
+		for (const FADumpNiagaraProvenanceStepEvidence& Step : InResolution.ObservedSteps)
+		{
+			TSharedRef<FJsonObject> StepObject = MakeShared<FJsonObject>();
+			StepObject->SetStringField(TEXT("source_kind"), Step.SourceKind);
+			StepObject->SetStringField(TEXT("source_stable_key"), Step.SourceStableKey);
+			StepObject->SetStringField(TEXT("source_node_guid"), Step.SourceNodeGuid);
+			StepObject->SetStringField(TEXT("source_pin_guid"), Step.SourcePinGuid);
+			StepObject->SetStringField(TEXT("parameter_handle"), Step.ParameterHandle);
+			StepObject->SetStringField(TEXT("type_name"), Step.TypeName);
+			StepObject->SetStringField(TEXT("value_text"), Step.ValueText);
+			StepObject->SetStringField(TEXT("source_property"), Step.SourceProperty);
+			StepObject->SetStringField(TEXT("state"), Step.State);
+			StepObject->SetStringField(TEXT("exactness"), Step.Exactness);
+			StepObject->SetStringField(TEXT("reason"), Step.Reason);
+			StepObject->SetNumberField(TEXT("semantic_order"), Step.SemanticOrder);
+			StepValues.Add(MakeShared<FJsonValueObject>(StepObject));
+		}
+		Data->SetArrayField(TEXT("observed_steps"), MoveTemp(StepValues));
+		return Data;
+	}
+
+	// AddAuxiliaryFacet는 primary Entity facet과 동일한 provenance/bounds envelope를 추가한다.
+	void AddAuxiliaryFacet(FEntityDraft& InOutEntity, const FString& InFacetName, const FString& InSchemaVersion, const FString& InState, const FString& InEvidenceKind, const FString& InExactness, const TSharedRef<FJsonObject>& InData)
+	{
+		TSharedRef<FJsonObject> Source = MakeShared<FJsonObject>();
+		Source->SetStringField(TEXT("source_contract"), InOutEntity.SourceContract);
+		Source->SetStringField(TEXT("source_file"), InOutEntity.SourceFile);
+		Source->SetStringField(TEXT("json_pointer"), InOutEntity.JsonPointer);
+		Source->SetStringField(TEXT("extractor_version"), ADumpSchema::GetExtractorVersionText());
+		TSharedRef<FJsonObject> Bounds = MakeShared<FJsonObject>();
+		Bounds->SetBoolField(TEXT("truncated"), InState == TEXT("truncated"));
+		Bounds->SetNumberField(TEXT("available_count"), 1);
+		Bounds->SetNumberField(TEXT("included_count"), 1);
+		Bounds->SetNumberField(TEXT("omitted_count"), 0);
+		Bounds->SetArrayField(TEXT("reasons"), TArray<TSharedPtr<FJsonValue>>());
+		TSharedRef<FJsonObject> Facet = MakeShared<FJsonObject>();
+		Facet->SetStringField(TEXT("state"), InState);
+		Facet->SetStringField(TEXT("schema_version"), InSchemaVersion);
+		Facet->SetStringField(TEXT("evidence_kind"), InEvidenceKind);
+		Facet->SetStringField(TEXT("exactness"), InExactness);
+		Facet->SetObjectField(TEXT("source"), Source);
+		Facet->SetObjectField(TEXT("bounds"), Bounds);
+		Facet->SetObjectField(TEXT("data"), InData);
+		InOutEntity.AdditionalFacets->SetObjectField(InFacetName, Facet);
+	}
+
+	// GetEntityFacetName은 Entity kind를 공통 Facet registry 이름으로 매핑한다.
 	FString GetEntityFacetName(const FString& InEntityKind)
 	{
 		if (InEntityKind == TEXT("asset")) return TEXT("overview");
@@ -77,7 +243,12 @@ namespace
 	// GetEntityFacetSchemaVersion은 기존 source contract의 schema를 새 Facet envelope에 연결한다.
 	FString GetEntityFacetSchemaVersion(const FString& InEntityKind)
 	{
-								if (InEntityKind == TEXT("blueprint_component")) return TEXT("component_tree_v1");
+										if (InEntityKind == TEXT("blueprint_component")) return TEXT("component_tree_v1");
+		if (InEntityKind == TEXT("niagara_dynamic_input")) return TEXT("niagara_dynamic_input_v1");
+		if (InEntityKind == TEXT("niagara_static_switch")) return TEXT("niagara_static_switch_v1");
+		if (InEntityKind == TEXT("niagara_rapid_iteration_value")) return TEXT("niagara_rapid_iteration_v1");
+		if (InEntityKind == TEXT("niagara_module_output")) return TEXT("niagara_module_output_v1");
+		if (InEntityKind == TEXT("niagara_parameter_read") || InEntityKind == TEXT("niagara_parameter_write")) return TEXT("niagara_parameter_access_v1");
 		if (InEntityKind.StartsWith(TEXT("niagara_")) || InEntityKind == TEXT("asset_reference")) return TEXT("niagara_native_evidence_v1");
 		return FString();
 	}
@@ -107,8 +278,12 @@ namespace
 		FacetObject->SetObjectField(TEXT("bounds"), FacetBoundsObject);
 		FacetObject->SetObjectField(TEXT("data"), InEntity.Facets);
 
-		TSharedRef<FJsonObject> FacetsObject = MakeShared<FJsonObject>();
+				TSharedRef<FJsonObject> FacetsObject = MakeShared<FJsonObject>();
 		FacetsObject->SetObjectField(GetEntityFacetName(InEntity.EntityKind), FacetObject);
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : InEntity.AdditionalFacets->Values)
+		{
+			FacetsObject->SetField(Pair.Key, Pair.Value);
+		}
 		return FacetsObject;
 	}
 
@@ -287,12 +462,40 @@ namespace ADumpEntityEvidence
 		return Registry;
 	}
 
+		const TArray<FString>& GetNiagaraDeepEntityKindRegistry()
+	{
+		static const TArray<FString> Registry = []
+		{
+			TArray<FString> Values = GetNiagaraEntityKindRegistry();
+			Values.Add(TEXT("niagara_dynamic_input"));
+			Values.Add(TEXT("niagara_static_switch"));
+			Values.Add(TEXT("niagara_rapid_iteration_value"));
+			Values.Add(TEXT("niagara_module_output"));
+			Values.Add(TEXT("niagara_parameter_read"));
+			Values.Add(TEXT("niagara_parameter_write"));
+			return Values;
+		}();
+		return Registry;
+	}
+
+	const TArray<FString>& GetNiagaraDeepRelationKindRegistry()
+	{
+		static const TArray<FString> Registry = []
+		{
+			TArray<FString> Values = GetNiagaraRelationKindRegistry();
+			Values.Add(TEXT("reads_parameter"));
+			Values.Add(TEXT("writes_parameter"));
+			return Values;
+		}();
+		return Registry;
+	}
+
 	const TArray<FString>& GetKnownEntityKindRegistry()
 	{
 		static const TArray<FString> Registry = []
 		{
 			TArray<FString> Values = GetEntityKindRegistry();
-			for (const FString& Kind : GetNiagaraEntityKindRegistry())
+			for (const FString& Kind : GetNiagaraDeepEntityKindRegistry())
 			{
 				Values.AddUnique(Kind);
 			}
@@ -301,12 +504,12 @@ namespace ADumpEntityEvidence
 		return Registry;
 	}
 
-	const TArray<FString>& GetKnownRelationKindRegistry()
+		const TArray<FString>& GetKnownRelationKindRegistry()
 	{
 		static const TArray<FString> Registry = []
 		{
 			TArray<FString> Values = GetRelationKindRegistry();
-			for (const FString& Kind : GetNiagaraRelationKindRegistry())
+			for (const FString& Kind : GetNiagaraDeepRelationKindRegistry())
 			{
 				Values.AddUnique(Kind);
 			}
@@ -327,7 +530,15 @@ namespace ADumpEntityEvidence
 								const bool bBlueprintEvidenceSource = InDumpResult.Asset.AssetFamily.Contains(TEXT("Blueprint"), ESearchCase::IgnoreCase)
 			|| !InDumpResult.Graphs.IsEmpty()
 			|| !InDumpResult.ComponentTree.SchemaVersion.IsEmpty();
-		const bool bNiagaraEvidenceSource = InDumpResult.NiagaraEvidence.bSupported;
+				const bool bNiagaraEvidenceSource = InDumpResult.NiagaraEvidence.bSupported;
+		const TArray<FString> RequestedSections = InDumpResult.Request.SectionSelection.GetEnabledNames();
+		const bool bNiagaraDeepEvidenceSource = bNiagaraEvidenceSource
+			&& InDumpResult.NiagaraEvidence.bDeepEvidenceRequested
+			&& InDumpResult.Request.Profile == TEXT("niagara_deep_evidence")
+			&& InDumpResult.Request.SectionSource == TEXT("profile")
+			&& InDumpResult.Request.SectionSelection.bIsExplicit
+			&& RequestedSections.Num() == 1
+			&& RequestedSections[0] == TEXT("entity_evidence");
 
 		TArray<FEntityDraft> EntityDrafts;
 		TArray<FRelationDraft> RelationDrafts;
@@ -335,11 +546,15 @@ namespace ADumpEntityEvidence
 				TMap<FString, FString> ComponentStableByNodeId;
 		TMap<FString, FString> NodeStableByLookup;
 		TMap<FString, FString> PinStableByLookup;
-		int32 NiagaraProjectionOmittedRelationCount = 0;
+				int32 NiagaraProjectionOmittedRelationCount = 0;
+		int32 NiagaraMvpProjectionRelationCount = 0;
+				int32 NiagaraDeepProjectionRelationCount = 0;
+		int64 NiagaraFacetUtf8Bytes = 0;
+		TArray<FString> NiagaraProjectionReasons;
 		bool bNiagaraProjectionTruncated = false;
 
 		// AddNiagaraRelation은 Niagara relation을 unique/cap 조건 안에서 추가한다.
-		auto AddNiagaraRelation = [&RelationDrafts, &RelationUniqueKeys, &NiagaraProjectionOmittedRelationCount, &bNiagaraProjectionTruncated](
+				auto AddNiagaraRelation = [&RelationDrafts, &RelationUniqueKeys, &NiagaraProjectionOmittedRelationCount, &NiagaraMvpProjectionRelationCount, &NiagaraProjectionReasons, &bNiagaraProjectionTruncated](
 			const FString& InRelationKind,
 			const FString& InFromStableKey,
 			const FString& InToStableKey,
@@ -364,10 +579,15 @@ namespace ADumpEntityEvidence
 			{
 				return;
 			}
-			if (RelationDrafts.Num() >= FADumpNiagaraEvidence::MaxRelations)
+									const bool bMvpRelationLimit = NiagaraMvpProjectionRelationCount >= FADumpNiagaraEvidence::MaxMvpRelations;
+			const bool bTotalRelationLimit = RelationDrafts.Num() >= FADumpNiagaraEvidence::MaxTotalRelations;
+			if (bMvpRelationLimit || bTotalRelationLimit)
 			{
 				++NiagaraProjectionOmittedRelationCount;
 				bNiagaraProjectionTruncated = true;
+								// max_relations is the canonical MVP relation-cap reason emitted through ADumpNiagaraReason::MaxRelations.
+				if (bMvpRelationLimit) NiagaraProjectionReasons.AddUnique(ADumpNiagaraReason::MaxRelations);
+				if (bTotalRelationLimit) NiagaraProjectionReasons.AddUnique(ADumpNiagaraReason::MaxTotalRelations);
 				return;
 			}
 
@@ -380,8 +600,48 @@ namespace ADumpEntityEvidence
 			Relation.SourceContract = InSourceContract;
 			Relation.SourceFile = InSourceFile;
 			Relation.JsonPointer = InJsonPointer;
+						Relation.SemanticOrder = InSemanticOrder;
+			AddRelationUnique(RelationDrafts, RelationUniqueKeys, MoveTemp(Relation));
+			++NiagaraMvpProjectionRelationCount;
+		};
+
+		// AddNiagaraDeepRelation은 Deep relation 전용 cap을 적용하고 observed endpoint만 허용한다.
+		auto AddNiagaraDeepRelation = [&RelationDrafts, &RelationUniqueKeys, &NiagaraProjectionOmittedRelationCount, &NiagaraDeepProjectionRelationCount, &NiagaraProjectionReasons, &bNiagaraProjectionTruncated](
+			const FString& InRelationKind,
+			const FString& InFromStableKey,
+			const FString& InToStableKey,
+			const FString& InSourceContract,
+			const FString& InSourceFile,
+			const FString& InJsonPointer,
+			int32 InSemanticOrder,
+			const FString& InEvidenceKind,
+			const FString& InExactness)
+		{
+			if (InFromStableKey.IsEmpty() || InToStableKey.IsEmpty()) return;
+			const FString UniqueKey = FString::Printf(TEXT("%s|%s|%s|%s"), *InRelationKind, *InFromStableKey, *InToStableKey, *InJsonPointer);
+			if (RelationUniqueKeys.Contains(UniqueKey)) return;
+						const bool bDeepRelationLimit = NiagaraDeepProjectionRelationCount >= FADumpNiagaraEvidence::MaxDeepRelations;
+			const bool bTotalRelationLimit = RelationDrafts.Num() >= FADumpNiagaraEvidence::MaxTotalRelations;
+			if (bDeepRelationLimit || bTotalRelationLimit)
+			{
+				++NiagaraProjectionOmittedRelationCount;
+				bNiagaraProjectionTruncated = true;
+				if (bDeepRelationLimit) NiagaraProjectionReasons.AddUnique(ADumpNiagaraReason::MaxDeepRelations);
+				if (bTotalRelationLimit) NiagaraProjectionReasons.AddUnique(ADumpNiagaraReason::MaxTotalRelations);
+				return;
+			}
+			FRelationDraft Relation;
+			Relation.RelationKind = InRelationKind;
+			Relation.FromStableKey = InFromStableKey;
+			Relation.ToStableKey = InToStableKey;
+			Relation.EvidenceKind = InEvidenceKind;
+			Relation.Exactness = InExactness;
+			Relation.SourceContract = InSourceContract;
+			Relation.SourceFile = InSourceFile;
+			Relation.JsonPointer = InJsonPointer;
 			Relation.SemanticOrder = InSemanticOrder;
 			AddRelationUnique(RelationDrafts, RelationUniqueKeys, MoveTemp(Relation));
+			++NiagaraDeepProjectionRelationCount;
 		};
 
 		const FString AssetStableKey = FString::Printf(TEXT("asset:%s"), *ObjectPath);
@@ -573,8 +833,32 @@ namespace ADumpEntityEvidence
 				Entity.IdentityComponents->SetNumberField(TEXT("source_index"), Renderer.SourceIndex);
 				Entity.Facets->SetStringField(TEXT("renderer_name"), Renderer.RendererName);
 				Entity.Facets->SetStringField(TEXT("renderer_class"), Renderer.RendererClass);
-				Entity.Facets->SetBoolField(TEXT("enabled"), Renderer.bEnabled);
+								Entity.Facets->SetBoolField(TEXT("enabled"), Renderer.bEnabled);
 				Entity.Facets->SetArrayField(TEXT("bound_attributes"), MakeStringArray(Renderer.BoundAttributes));
+				if (bNiagaraDeepEvidenceSource)
+				{
+					TSharedRef<FJsonObject> BindingData = MakeShared<FJsonObject>();
+					BindingData->SetStringField(TEXT("support_tier"), Renderer.SupportTier);
+					BindingData->SetStringField(TEXT("state"), Renderer.BindingState);
+					BindingData->SetStringField(TEXT("reason"), Renderer.BindingReason);
+					TArray<TSharedPtr<FJsonValue>> BindingValues;
+					for (const FADumpNiagaraRendererBindingDetailEvidence& Binding : Renderer.BindingDetails)
+					{
+						TSharedRef<FJsonObject> BindingObject = MakeShared<FJsonObject>();
+						BindingObject->SetStringField(TEXT("slot_name"), Binding.SlotName);
+						BindingObject->SetStringField(TEXT("source_mode"), Binding.SourceMode);
+						BindingObject->SetStringField(TEXT("parameter_handle"), Binding.ParameterHandle);
+						BindingObject->SetStringField(TEXT("type_name"), Binding.TypeName);
+						BindingObject->SetStringField(TEXT("source_namespace"), Binding.SourceNamespace);
+						BindingObject->SetStringField(TEXT("source_property"), Binding.SourceProperty);
+						BindingObject->SetStringField(TEXT("state"), Binding.State);
+						BindingObject->SetStringField(TEXT("exactness"), Binding.Exactness);
+						BindingObject->SetNumberField(TEXT("semantic_order"), Binding.SemanticOrder);
+						BindingValues.Add(MakeShared<FJsonValueObject>(BindingObject));
+					}
+					BindingData->SetArrayField(TEXT("bindings"), MoveTemp(BindingValues));
+					AddAuxiliaryFacet(Entity, TEXT("bindings"), TEXT("niagara_renderer_binding_v1"), Renderer.BindingState, TEXT("observed"), TEXT("exact"), BindingData);
+				}
 				EntityDrafts.Add(MoveTemp(Entity));
 				AddNiagaraRelation(
 					TEXT("contains"), Renderer.OwnerStableKey, Renderer.StableKey,
@@ -669,9 +953,30 @@ namespace ADumpEntityEvidence
 				Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/data_interfaces/%d"), DataInterfaceIndex);
 				Entity.SemanticOrder = DataInterface.SourceIndex;
 				Entity.IdentityComponents->SetStringField(TEXT("object_path"), DataInterface.ObjectPath);
-				Entity.Facets->SetStringField(TEXT("variable_name"), DataInterface.VariableName);
+								Entity.Facets->SetStringField(TEXT("variable_name"), DataInterface.VariableName);
 				Entity.Facets->SetStringField(TEXT("object_path"), DataInterface.ObjectPath);
 				Entity.Facets->SetStringField(TEXT("class_path"), DataInterface.ClassPath);
+				if (bNiagaraDeepEvidenceSource)
+				{
+					TSharedRef<FJsonObject> PropertyData = MakeShared<FJsonObject>();
+					PropertyData->SetStringField(TEXT("state"), DataInterface.SettingsState);
+					PropertyData->SetStringField(TEXT("reason"), DataInterface.SettingsReason);
+					TArray<TSharedPtr<FJsonValue>> PropertyValues;
+					for (const FADumpNiagaraPropertyEvidence& Property : DataInterface.Properties)
+					{
+						TSharedRef<FJsonObject> PropertyObject = MakeShared<FJsonObject>();
+						PropertyObject->SetStringField(TEXT("property_path"), Property.PropertyPath);
+						PropertyObject->SetStringField(TEXT("type_name"), Property.TypeName);
+						PropertyObject->SetStringField(TEXT("value_text"), Property.ValueText);
+						PropertyObject->SetStringField(TEXT("object_path"), Property.ObjectPath);
+						PropertyObject->SetStringField(TEXT("state"), Property.State);
+						PropertyObject->SetStringField(TEXT("reason"), Property.Reason);
+						PropertyObject->SetNumberField(TEXT("semantic_order"), Property.SemanticOrder);
+						PropertyValues.Add(MakeShared<FJsonValueObject>(PropertyObject));
+					}
+					PropertyData->SetArrayField(TEXT("properties"), MoveTemp(PropertyValues));
+					AddAuxiliaryFacet(Entity, TEXT("properties"), TEXT("niagara_data_interface_settings_v1"), DataInterface.SettingsState, TEXT("observed"), TEXT("exact"), PropertyData);
+				}
 				EntityDrafts.Add(MoveTemp(Entity));
 				AddNiagaraRelation(
 					TEXT("contains"), DataInterface.OwnerStableKey, DataInterface.StableKey,
@@ -697,8 +1002,19 @@ namespace ADumpEntityEvidence
 				Entity.IdentityComponents->SetStringField(TEXT("usage_id"), Stage.UsageId);
 				Entity.Facets->SetStringField(TEXT("object_name"), Stage.ObjectName);
 				Entity.Facets->SetStringField(TEXT("usage_id"), Stage.UsageId);
-				Entity.Facets->SetStringField(TEXT("script_path"), Stage.ScriptPath);
+								Entity.Facets->SetStringField(TEXT("script_path"), Stage.ScriptPath);
 				Entity.Facets->SetBoolField(TEXT("enabled"), Stage.bEnabled);
+				if (bNiagaraDeepEvidenceSource)
+				{
+					TSharedRef<FJsonObject> FlowData = MakeShared<FJsonObject>();
+					FlowData->SetStringField(TEXT("iteration_source"), Stage.IterationSource);
+					FlowData->SetStringField(TEXT("iteration_source_parameter"), Stage.IterationSourceParameter);
+					FlowData->SetStringField(TEXT("state"), Stage.FlowState);
+					FlowData->SetStringField(TEXT("reason"), Stage.FlowReason);
+					FlowData->SetArrayField(TEXT("read_access_stable_keys"), MakeStringArray(Stage.ReadAccessStableKeys));
+					FlowData->SetArrayField(TEXT("write_access_stable_keys"), MakeStringArray(Stage.WriteAccessStableKeys));
+					AddAuxiliaryFacet(Entity, TEXT("execution"), TEXT("niagara_simulation_stage_flow_v1"), Stage.FlowState, TEXT("observed"), TEXT("observed_partial"), FlowData);
+				}
 				EntityDrafts.Add(MoveTemp(Entity));
 				AddNiagaraRelation(
 					TEXT("contains"), Stage.OwnerStableKey, Stage.StableKey,
@@ -746,6 +1062,202 @@ namespace ADumpEntityEvidence
 						FString::Printf(TEXT("/entity_evidence/native/references/%d"), ReferenceIndex), Reference.SourceIndex,
 						TEXT("observed"), TEXT("exact"));
 				}
+			}
+
+						if (bNiagaraDeepEvidenceSource)
+			{
+				for (int32 DynamicIndex = 0; DynamicIndex < Niagara.DynamicInputs.Num(); ++DynamicIndex)
+				{
+					const FADumpNiagaraDynamicInputEvidence& Item = Niagara.DynamicInputs[DynamicIndex];
+					FEntityDraft Entity;
+					Entity.EntityKind = TEXT("niagara_dynamic_input");
+					Entity.DisplayName = Item.DisplayName;
+					Entity.StableKey = Item.StableKey;
+					Entity.IdentityQuality = Item.IdentityQuality;
+					Entity.IdentitySource = Item.IdentitySource;
+					Entity.OwnerStableKey = Item.OwnerStableKey;
+					Entity.SourceContract = TEXT("niagara_native_evidence_v1.dynamic_inputs[]");
+					Entity.SourceFile = SourceFile;
+					Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/dynamic_inputs/%d"), DynamicIndex);
+					Entity.Completeness = Item.State;
+					Entity.SemanticOrder = Item.SemanticOrder;
+					Entity.IdentityComponents->SetStringField(TEXT("node_guid"), Item.NodeGuid);
+					Entity.IdentityComponents->SetStringField(TEXT("pin_guid"), Item.PinGuid);
+					Entity.Facets->SetStringField(TEXT("display_name"), Item.DisplayName);
+					Entity.Facets->SetStringField(TEXT("script_path"), Item.ScriptPath);
+					Entity.Facets->SetStringField(TEXT("usage"), Item.Usage);
+					Entity.Facets->SetStringField(TEXT("usage_id"), Item.UsageId);
+					Entity.Facets->SetStringField(TEXT("node_guid"), Item.NodeGuid);
+					Entity.Facets->SetStringField(TEXT("pin_guid"), Item.PinGuid);
+					Entity.Facets->SetBoolField(TEXT("enabled"), Item.bEnabled);
+					Entity.Facets->SetNumberField(TEXT("depth"), Item.Depth);
+					Entity.Facets->SetNumberField(TEXT("input_count"), Item.InputCount);
+					Entity.Facets->SetNumberField(TEXT("output_count"), Item.OutputCount);
+					Entity.Facets->SetStringField(TEXT("state"), Item.State);
+					Entity.Facets->SetStringField(TEXT("exactness"), Item.Exactness);
+					Entity.Facets->SetStringField(TEXT("reason"), Item.Reason);
+					AddAuxiliaryFacet(Entity, TEXT("provenance"), TEXT("niagara_value_resolution_v1"), Item.Provenance.State, TEXT("observed"), Item.Provenance.Exactness, MakeProvenanceData(Item.Provenance));
+					EntityDrafts.Add(MoveTemp(Entity));
+					AddNiagaraDeepRelation(TEXT("contains"), Item.OwnerStableKey, Item.StableKey, TEXT("niagara_native_evidence_v1.dynamic_inputs[]"), SourceFile, FString::Printf(TEXT("/entity_evidence/native/dynamic_inputs/%d"), DynamicIndex), Item.SemanticOrder, TEXT("observed"), TEXT("exact"));
+				}
+
+				for (int32 SwitchIndex = 0; SwitchIndex < Niagara.StaticSwitches.Num(); ++SwitchIndex)
+				{
+					const FADumpNiagaraStaticSwitchEvidence& Item = Niagara.StaticSwitches[SwitchIndex];
+					FEntityDraft Entity;
+					Entity.EntityKind = TEXT("niagara_static_switch");
+					Entity.DisplayName = Item.ParameterHandle;
+					Entity.StableKey = Item.StableKey;
+					Entity.IdentityQuality = Item.SourceNodeGuid.IsEmpty() ? TEXT("fallback") : TEXT("exact");
+					Entity.IdentitySource = Item.SourceNodeGuid.IsEmpty() ? TEXT("source_index") : TEXT("engine_guid");
+					Entity.OwnerStableKey = Item.OwnerStableKey;
+					Entity.SourceContract = TEXT("niagara_native_evidence_v1.static_switches[]");
+					Entity.SourceFile = SourceFile;
+					Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/static_switches/%d"), SwitchIndex);
+					Entity.Completeness = Item.State;
+					Entity.SemanticOrder = Item.SemanticOrder;
+					Entity.IdentityComponents->SetStringField(TEXT("source_node_guid"), Item.SourceNodeGuid);
+					Entity.Facets->SetStringField(TEXT("parameter_handle"), Item.ParameterHandle);
+					Entity.Facets->SetStringField(TEXT("type_name"), Item.TypeName);
+					Entity.Facets->SetStringField(TEXT("source_node_guid"), Item.SourceNodeGuid);
+					Entity.Facets->SetStringField(TEXT("source_pin_guid"), Item.SourcePinGuid);
+					Entity.Facets->SetStringField(TEXT("selection_source"), Item.SelectionSource);
+					Entity.Facets->SetStringField(TEXT("selection_state"), Item.SelectionState);
+					Entity.Facets->SetBoolField(TEXT("compile_constant_observed"), Item.bCompileConstantObserved);
+					if (Item.bCompileConstantObserved) Entity.Facets->SetBoolField(TEXT("compile_constant"), Item.bCompileConstant);
+					else Entity.Facets->SetField(TEXT("compile_constant"), MakeShared<FJsonValueNull>());
+					if (Item.SelectedValue.IsEmpty()) Entity.Facets->SetField(TEXT("selected_value"), MakeShared<FJsonValueNull>());
+					else Entity.Facets->SetStringField(TEXT("selected_value"), Item.SelectedValue);
+					if (Item.SelectedBranchToken.IsEmpty()) Entity.Facets->SetField(TEXT("selected_branch_token"), MakeShared<FJsonValueNull>());
+					else Entity.Facets->SetStringField(TEXT("selected_branch_token"), Item.SelectedBranchToken);
+					if (Item.SelectedBranchPinGuid.IsEmpty()) Entity.Facets->SetField(TEXT("selected_branch_pin_guid"), MakeShared<FJsonValueNull>());
+					else Entity.Facets->SetStringField(TEXT("selected_branch_pin_guid"), Item.SelectedBranchPinGuid);
+					Entity.Facets->SetStringField(TEXT("state"), Item.State);
+					Entity.Facets->SetStringField(TEXT("exactness"), Item.Exactness);
+					Entity.Facets->SetStringField(TEXT("reason"), Item.Reason);
+					AddAuxiliaryFacet(Entity, TEXT("provenance"), TEXT("niagara_value_resolution_v1"), Item.Provenance.State, TEXT("observed"), Item.Provenance.Exactness, MakeProvenanceData(Item.Provenance));
+					EntityDrafts.Add(MoveTemp(Entity));
+					AddNiagaraDeepRelation(TEXT("contains"), Item.OwnerStableKey, Item.StableKey, TEXT("niagara_native_evidence_v1.static_switches[]"), SourceFile, FString::Printf(TEXT("/entity_evidence/native/static_switches/%d"), SwitchIndex), Item.SemanticOrder, TEXT("observed"), TEXT("exact"));
+				}
+
+				for (int32 RapidIndex = 0; RapidIndex < Niagara.RapidIterationValues.Num(); ++RapidIndex)
+				{
+					const FADumpNiagaraRapidIterationEvidence& Item = Niagara.RapidIterationValues[RapidIndex];
+					FEntityDraft Entity;
+					Entity.EntityKind = TEXT("niagara_rapid_iteration_value");
+					Entity.DisplayName = Item.ParameterHandle;
+					Entity.StableKey = Item.StableKey;
+					Entity.IdentityQuality = TEXT("composite");
+					Entity.IdentitySource = TEXT("parameter_store");
+					Entity.OwnerStableKey = Item.OwnerStableKey;
+					Entity.SourceContract = TEXT("niagara_native_evidence_v1.rapid_iteration_values[]");
+					Entity.SourceFile = SourceFile;
+					Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/rapid_iteration_values/%d"), RapidIndex);
+					Entity.Completeness = Item.State;
+					Entity.SemanticOrder = Item.SemanticOrder;
+					Entity.IdentityComponents->SetStringField(TEXT("parameter_handle"), Item.ParameterHandle);
+					Entity.IdentityComponents->SetStringField(TEXT("type_name"), Item.TypeName);
+					Entity.Facets->SetStringField(TEXT("parameter_handle"), Item.ParameterHandle);
+					Entity.Facets->SetStringField(TEXT("type_name"), Item.TypeName);
+					Entity.Facets->SetStringField(TEXT("script_usage"), Item.ScriptUsage);
+					Entity.Facets->SetStringField(TEXT("usage_id"), Item.UsageId);
+					Entity.Facets->SetStringField(TEXT("source_store_identity"), Item.SourceStoreIdentity);
+					Entity.Facets->SetStringField(TEXT("value_text"), Item.ValueText);
+					Entity.Facets->SetNumberField(TEXT("raw_value_size"), Item.RawValueSize);
+					Entity.Facets->SetStringField(TEXT("raw_value_hash"), Item.RawValueHash);
+					Entity.Facets->SetStringField(TEXT("target_input_stable_key"), Item.TargetInputStableKey);
+					Entity.Facets->SetStringField(TEXT("target_parameter_stable_key"), Item.TargetParameterStableKey);
+					Entity.Facets->SetStringField(TEXT("state"), Item.State);
+					Entity.Facets->SetStringField(TEXT("exactness"), Item.Exactness);
+					Entity.Facets->SetStringField(TEXT("reason"), Item.Reason);
+					AddAuxiliaryFacet(Entity, TEXT("provenance"), TEXT("niagara_value_resolution_v1"), Item.Provenance.State, TEXT("observed"), Item.Provenance.Exactness, MakeProvenanceData(Item.Provenance));
+					EntityDrafts.Add(MoveTemp(Entity));
+					const FString Pointer = FString::Printf(TEXT("/entity_evidence/native/rapid_iteration_values/%d"), RapidIndex);
+					AddNiagaraDeepRelation(TEXT("contains"), Item.OwnerStableKey, Item.StableKey, TEXT("niagara_native_evidence_v1.rapid_iteration_values[]"), SourceFile, Pointer, Item.SemanticOrder, TEXT("observed"), TEXT("exact"));
+					AddNiagaraDeepRelation(TEXT("overrides"), Item.StableKey, Item.TargetInputStableKey, TEXT("niagara_native_evidence_v1.rapid_iteration_values[]"), SourceFile, Pointer, Item.SemanticOrder, TEXT("observed"), TEXT("exact"));
+				}
+
+				for (int32 OutputIndex = 0; OutputIndex < Niagara.ModuleOutputs.Num(); ++OutputIndex)
+				{
+					const FADumpNiagaraModuleOutputEvidence& Item = Niagara.ModuleOutputs[OutputIndex];
+					FEntityDraft Entity;
+					Entity.EntityKind = TEXT("niagara_module_output");
+					Entity.DisplayName = Item.OutputHandle;
+					Entity.StableKey = Item.StableKey;
+					Entity.IdentityQuality = Item.PinGuid.IsEmpty() ? TEXT("fallback") : TEXT("exact");
+					Entity.IdentitySource = Item.PinGuid.IsEmpty() ? TEXT("source_index") : TEXT("engine_guid");
+					Entity.OwnerStableKey = Item.OwnerStableKey;
+					Entity.SourceContract = TEXT("niagara_native_evidence_v1.module_outputs[]");
+					Entity.SourceFile = SourceFile;
+					Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/module_outputs/%d"), OutputIndex);
+					Entity.Completeness = Item.State;
+					Entity.SemanticOrder = Item.SemanticOrder;
+					Entity.IdentityComponents->SetStringField(TEXT("node_guid"), Item.NodeGuid);
+					Entity.IdentityComponents->SetStringField(TEXT("pin_guid"), Item.PinGuid);
+					Entity.Facets->SetStringField(TEXT("output_handle"), Item.OutputHandle);
+					Entity.Facets->SetStringField(TEXT("namespace"), Item.Namespace);
+					Entity.Facets->SetStringField(TEXT("type_name"), Item.TypeName);
+					Entity.Facets->SetStringField(TEXT("node_guid"), Item.NodeGuid);
+					Entity.Facets->SetStringField(TEXT("pin_guid"), Item.PinGuid);
+					Entity.Facets->SetStringField(TEXT("value_text"), Item.ValueText);
+					Entity.Facets->SetStringField(TEXT("target_parameter_stable_key"), Item.TargetParameterStableKey);
+					Entity.Facets->SetStringField(TEXT("state"), Item.State);
+					Entity.Facets->SetStringField(TEXT("exactness"), Item.Exactness);
+					Entity.Facets->SetStringField(TEXT("reason"), Item.Reason);
+					EntityDrafts.Add(MoveTemp(Entity));
+					const FString Pointer = FString::Printf(TEXT("/entity_evidence/native/module_outputs/%d"), OutputIndex);
+					AddNiagaraDeepRelation(TEXT("contains"), Item.OwnerStableKey, Item.StableKey, TEXT("niagara_native_evidence_v1.module_outputs[]"), SourceFile, Pointer, Item.SemanticOrder, TEXT("observed"), TEXT("exact"));
+					AddNiagaraDeepRelation(TEXT("writes_parameter"), Item.StableKey, Item.TargetParameterStableKey, TEXT("niagara_native_evidence_v1.module_outputs[]"), SourceFile, Pointer, Item.SemanticOrder, TEXT("observed"), TEXT("exact"));
+				}
+
+				auto ProjectParameterAccess = [&EntityDrafts, &AddNiagaraDeepRelation, &SourceFile](const FADumpNiagaraParameterAccessEvidence& Item, int32 AccessIndex, bool bRead)
+				{
+					FEntityDraft Entity;
+					Entity.EntityKind = bRead ? TEXT("niagara_parameter_read") : TEXT("niagara_parameter_write");
+					Entity.DisplayName = Item.ParameterHandle;
+					Entity.StableKey = Item.StableKey;
+					Entity.IdentityQuality = Item.SourcePinGuid.IsEmpty() ? TEXT("fallback") : TEXT("exact");
+					Entity.IdentitySource = Item.SourcePinGuid.IsEmpty() ? TEXT("source_index") : TEXT("engine_guid");
+					Entity.OwnerStableKey = Item.OwnerStableKey;
+					Entity.SourceContract = bRead ? TEXT("niagara_native_evidence_v1.parameter_reads[]") : TEXT("niagara_native_evidence_v1.parameter_writes[]");
+					Entity.SourceFile = SourceFile;
+															if (bRead)
+					{
+						Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/parameter_reads/%d"), AccessIndex);
+					}
+					else
+					{
+						Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/parameter_writes/%d"), AccessIndex);
+					}
+					Entity.Completeness = Item.State;
+					Entity.SemanticOrder = Item.SemanticOrder;
+					Entity.IdentityComponents->SetStringField(TEXT("source_node_guid"), Item.SourceNodeGuid);
+					Entity.IdentityComponents->SetStringField(TEXT("source_pin_guid"), Item.SourcePinGuid);
+					Entity.Facets->SetStringField(TEXT("parameter_stable_key"), Item.ParameterStableKey);
+					Entity.Facets->SetStringField(TEXT("parameter_handle"), Item.ParameterHandle);
+					Entity.Facets->SetStringField(TEXT("type_name"), Item.TypeName);
+					Entity.Facets->SetStringField(TEXT("access_kind"), Item.AccessKind);
+					Entity.Facets->SetStringField(TEXT("source_node_guid"), Item.SourceNodeGuid);
+					Entity.Facets->SetStringField(TEXT("source_pin_guid"), Item.SourcePinGuid);
+					Entity.Facets->SetStringField(TEXT("source_property"), Item.SourceProperty);
+					Entity.Facets->SetStringField(TEXT("state"), Item.State);
+					Entity.Facets->SetStringField(TEXT("exactness"), Item.Exactness);
+					Entity.Facets->SetStringField(TEXT("reason"), Item.Reason);
+					EntityDrafts.Add(MoveTemp(Entity));
+															FString Pointer;
+					if (bRead)
+					{
+						Pointer = FString::Printf(TEXT("/entity_evidence/native/parameter_reads/%d"), AccessIndex);
+					}
+					else
+					{
+						Pointer = FString::Printf(TEXT("/entity_evidence/native/parameter_writes/%d"), AccessIndex);
+					}
+					AddNiagaraDeepRelation(TEXT("contains"), Item.OwnerStableKey, Item.StableKey, bRead ? TEXT("niagara_native_evidence_v1.parameter_reads[]") : TEXT("niagara_native_evidence_v1.parameter_writes[]"), SourceFile, Pointer, Item.SemanticOrder, TEXT("observed"), TEXT("exact"));
+					AddNiagaraDeepRelation(bRead ? TEXT("reads_parameter") : TEXT("writes_parameter"), Item.StableKey, Item.ParameterStableKey, bRead ? TEXT("niagara_native_evidence_v1.parameter_reads[]") : TEXT("niagara_native_evidence_v1.parameter_writes[]"), SourceFile, Pointer, Item.SemanticOrder, TEXT("observed"), Item.Exactness);
+				};
+				for (int32 AccessIndex = 0; AccessIndex < Niagara.ParameterReads.Num(); ++AccessIndex) ProjectParameterAccess(Niagara.ParameterReads[AccessIndex], AccessIndex, true);
+				for (int32 AccessIndex = 0; AccessIndex < Niagara.ParameterWrites.Num(); ++AccessIndex) ProjectParameterAccess(Niagara.ParameterWrites[AccessIndex], AccessIndex, false);
 			}
 
 			TMap<FString, FString> PreviousGroupByOwner;
@@ -807,20 +1319,23 @@ namespace ADumpEntityEvidence
 				}
 			}
 
-			for (int32 ParameterIndex = 0; ParameterIndex < Niagara.Parameters.Num(); ++ParameterIndex)
+						if (!bNiagaraDeepEvidenceSource)
 			{
-				const FADumpNiagaraParameterEvidence& Parameter = Niagara.Parameters[ParameterIndex];
-				if (Parameter.SourceKind != TEXT("rapid_iteration"))
+				for (int32 ParameterIndex = 0; ParameterIndex < Niagara.Parameters.Num(); ++ParameterIndex)
 				{
-					continue;
+					const FADumpNiagaraParameterEvidence& Parameter = Niagara.Parameters[ParameterIndex];
+					if (Parameter.SourceKind != TEXT("rapid_iteration"))
+					{
+						continue;
+					}
+					const FString InputStableKey = InputStableByGroupName.FindRef(
+						Parameter.OwnerStableKey + TEXT("|") + Parameter.ParameterName);
+					AddNiagaraRelation(
+						TEXT("overrides"), Parameter.StableKey, InputStableKey,
+						TEXT("niagara_native_evidence_v1.parameters[]"), SourceFile,
+						FString::Printf(TEXT("/entity_evidence/native/parameters/%d"), ParameterIndex), Parameter.SemanticOrder,
+						TEXT("deterministic_derived"), TEXT("exact_name_match"));
 				}
-				const FString InputStableKey = InputStableByGroupName.FindRef(
-					Parameter.OwnerStableKey + TEXT("|") + Parameter.ParameterName);
-				AddNiagaraRelation(
-					TEXT("overrides"), Parameter.StableKey, InputStableKey,
-					TEXT("niagara_native_evidence_v1.parameters[]"), SourceFile,
-					FString::Printf(TEXT("/entity_evidence/native/parameters/%d"), ParameterIndex), Parameter.SemanticOrder,
-					TEXT("deterministic_derived"), TEXT("exact_name_match"));
 			}
 
 			for (int32 StageIndex = 0; StageIndex < Niagara.SimulationStages.Num(); ++StageIndex)
@@ -1275,8 +1790,16 @@ namespace ADumpEntityEvidence
 			{
 				EntityObject->SetNumberField(TEXT("semantic_order"), Entity.SemanticOrder);
 			}
-									EntityObject->SetStringField(TEXT("state"), Entity.Completeness);
-			EntityObject->SetObjectField(TEXT("facets"), MakeEntityFacetsObject(Entity));
+												TSharedRef<FJsonObject> EntityFacetsObject = MakeEntityFacetsObject(Entity);
+			const bool bFacetDataTruncated = bNiagaraEvidenceSource
+				&& ApplyFacetDataByteBudget(EntityFacetsObject, NiagaraFacetUtf8Bytes);
+			if (bFacetDataTruncated)
+			{
+				bNiagaraProjectionTruncated = true;
+				NiagaraProjectionReasons.AddUnique(ADumpNiagaraReason::MaxBytes);
+			}
+			EntityObject->SetStringField(TEXT("state"), bFacetDataTruncated ? TEXT("truncated") : Entity.Completeness);
+			EntityObject->SetObjectField(TEXT("facets"), EntityFacetsObject);
 			EntityObject->SetObjectField(TEXT("source"), SourceObject);
 			EntityValues.Add(MakeShared<FJsonValueObject>(EntityObject));
 		}
@@ -1379,7 +1902,10 @@ namespace ADumpEntityEvidence
 				return InIncludedCount > 0 ? FString(TEXT("complete")) : FString(TEXT("empty"));
 			};
 
-			for (const FString& Kind : GetNiagaraEntityKindRegistry())
+						const TArray<FString>& ActiveNiagaraEntityRegistry = bNiagaraDeepEvidenceSource
+				? GetNiagaraDeepEntityKindRegistry()
+				: GetNiagaraEntityKindRegistry();
+			for (const FString& Kind : ActiveNiagaraEntityRegistry)
 			{
 				EntityCompleteness.Add(Kind, TEXT("empty"));
 			}
@@ -1394,16 +1920,35 @@ namespace ADumpEntityEvidence
 			EntityCompleteness.Add(TEXT("niagara_parameter_binding"), ResolveNiagaraCategoryCompleteness(Niagara.Bindings.Num(), Niagara.Bounds.OmittedBindingCount, bScriptGraphUnavailable));
 			EntityCompleteness.Add(TEXT("niagara_data_interface"), ResolveNiagaraCategoryCompleteness(Niagara.DataInterfaces.Num(), Niagara.Bounds.OmittedDataInterfaceCount));
 			EntityCompleteness.Add(TEXT("niagara_simulation_stage"), ResolveNiagaraCategoryCompleteness(Niagara.SimulationStages.Num(), Niagara.Bounds.OmittedSimulationStageCount));
-			EntityCompleteness.Add(TEXT("asset_reference"), ResolveNiagaraCategoryCompleteness(Niagara.References.Num(), Niagara.Bounds.OmittedAssetReferenceCount));
+						EntityCompleteness.Add(TEXT("asset_reference"), ResolveNiagaraCategoryCompleteness(Niagara.References.Num(), Niagara.Bounds.OmittedAssetReferenceCount));
+			if (bNiagaraDeepEvidenceSource)
+			{
+				const bool bDeepUnavailable = Niagara.DeepState == TEXT("unavailable") || Niagara.DeepState == TEXT("unsupported");
+				EntityCompleteness.Add(TEXT("niagara_dynamic_input"), ResolveNiagaraCategoryCompleteness(Niagara.DynamicInputs.Num(), Niagara.Bounds.OmittedDynamicInputCount, bDeepUnavailable));
+				EntityCompleteness.Add(TEXT("niagara_static_switch"), ResolveNiagaraCategoryCompleteness(Niagara.StaticSwitches.Num(), Niagara.Bounds.OmittedStaticSwitchCount, bDeepUnavailable));
+				EntityCompleteness.Add(TEXT("niagara_rapid_iteration_value"), ResolveNiagaraCategoryCompleteness(Niagara.RapidIterationValues.Num(), Niagara.Bounds.OmittedRapidIterationValueCount, bDeepUnavailable));
+				EntityCompleteness.Add(TEXT("niagara_module_output"), ResolveNiagaraCategoryCompleteness(Niagara.ModuleOutputs.Num(), Niagara.Bounds.OmittedModuleOutputCount, bDeepUnavailable));
+				EntityCompleteness.Add(TEXT("niagara_parameter_read"), ResolveNiagaraCategoryCompleteness(Niagara.ParameterReads.Num(), Niagara.Bounds.OmittedParameterReadCount, bDeepUnavailable));
+				EntityCompleteness.Add(TEXT("niagara_parameter_write"), ResolveNiagaraCategoryCompleteness(Niagara.ParameterWrites.Num(), Niagara.Bounds.OmittedParameterWriteCount, bDeepUnavailable));
+			}
 
-			for (const FString& Kind : GetNiagaraRelationKindRegistry())
+			const TArray<FString>& ActiveNiagaraRelationRegistry = bNiagaraDeepEvidenceSource
+				? GetNiagaraDeepRelationKindRegistry()
+				: GetNiagaraRelationKindRegistry();
+			for (const FString& Kind : ActiveNiagaraRelationRegistry)
 			{
 				const int32 RelationCount = RelationCountsByKind.FindRef(Kind);
+								const bool bDeepRelation = Kind == TEXT("reads_parameter") || Kind == TEXT("writes_parameter");
 				const bool bGraphDependentRelation = Kind == TEXT("executes_before")
 					|| Kind == TEXT("binds_to")
 					|| Kind == TEXT("reads_attribute")
-					|| Kind == TEXT("overrides");
+					|| Kind == TEXT("overrides")
+					|| bDeepRelation;
 				FString RelationState = RelationCount > 0 ? TEXT("complete") : TEXT("empty");
+				if (bNiagaraDeepEvidenceSource && bDeepRelation && Niagara.DeepState == TEXT("unavailable"))
+				{
+					RelationState = RelationCount > 0 ? TEXT("partial") : TEXT("unavailable");
+				}
 				if (bNiagaraProjectionTruncated)
 				{
 					RelationState = TEXT("truncated");
@@ -1480,13 +2025,19 @@ namespace ADumpEntityEvidence
 					: (Niagara.ExecutionGroups.IsEmpty()
 						? TEXT("empty")
 						: (Niagara.Bounds.OmittedExecutionGroupCount > 0 ? Niagara.State : TEXT("complete"))));
-			CapabilityObject->SetStringField(
+						CapabilityObject->SetStringField(
 				TEXT("bindings"),
 				bScriptGraphUnavailable
 					? (Niagara.Bindings.IsEmpty() ? TEXT("unavailable") : TEXT("partial"))
 					: (Niagara.Bindings.IsEmpty()
 						? TEXT("empty")
 						: (Niagara.Bounds.OmittedBindingCount > 0 ? Niagara.State : TEXT("complete"))));
+			CapabilityObject->SetStringField(TEXT("deep"), bNiagaraDeepEvidenceSource ? Niagara.DeepState : TEXT("not_requested"));
+			CapabilityObject->SetStringField(TEXT("provenance"), bNiagaraDeepEvidenceSource ? Niagara.DeepState : TEXT("not_requested"));
+			if (bNiagaraDeepEvidenceSource && !Niagara.DeepReason.IsEmpty())
+			{
+				CapabilityObject->SetStringField(TEXT("deep_reason"), Niagara.DeepReason);
+			}
 		}
 		else
 		{
@@ -1504,11 +2055,12 @@ namespace ADumpEntityEvidence
 		int32 OmittedRelationCount = 0;
 				if (bNiagaraEvidenceSource)
 		{
-			BoundsReasonArray = InDumpResult.NiagaraEvidence.Bounds.Reasons;
-			if (bNiagaraProjectionTruncated)
+						BoundsReasonArray = InDumpResult.NiagaraEvidence.Bounds.Reasons;
+			for (const FString& ProjectionReason : NiagaraProjectionReasons)
 			{
-				BoundsReasonArray.AddUnique(TEXT("max_relations"));
+				BoundsReasonArray.AddUnique(ProjectionReason);
 			}
+			CanonicalizeNiagaraReasons(BoundsReasonArray);
 			OmittedEntityCount = FMath::Max(0, InDumpResult.NiagaraEvidence.Bounds.OmittedEntityCount);
 			OmittedRelationCount = FMath::Max(
 				0,
@@ -1542,7 +2094,11 @@ namespace ADumpEntityEvidence
 
 		TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
 								RootObject->SetStringField(TEXT("schema_version"), TEXT("entity_evidence_v1"));
-		RootObject->SetStringField(TEXT("adapter_profile"), bNiagaraEvidenceSource ? TEXT("niagara_mvp_v1") : TEXT("blueprint_core_v1"));
+				RootObject->SetStringField(
+			TEXT("adapter_profile"),
+			bNiagaraDeepEvidenceSource
+				? TEXT("niagara_deep_v1")
+				: (bNiagaraEvidenceSource ? TEXT("niagara_mvp_v1") : TEXT("blueprint_core_v1")));
 		RootObject->SetObjectField(TEXT("asset"), AssetObject);
 		RootObject->SetStringField(TEXT("state"), ResolveOverallCompleteness(EntityCompleteness, RelationCompleteness));
 		RootObject->SetObjectField(TEXT("capabilities"), CapabilityObject);

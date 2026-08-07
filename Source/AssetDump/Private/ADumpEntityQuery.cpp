@@ -1,6 +1,8 @@
 // File: ADumpEntityQuery.cpp
-// Version: v1.3.0
+// Version: v1.4.0
 // Changelog:
+// - v1.4.0: P4-N1 niagara_deep_v1 adapter profile, 18/12 source registry와 loaded-index query compatibility를 추가.
+// - v1.3.1: EntityKinds/RelationKinds/Facets comma-list option이 separator에서 잘리지 않도록 전체 token을 파싱.
 // - v1.3.0: filtered expand Relation endpoint 폐쇄성과 MaxRelations/MaxBytes cursor 전진 불변조건을 보장.
 // - v1.2.0: P2-N3 active adapter registry union, Known Registry source validation과 loaded-index filter validation을 구현.
 // - v1.1.0: query/context success envelope을 resolved_asset, root_entity, bounds, continuation과 input_schema_version frozen 계약에 정렬.
@@ -12,6 +14,7 @@
 // - v1.0.0: validated nested locator, list/get/expand, cursor, bounds와 native-preserving context bundle을 구현.
 // Migration:
 // - 외부 JSON Pointer는 실행하지 않으며 entity_index_v1이 생성한 두 canonical array pointer 형식만 해석한다.
+// - comma-list option은 기존 single-value 입력과 호환되며 둘 이상의 값을 모두 normalized query와 필터에 반영한다.
 
 #include "ADumpEntityQuery.h"
 
@@ -284,6 +287,15 @@ namespace
 		return Value;
 	}
 
+		// GetCommaListOptionValue는 comma separator를 value 일부로 유지해 list option 전체를 읽는다.
+	FString GetCommaListOptionValue(const FString& InCommandLine, const TCHAR* InKey)
+	{
+		FString Value;
+		FParse::Value(*InCommandLine, InKey, Value, false);
+		Value.TrimStartAndEndInline();
+		return Value;
+	}
+
 	// GetIntegerOption은 정수 command option 또는 기본값을 반환한다.
 	int32 GetIntegerOption(const FString& InCommandLine, const TCHAR* InKey, int32 InDefaultValue)
 	{
@@ -355,10 +367,15 @@ namespace
 			EntityRegistry = &ADumpEntityEvidence::GetEntityKindRegistry();
 			RelationRegistry = &ADumpEntityEvidence::GetRelationKindRegistry();
 		}
-		else if (InAdapterProfile == TEXT("niagara_mvp_v1"))
+				else if (InAdapterProfile == TEXT("niagara_mvp_v1"))
 		{
 			EntityRegistry = &ADumpEntityEvidence::GetNiagaraEntityKindRegistry();
 			RelationRegistry = &ADumpEntityEvidence::GetNiagaraRelationKindRegistry();
+		}
+		else if (InAdapterProfile == TEXT("niagara_deep_v1"))
+		{
+			EntityRegistry = &ADumpEntityEvidence::GetNiagaraDeepEntityKindRegistry();
+			RelationRegistry = &ADumpEntityEvidence::GetNiagaraDeepRelationKindRegistry();
 		}
 		else
 		{
@@ -994,12 +1011,16 @@ namespace ADumpEntityQuery
 				return Fail(TEXT("ADUMP_ENTITY_INDEX_SCHEMA_UNSUPPORTED"), FString::Printf(TEXT("Unsupported entity evidence adapter profile in: %s"), *DumpFilePath));
 			}
 			bSawEntityEvidence = true;
-			const TArray<FString>& SourceEntityRegistry = AdapterProfile == TEXT("niagara_mvp_v1")
-				? ADumpEntityEvidence::GetNiagaraEntityKindRegistry()
-				: ADumpEntityEvidence::GetEntityKindRegistry();
-			const TArray<FString>& SourceRelationRegistry = AdapterProfile == TEXT("niagara_mvp_v1")
-				? ADumpEntityEvidence::GetNiagaraRelationKindRegistry()
-				: ADumpEntityEvidence::GetRelationKindRegistry();
+						const TArray<FString>& SourceEntityRegistry = AdapterProfile == TEXT("niagara_deep_v1")
+				? ADumpEntityEvidence::GetNiagaraDeepEntityKindRegistry()
+				: (AdapterProfile == TEXT("niagara_mvp_v1")
+					? ADumpEntityEvidence::GetNiagaraEntityKindRegistry()
+					: ADumpEntityEvidence::GetEntityKindRegistry());
+			const TArray<FString>& SourceRelationRegistry = AdapterProfile == TEXT("niagara_deep_v1")
+				? ADumpEntityEvidence::GetNiagaraDeepRelationKindRegistry()
+				: (AdapterProfile == TEXT("niagara_mvp_v1")
+					? ADumpEntityEvidence::GetNiagaraRelationKindRegistry()
+					: ADumpEntityEvidence::GetRelationKindRegistry());
 
 			const TSharedPtr<FJsonObject> EvidenceAsset = GetObjectField(EvidenceRoot, TEXT("asset"));
 			const FString ObjectPath = GetStringField(EvidenceAsset, TEXT("object_path"));
@@ -1268,12 +1289,12 @@ namespace ADumpEntityQuery
 			return Fail(TEXT("ADUMP_ENTITY_SELECTOR_CONFLICT"), TEXT("EntityId and StableKey cannot be combined."));
 		}
 
-		FString EntityKindsText = GetOptionValue(InCommandLine, TEXT("EntityKinds="));
-		if (EntityKindsText.IsEmpty()) EntityKindsText = GetOptionValue(InCommandLine, TEXT("EntityKind="));
-		FString RelationKindsText = GetOptionValue(InCommandLine, TEXT("RelationKinds="));
-		if (RelationKindsText.IsEmpty()) RelationKindsText = GetOptionValue(InCommandLine, TEXT("RelationKind="));
-		FString FacetsText = GetOptionValue(InCommandLine, TEXT("Facets="));
-		if (FacetsText.IsEmpty()) FacetsText = GetOptionValue(InCommandLine, TEXT("Facet="));
+				FString EntityKindsText = GetCommaListOptionValue(InCommandLine, TEXT("EntityKinds="));
+		if (EntityKindsText.IsEmpty()) EntityKindsText = GetCommaListOptionValue(InCommandLine, TEXT("EntityKind="));
+		FString RelationKindsText = GetCommaListOptionValue(InCommandLine, TEXT("RelationKinds="));
+		if (RelationKindsText.IsEmpty()) RelationKindsText = GetCommaListOptionValue(InCommandLine, TEXT("RelationKind="));
+		FString FacetsText = GetCommaListOptionValue(InCommandLine, TEXT("Facets="));
+		if (FacetsText.IsEmpty()) FacetsText = GetCommaListOptionValue(InCommandLine, TEXT("Facet="));
 				const TArray<FString> EntityKinds = ParseCommaList(EntityKindsText);
 		const TArray<FString> RelationKinds = ParseCommaList(RelationKindsText);
 		const TArray<FString> Facets = ParseCommaList(FacetsText);

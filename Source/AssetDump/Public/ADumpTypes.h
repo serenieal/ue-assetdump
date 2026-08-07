@@ -1,6 +1,9 @@
 // File: ADumpTypes.h
-// Version: v0.24.0
+// Version: v0.27.0
 // Changelog:
+// - v0.27.0: P4-N3 canonical Niagara reason registry와 exact 10 defect token의 단일 Product 소유권을 추가하고 기존 numeric hard cap을 보존.
+// - v0.26.0: P4-N2 native Deep observation용 exact endpoint, partial provenance, DI/stage/renderer 보조 Facet와 분리된 MVP/Deep/total bounds를 완성.
+// - v0.25.0: P4-N1 Deep Profile의 fail-closed typed provenance, Static Switch, Dynamic Input, Rapid Iteration, Module Output와 parameter access 계약을 추가.
 // - v0.24.0: Niagara Script Graph 관측 불가 건수를 typed bounds에 추가해 partial/unavailable 전파를 지원.
 // - v0.23.0: P2-N2 Native Niagara Evidence의 stable identity, owner, semantic order와 category별 fixed bounds를 추가.
 // - v0.22.0: AIRE Phase 2 Niagara MVP Adapter의 AssetDump-owned typed evidence 구조와 FADumpResult 저장소를 추가.
@@ -122,8 +125,8 @@ struct FADumpIssue;
 struct FADumpNiagaraEvidence;
 namespace ADumpNiagara
 {
-	// ExtractNiagaraEvidence는 Niagara UObject를 AssetDump-owned typed evidence로 관측한다.
-	bool ExtractNiagaraEvidence(const FString& InAssetObjectPath, FADumpNiagaraEvidence& OutEvidence, TArray<FADumpIssue>& OutIssues);
+		// ExtractNiagaraEvidence는 Niagara UObject를 AssetDump-owned typed evidence로 관측한다.
+	bool ExtractNiagaraEvidence(const FString& InAssetObjectPath, bool bInDeepEvidenceRequested, FADumpNiagaraEvidence& OutEvidence, TArray<FADumpIssue>& OutIssues);
 }
 
 // EADumpSection은 선택적으로 직렬화할 주요 JSON 섹션을 구분한다.
@@ -1739,6 +1742,32 @@ struct FADumpNiagaraInputEvidence
 	int32 SemanticOrder = INDEX_NONE;
 };
 
+// FADumpNiagaraPropertyEvidence는 bounded reflection으로 직접 관측한 shallow property 한 건을 표현한다.
+struct FADumpNiagaraPropertyEvidence
+{
+	FString PropertyPath;
+	FString TypeName;
+	FString ValueText;
+	FString ObjectPath;
+	FString State = TEXT("complete");
+	FString Reason;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraRendererBindingDetailEvidence는 renderer-owned binding 한 건의 직접 관측 정보를 표현한다.
+struct FADumpNiagaraRendererBindingDetailEvidence
+{
+	FString SlotName;
+	FString SourceMode;
+	FString ParameterHandle;
+	FString TypeName;
+	FString SourceNamespace;
+	FString SourceProperty;
+	FString State = TEXT("complete");
+	FString Exactness = TEXT("exact");
+	int32 SemanticOrder = INDEX_NONE;
+};
+
 // FADumpNiagaraRendererEvidence는 emitter renderer 한 건을 표현한다.
 struct FADumpNiagaraRendererEvidence
 {
@@ -1746,7 +1775,11 @@ struct FADumpNiagaraRendererEvidence
 	FString OwnerStableKey;
 	FString RendererName;
 	FString RendererClass;
+	FString SupportTier;
+	FString BindingState = TEXT("not_requested");
+	FString BindingReason;
 	TArray<FString> BoundAttributes;
+	TArray<FADumpNiagaraRendererBindingDetailEvidence> BindingDetails;
 	int32 SourceIndex = INDEX_NONE;
 	bool bEnabled = false;
 };
@@ -1776,7 +1809,7 @@ struct FADumpNiagaraBindingEvidence
 	int32 SemanticOrder = INDEX_NONE;
 };
 
-// FADumpNiagaraDataInterfaceEvidence는 Data Interface inventory 한 건을 표현한다.
+// FADumpNiagaraDataInterfaceEvidence는 Data Interface inventory와 bounded serialized settings를 표현한다.
 struct FADumpNiagaraDataInterfaceEvidence
 {
 	FString StableKey;
@@ -1784,10 +1817,13 @@ struct FADumpNiagaraDataInterfaceEvidence
 	FString VariableName;
 	FString ObjectPath;
 	FString ClassPath;
+	FString SettingsState = TEXT("not_requested");
+	FString SettingsReason;
+	TArray<FADumpNiagaraPropertyEvidence> Properties;
 	int32 SourceIndex = INDEX_NONE;
 };
 
-// FADumpNiagaraStageEvidence는 Simulation Stage overview 한 건을 표현한다.
+// FADumpNiagaraStageEvidence는 Simulation Stage overview와 bounded parameter/data access를 표현한다.
 struct FADumpNiagaraStageEvidence
 {
 	FString StableKey;
@@ -1795,6 +1831,12 @@ struct FADumpNiagaraStageEvidence
 	FString ObjectName;
 	FString UsageId;
 	FString ScriptPath;
+	FString IterationSource;
+	FString IterationSourceParameter;
+	FString FlowState = TEXT("not_requested");
+	FString FlowReason;
+	TArray<FString> ReadAccessStableKeys;
+	TArray<FString> WriteAccessStableKeys;
 	bool bEnabled = false;
 	int32 SemanticOrder = INDEX_NONE;
 };
@@ -1809,6 +1851,194 @@ struct FADumpNiagaraReferenceEvidence
 	FString ReferenceRole;
 	int32 SourceIndex = INDEX_NONE;
 };
+
+// FADumpNiagaraProvenanceStepEvidence는 직접 관측된 value resolution chain step 한 건을 표현한다.
+struct FADumpNiagaraProvenanceStepEvidence
+{
+	FString SourceKind;
+	FString SourceStableKey;
+	FString SourceNodeGuid;
+	FString SourcePinGuid;
+	FString ParameterHandle;
+	FString TypeName;
+	FString ValueText;
+	FString SourceProperty;
+	FString State = TEXT("unavailable");
+	FString Exactness = TEXT("observed_partial");
+	FString Reason;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraValueResolutionEvidence는 linked value의 직접 관측 provenance와 누락 구간을 fail-closed로 표현한다.
+struct FADumpNiagaraValueResolutionEvidence
+{
+	FString SchemaVersion = TEXT("niagara_value_resolution_v1");
+	FString ResolutionStatus = TEXT("not_requested");
+	FString State = TEXT("not_requested");
+	FString Exactness = TEXT("unavailable");
+	FString Source = TEXT("direct_observation");
+	FString TerminalSourceStableKey;
+	int32 AppliedStepIndex = INDEX_NONE;
+	int32 MaxDepth = 16;
+	int32 OmittedStepCount = 0;
+	FString Reason;
+	TArray<FString> MissingSegments;
+	TArray<FADumpNiagaraProvenanceStepEvidence> ObservedSteps;
+};
+
+// FADumpNiagaraDynamicInputEvidence는 Dynamic Input identity와 bounded provenance를 표현한다.
+struct FADumpNiagaraDynamicInputEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString IdentityQuality = TEXT("exact");
+	FString IdentitySource = TEXT("engine_guid");
+	FString DisplayName;
+	FString ScriptPath;
+	FString Usage;
+	FString UsageId;
+	FString NodeGuid;
+	FString PinGuid;
+	FString State = TEXT("unavailable");
+	FString Exactness = TEXT("unavailable");
+	FString Reason;
+	bool bEnabled = true;
+	int32 Depth = 0;
+	int32 InputCount = 0;
+	int32 OutputCount = 0;
+	int32 SemanticOrder = INDEX_NONE;
+	FADumpNiagaraValueResolutionEvidence Provenance;
+};
+
+// FADumpNiagaraStaticSwitchEvidence는 직접 관측 가능한 switch identity와 조건부 선택 결과를 표현한다.
+struct FADumpNiagaraStaticSwitchEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString ParameterHandle;
+	FString TypeName;
+	FString SourceNodeGuid;
+	FString SourcePinGuid;
+		FString SelectionSource;
+	FString SelectionState = TEXT("unavailable");
+	bool bCompileConstantObserved = false;
+	bool bCompileConstant = false;
+	FString SelectedValue;
+	FString SelectedBranchToken;
+	FString SelectedBranchPinGuid;
+	FString State = TEXT("unavailable");
+	FString Exactness = TEXT("unavailable");
+	FString Reason;
+	int32 SemanticOrder = INDEX_NONE;
+	FADumpNiagaraValueResolutionEvidence Provenance;
+};
+
+// FADumpNiagaraRapidIterationEvidence는 Rapid Iteration store에서 직접 관측한 typed value entry를 표현한다.
+struct FADumpNiagaraRapidIterationEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString ParameterHandle;
+	FString TypeName;
+	FString ScriptUsage;
+	FString UsageId;
+	FString SourceStoreIdentity;
+	FString ValueText;
+	FString RawValueHash;
+	FString TargetInputStableKey;
+	FString TargetParameterStableKey;
+	FString State = TEXT("unavailable");
+	FString Exactness = TEXT("unavailable");
+	FString Reason;
+	int32 RawValueSize = 0;
+	int32 SemanticOrder = INDEX_NONE;
+	FADumpNiagaraValueResolutionEvidence Provenance;
+};
+
+// FADumpNiagaraModuleOutputEvidence는 module output pin의 직접 관측 identity를 표현한다.
+struct FADumpNiagaraModuleOutputEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString OutputHandle;
+	FString Namespace;
+	FString TypeName;
+	FString NodeGuid;
+	FString PinGuid;
+	FString ValueText;
+	FString TargetParameterStableKey;
+	FString State = TEXT("unavailable");
+	FString Exactness = TEXT("unavailable");
+	FString Reason;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// FADumpNiagaraParameterAccessEvidence는 직접 관측된 read/write parameter access를 표현한다.
+struct FADumpNiagaraParameterAccessEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString ParameterStableKey;
+	FString ParameterHandle;
+	FString TypeName;
+		FString AccessKind;
+	FString SourceNodeGuid;
+	FString SourcePinGuid;
+	FString SourceProperty;
+	FString State = TEXT("unavailable");
+	FString Exactness = TEXT("unavailable");
+	FString Reason;
+	int32 SemanticOrder = INDEX_NONE;
+};
+
+// ADumpNiagaraReason은 Niagara observation/projection reason의 spelling과 canonical order를 단일 소유한다.
+namespace ADumpNiagaraReason
+{
+	inline constexpr const TCHAR* MaxDynamicInputs = TEXT("max_dynamic_inputs");
+	inline constexpr const TCHAR* MaxDynamicDepth = TEXT("max_dynamic_depth");
+	inline constexpr const TCHAR* MaxDynamicInputChildren = TEXT("max_dynamic_input_children");
+	inline constexpr const TCHAR* MaxRapidIterationValues = TEXT("max_rapid_iteration_values");
+	inline constexpr const TCHAR* MaxStaticSwitches = TEXT("max_static_switches");
+	inline constexpr const TCHAR* MaxModuleOutputs = TEXT("max_module_outputs");
+	inline constexpr const TCHAR* MaxParameterReads = TEXT("max_parameter_reads");
+	inline constexpr const TCHAR* MaxParameterWrites = TEXT("max_parameter_writes");
+	inline constexpr const TCHAR* MaxResolutionSteps = TEXT("max_resolution_steps");
+	inline constexpr const TCHAR* MaxDataInterfaceProperties = TEXT("max_data_interface_properties");
+	inline constexpr const TCHAR* MaxStageAccesses = TEXT("max_stage_accesses");
+	inline constexpr const TCHAR* MaxRendererBindings = TEXT("max_renderer_bindings");
+	inline constexpr const TCHAR* MaxRelations = TEXT("max_relations");
+	inline constexpr const TCHAR* MaxDeepRelations = TEXT("max_deep_relations");
+	inline constexpr const TCHAR* MaxTotalRelations = TEXT("max_total_relations");
+	inline constexpr const TCHAR* MaxBytes = TEXT("max_bytes");
+	inline constexpr const TCHAR* DynamicInputCycle = TEXT("dynamic_input_cycle");
+	inline constexpr const TCHAR* ResolutionCycle = TEXT("resolution_cycle");
+	inline constexpr const TCHAR* UnavailableEngineApi = TEXT("unavailable_engine_api");
+	inline constexpr const TCHAR* SourceTypeMismatch = TEXT("source_type_mismatch");
+
+	inline constexpr const TCHAR* CanonicalOrder[] =
+	{
+		MaxDynamicInputs,
+		MaxDynamicDepth,
+		MaxDynamicInputChildren,
+		MaxRapidIterationValues,
+		MaxStaticSwitches,
+		MaxModuleOutputs,
+		MaxParameterReads,
+		MaxParameterWrites,
+		MaxResolutionSteps,
+		MaxDataInterfaceProperties,
+		MaxStageAccesses,
+		MaxRendererBindings,
+		MaxRelations,
+		MaxDeepRelations,
+		MaxTotalRelations,
+		MaxBytes,
+		DynamicInputCycle,
+		ResolutionCycle,
+		UnavailableEngineApi
+	};
+	inline constexpr int32 CanonicalOrderCount = UE_ARRAY_COUNT(CanonicalOrder);
+}
 
 // FADumpNiagaraBounds는 Niagara adapter의 fixed hard-cap 적용 결과를 표현한다.
 struct FADumpNiagaraBounds
@@ -1841,9 +2071,36 @@ struct FADumpNiagaraBounds
 	int32 AvailableSimulationStageCount = 0;
 	int32 IncludedSimulationStageCount = 0;
 	int32 OmittedSimulationStageCount = 0;
-	int32 AvailableAssetReferenceCount = 0;
+		int32 AvailableAssetReferenceCount = 0;
 	int32 IncludedAssetReferenceCount = 0;
-		int32 OmittedAssetReferenceCount = 0;
+	int32 OmittedAssetReferenceCount = 0;
+	int32 AvailableDynamicInputCount = 0;
+	int32 IncludedDynamicInputCount = 0;
+	int32 OmittedDynamicInputCount = 0;
+	int32 AvailableStaticSwitchCount = 0;
+	int32 IncludedStaticSwitchCount = 0;
+	int32 OmittedStaticSwitchCount = 0;
+	int32 AvailableRapidIterationValueCount = 0;
+	int32 IncludedRapidIterationValueCount = 0;
+	int32 OmittedRapidIterationValueCount = 0;
+	int32 AvailableModuleOutputCount = 0;
+	int32 IncludedModuleOutputCount = 0;
+	int32 OmittedModuleOutputCount = 0;
+	int32 AvailableParameterReadCount = 0;
+	int32 IncludedParameterReadCount = 0;
+	int32 OmittedParameterReadCount = 0;
+		int32 AvailableParameterWriteCount = 0;
+	int32 IncludedParameterWriteCount = 0;
+	int32 OmittedParameterWriteCount = 0;
+	int32 AvailableDataInterfacePropertyCount = 0;
+	int32 IncludedDataInterfacePropertyCount = 0;
+	int32 OmittedDataInterfacePropertyCount = 0;
+	int32 AvailableSimulationStageAccessCount = 0;
+	int32 IncludedSimulationStageAccessCount = 0;
+	int32 OmittedSimulationStageAccessCount = 0;
+	int32 AvailableRendererBindingCount = 0;
+	int32 IncludedRendererBindingCount = 0;
+	int32 OmittedRendererBindingCount = 0;
 	int32 UnavailableScriptGraphCount = 0;
 	int32 OmittedEntityCount = 0;
 	int32 OmittedRelationCount = 0;
@@ -1862,15 +2119,32 @@ struct FADumpNiagaraEvidence
 	static constexpr int32 MaxBindings = 4096;
 	static constexpr int32 MaxDataInterfaces = 256;
 	static constexpr int32 MaxSimulationStages = 128;
-	static constexpr int32 MaxAssetReferences = 2048;
-	static constexpr int32 MaxRelations = 8192;
+			static constexpr int32 MaxAssetReferences = 2048;
+	static constexpr int32 MaxDynamicInputs = 1024;
+	static constexpr int32 MaxDynamicInputChildren = 4096;
+	static constexpr int32 MaxStaticSwitches = 1024;
+	static constexpr int32 MaxRapidIterationValues = 2048;
+	static constexpr int32 MaxModuleOutputs = 4096;
+	static constexpr int32 MaxParameterReads = 4096;
+	static constexpr int32 MaxParameterWrites = 4096;
+	static constexpr int32 MaxResolutionStepsPerValue = 64;
+	static constexpr int32 MaxDataInterfaceProperties = 256;
+	static constexpr int32 MaxSimulationStageAccesses = 2048;
+	static constexpr int32 MaxRendererBindings = 2048;
+	static constexpr int32 MaxMvpRelations = 8192;
+	static constexpr int32 MaxDeepRelations = 8192;
+	static constexpr int32 MaxTotalRelations = 16384;
+	static constexpr int32 MaxRelations = MaxMvpRelations;
 	static constexpr int32 MaxTraversalDepth = 16;
 	static constexpr int32 MaxFacetUtf8Bytes = 4194304;
 
-	FString SchemaVersion;
+		FString SchemaVersion;
 	bool bSupported = false;
 	FString UnsupportedReason;
 	FString State = TEXT("not_requested");
+	bool bDeepEvidenceRequested = false;
+	FString DeepState = TEXT("not_requested");
+	FString DeepReason;
 	FADumpNiagaraBounds Bounds;
 	FADumpNiagaraSystemEvidence System;
 	TArray<FADumpNiagaraEmitterEvidence> Emitters;
@@ -1881,8 +2155,14 @@ struct FADumpNiagaraEvidence
 	TArray<FADumpNiagaraParameterEvidence> Parameters;
 	TArray<FADumpNiagaraBindingEvidence> Bindings;
 	TArray<FADumpNiagaraDataInterfaceEvidence> DataInterfaces;
-	TArray<FADumpNiagaraStageEvidence> SimulationStages;
+		TArray<FADumpNiagaraStageEvidence> SimulationStages;
 	TArray<FADumpNiagaraReferenceEvidence> References;
+	TArray<FADumpNiagaraDynamicInputEvidence> DynamicInputs;
+	TArray<FADumpNiagaraStaticSwitchEvidence> StaticSwitches;
+	TArray<FADumpNiagaraRapidIterationEvidence> RapidIterationValues;
+	TArray<FADumpNiagaraModuleOutputEvidence> ModuleOutputs;
+	TArray<FADumpNiagaraParameterAccessEvidence> ParameterReads;
+	TArray<FADumpNiagaraParameterAccessEvidence> ParameterWrites;
 };
 
 // FADumpResult는 dump.json 전체를 담는 최상위 중간 결과 구조다.

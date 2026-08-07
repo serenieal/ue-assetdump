@@ -1,6 +1,8 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.22.2
+// Version: v0.23.0
 // Changelog:
+// - v0.23.0: P4-N1 niagara_deep_evidence Profile, exact entity_evidence mapping과 Sections > Intent > Profile precedence self-test를 추가.
+// - v0.22.3: asset_index_v1 available_sections가 full-mode placeholder를 실제 section으로 오인하지 않도록 실행 요청과 section schema 기준으로 교정.
 // - v0.22.2: BP_ADumpActorFixture에 실제 exec/data graph link와 duplicate Node GUID fallback 원본 증거를 idempotent하게 보장.
 // - v0.22.1: entityquery를 기존 entity_index_v1만 읽는 read-only 경로로 교정.
 // - v0.22.0: entity_evidence section/index registry, entityquery, entitycontext와 additive entity_index_v1 생성 경로를 추가.
@@ -701,9 +703,37 @@ namespace
 
 		TArray<FString> AvailableSectionArray;
 		TSharedRef<FJsonObject> SectionSchemaObject = MakeShared<FJsonObject>();
+		const bool bExplicitSectionMode = GetCommandletStringFieldOrEmpty(RunObject, TEXT("section_mode")) == TEXT("explicit");
 		auto HasMainDumpField = [&MainDumpRootObject](const TCHAR* FieldName)
 		{
 			return MainDumpRootObject.IsValid() && MainDumpRootObject->HasField(FieldName);
+		};
+		auto IsCoreSectionAvailable = [&RunObject, &HasMainDumpField, bExplicitSectionMode](
+			const TCHAR* SectionName,
+			const TCHAR* IncludeFieldName,
+			bool bSidecarFileExists)
+		{
+			if (bSidecarFileExists)
+			{
+				return true;
+			}
+			if (!HasMainDumpField(SectionName))
+			{
+				return false;
+			}
+			if (bExplicitSectionMode)
+			{
+				return true;
+			}
+
+			bool bIncluded = false;
+			if (RunObject.IsValid() && RunObject->TryGetBoolField(IncludeFieldName, bIncluded))
+			{
+				return bIncluded;
+			}
+
+			// Legacy manifests may predate include_* request fields. Preserve field-presence fallback for them.
+			return true;
 		};
 		auto AddAvailableSection = [&AvailableSectionArray](const TCHAR* SectionName, bool bAvailable)
 		{
@@ -720,25 +750,27 @@ namespace
 				return;
 			}
 
-			AvailableSectionArray.Add(SectionName);
 			const FString SectionSchemaText = GetCommandletStringFieldOrEmpty(SectionObject, TEXT("schema_version"));
-			if (!SectionSchemaText.IsEmpty())
+			if (SectionSchemaText.IsEmpty())
 			{
-				SectionSchemaObject->SetStringField(SectionName, SectionSchemaText);
+				return;
 			}
+
+			AvailableSectionArray.Add(SectionName);
+			SectionSchemaObject->SetStringField(SectionName, SectionSchemaText);
 		};
 
-		AddAvailableSection(TEXT("summary"), bSummaryFileExists || HasMainDumpField(TEXT("summary")));
+		AddAvailableSection(TEXT("summary"), IsCoreSectionAvailable(TEXT("summary"), TEXT("include_summary"), bSummaryFileExists));
 		AddAvailableSection(TEXT("digest"), bDigestFileExists || HasMainDumpField(TEXT("digest")));
-		AddAvailableSection(TEXT("details"), bDetailsFileExists || HasMainDumpField(TEXT("details")));
+		AddAvailableSection(TEXT("details"), IsCoreSectionAvailable(TEXT("details"), TEXT("include_details"), bDetailsFileExists));
 		AddSpecializedSection(TEXT("data_asset_values"));
 		AddSpecializedSection(TEXT("data_asset_diff"));
 		AddSpecializedSection(TEXT("input_summary"));
 		AddSpecializedSection(TEXT("component_tree"));
-		AddAvailableSection(TEXT("graphs"), bGraphsFileExists || HasMainDumpField(TEXT("graphs")));
+		AddAvailableSection(TEXT("graphs"), IsCoreSectionAvailable(TEXT("graphs"), TEXT("include_graphs"), bGraphsFileExists));
 		AddSpecializedSection(TEXT("bp_search_index"));
-		AddAvailableSection(TEXT("references"), bReferencesFileExists || HasMainDumpField(TEXT("references")));
-				AddSpecializedSection(TEXT("widget_designer"));
+		AddAvailableSection(TEXT("references"), IsCoreSectionAvailable(TEXT("references"), TEXT("include_references"), bReferencesFileExists));
+		AddSpecializedSection(TEXT("widget_designer"));
 		AddSpecializedSection(TEXT("entity_evidence"));
 
 		const TSharedPtr<FJsonObject> PerfObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("perf"));
@@ -2730,9 +2762,9 @@ namespace
 	}
 
 	// GetValidProfileNamesText는 -Profile=에서 허용하는 정식 출력 프리셋 이름 목록을 반환한다.
-	FString GetValidProfileNamesText()
+		FString GetValidProfileNamesText()
 	{
-		return TEXT("full,summary_only,digest_only,ai_context");
+		return TEXT("full,summary_only,digest_only,ai_context,niagara_deep_evidence");
 	}
 
 	// TryResolveDumpSection은 정규화한 이름을 주요 JSON 섹션 값으로 변환한다.
@@ -2882,10 +2914,15 @@ namespace
 			OutSectionSelection.Enable(EADumpSection::Summary);
 			return true;
 		}
-		if (InProfileName == TEXT("digest_only") || InProfileName == TEXT("ai_context"))
+				if (InProfileName == TEXT("digest_only") || InProfileName == TEXT("ai_context"))
 		{
 			OutSectionSelection.Enable(EADumpSection::Summary);
 			OutSectionSelection.Enable(EADumpSection::Digest);
+			return true;
+		}
+		if (InProfileName == TEXT("niagara_deep_evidence"))
+		{
+			OutSectionSelection.Enable(EADumpSection::EntityEvidence);
 			return true;
 		}
 
@@ -6760,6 +6797,24 @@ namespace
 		const bool bAiContextProfilePassed = VerifyIntentResolution(
 			TEXT("-Mode=bpdump -Profile=ai_context"), TEXT(""), TEXT("ai_context"), TEXT("profile"), TEXT("summary,digest"), TEXT("summary"), AiContextProfileDetail);
 		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_ai_context"), bAiContextProfilePassed, AiContextProfileDetail);
+
+				// NiagaraDeepProfileDetail은 Deep Profile이 exact entity_evidence selection과 prerequisites로 해석되는지 검증한다.
+		FString NiagaraDeepProfileDetail;
+		const bool bNiagaraDeepProfilePassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=niagara_deep_evidence"), TEXT(""), TEXT("niagara_deep_evidence"), TEXT("profile"), TEXT("entity_evidence"), TEXT("component_tree,graphs,entity_evidence"), NiagaraDeepProfileDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_niagara_deep_evidence"), bNiagaraDeepProfilePassed, NiagaraDeepProfileDetail);
+
+		// NiagaraDeepIntentDetail은 Intent가 Deep Profile보다 우선해 Deep activation을 차단하는지 검증한다.
+		FString NiagaraDeepIntentDetail;
+		const bool bNiagaraDeepIntentPassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=niagara_deep_evidence -Intent=quick_overview"), TEXT("quick_overview"), TEXT("niagara_deep_evidence"), TEXT("intent"), TEXT("summary,digest"), TEXT("summary"), NiagaraDeepIntentDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_niagara_deep_intent_precedence"), bNiagaraDeepIntentPassed, NiagaraDeepIntentDetail);
+
+		// NiagaraDeepSectionsDetail은 explicit Sections가 Deep Profile보다 우선해 Deep activation을 차단하는지 검증한다.
+		FString NiagaraDeepSectionsDetail;
+		const bool bNiagaraDeepSectionsPassed = VerifyIntentResolution(
+			TEXT("-Mode=bpdump -Profile=niagara_deep_evidence -Sections=entity_evidence"), TEXT(""), TEXT("niagara_deep_evidence"), TEXT("sections"), TEXT("entity_evidence"), TEXT("component_tree,graphs,entity_evidence"), NiagaraDeepSectionsDetail);
+		AddSectionSmokeCheck(CheckArray, OutFailureCount, TEXT("profile_niagara_deep_sections_precedence"), bNiagaraDeepSectionsPassed, NiagaraDeepSectionsDetail);
 
 		// ProfileIntentDetail은 Intent가 Profile보다 우선하는지 검증한다.
 		FString ProfileIntentDetail;

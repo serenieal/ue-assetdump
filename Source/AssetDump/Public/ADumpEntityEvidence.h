@@ -1,6 +1,7 @@
 // File: ADumpEntityEvidence.h
-// Version: v1.2.0
+// Version: v1.3.0
 // Changelog:
+// - v1.3.0: P4-N1 niagara_deep_v1 exact 18/12 registry와 additive Known registry union contract를 추가.
 // - v1.2.0: Phase 1 Core, Niagara MVP와 Internal Known registry를 분리하고 Niagara typed projection contract를 추가.
 // - v1.1.0: Architecture v1 string state, capability map, Facet envelope, bounds와 Stable Identity registry 계약을 반영.
 // - v1.0.0: entity_evidence_v1 pure builder와 Phase 1 Entity/Relation registry 공개 계약을 추가.
@@ -30,10 +31,16 @@ namespace ADumpEntityEvidence
 	// GetNiagaraEntityKindRegistry는 common asset과 Niagara MVP Entity Kind를 canonical 순서로 반환한다.
 	const TArray<FString>& GetNiagaraEntityKindRegistry();
 
-	// GetNiagaraRelationKindRegistry는 Niagara MVP Relation Kind를 canonical 순서로 반환한다.
+		// GetNiagaraRelationKindRegistry는 Niagara MVP Relation Kind를 canonical 순서로 반환한다.
 	const TArray<FString>& GetNiagaraRelationKindRegistry();
 
-	// GetKnownEntityKindRegistry는 Core와 Niagara Entity registry의 deterministic union을 반환한다.
+	// GetNiagaraDeepEntityKindRegistry는 Niagara MVP 뒤에 Deep Entity Kind를 append한 exact 18-kind registry를 반환한다.
+	const TArray<FString>& GetNiagaraDeepEntityKindRegistry();
+
+	// GetNiagaraDeepRelationKindRegistry는 Niagara MVP 뒤에 parameter access Relation을 append한 exact 12-kind registry를 반환한다.
+	const TArray<FString>& GetNiagaraDeepRelationKindRegistry();
+
+	// GetKnownEntityKindRegistry는 Core와 Niagara Deep Entity registry의 deterministic union을 반환한다.
 	const TArray<FString>& GetKnownEntityKindRegistry();
 
 	// GetKnownRelationKindRegistry는 Core와 Niagara Relation registry의 deterministic union을 반환한다.

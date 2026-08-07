@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.13.0
+// Version: v0.14.0
 // Changelog:
+// - v0.14.0: P4-N1 Deep activation을 Profile=niagara_deep_evidence + section_source=profile + exact entity_evidence selection으로 제한.
 // - v0.13.0: explicit entity_evidence 요청에서 Niagara typed evidence extractor를 실행.
 // Migration:
 // - Niagara extraction은 explicit entity_evidence 요청에만 적용하며 기존 full-mode builder 계획은 유지한다.
@@ -177,6 +178,17 @@ namespace
 			|| !InResult.Summary.ParentClassPath.IsEmpty()
 			|| InResult.Summary.GraphCount > 0
 			|| InResult.Summary.VariableCount > 0;
+	}
+
+		// IsNiagaraDeepEvidenceRequest는 Accepted P4 revised contract의 exact activation predicate를 검사한다.
+	bool IsNiagaraDeepEvidenceRequest(const FADumpRequestInfo& InRequest)
+	{
+		const TArray<FString> EnabledSections = InRequest.SectionSelection.GetEnabledNames();
+		return InRequest.Profile == TEXT("niagara_deep_evidence")
+			&& InRequest.SectionSource == TEXT("profile")
+			&& InRequest.SectionSelection.bIsExplicit
+			&& EnabledSections.Num() == 1
+			&& EnabledSections[0] == TEXT("entity_evidence");
 	}
 
 	// HasIssueCode는 지정한 code의 issue가 이미 기록되었는지 검사한다.
@@ -723,10 +735,11 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 			}
 		}
 
-		if (!ActiveRunOpts.SectionSelection.IsFullMode()
+				if (!ActiveRunOpts.SectionSelection.IsFullMode()
 			&& ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::EntityEvidence)
 			&& !ADumpNiagara::ExtractNiagaraEvidence(
 				ActiveRunOpts.AssetObjectPath,
+				IsNiagaraDeepEvidenceRequest(ActiveResult.Request),
 				ActiveResult.NiagaraEvidence,
 				ActiveResult.Issues))
 		{
