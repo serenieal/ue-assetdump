@@ -1,6 +1,9 @@
 // File: ADumpEntityEvidence.cpp
-// Version: v1.7.1
+// Version: v1.9.0
 // Changelog:
+// - v1.9.0: P5-MI v1 material_instance resource에 material_instance_detail_v1 auxiliary facet을 additive projection.
+// - v1.8.1: P5-N1 F11 correction으로 Material-profile Renderer facet에 unsupported resource identity의 fail-closed state/reason을 additive하게 투영.
+// - v1.8.0: P5-N1 niagara_material_v1 exact 19/12 registry와 Renderer Resource references projection을 additive하게 구현.
 // - v1.7.1: ApplyFacetDataByteBudget의 dynamic Facet key enumeration/lookup을 UE 5.8 shared-string key와 public FJsonObject::TryGetField API로 교정.
 // - v1.7.0: P4-N3 canonical reason projection, Deep/total relation 원인 분리와 aggregate Facet UTF-8 max_bytes fail-closed projection을 구현.
 // - v1.6.1: UE compile-time format 검사를 만족하도록 parameter access JSON pointer 생성을 명시적 read/write 분기로 교정.
@@ -12,6 +15,8 @@
 // - v1.1.0: Entity Architecture v1에 맞춰 string state, capability map, Facet envelope, exact bounds와 Stable Identity registry를 정렬.
 // - v1.0.0: stable_identity_v1, Blueprint 5 Entity Kind, 5 Relation Kind와 canonical local ID 생성을 구현.
 // Migration:
+// - v1.9.0은 기존 niagara_renderer_resource Entity/relations/19-12 registry를 유지하고 MI detail만 auxiliary facet으로 추가한다.
+// - v1.8.1은 Material profile에서만 Renderer resource_state/resource_reason을 추가하며 Deep/MVP facet shape와 기존 Relation 의미는 변경하지 않는다.
 // - GUID 또는 source identity가 불완전하거나 중복되면 stable_identity.quality=fallback을 명시한다.
 
 #include "ADumpEntityEvidence.h"
@@ -202,6 +207,32 @@ namespace
 		}
 		Data->SetArrayField(TEXT("observed_steps"), MoveTemp(StepValues));
 		return Data;
+	}
+
+		// MakeMaterialParameterIdentityObject는 layer-aware Material parameter identity를 JSON object로 만든다.
+	TSharedRef<FJsonObject> MakeMaterialParameterIdentityObject(const FADumpMaterialParameterIdentityEvidence& InIdentity)
+	{
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetStringField(TEXT("parameter_name"), InIdentity.ParameterName);
+		Object->SetStringField(TEXT("association"), InIdentity.Association);
+		if (InIdentity.Index == INDEX_NONE) Object->SetField(TEXT("index"), MakeShared<FJsonValueNull>());
+		else Object->SetNumberField(TEXT("index"), InIdentity.Index);
+		Object->SetStringField(TEXT("expression_guid"), InIdentity.ExpressionGuid);
+		return Object;
+	}
+
+	// MakeMaterialOverrideBoundObject는 category-local override bound를 JSON object로 만든다.
+	TSharedRef<FJsonObject> MakeMaterialOverrideBoundObject(int32 InAvailable, int32 InIncluded, int32 InOmitted)
+	{
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetNumberField(TEXT("available_count"), InAvailable);
+		Object->SetNumberField(TEXT("included_count"), InIncluded);
+		Object->SetNumberField(TEXT("omitted_count"), InOmitted);
+		Object->SetBoolField(TEXT("truncated"), InOmitted > 0);
+		TArray<TSharedPtr<FJsonValue>> Reasons;
+		if (InOmitted > 0) Reasons.Add(MakeShared<FJsonValueString>(TEXT("max_material_instance_parameter_overrides")));
+		Object->SetArrayField(TEXT("reasons"), MoveTemp(Reasons));
+		return Object;
 	}
 
 	// AddAuxiliaryFacet는 primary Entity facet과 동일한 provenance/bounds envelope를 추가한다.
@@ -490,12 +521,28 @@ namespace ADumpEntityEvidence
 		return Registry;
 	}
 
+		const TArray<FString>& GetNiagaraMaterialEntityKindRegistry()
+	{
+		static const TArray<FString> Registry = []
+		{
+			TArray<FString> Values = GetNiagaraDeepEntityKindRegistry();
+			Values.Add(TEXT("niagara_renderer_resource"));
+			return Values;
+		}();
+		return Registry;
+	}
+
+	const TArray<FString>& GetNiagaraMaterialRelationKindRegistry()
+	{
+		return GetNiagaraDeepRelationKindRegistry();
+	}
+
 	const TArray<FString>& GetKnownEntityKindRegistry()
 	{
 		static const TArray<FString> Registry = []
 		{
 			TArray<FString> Values = GetEntityKindRegistry();
-			for (const FString& Kind : GetNiagaraDeepEntityKindRegistry())
+						for (const FString& Kind : GetNiagaraMaterialEntityKindRegistry())
 			{
 				Values.AddUnique(Kind);
 			}
@@ -509,7 +556,7 @@ namespace ADumpEntityEvidence
 		static const TArray<FString> Registry = []
 		{
 			TArray<FString> Values = GetRelationKindRegistry();
-			for (const FString& Kind : GetNiagaraDeepRelationKindRegistry())
+						for (const FString& Kind : GetNiagaraMaterialRelationKindRegistry())
 			{
 				Values.AddUnique(Kind);
 			}
@@ -532,9 +579,16 @@ namespace ADumpEntityEvidence
 			|| !InDumpResult.ComponentTree.SchemaVersion.IsEmpty();
 				const bool bNiagaraEvidenceSource = InDumpResult.NiagaraEvidence.bSupported;
 		const TArray<FString> RequestedSections = InDumpResult.Request.SectionSelection.GetEnabledNames();
+				const bool bNiagaraMaterialEvidenceSource = bNiagaraEvidenceSource
+			&& InDumpResult.NiagaraEvidence.bMaterialEvidenceRequested
+			&& InDumpResult.Request.Profile == TEXT("niagara_material_evidence")
+			&& InDumpResult.Request.SectionSource == TEXT("profile")
+			&& InDumpResult.Request.SectionSelection.bIsExplicit
+			&& RequestedSections.Num() == 1
+			&& RequestedSections[0] == TEXT("entity_evidence");
 		const bool bNiagaraDeepEvidenceSource = bNiagaraEvidenceSource
 			&& InDumpResult.NiagaraEvidence.bDeepEvidenceRequested
-			&& InDumpResult.Request.Profile == TEXT("niagara_deep_evidence")
+			&& (InDumpResult.Request.Profile == TEXT("niagara_deep_evidence") || bNiagaraMaterialEvidenceSource)
 			&& InDumpResult.Request.SectionSource == TEXT("profile")
 			&& InDumpResult.Request.SectionSelection.bIsExplicit
 			&& RequestedSections.Num() == 1
@@ -834,7 +888,13 @@ namespace ADumpEntityEvidence
 				Entity.Facets->SetStringField(TEXT("renderer_name"), Renderer.RendererName);
 				Entity.Facets->SetStringField(TEXT("renderer_class"), Renderer.RendererClass);
 								Entity.Facets->SetBoolField(TEXT("enabled"), Renderer.bEnabled);
-				Entity.Facets->SetArrayField(TEXT("bound_attributes"), MakeStringArray(Renderer.BoundAttributes));
+								Entity.Facets->SetArrayField(TEXT("bound_attributes"), MakeStringArray(Renderer.BoundAttributes));
+				if (bNiagaraMaterialEvidenceSource)
+				{
+					const bool bRendererResourceIdentitySupported = Renderer.SupportTier == TEXT("tier_a");
+					Entity.Facets->SetStringField(TEXT("resource_state"), bRendererResourceIdentitySupported ? TEXT("complete") : TEXT("unsupported"));
+					Entity.Facets->SetStringField(TEXT("resource_reason"), bRendererResourceIdentitySupported ? FString() : FString(ADumpNiagaraReason::UnavailableEngineApi));
+				}
 				if (bNiagaraDeepEvidenceSource)
 				{
 					TSharedRef<FJsonObject> BindingData = MakeShared<FJsonObject>();
@@ -865,11 +925,128 @@ namespace ADumpEntityEvidence
 					TEXT("niagara_native_evidence_v1.renderers[]"), SourceFile,
 					FString::Printf(TEXT("/entity_evidence/native/renderers/%d"), RendererIndex), Renderer.SourceIndex,
 					TEXT("observed"), TEXT("exact"));
-				AddNiagaraRelation(
+								AddNiagaraRelation(
 					TEXT("renders_with"), Renderer.OwnerStableKey, Renderer.StableKey,
 					TEXT("niagara_native_evidence_v1.renderers[]"), SourceFile,
 					FString::Printf(TEXT("/entity_evidence/native/renderers/%d"), RendererIndex), Renderer.SourceIndex,
 					TEXT("observed"), TEXT("exact"));
+			}
+
+			if (bNiagaraMaterialEvidenceSource)
+			{
+				for (int32 ResourceIndex = 0; ResourceIndex < Niagara.RendererResources.Num(); ++ResourceIndex)
+				{
+					const FADumpNiagaraRendererResourceEvidence& Resource = Niagara.RendererResources[ResourceIndex];
+					FEntityDraft Entity;
+					Entity.EntityKind = TEXT("niagara_renderer_resource");
+					Entity.DisplayName = FPaths::GetBaseFilename(Resource.ObjectPath);
+					Entity.StableKey = Resource.StableKey;
+					Entity.IdentityQuality = TEXT("composite");
+					Entity.IdentitySource = TEXT("renderer_resource");
+					Entity.OwnerStableKey = Resource.OwnerStableKey;
+					Entity.SourceContract = TEXT("niagara_native_evidence_v1.renderer_resources[]");
+					Entity.SourceFile = SourceFile;
+					Entity.JsonPointer = FString::Printf(TEXT("/entity_evidence/native/renderer_resources/%d"), ResourceIndex);
+					Entity.Completeness = Resource.State;
+					Entity.SemanticOrder = Resource.SourceIndex;
+					Entity.IdentityComponents->SetStringField(TEXT("resource_kind"), Resource.ResourceKind);
+					Entity.IdentityComponents->SetStringField(TEXT("object_path"), Resource.ObjectPath);
+					Entity.IdentityComponents->SetStringField(TEXT("reference_role"), Resource.ReferenceRole);
+					Entity.IdentityComponents->SetNumberField(TEXT("source_index"), Resource.SourceIndex);
+					Entity.Facets->SetStringField(TEXT("resource_kind"), Resource.ResourceKind);
+					Entity.Facets->SetStringField(TEXT("object_path"), Resource.ObjectPath);
+					Entity.Facets->SetStringField(TEXT("class_name"), Resource.ClassName);
+					Entity.Facets->SetStringField(TEXT("reference_role"), Resource.ReferenceRole);
+					Entity.Facets->SetStringField(TEXT("slot_name"), Resource.SlotName);
+					Entity.Facets->SetStringField(TEXT("source_property"), Resource.SourceProperty);
+					Entity.Facets->SetStringField(TEXT("state"), Resource.State);
+					Entity.Facets->SetStringField(TEXT("exactness"), Resource.Exactness);
+										Entity.Facets->SetStringField(TEXT("reason"), Resource.Reason);
+					if (Resource.ResourceKind == TEXT("material_instance") && Resource.MaterialInstanceDetail.bAvailable)
+					{
+						const FADumpMaterialInstanceDetailEvidence& Detail = Resource.MaterialInstanceDetail;
+						TSharedRef<FJsonObject> DetailData = MakeShared<FJsonObject>();
+						TSharedRef<FJsonObject> Parent = MakeShared<FJsonObject>();
+						Parent->SetStringField(TEXT("state"), Detail.ParentState);
+						Parent->SetStringField(TEXT("object_path"), Detail.ParentObjectPath);
+						Parent->SetStringField(TEXT("class_name"), Detail.ParentClassName);
+						Parent->SetStringField(TEXT("resource_kind"), Detail.ParentResourceKind);
+						DetailData->SetObjectField(TEXT("parent"), Parent);
+
+						TArray<TSharedPtr<FJsonValue>> ScalarValues;
+						for (const FADumpMaterialScalarOverrideEvidence& Override : Detail.ScalarOverrides)
+						{
+							TSharedRef<FJsonObject> Object = MakeMaterialParameterIdentityObject(Override.Identity);
+							Object->SetNumberField(TEXT("value"), Override.Value);
+							ScalarValues.Add(MakeShared<FJsonValueObject>(Object));
+						}
+						DetailData->SetArrayField(TEXT("scalar_overrides"), MoveTemp(ScalarValues));
+
+						TArray<TSharedPtr<FJsonValue>> VectorValues;
+						for (const FADumpMaterialVectorOverrideEvidence& Override : Detail.VectorOverrides)
+						{
+							TSharedRef<FJsonObject> Object = MakeMaterialParameterIdentityObject(Override.Identity);
+							Object->SetNumberField(TEXT("r"), Override.R);
+							Object->SetNumberField(TEXT("g"), Override.G);
+							Object->SetNumberField(TEXT("b"), Override.B);
+							Object->SetNumberField(TEXT("a"), Override.A);
+							VectorValues.Add(MakeShared<FJsonValueObject>(Object));
+						}
+						DetailData->SetArrayField(TEXT("vector_overrides"), MoveTemp(VectorValues));
+
+						TArray<TSharedPtr<FJsonValue>> TextureValues;
+						for (const FADumpMaterialTextureOverrideEvidence& Override : Detail.TextureOverrides)
+						{
+							TSharedRef<FJsonObject> Object = MakeMaterialParameterIdentityObject(Override.Identity);
+							Object->SetBoolField(TEXT("has_value"), Override.bHasValue);
+							Object->SetStringField(TEXT("object_path"), Override.ObjectPath);
+							Object->SetStringField(TEXT("class_name"), Override.ClassName);
+							TextureValues.Add(MakeShared<FJsonValueObject>(Object));
+						}
+						DetailData->SetArrayField(TEXT("texture_overrides"), MoveTemp(TextureValues));
+
+						TArray<TSharedPtr<FJsonValue>> StaticSwitchValues;
+						for (const FADumpMaterialStaticSwitchOverrideEvidence& Override : Detail.StaticSwitchOverrides)
+						{
+							TSharedRef<FJsonObject> Object = MakeMaterialParameterIdentityObject(Override.Identity);
+							Object->SetBoolField(TEXT("value"), Override.bValue);
+							StaticSwitchValues.Add(MakeShared<FJsonValueObject>(Object));
+						}
+						DetailData->SetArrayField(TEXT("static_switch_overrides"), MoveTemp(StaticSwitchValues));
+
+						TSharedRef<FJsonObject> Effective = MakeShared<FJsonObject>();
+						Effective->SetStringField(TEXT("blend_mode"), Detail.EffectiveBlendMode);
+						Effective->SetBoolField(TEXT("two_sided"), Detail.bEffectiveTwoSided);
+						Effective->SetNumberField(TEXT("opacity_mask_clip_value"), Detail.EffectiveOpacityMaskClipValue);
+						DetailData->SetObjectField(TEXT("effective_properties"), Effective);
+
+						TSharedRef<FJsonObject> BaseOverrides = MakeShared<FJsonObject>();
+						BaseOverrides->SetBoolField(TEXT("override_blend_mode"), Detail.bOverrideBlendMode);
+						BaseOverrides->SetStringField(TEXT("blend_mode"), Detail.OverrideBlendMode);
+						BaseOverrides->SetBoolField(TEXT("override_shading_model"), Detail.bOverrideShadingModel);
+						BaseOverrides->SetStringField(TEXT("shading_model"), Detail.OverrideShadingModel);
+						BaseOverrides->SetBoolField(TEXT("override_two_sided"), Detail.bOverrideTwoSided);
+						BaseOverrides->SetBoolField(TEXT("two_sided"), Detail.OverrideTwoSided);
+						BaseOverrides->SetBoolField(TEXT("override_opacity_mask_clip_value"), Detail.bOverrideOpacityMaskClipValue);
+						BaseOverrides->SetNumberField(TEXT("opacity_mask_clip_value"), Detail.OverrideOpacityMaskClipValue);
+						DetailData->SetObjectField(TEXT("base_property_overrides"), BaseOverrides);
+
+						TSharedRef<FJsonObject> ParameterBounds = MakeShared<FJsonObject>();
+						ParameterBounds->SetObjectField(TEXT("scalar"), MakeMaterialOverrideBoundObject(Detail.AvailableScalarOverrideCount, Detail.ScalarOverrides.Num(), Detail.OmittedScalarOverrideCount));
+						ParameterBounds->SetObjectField(TEXT("vector"), MakeMaterialOverrideBoundObject(Detail.AvailableVectorOverrideCount, Detail.VectorOverrides.Num(), Detail.OmittedVectorOverrideCount));
+						ParameterBounds->SetObjectField(TEXT("texture"), MakeMaterialOverrideBoundObject(Detail.AvailableTextureOverrideCount, Detail.TextureOverrides.Num(), Detail.OmittedTextureOverrideCount));
+						ParameterBounds->SetObjectField(TEXT("static_switch"), MakeMaterialOverrideBoundObject(Detail.AvailableStaticSwitchOverrideCount, Detail.StaticSwitchOverrides.Num(), Detail.OmittedStaticSwitchOverrideCount));
+						DetailData->SetObjectField(TEXT("parameter_bounds"), ParameterBounds);
+						DetailData->SetStringField(TEXT("reason"), Detail.Reason);
+						AddAuxiliaryFacet(Entity, TEXT("material_instance_detail"), TEXT("material_instance_detail_v1"), Detail.State, TEXT("observed"), Detail.Exactness, DetailData);
+					}
+					EntityDrafts.Add(MoveTemp(Entity));
+					AddNiagaraRelation(
+						TEXT("references"), Resource.OwnerStableKey, Resource.StableKey,
+						TEXT("niagara_native_evidence_v1.renderer_resources[]"), SourceFile,
+						FString::Printf(TEXT("/entity_evidence/native/renderer_resources/%d"), ResourceIndex), Resource.SourceIndex,
+						TEXT("observed"), Resource.Exactness);
+				}
 			}
 
 			for (int32 ParameterIndex = 0; ParameterIndex < Niagara.Parameters.Num(); ++ParameterIndex)
@@ -1902,9 +2079,9 @@ namespace ADumpEntityEvidence
 				return InIncludedCount > 0 ? FString(TEXT("complete")) : FString(TEXT("empty"));
 			};
 
-						const TArray<FString>& ActiveNiagaraEntityRegistry = bNiagaraDeepEvidenceSource
-				? GetNiagaraDeepEntityKindRegistry()
-				: GetNiagaraEntityKindRegistry();
+									const TArray<FString>& ActiveNiagaraEntityRegistry = bNiagaraMaterialEvidenceSource
+				? GetNiagaraMaterialEntityKindRegistry()
+				: (bNiagaraDeepEvidenceSource ? GetNiagaraDeepEntityKindRegistry() : GetNiagaraEntityKindRegistry());
 			for (const FString& Kind : ActiveNiagaraEntityRegistry)
 			{
 				EntityCompleteness.Add(Kind, TEXT("empty"));
@@ -1920,7 +2097,11 @@ namespace ADumpEntityEvidence
 			EntityCompleteness.Add(TEXT("niagara_parameter_binding"), ResolveNiagaraCategoryCompleteness(Niagara.Bindings.Num(), Niagara.Bounds.OmittedBindingCount, bScriptGraphUnavailable));
 			EntityCompleteness.Add(TEXT("niagara_data_interface"), ResolveNiagaraCategoryCompleteness(Niagara.DataInterfaces.Num(), Niagara.Bounds.OmittedDataInterfaceCount));
 			EntityCompleteness.Add(TEXT("niagara_simulation_stage"), ResolveNiagaraCategoryCompleteness(Niagara.SimulationStages.Num(), Niagara.Bounds.OmittedSimulationStageCount));
-						EntityCompleteness.Add(TEXT("asset_reference"), ResolveNiagaraCategoryCompleteness(Niagara.References.Num(), Niagara.Bounds.OmittedAssetReferenceCount));
+									EntityCompleteness.Add(TEXT("asset_reference"), ResolveNiagaraCategoryCompleteness(Niagara.References.Num(), Niagara.Bounds.OmittedAssetReferenceCount));
+			if (bNiagaraMaterialEvidenceSource)
+			{
+				EntityCompleteness.Add(TEXT("niagara_renderer_resource"), ResolveNiagaraCategoryCompleteness(Niagara.RendererResources.Num(), Niagara.Bounds.OmittedRendererResourceCount));
+			}
 			if (bNiagaraDeepEvidenceSource)
 			{
 				const bool bDeepUnavailable = Niagara.DeepState == TEXT("unavailable") || Niagara.DeepState == TEXT("unsupported");
@@ -2096,9 +2277,11 @@ namespace ADumpEntityEvidence
 								RootObject->SetStringField(TEXT("schema_version"), TEXT("entity_evidence_v1"));
 				RootObject->SetStringField(
 			TEXT("adapter_profile"),
-			bNiagaraDeepEvidenceSource
-				? TEXT("niagara_deep_v1")
-				: (bNiagaraEvidenceSource ? TEXT("niagara_mvp_v1") : TEXT("blueprint_core_v1")));
+						bNiagaraMaterialEvidenceSource
+				? TEXT("niagara_material_v1")
+				: (bNiagaraDeepEvidenceSource
+					? TEXT("niagara_deep_v1")
+					: (bNiagaraEvidenceSource ? TEXT("niagara_mvp_v1") : TEXT("blueprint_core_v1"))));
 		RootObject->SetObjectField(TEXT("asset"), AssetObject);
 		RootObject->SetStringField(TEXT("state"), ResolveOverallCompleteness(EntityCompleteness, RelationCompleteness));
 		RootObject->SetObjectField(TEXT("capabilities"), CapabilityObject);

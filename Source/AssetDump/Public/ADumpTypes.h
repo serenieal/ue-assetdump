@@ -1,6 +1,8 @@
 // File: ADumpTypes.h
-// Version: v0.27.0
+// Version: v0.29.0
 // Changelog:
+// - v0.29.0: P5-MI v1 material_instance_detail_v1용 immediate parent, direct scalar/vector/texture/static-switch override와 effective/base-property evidence를 additive하게 추가.
+// - v0.28.0: P5-N1 Renderer-owned Material/MI/Mesh typed resource evidence, material-profile activation state와 전용 1024 resource bound를 추가.
 // - v0.27.0: P4-N3 canonical Niagara reason registry와 exact 10 defect token의 단일 Product 소유권을 추가하고 기존 numeric hard cap을 보존.
 // - v0.26.0: P4-N2 native Deep observation용 exact endpoint, partial provenance, DI/stage/renderer 보조 Facet와 분리된 MVP/Deep/total bounds를 완성.
 // - v0.25.0: P4-N1 Deep Profile의 fail-closed typed provenance, Static Switch, Dynamic Input, Rapid Iteration, Module Output와 parameter access 계약을 추가.
@@ -9,6 +11,7 @@
 // - v0.22.0: AIRE Phase 2 Niagara MVP Adapter의 AssetDump-owned typed evidence 구조와 FADumpResult 저장소를 추가.
 // - v0.21.0: additive entity_evidence section enum과 Entity Evidence/Query forward contract를 추가.
 // Migration:
+// - v0.29.0은 새 Entity/Relation kind 없이 기존 niagara_renderer_resource의 Material Instance detail payload만 확장한다.
 // - Niagara 타입은 public header에 노출하지 않고 문자열·값 기반 typed evidence로 격리한다.
 // - EntityEvidence는 기존 section 순서의 마지막에 유지하며 accepted full-mode 기본 출력은 변경하지 않는다.
 // - v0.20.0: bp_search_index_v1 symbol/index 타입과 section/result 저장소를 추가.
@@ -126,7 +129,12 @@ struct FADumpNiagaraEvidence;
 namespace ADumpNiagara
 {
 		// ExtractNiagaraEvidence는 Niagara UObject를 AssetDump-owned typed evidence로 관측한다.
-	bool ExtractNiagaraEvidence(const FString& InAssetObjectPath, bool bInDeepEvidenceRequested, FADumpNiagaraEvidence& OutEvidence, TArray<FADumpIssue>& OutIssues);
+		bool ExtractNiagaraEvidence(
+		const FString& InAssetObjectPath,
+		bool bInDeepEvidenceRequested,
+		bool bInMaterialEvidenceRequested,
+		FADumpNiagaraEvidence& OutEvidence,
+		TArray<FADumpIssue>& OutIssues);
 }
 
 // EADumpSection은 선택적으로 직렬화할 주요 JSON 섹션을 구분한다.
@@ -1784,6 +1792,102 @@ struct FADumpNiagaraRendererEvidence
 	bool bEnabled = false;
 };
 
+// FADumpMaterialParameterIdentityEvidence는 Material parameter의 layer-aware 직접 identity를 표현한다.
+struct FADumpMaterialParameterIdentityEvidence
+{
+	FString ParameterName;
+	FString Association;
+	int32 Index = INDEX_NONE;
+	FString ExpressionGuid;
+};
+
+// FADumpMaterialScalarOverrideEvidence는 Material Instance scalar direct override 한 건을 표현한다.
+struct FADumpMaterialScalarOverrideEvidence
+{
+	FADumpMaterialParameterIdentityEvidence Identity;
+	double Value = 0.0;
+};
+
+// FADumpMaterialVectorOverrideEvidence는 Material Instance vector direct override 한 건을 표현한다.
+struct FADumpMaterialVectorOverrideEvidence
+{
+	FADumpMaterialParameterIdentityEvidence Identity;
+	double R = 0.0;
+	double G = 0.0;
+	double B = 0.0;
+	double A = 0.0;
+};
+
+// FADumpMaterialTextureOverrideEvidence는 Material Instance texture direct override 한 건을 표현한다.
+struct FADumpMaterialTextureOverrideEvidence
+{
+	FADumpMaterialParameterIdentityEvidence Identity;
+	bool bHasValue = false;
+	FString ObjectPath;
+	FString ClassName;
+};
+
+// FADumpMaterialStaticSwitchOverrideEvidence는 Material Instance static switch direct override 한 건을 표현한다.
+struct FADumpMaterialStaticSwitchOverrideEvidence
+{
+	FADumpMaterialParameterIdentityEvidence Identity;
+	bool bValue = false;
+};
+
+// FADumpMaterialInstanceDetailEvidence는 Renderer-owned Material Instance의 bounded direct detail을 표현한다.
+struct FADumpMaterialInstanceDetailEvidence
+{
+	bool bAvailable = false;
+	FString State = TEXT("complete");
+	FString Exactness = TEXT("exact");
+	FString Reason;
+	FString ParentState = TEXT("empty");
+	FString ParentObjectPath;
+	FString ParentClassName;
+	FString ParentResourceKind;
+	TArray<FADumpMaterialScalarOverrideEvidence> ScalarOverrides;
+	TArray<FADumpMaterialVectorOverrideEvidence> VectorOverrides;
+	TArray<FADumpMaterialTextureOverrideEvidence> TextureOverrides;
+	TArray<FADumpMaterialStaticSwitchOverrideEvidence> StaticSwitchOverrides;
+	int32 AvailableScalarOverrideCount = 0;
+	int32 OmittedScalarOverrideCount = 0;
+	int32 AvailableVectorOverrideCount = 0;
+	int32 OmittedVectorOverrideCount = 0;
+	int32 AvailableTextureOverrideCount = 0;
+	int32 OmittedTextureOverrideCount = 0;
+	int32 AvailableStaticSwitchOverrideCount = 0;
+	int32 OmittedStaticSwitchOverrideCount = 0;
+	FString EffectiveBlendMode;
+	bool bEffectiveTwoSided = false;
+	double EffectiveOpacityMaskClipValue = 0.0;
+	bool bOverrideBlendMode = false;
+	FString OverrideBlendMode;
+	bool bOverrideShadingModel = false;
+	FString OverrideShadingModel;
+	bool bOverrideTwoSided = false;
+	bool OverrideTwoSided = false;
+	bool bOverrideOpacityMaskClipValue = false;
+	double OverrideOpacityMaskClipValue = 0.0;
+};
+
+// FADumpNiagaraRendererResourceEvidence는 Renderer가 직접 소유·선택한 static asset resource 한 건을 표현한다.
+struct FADumpNiagaraRendererResourceEvidence
+{
+	FString StableKey;
+	FString OwnerStableKey;
+	FString ResourceKind;
+	FString ObjectPath;
+	FString ClassName;
+	FString ReferenceRole;
+	FString SlotName;
+	FString SourceProperty;
+	FString State = TEXT("complete");
+	FString Exactness = TEXT("exact");
+	FString Reason;
+		int32 SourceIndex = INDEX_NONE;
+	FADumpMaterialInstanceDetailEvidence MaterialInstanceDetail;
+};
+
 // FADumpNiagaraParameterEvidence는 Niagara parameter inventory 한 건을 표현한다.
 struct FADumpNiagaraParameterEvidence
 {
@@ -2005,7 +2109,8 @@ namespace ADumpNiagaraReason
 	inline constexpr const TCHAR* MaxResolutionSteps = TEXT("max_resolution_steps");
 	inline constexpr const TCHAR* MaxDataInterfaceProperties = TEXT("max_data_interface_properties");
 	inline constexpr const TCHAR* MaxStageAccesses = TEXT("max_stage_accesses");
-	inline constexpr const TCHAR* MaxRendererBindings = TEXT("max_renderer_bindings");
+		inline constexpr const TCHAR* MaxRendererBindings = TEXT("max_renderer_bindings");
+	inline constexpr const TCHAR* MaxRendererResources = TEXT("max_renderer_resources");
 	inline constexpr const TCHAR* MaxRelations = TEXT("max_relations");
 	inline constexpr const TCHAR* MaxDeepRelations = TEXT("max_deep_relations");
 	inline constexpr const TCHAR* MaxTotalRelations = TEXT("max_total_relations");
@@ -2028,7 +2133,8 @@ namespace ADumpNiagaraReason
 		MaxResolutionSteps,
 		MaxDataInterfaceProperties,
 		MaxStageAccesses,
-		MaxRendererBindings,
+				MaxRendererBindings,
+		MaxRendererResources,
 		MaxRelations,
 		MaxDeepRelations,
 		MaxTotalRelations,
@@ -2058,7 +2164,10 @@ struct FADumpNiagaraBounds
 	int32 OmittedModuleInputCount = 0;
 	int32 AvailableRendererCount = 0;
 	int32 IncludedRendererCount = 0;
-	int32 OmittedRendererCount = 0;
+		int32 OmittedRendererCount = 0;
+	int32 AvailableRendererResourceCount = 0;
+	int32 IncludedRendererResourceCount = 0;
+	int32 OmittedRendererResourceCount = 0;
 	int32 AvailableParameterCount = 0;
 	int32 IncludedParameterCount = 0;
 	int32 OmittedParameterCount = 0;
@@ -2114,7 +2223,9 @@ struct FADumpNiagaraEvidence
 	static constexpr int32 MaxExecutionGroups = 128;
 	static constexpr int32 MaxModules = 1024;
 	static constexpr int32 MaxModuleInputs = 4096;
-	static constexpr int32 MaxRenderers = 256;
+		static constexpr int32 MaxRenderers = 256;
+		static constexpr int32 MaxRendererResources = 1024;
+	static constexpr int32 MaxMaterialInstanceParameterOverrides = 512;
 	static constexpr int32 MaxParameters = 2048;
 	static constexpr int32 MaxBindings = 4096;
 	static constexpr int32 MaxDataInterfaces = 256;
@@ -2144,14 +2255,18 @@ struct FADumpNiagaraEvidence
 	FString State = TEXT("not_requested");
 	bool bDeepEvidenceRequested = false;
 	FString DeepState = TEXT("not_requested");
-	FString DeepReason;
+		FString DeepReason;
+	bool bMaterialEvidenceRequested = false;
+	FString MaterialState = TEXT("not_requested");
+	FString MaterialReason;
 	FADumpNiagaraBounds Bounds;
 	FADumpNiagaraSystemEvidence System;
 	TArray<FADumpNiagaraEmitterEvidence> Emitters;
 	TArray<FADumpNiagaraExecutionGroupEvidence> ExecutionGroups;
 	TArray<FADumpNiagaraModuleEvidence> Modules;
 	TArray<FADumpNiagaraInputEvidence> ModuleInputs;
-	TArray<FADumpNiagaraRendererEvidence> Renderers;
+		TArray<FADumpNiagaraRendererEvidence> Renderers;
+	TArray<FADumpNiagaraRendererResourceEvidence> RendererResources;
 	TArray<FADumpNiagaraParameterEvidence> Parameters;
 	TArray<FADumpNiagaraBindingEvidence> Bindings;
 	TArray<FADumpNiagaraDataInterfaceEvidence> DataInterfaces;

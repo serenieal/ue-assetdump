@@ -1,6 +1,7 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.23.0
+// Version: v0.24.0
 // Changelog:
+// - v0.24.0: P5-N1 niagara_material_evidence Profile과 Renderer Resource 기반 additive dependency_index hard-edge bridge를 추가.
 // - v0.23.0: P4-N1 niagara_deep_evidence Profile, exact entity_evidence mapping과 Sections > Intent > Profile precedence self-test를 추가.
 // - v0.22.3: asset_index_v1 available_sections가 full-mode placeholder를 실제 section으로 오인하지 않도록 실행 요청과 section schema 기준으로 교정.
 // - v0.22.2: BP_ADumpActorFixture에 실제 exec/data graph link와 duplicate Node GUID fallback 원본 증거를 idempotent하게 보장.
@@ -2764,7 +2765,7 @@ namespace
 	// GetValidProfileNamesText는 -Profile=에서 허용하는 정식 출력 프리셋 이름 목록을 반환한다.
 		FString GetValidProfileNamesText()
 	{
-		return TEXT("full,summary_only,digest_only,ai_context,niagara_deep_evidence");
+				return TEXT("full,summary_only,digest_only,ai_context,niagara_deep_evidence,niagara_material_evidence");
 	}
 
 	// TryResolveDumpSection은 정규화한 이름을 주요 JSON 섹션 값으로 변환한다.
@@ -2920,7 +2921,7 @@ namespace
 			OutSectionSelection.Enable(EADumpSection::Digest);
 			return true;
 		}
-		if (InProfileName == TEXT("niagara_deep_evidence"))
+				if (InProfileName == TEXT("niagara_deep_evidence") || InProfileName == TEXT("niagara_material_evidence"))
 		{
 			OutSectionSelection.Enable(EADumpSection::EntityEvidence);
 			return true;
@@ -9115,6 +9116,73 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(
 				SectionIndexSymbolObjectArray))
 			{
 				return false;
+			}
+		}
+
+				// Material profile의 typed Renderer Resource를 기존 dependency_index relation shape로 추가한다.
+		const FString MainDumpFileName = ResolveCommandletMainDumpFileName(
+			RunObject,
+			GetCommandletStringArrayField(ManifestRootObject, TEXT("generated_files")));
+		const FString MainDumpFilePath = MainDumpFileName.IsEmpty()
+			? FString()
+			: FPaths::Combine(DumpDirectoryPath, MainDumpFileName);
+		TSharedPtr<FJsonObject> MainDumpRootObject;
+		if (!MainDumpFilePath.IsEmpty()
+			&& IFileManager::Get().FileExists(*MainDumpFilePath)
+			&& LoadCommandletJsonObjectFromFile(MainDumpFilePath, MainDumpRootObject))
+		{
+			const TSharedPtr<FJsonObject> EntityEvidenceObject = GetCommandletNestedObjectField(MainDumpRootObject, TEXT("entity_evidence"));
+			if (GetCommandletStringFieldOrEmpty(EntityEvidenceObject, TEXT("adapter_profile")) == TEXT("niagara_material_v1"))
+			{
+				const TArray<TSharedPtr<FJsonValue>>* EntityValueArray = nullptr;
+				if (EntityEvidenceObject.IsValid()
+					&& EntityEvidenceObject->TryGetArrayField(TEXT("entities"), EntityValueArray)
+					&& EntityValueArray)
+				{
+					const FString SourceFileText = MakeCommandletDumpRootRelativePath(MainDumpFilePath, NormalizedDumpRootPath);
+					for (int32 EntityIndex = 0; EntityIndex < EntityValueArray->Num(); ++EntityIndex)
+					{
+						const TSharedPtr<FJsonValue>& EntityValue = (*EntityValueArray)[EntityIndex];
+						const TSharedPtr<FJsonObject> EntityObject = EntityValue.IsValid() ? EntityValue->AsObject() : nullptr;
+						if (GetCommandletStringFieldOrEmpty(EntityObject, TEXT("entity_kind")) != TEXT("niagara_renderer_resource"))
+						{
+							continue;
+						}
+
+						const TSharedPtr<FJsonObject> FacetsObject = GetCommandletNestedObjectField(EntityObject, TEXT("facets"));
+						const TSharedPtr<FJsonObject> ResourceFacetObject = GetCommandletNestedObjectField(FacetsObject, TEXT("niagara_renderer_resource"));
+						const TSharedPtr<FJsonObject> ResourceDataObject = GetCommandletNestedObjectField(ResourceFacetObject, TEXT("data"));
+						const FString TargetPathText = GetCommandletStringFieldOrEmpty(ResourceDataObject, TEXT("object_path"));
+						const FString ReasonText = GetCommandletStringFieldOrEmpty(ResourceDataObject, TEXT("reference_role"));
+						if (!TargetPathText.StartsWith(TEXT("/"))
+							|| (ReasonText != TEXT("renderer_material") && ReasonText != TEXT("renderer_mesh")))
+						{
+							continue;
+						}
+
+						const FString SourcePathText = SourceFileText + FString::Printf(TEXT("#/entity_evidence/entities/%d"), EntityIndex);
+						const FString RelationUniqueKey = FString::Printf(
+							TEXT("%s|%s|%s|hard|%s"),
+							*ObjectPathText,
+							*TargetPathText,
+							*ReasonText,
+							*SourcePathText);
+						if (UniqueRelationKeys.Contains(RelationUniqueKey))
+						{
+							continue;
+						}
+						UniqueRelationKeys.Add(RelationUniqueKey);
+
+						TSharedRef<FJsonObject> RelationEntryObject = MakeShared<FJsonObject>();
+						RelationEntryObject->SetStringField(TEXT("from"), ObjectPathText);
+						RelationEntryObject->SetStringField(TEXT("to"), TargetPathText);
+						RelationEntryObject->SetStringField(TEXT("reason"), ReasonText);
+						RelationEntryObject->SetStringField(TEXT("strength"), TEXT("hard"));
+						RelationEntryObject->SetStringField(TEXT("source_kind"), TEXT("entity_evidence"));
+						RelationEntryObject->SetStringField(TEXT("source_path"), SourcePathText);
+						RelationEntryArray.Add(MakeShared<FJsonValueObject>(RelationEntryObject));
+					}
+				}
 			}
 		}
 

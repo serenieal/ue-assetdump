@@ -1,6 +1,7 @@
 // File: ADumpEntityQuery.cpp
-// Version: v1.4.0
+// Version: v1.5.0
 // Changelog:
+// - v1.5.0: P5-N1 niagara_material_v1 19/12 adapter registry와 loaded-index source validation을 추가.
 // - v1.4.0: P4-N1 niagara_deep_v1 adapter profile, 18/12 source registry와 loaded-index query compatibility를 추가.
 // - v1.3.1: EntityKinds/RelationKinds/Facets comma-list option이 separator에서 잘리지 않도록 전체 token을 파싱.
 // - v1.3.0: filtered expand Relation endpoint 폐쇄성과 MaxRelations/MaxBytes cursor 전진 불변조건을 보장.
@@ -372,10 +373,15 @@ namespace
 			EntityRegistry = &ADumpEntityEvidence::GetNiagaraEntityKindRegistry();
 			RelationRegistry = &ADumpEntityEvidence::GetNiagaraRelationKindRegistry();
 		}
-		else if (InAdapterProfile == TEXT("niagara_deep_v1"))
+				else if (InAdapterProfile == TEXT("niagara_deep_v1"))
 		{
 			EntityRegistry = &ADumpEntityEvidence::GetNiagaraDeepEntityKindRegistry();
 			RelationRegistry = &ADumpEntityEvidence::GetNiagaraDeepRelationKindRegistry();
+		}
+		else if (InAdapterProfile == TEXT("niagara_material_v1"))
+		{
+			EntityRegistry = &ADumpEntityEvidence::GetNiagaraMaterialEntityKindRegistry();
+			RelationRegistry = &ADumpEntityEvidence::GetNiagaraMaterialRelationKindRegistry();
 		}
 		else
 		{
@@ -1011,16 +1017,20 @@ namespace ADumpEntityQuery
 				return Fail(TEXT("ADUMP_ENTITY_INDEX_SCHEMA_UNSUPPORTED"), FString::Printf(TEXT("Unsupported entity evidence adapter profile in: %s"), *DumpFilePath));
 			}
 			bSawEntityEvidence = true;
-						const TArray<FString>& SourceEntityRegistry = AdapterProfile == TEXT("niagara_deep_v1")
-				? ADumpEntityEvidence::GetNiagaraDeepEntityKindRegistry()
-				: (AdapterProfile == TEXT("niagara_mvp_v1")
-					? ADumpEntityEvidence::GetNiagaraEntityKindRegistry()
-					: ADumpEntityEvidence::GetEntityKindRegistry());
-			const TArray<FString>& SourceRelationRegistry = AdapterProfile == TEXT("niagara_deep_v1")
-				? ADumpEntityEvidence::GetNiagaraDeepRelationKindRegistry()
-				: (AdapterProfile == TEXT("niagara_mvp_v1")
-					? ADumpEntityEvidence::GetNiagaraRelationKindRegistry()
-					: ADumpEntityEvidence::GetRelationKindRegistry());
+									const TArray<FString>& SourceEntityRegistry = AdapterProfile == TEXT("niagara_material_v1")
+				? ADumpEntityEvidence::GetNiagaraMaterialEntityKindRegistry()
+				: (AdapterProfile == TEXT("niagara_deep_v1")
+					? ADumpEntityEvidence::GetNiagaraDeepEntityKindRegistry()
+					: (AdapterProfile == TEXT("niagara_mvp_v1")
+						? ADumpEntityEvidence::GetNiagaraEntityKindRegistry()
+						: ADumpEntityEvidence::GetEntityKindRegistry()));
+			const TArray<FString>& SourceRelationRegistry = AdapterProfile == TEXT("niagara_material_v1")
+				? ADumpEntityEvidence::GetNiagaraMaterialRelationKindRegistry()
+				: (AdapterProfile == TEXT("niagara_deep_v1")
+					? ADumpEntityEvidence::GetNiagaraDeepRelationKindRegistry()
+					: (AdapterProfile == TEXT("niagara_mvp_v1")
+						? ADumpEntityEvidence::GetNiagaraRelationKindRegistry()
+						: ADumpEntityEvidence::GetRelationKindRegistry()));
 
 			const TSharedPtr<FJsonObject> EvidenceAsset = GetObjectField(EvidenceRoot, TEXT("asset"));
 			const FString ObjectPath = GetStringField(EvidenceAsset, TEXT("object_path"));

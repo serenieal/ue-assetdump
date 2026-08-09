@@ -1,6 +1,8 @@
 // File: ADumpNiagara.cpp
-// Version: v0.6.0
+// Version: v0.8.0
 // Changelog:
+// - v0.8.0: P5-MI v1 Renderer-owned Material Instance의 immediate parent, direct scalar/vector/texture/static-switch override와 effective/base properties를 bounded 관측.
+// - v0.7.0: P5-N1 Sprite/Ribbon Material, Mesh used-mesh와 explicit Material override를 Renderer-owned typed resource로 bounded 관측.
 // - v0.6.0: P4-N3 source type mismatch, resolution/Dynamic Input cycle와 depth/children/step/stage-access bounds의 canonical observation reason을 구현.
 // - v0.5.0: P4-N2 Rapid Iteration, Dynamic Input, Static Switch, Module Output, parameter access와 DI/stage/renderer Deep native observation을 구현.
 // - v0.4.0: P4-N1 exact Deep activation을 typed evidence에 기록하고 P4-N2 미착수 capability를 unavailable로 fail-closed 공개.
@@ -9,6 +11,7 @@
 // - v0.1.1: P2-N1에서 세부 emitter를 아직 투영하지 않는 non-empty System을 partial/omitted evidence로 명시.
 // - v0.1.0: UNiagaraSystem 타입, System Spawn/Update script와 emitter count의 P2-N1 typed observation을 구현.
 // Migration:
+// - P5-MI v1은 UMaterialInstance public typed data만 읽고 inherited/effective 값과 direct override를 분리하며 usage mutation API는 호출하지 않는다.
 // - P2-N2는 직접 관측한 identity, source order, pin link와 parameter store만 기록한다.
 // - P4-N2는 직접 관측된 graph/store/property endpoint만 기록하며 선택 branch, runtime value와 미관측 terminal source를 추론하지 않는다.
 // - P4-N3 production reachability: max_dynamic_depth, max_dynamic_input_children, max_resolution_steps,
@@ -26,6 +29,11 @@
 #include "NiagaraNodeFunctionCall.h"
 #include "NiagaraParameterStore.h"
 #include "NiagaraRendererProperties.h"
+#include "NiagaraSpriteRendererProperties.h"
+#include "NiagaraRibbonRendererProperties.h"
+#include "NiagaraMeshRendererProperties.h"
+#include "Materials/MaterialInstance.h"
+#include "StaticParameterSet.h"
 #include "NiagaraScript.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraSimulationStageBase.h"
@@ -73,7 +81,152 @@ namespace
 		return InValue;
 	}
 
-			bool IsParameterMapPin(const UEdGraphPin* InPin);
+				// MaterialParameterAssociationText는 layer-aware parameter association을 stable lower text로 만든다.
+	FString MaterialParameterAssociationText(EMaterialParameterAssociation InAssociation)
+	{
+		switch (InAssociation)
+		{
+		case EMaterialParameterAssociation::LayerParameter: return TEXT("layer");
+		case EMaterialParameterAssociation::BlendParameter: return TEXT("blend");
+		case EMaterialParameterAssociation::GlobalParameter: return TEXT("global");
+		default: return FString::FromInt(static_cast<int32>(InAssociation));
+		}
+	}
+
+	// MakeMaterialParameterIdentityEvidence는 public Material parameter identity를 AssetDump 문자열/값 contract로 격리한다.
+	FADumpMaterialParameterIdentityEvidence MakeMaterialParameterIdentityEvidence(const FMaterialParameterInfo& InInfo, const FGuid& InExpressionGuid)
+	{
+		FADumpMaterialParameterIdentityEvidence Identity;
+		Identity.ParameterName = InInfo.Name.ToString();
+		Identity.Association = MaterialParameterAssociationText(InInfo.Association);
+		Identity.Index = InInfo.Index;
+		Identity.ExpressionGuid = GuidText(InExpressionGuid);
+		return Identity;
+	}
+
+	// MaterialParameterIdentitySortKey는 direct override array의 canonical order를 고정한다.
+	FString MaterialParameterIdentitySortKey(const FADumpMaterialParameterIdentityEvidence& InIdentity)
+	{
+		return FString::Printf(TEXT("%s|%s|%010d|%s"), *InIdentity.Association, *InIdentity.ParameterName, InIdentity.Index, *InIdentity.ExpressionGuid);
+	}
+
+	// AddMaterialInstanceOverrideBounded는 category별 direct override를 독립 512 cap으로 제한한다.
+	template <typename ItemType>
+	void AddMaterialInstanceOverrideBounded(
+		TArray<ItemType>& OutItems,
+		ItemType&& InItem,
+		int32& InOutAvailableCount,
+		int32& InOutOmittedCount,
+		FADumpMaterialInstanceDetailEvidence& InOutDetail)
+	{
+		++InOutAvailableCount;
+		if (OutItems.Num() < FADumpNiagaraEvidence::MaxMaterialInstanceParameterOverrides)
+		{
+			OutItems.Add(MoveTemp(InItem));
+			return;
+		}
+		++InOutOmittedCount;
+		InOutDetail.State = TEXT("truncated");
+		InOutDetail.Reason = TEXT("max_material_instance_parameter_overrides");
+	}
+
+	// ReflectedEnumValueText는 UENUM 값을 stable name으로 직렬화한다.
+	template <typename EnumType>
+	FString ReflectedEnumValueText(EnumType InValue)
+	{
+		if (const UEnum* Enum = StaticEnum<EnumType>())
+		{
+			return Enum->GetNameStringByValue(static_cast<int64>(InValue));
+		}
+		return FString::FromInt(static_cast<int32>(InValue));
+	}
+
+	// ObserveMaterialInstanceDetail은 UMaterialInstance public typed data에서 direct detail만 fail-closed 관측한다.
+	void ObserveMaterialInstanceDetail(UMaterialInstance* InMaterialInstance, FADumpMaterialInstanceDetailEvidence& OutDetail)
+	{
+		if (!InMaterialInstance)
+		{
+			return;
+		}
+		OutDetail.bAvailable = true;
+		if (UMaterialInterface* Parent = InMaterialInstance->Parent.Get())
+		{
+			OutDetail.ParentState = Parent->IsAsset() && Parent->GetPathName().StartsWith(TEXT("/")) ? TEXT("complete") : TEXT("unavailable");
+			OutDetail.ParentObjectPath = Parent->GetPathName();
+			OutDetail.ParentClassName = Parent->GetClass()->GetName();
+			OutDetail.ParentResourceKind = Parent->IsA<UMaterialInstance>() ? TEXT("material_instance") : TEXT("material");
+		}
+
+		OutDetail.EffectiveBlendMode = ReflectedEnumValueText(InMaterialInstance->GetBlendMode());
+		OutDetail.bEffectiveTwoSided = InMaterialInstance->IsTwoSided();
+		OutDetail.EffectiveOpacityMaskClipValue = InMaterialInstance->GetOpacityMaskClipValue();
+
+		const FMaterialInstanceBasePropertyOverrides& BaseOverrides = InMaterialInstance->BasePropertyOverrides;
+		OutDetail.bOverrideBlendMode = BaseOverrides.bOverride_BlendMode != 0;
+		if (OutDetail.bOverrideBlendMode) OutDetail.OverrideBlendMode = ReflectedEnumValueText(static_cast<EBlendMode>(BaseOverrides.BlendMode));
+		OutDetail.bOverrideShadingModel = BaseOverrides.bOverride_ShadingModel != 0;
+		if (OutDetail.bOverrideShadingModel) OutDetail.OverrideShadingModel = ReflectedEnumValueText(static_cast<EMaterialShadingModel>(BaseOverrides.ShadingModel));
+		OutDetail.bOverrideTwoSided = BaseOverrides.bOverride_TwoSided != 0;
+		if (OutDetail.bOverrideTwoSided) OutDetail.OverrideTwoSided = BaseOverrides.TwoSided != 0;
+		OutDetail.bOverrideOpacityMaskClipValue = BaseOverrides.bOverride_OpacityMaskClipValue != 0;
+		if (OutDetail.bOverrideOpacityMaskClipValue) OutDetail.OverrideOpacityMaskClipValue = BaseOverrides.OpacityMaskClipValue;
+
+		for (const FScalarParameterValue& Parameter : InMaterialInstance->ScalarParameterValues)
+		{
+			if (!Parameter.IsOverride()) continue;
+			FADumpMaterialScalarOverrideEvidence Item;
+			Item.Identity = MakeMaterialParameterIdentityEvidence(Parameter.ParameterInfo, Parameter.ExpressionGUID);
+			Item.Value = Parameter.ParameterValue;
+			AddMaterialInstanceOverrideBounded(OutDetail.ScalarOverrides, MoveTemp(Item), OutDetail.AvailableScalarOverrideCount, OutDetail.OmittedScalarOverrideCount, OutDetail);
+		}
+		for (const FVectorParameterValue& Parameter : InMaterialInstance->VectorParameterValues)
+		{
+			if (!Parameter.IsOverride()) continue;
+			FADumpMaterialVectorOverrideEvidence Item;
+			Item.Identity = MakeMaterialParameterIdentityEvidence(Parameter.ParameterInfo, Parameter.ExpressionGUID);
+			Item.R = Parameter.ParameterValue.R;
+			Item.G = Parameter.ParameterValue.G;
+			Item.B = Parameter.ParameterValue.B;
+			Item.A = Parameter.ParameterValue.A;
+			AddMaterialInstanceOverrideBounded(OutDetail.VectorOverrides, MoveTemp(Item), OutDetail.AvailableVectorOverrideCount, OutDetail.OmittedVectorOverrideCount, OutDetail);
+		}
+		for (const FTextureParameterValue& Parameter : InMaterialInstance->TextureParameterValues)
+		{
+			if (!Parameter.IsOverride()) continue;
+			FADumpMaterialTextureOverrideEvidence Item;
+			Item.Identity = MakeMaterialParameterIdentityEvidence(Parameter.ParameterInfo, Parameter.ExpressionGUID);
+			if (UTexture* Texture = Parameter.ParameterValue.Get())
+			{
+				Item.bHasValue = true;
+				Item.ObjectPath = Texture->GetPathName();
+				Item.ClassName = Texture->GetClass()->GetName();
+			}
+			AddMaterialInstanceOverrideBounded(OutDetail.TextureOverrides, MoveTemp(Item), OutDetail.AvailableTextureOverrideCount, OutDetail.OmittedTextureOverrideCount, OutDetail);
+		}
+		const FStaticParameterSet StaticParameters = InMaterialInstance->GetStaticParameters();
+		for (const FStaticSwitchParameter& Parameter : StaticParameters.StaticSwitchParameters)
+		{
+			if (!Parameter.bOverride) continue;
+			FADumpMaterialStaticSwitchOverrideEvidence Item;
+			Item.Identity = MakeMaterialParameterIdentityEvidence(Parameter.ParameterInfo, Parameter.ExpressionGUID);
+			Item.bValue = Parameter.Value;
+			AddMaterialInstanceOverrideBounded(OutDetail.StaticSwitchOverrides, MoveTemp(Item), OutDetail.AvailableStaticSwitchOverrideCount, OutDetail.OmittedStaticSwitchOverrideCount, OutDetail);
+		}
+
+		auto SortByIdentity = [](auto& Items)
+		{
+			Items.Sort([](const auto& Left, const auto& Right)
+			{
+				return MaterialParameterIdentitySortKey(Left.Identity) < MaterialParameterIdentitySortKey(Right.Identity);
+			});
+		};
+		SortByIdentity(OutDetail.ScalarOverrides);
+		SortByIdentity(OutDetail.VectorOverrides);
+		SortByIdentity(OutDetail.TextureOverrides);
+		SortByIdentity(OutDetail.StaticSwitchOverrides);
+	}
+
+	bool IsParameterMapPin(const UEdGraphPin* InPin);
 
 	// GetObservedPinTypeIdentity는 직접 관측한 graph pin type identity를 안정 문자열로 만든다.
 	FString GetObservedPinTypeIdentity(const UEdGraphPin* InPin)
@@ -1178,7 +1331,8 @@ namespace
 		OutEvidence.Bounds.IncludedExecutionGroupCount = OutEvidence.ExecutionGroups.Num();
 		OutEvidence.Bounds.IncludedModuleCount = OutEvidence.Modules.Num();
 		OutEvidence.Bounds.IncludedModuleInputCount = OutEvidence.ModuleInputs.Num();
-		OutEvidence.Bounds.IncludedRendererCount = OutEvidence.Renderers.Num();
+				OutEvidence.Bounds.IncludedRendererCount = OutEvidence.Renderers.Num();
+		OutEvidence.Bounds.IncludedRendererResourceCount = OutEvidence.RendererResources.Num();
 		OutEvidence.Bounds.IncludedParameterCount = OutEvidence.Parameters.Num();
 		OutEvidence.Bounds.IncludedBindingCount = OutEvidence.Bindings.Num();
 		OutEvidence.Bounds.IncludedDataInterfaceCount = OutEvidence.DataInterfaces.Num();
@@ -1238,7 +1392,8 @@ namespace
 			+ OutEvidence.Bounds.OmittedExecutionGroupCount
 			+ OutEvidence.Bounds.OmittedModuleCount
 			+ OutEvidence.Bounds.OmittedModuleInputCount
-			+ OutEvidence.Bounds.OmittedRendererCount
+						+ OutEvidence.Bounds.OmittedRendererCount
+			+ OutEvidence.Bounds.OmittedRendererResourceCount
 			+ OutEvidence.Bounds.OmittedParameterCount
 			+ OutEvidence.Bounds.OmittedBindingCount
 			+ OutEvidence.Bounds.OmittedDataInterfaceCount
@@ -1259,9 +1414,10 @@ namespace
 
 namespace ADumpNiagara
 {
-		bool ExtractNiagaraEvidence(
+			bool ExtractNiagaraEvidence(
 		const FString& InAssetObjectPath,
 		bool bInDeepEvidenceRequested,
+		bool bInMaterialEvidenceRequested,
 		FADumpNiagaraEvidence& OutEvidence,
 		TArray<FADumpIssue>& OutIssues)
 	{
@@ -1269,8 +1425,11 @@ namespace ADumpNiagara
 		OutEvidence.SchemaVersion = TEXT("niagara_native_evidence_v1");
 		OutEvidence.State = TEXT("unsupported");
 		OutEvidence.bDeepEvidenceRequested = bInDeepEvidenceRequested;
-				OutEvidence.DeepState = bInDeepEvidenceRequested ? TEXT("unavailable") : TEXT("not_requested");
+		OutEvidence.DeepState = bInDeepEvidenceRequested ? TEXT("unavailable") : TEXT("not_requested");
 		OutEvidence.DeepReason.Reset();
+		OutEvidence.bMaterialEvidenceRequested = bInMaterialEvidenceRequested;
+		OutEvidence.MaterialState = bInMaterialEvidenceRequested ? TEXT("complete") : TEXT("not_requested");
+		OutEvidence.MaterialReason.Reset();
 
 		UObject* LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *InAssetObjectPath);
 		if (!LoadedObject)
@@ -1493,6 +1652,105 @@ namespace ADumpNiagara
 						}
 					}
 				}
+								if (bInMaterialEvidenceRequested && OutEvidence.Renderers.Num() < FADumpNiagaraEvidence::MaxRenderers)
+				{
+					auto AddRendererResource = [&OutEvidence, &RendererEvidence](
+												UObject* InResourceObject,
+						const FString& InResourceKind,
+						const FString& InReferenceRole,
+						const FString& InSourceProperty,
+						int32 InSourceIndex)
+					{
+						if (!InResourceObject || !InResourceObject->IsAsset())
+						{
+							return;
+						}
+
+						FADumpNiagaraRendererResourceEvidence Resource;
+						Resource.OwnerStableKey = RendererEvidence.StableKey;
+						Resource.ResourceKind = InResourceKind == TEXT("material") && InResourceObject->IsA<UMaterialInstance>()
+							? TEXT("material_instance")
+							: InResourceKind;
+						Resource.ObjectPath = InResourceObject->GetPathName();
+						if (!Resource.ObjectPath.StartsWith(TEXT("/")))
+						{
+							return;
+						}
+						Resource.ClassName = InResourceObject->GetClass()->GetName();
+						Resource.ReferenceRole = InReferenceRole;
+												Resource.SourceProperty = InSourceProperty;
+						Resource.SourceIndex = InSourceIndex;
+						if (UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(InResourceObject))
+						{
+							ObserveMaterialInstanceDetail(MaterialInstance, Resource.MaterialInstanceDetail);
+						}
+						Resource.StableKey = FString::Printf(
+							TEXT("niagara_renderer_resource:%s#%s:%d:%s"),
+							*MakeStableToken(RendererEvidence.StableKey),
+							*MakeStableToken(Resource.ResourceKind),
+							InSourceIndex,
+							*MakeStableToken(Resource.ObjectPath));
+						const bool bIncluded = AddBounded(
+							OutEvidence.RendererResources,
+							MoveTemp(Resource),
+							FADumpNiagaraEvidence::MaxRendererResources,
+							OutEvidence.Bounds.AvailableRendererResourceCount,
+							OutEvidence.Bounds.OmittedRendererResourceCount,
+							OutEvidence,
+							ADumpNiagaraReason::MaxRendererResources);
+						if (!bIncluded)
+						{
+							OutEvidence.MaterialState = TEXT("truncated");
+							OutEvidence.MaterialReason = ADumpNiagaraReason::MaxRendererResources;
+						}
+					};
+
+					if (const UNiagaraSpriteRendererProperties* SpriteRenderer = Cast<UNiagaraSpriteRendererProperties>(Renderer))
+					{
+						AddRendererResource(
+							SpriteRenderer->Material.Get(),
+							TEXT("material"),
+							TEXT("renderer_material"),
+							TEXT("UNiagaraSpriteRendererProperties::Material"),
+							0);
+					}
+					else if (const UNiagaraRibbonRendererProperties* RibbonRenderer = Cast<UNiagaraRibbonRendererProperties>(Renderer))
+					{
+						AddRendererResource(
+							RibbonRenderer->Material.Get(),
+							TEXT("material"),
+							TEXT("renderer_material"),
+							TEXT("UNiagaraRibbonRendererProperties::Material"),
+							0);
+					}
+					else if (const UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(Renderer))
+					{
+						TArray<UObject*> UsedMeshes;
+						MeshRenderer->GetUsedMeshes(nullptr, UsedMeshes);
+						for (int32 UsedMeshIndex = 0; UsedMeshIndex < UsedMeshes.Num(); ++UsedMeshIndex)
+						{
+							AddRendererResource(
+								UsedMeshes[UsedMeshIndex],
+								TEXT("mesh"),
+								TEXT("renderer_mesh"),
+								TEXT("UNiagaraMeshRendererProperties::GetUsedMeshes"),
+								UsedMeshIndex);
+						}
+						if (MeshRenderer->bOverrideMaterials)
+						{
+							for (int32 OverrideIndex = 0; OverrideIndex < MeshRenderer->OverrideMaterials.Num(); ++OverrideIndex)
+							{
+								AddRendererResource(
+									MeshRenderer->OverrideMaterials[OverrideIndex].ExplicitMat.Get(),
+									TEXT("material"),
+									TEXT("renderer_material"),
+									TEXT("UNiagaraMeshRendererProperties::OverrideMaterials[].ExplicitMat"),
+									UsedMeshes.Num() + OverrideIndex);
+							}
+						}
+					}
+				}
+
 				AddBounded(
 					OutEvidence.Renderers,
 					MoveTemp(RendererEvidence),

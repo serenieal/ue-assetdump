@@ -1,6 +1,7 @@
 // File: ADumpService.cpp
-// Version: v0.14.0
+// Version: v0.15.0
 // Changelog:
+// - v0.15.0: P5-N1 niagara_material_evidence exact profile activation을 추가하고 Material profile을 Deep superset extraction으로 연결.
 // - v0.14.0: P4-N1 Deep activation을 Profile=niagara_deep_evidence + section_source=profile + exact entity_evidence selection으로 제한.
 // - v0.13.0: explicit entity_evidence 요청에서 Niagara typed evidence extractor를 실행.
 // Migration:
@@ -181,10 +182,21 @@ namespace
 	}
 
 		// IsNiagaraDeepEvidenceRequest는 Accepted P4 revised contract의 exact activation predicate를 검사한다.
-	bool IsNiagaraDeepEvidenceRequest(const FADumpRequestInfo& InRequest)
+		bool IsNiagaraDeepEvidenceRequest(const FADumpRequestInfo& InRequest)
 	{
 		const TArray<FString> EnabledSections = InRequest.SectionSelection.GetEnabledNames();
 		return InRequest.Profile == TEXT("niagara_deep_evidence")
+			&& InRequest.SectionSource == TEXT("profile")
+			&& InRequest.SectionSelection.bIsExplicit
+			&& EnabledSections.Num() == 1
+			&& EnabledSections[0] == TEXT("entity_evidence");
+	}
+
+	// IsNiagaraMaterialEvidenceRequest는 P5 Material profile의 fail-closed exact activation predicate를 검사한다.
+	bool IsNiagaraMaterialEvidenceRequest(const FADumpRequestInfo& InRequest)
+	{
+		const TArray<FString> EnabledSections = InRequest.SectionSelection.GetEnabledNames();
+		return InRequest.Profile == TEXT("niagara_material_evidence")
 			&& InRequest.SectionSource == TEXT("profile")
 			&& InRequest.SectionSelection.bIsExplicit
 			&& EnabledSections.Num() == 1
@@ -737,9 +749,10 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 
 				if (!ActiveRunOpts.SectionSelection.IsFullMode()
 			&& ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::EntityEvidence)
-			&& !ADumpNiagara::ExtractNiagaraEvidence(
+						&& !ADumpNiagara::ExtractNiagaraEvidence(
 				ActiveRunOpts.AssetObjectPath,
-				IsNiagaraDeepEvidenceRequest(ActiveResult.Request),
+				IsNiagaraDeepEvidenceRequest(ActiveResult.Request) || IsNiagaraMaterialEvidenceRequest(ActiveResult.Request),
+				IsNiagaraMaterialEvidenceRequest(ActiveResult.Request),
 				ActiveResult.NiagaraEvidence,
 				ActiveResult.Issues))
 		{
