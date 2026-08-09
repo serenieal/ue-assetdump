@@ -1,22 +1,42 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.91
-- 최근 갱신일: 2026-08-07
-- 문서 상태: Current / P4-N4 P4_N4_PASS / Revised Exact 40 40 PASS / 0 FAIL
+- 문서 버전: v1.96
+- 최근 갱신일: 2026-08-10
+- 문서 상태: Current / Phase 5 Completed / Accepted / AIRE-G6 Not Started
 
-## Current Index Override — 2026-08-07
+## Current Index Override — 2026-08-10
 
-- `AIResourceEvidencePlan.md` v1.31: P4-N4 terminal closure와 후속 Phase routing.
+- `AIREPhase5Plan_v1.md` v1.2: authoritative Phase 5 `Completed / Accepted` contract와 P5-N0~N4, P5-ID-GATE, P5-MI closure evidence.
+- `AIREP5N0Result.md` v1.0: historical authoritative `P5_N0_GO_PUBLIC_API` spike result; unchanged.
+- `AIResourceEvidencePlan.md` v1.35: Phase 5 closure와 AIRE-G6 separate-gate routing.
+- `AIResourceEvidenceRoadmap_v1.md` v1.33: Phase 5 `Completed / Accepted`, AIRE-G6 `Not Started / Not Authorized`.
+- `AIResourceEvidenceConsumerValidation_v1.md` v1.23: P5-ID/P5-MI validation closure와 historical G5 preservation.
+- `AIResourceEvidenceG5Plan.md` v1.1: exercised historical CarFight real-project validation contract; unchanged.
+- `AIResourceEvidenceG5Result.md` v1.1: `FAILED_REAL_PROJECT_EVIDENCE` classification preserved; Phase 5 successor resolution follow-up added without reclassification.
 - `AIResourceEvidencePhase4Plan_v1.md` v1.20: r4 revised exact 40 `P4_N4_PASS / 40 of 40` closure.
-- `AIResourceEvidencePhase4P4N4ControlledConsumerAuthorizationReview.md` v1.0: original authorization exercised / historical execution boundary.
-- `AIResourceEvidencePhase4P4N4AuthorizationRevision.md` v1.0: revised execution contract v1.1 / 31 satisfiable + 9 corrected predicates / Exercised.
 - `AIREP4N4Result.md` v1.4: authoritative `P4_N4_PASS / r4 40 PASS / 0 FAIL / protection PASS` result.
-- `AIResourceEvidenceP4N4FXReport.md` v1.0: accepted Evidence-ID FX report.
-- `AIResourceEvidenceP4N4Acceptance.json`: machine-readable P4-N4 Consumer acceptance.
-- `AIREP4N3Result.md` v2.0: authoritative `P4_N3_PASS / 60 of 60 / failure_count=0 / protection PASS` result.
-- `AIREP4N2SourceResult.md` v1.0: authoritative `P4_N2_SOURCE_PASS / failure_count=0` result.
-- `AIREP4N2ContentResult.md` v1.0: authoritative `P4_N2_CONTENT_PASS / Exact 17 Accepted` result.
-- P4-N4는 Closed다. 다음 Gate는 별도 승인된 AIRE-G5 Real Project Acceptance 또는 AIRE-G6 Release Hardening이며 자동 시작하지 않는다.
+- Phase 5 authoritative closure: P5-N3 `24/24`, P5-N4 `RP 12/12 + Native 12/12 + Provider 20/20`, P5-ID-GATE `PASS`, P5-MI real-project/static-switch/post-regression `PASS`.
+- Historical AIRE-G5 remains `FAILED_REAL_PROJECT_EVIDENCE`; Phase 5 resolves that gap prospectively and does not rewrite the historical result.
+- AIRE-G6 remains `Not Started / Not Authorized`; no new build/runtime validation was executed for this document closure.
+
+### v1.96 Changelog / Migration
+
+- Plan index를 P5-N0 authorization 후보에서 Phase 5 `Completed / Accepted` closure로 전환했다.
+- P5-MI static-switch positive proof와 post-MI F01-F24 24/24 authoritative evidence route를 추가했다.
+- G5 historical classification과 AIRE-G6 미착수 상태를 명시적으로 보존했다.
+
+### v1.93 Changelog / Migration
+
+- actual CarFight `NS_AOE_Explosion_1` G5 execution과 `FAILED_REAL_PROJECT_EVIDENCE`를 Current index에 반영했다.
+- G5 Result v1.0의 renderer Material/Mesh dependency coverage gap과 secondary GoPyMCP protection failure를 등록했다.
+- Phase 5 Material Evidence Adapter를 Planning Candidate / Not Authorized로 라우팅했다.
+- success-only G5 FX Report/Acceptance는 생성하지 않았고 AIRE-G6는 Not Authorized로 유지했다.
+
+### v1.92 Changelog / Migration
+
+- P4-N4를 Closed/PASS로 유지하면서 사용자 승인에 따라 AIRE-G5 Real Project Acceptance를 활성화했다.
+- `AIResourceEvidenceG5Plan.md` v1.0과 selected CarFight `NS_AOE_Explosion_1`을 Current index에 등록했다.
+- G5는 validation-only로 시작하고 Product implementation 및 AIRE-G6를 Not Authorized로 유지했다.
 
 ### v1.91 Changelog / Migration
 
@@ -76,7 +96,7 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 | `P1ARuntimeVerificationAudit.md` | `P1A Plugin Runtime Contract Accepted / Host Invariance Pending` | Codex strict 결과, v1.6.1 diff, regression blocker와 Host binary attribution 감사 | `P1ARuntimeVerificationAudit.md` |
 | `P1BRuntimeVerificationCodexWorkOrder.md` | `Executed / Browser Scoped Audit Accepted` | P1B parser·self-test·Plugin isolation·restoration과 Project routing 증거 실행 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | `P2ABuildPluginVerificationWorkOrder.md` | `Superseded / Historical P2A-1 Contract` | Phase 묶음 도입 전 P2A-1 단독 실행 계약 이력 | `P2ABuildPluginVerificationWorkOrder.md` |
-| `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / P4-N4 Closed / P4_N4_PASS` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
+| `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / Phase 5 Completed / Accepted / AIRE-G6 Not Started` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
 | `AIREP3ProviderReady.md` | `ADUMP-v1.2.0-AIRE-P3-PR / Completed / Provider Ready / Classification A` | managed partial dataset 진단, fresh Niagara asset/entity index와 query closure 및 GoPyMCP handoff 증거 | `AIREP3ProviderReady.md` |
 | `AIResourceEvidencePhase3Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P3 / Completed / AIRE-G3+G4 Passed / Consumer Workflow Accepted` | Browser-only evidence tool, actual transport, native equality와 Golden Consumer Journey 완료 계약 | `AIResourceEvidencePhase3Plan_v1.md` |
 | `AIResourceEvidenceG4Result.md` | `ADUMP-v1.2.0-AIRE-P3-G4 / Completed / AIRE-G4 Passed` | 12/12 actual public call, continuation, context chain, reports와 final acceptance | `AIResourceEvidenceG4Result.md` |

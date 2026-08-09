@@ -1,10 +1,91 @@
 # AI Resource Evidence Plan
 
-- 문서 버전: v1.31
-- 최근 갱신일: 2026-08-07
-- 문서 상태: Current / P4-N4 Closed / P4_N4_PASS / r4 40 PASS / 0 FAIL
+- 문서 버전: v1.35
+- 최근 갱신일: 2026-08-10
+- 문서 상태: Current / Phase 5 Completed / Accepted / AIRE-G6 Not Started
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
 - 역할: AI가 UE 리소스를 실제로 탐색·조회·사용할 수 있게 만드는 Current 대표 Plan
+
+## Current Phase 5 Closure Override — 2026-08-10
+
+```text
+current task: ADUMP-v1.2.0-AIRE-P5 / Completed / Accepted
+representative Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2
+P5-N0: COMPLETE / P5_N0_GO_PUBLIC_API
+P5-N1: COMPLETE / BuildPlugin PASS
+P5-N2: COMPLETE / P5-N2.1 EXTERNAL PREP PASS
+P5-N3: COMPLETE / P5_FIXTURE_24_PASS / 24/24
+P5-N4: COMPLETE / RP01-RP12 12/12 / Native 12/12 / Provider 20/20
+P5-ID-GATE: PASS
+P5-MI Scope Review: COMPLETE
+P5-MI v1 Product: IMPLEMENTED
+P5-MI validation closure: COMPLETE / PASS
+P5-MI real-project probe: PASS / MI detail facet 4/4 / direct overrides 11 / non-MI leak 0
+P5-MI static-switch positive: PASS
+P5-MI post-regression: F01-F24 24/24 PASS
+niagara_deep_v1: exact 18 Entity / 12 Relation / preserved
+niagara_material_v1: exact 19 Entity / 12 Relation / accepted
+AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged; Phase 5 is the accepted successor gap closure
+AIRE-G6: Not Started / Not Authorized
+```
+
+Phase 5 acceptance does not rewrite the historical G5 result and does not authorize AIRE-G6. Overall AIRE `Completed / Consumer Accepted` is not claimed by this closure.
+
+## v1.35 Changelog / Migration
+
+- Phase 5 P5-N0~N4와 P5-ID-GATE를 authoritative PASS evidence에 맞춰 `Completed / Accepted`로 닫았다.
+- `material_instance_detail` / `material_instance_detail_v1`, real-project MI facet 4/4, direct override 11, static-switch positive와 post-MI 24/24 regression을 accepted closure로 등록했다.
+- 기존 `niagara_deep_v1` exact 18/12와 `niagara_material_v1` exact 19/12, exact 17 Content, Relation 의미를 보호 상태로 유지했다.
+- AIRE-G5 historical failure는 재분류하지 않고 AIRE-G6는 `Not Started / Not Authorized`로 유지했다.
+
+## Historical P5-N0 Override — 2026-08-07
+
+```text
+current task: ADUMP-v1.2.0-AIRE-P5-N0 / Completed / P5_N0_GO_PUBLIC_API
+representative Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.1
+P5-N0 Result: Documents/Plan/AIREP5N0Result.md v1.0
+P5-N1 Product Source: Not Authorized / Authorization Review Candidate
+AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+AIRE-G6: Not Authorized
+```
+
+P5-N0는 Sprite/Ribbon `Material`, Mesh `GetUsedMeshes(nullptr, ...)`, Mesh `OverrideMaterials[].ExplicitMat`을 direct resource producer candidate로 확정했다. User-bound resource, transient MIC/MID와 StaticMesh-owned default Material은 추론하지 않는다.
+
+## v1.34 Changelog / Migration
+
+- UE 5.8 public renderer API feasibility를 `P5_N0_GO_PUBLIC_API`로 닫았다.
+- Mesh flipbook을 포함하도록 used-mesh authority를 `GetUsedMeshes`로 정교화했다.
+- P5-N1은 구현된 상태가 아니라 exact 8-file Source Authorization Review Candidate다.
+- G5 historical failure, P4-N4, exact 17, Deep exact 18/12와 AIRE-G6 Not Authorized 상태를 유지했다.
+
+## Historical Phase 5 Planning Override — 2026-08-07
+
+```text
+current task: ADUMP-v1.2.0-AIRE-P5 / Planning Complete
+representative Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.0
+AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+Phase 5 Product implementation: Not Authorized
+Phase 5 validation execution: Not Authorized
+AIRE-G6: Not Authorized
+```
+
+Phase 5 identity candidate는 기존 `niagara_deep_v1` exact 18/12를 변경하지 않고 별도 `niagara_material_evidence` Profile / `niagara_material_v1` 19/12로 격리한다. `niagara_renderer_resource` Entity를 append하고 Renderer→resource는 기존 `references` relation 의미를 재사용한다. Material Instance 상세는 Renderer resource Evidence ID와 dependency chain이 `P5-ID-GATE`에서 닫힌 뒤에만 별도 review 대상으로 연다.
+
+## v1.33 Changelog / Migration
+
+- G5 actual 6개 gap을 Phase 5 exact scope와 validation matrix로 변환했다.
+- exact future Product Source 8, validation runner 1, tracked Content 0 allowlist를 등록했다.
+- exact 24 fixture + 12 real-project, native 12-call + provider 20-call lifecycle robustness matrix를 연결했다.
+- P4-N4, Phase 4 18/12, exact 17과 G5 historical classification을 보호했다.
+- Product implementation과 AIRE-G6는 계속 Not Authorized다.
+
+## v1.32 Changelog / Migration
+
+- actual CarFight `NS_AOE_Explosion_1` AIRE-G5 real-project validation을 수행했다.
+- 9,103 Entity, 11 Emitter, 11 Renderer와 large bounds/context는 실제 Consumer surface에서 PASS했다.
+- renderer Material/Mesh dependency가 public Evidence ID/relation/dependency query로 연결되지 않는 gap을 확인해 G5를 `FAILED_REAL_PROJECT_EVIDENCE`로 닫았다.
+- external GoPyMCP COV-06C concurrent change로 G5 protection도 secondary FAIL임을 기록했다.
+- Phase 5 Material Evidence Adapter를 evidence-driven Planning Candidate로 전환하되 Product implementation과 G6는 Not Authorized로 유지했다.
 
 ## v1.31 Changelog / Migration
 
@@ -52,8 +133,9 @@ completed gate: AIRE-G1 Native Evidence Contract — PASS
 completed gate: AIRE-G2 Index Query Context — PASS
 completed gate: AIRE-G3 MCP Exposure — PASS / 2026-08-05
 completed gate: AIRE-G4 Consumer Workflow — PASS / 2026-08-05
-current task: ADUMP-v1.2.0-AIRE-P4-N4 / Completed / P4_N4_PASS / 40 of 40
-representative current Plan: Documents/Plan/AIResourceEvidencePhase4Plan_v1.md v1.20
+current task: ADUMP-v1.2.0-AIRE-P5 / Completed / Accepted
+representative current Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2
+historical G5 Result: Documents/Plan/AIResourceEvidenceG5Result.md v1.1 / FAILED_REAL_PROJECT_EVIDENCE / unchanged
 contract review: Documents/Plan/AIResourceEvidencePhase4ContractReview.md v1.9
 authorization review: Documents/Plan/AIResourceEvidencePhase4P4N1AuthorizationReview.md v1.1 / Authorization Exercised / Historical
 P4-N1 result: Documents/Plan/AIREP4N1Result.md v1.0 / PASS
@@ -74,7 +156,7 @@ P4-N0R result: Documents/Plan/AIREP4N0RResult.md v1.0 / GO_REDUCED
 representative Phase 3 Result: Documents/Plan/AIResourceEvidenceG4Result.md v1.0
 completed provider Plan: Documents/Plan/AIREP3ProviderReady.md v1.1.0
 representative accepted baseline: Documents/Plan/AIResourceEvidencePhase2Plan_v1.md
-current phase: Phase 4 — Niagara Deep Evidence / Completed / P4_N4_PASS
+current phase: Phase 5 Material Evidence Adapter / Completed / Accepted
 completed gate: P4-P0 Contract Review — PASS / Accepted / 2026-08-05
 completed gate: P4-N0 UE 5.8 Deep API Spike — NO_GO under frozen contract / 2026-08-05
 completed gate: P4-N0R Reduced Contract Validation — GO_REDUCED / failure_count=0 / 2026-08-05
@@ -86,16 +168,19 @@ P4-N4 provider registration: PASS at verification time / same server instance
 P4-N4 provider root: MATCHED_PROVIDER_ROOT
 P4-N4 original exact 40: 31 satisfiable / 9 unsatisfiable / BLOCKED_AUTHORIZATION_CONTRACT
 P4-N4 revised exact 40 v1.1: r2 39/40 Historical / r3 39/40 Historical / r4 40/40 Accepted
-current gate: P4-N4 Closed / AIRE-G5 and AIRE-G6 remain separate authorization gates
+P5-N0~N4: COMPLETE
+P5-ID-GATE: PASS
+P5-MI v1: IMPLEMENTED / validation closure COMPLETE / PASS
+current gate: Phase 5 Closed / Accepted; AIRE-G6 Not Started / Not Authorized
 role gate: PASS / AssetDump feature candidate
-implementation authorization: P4-N4 terminal result/report/current routing complete; Product/Script/Content/Config and GoPyMCP changes none
-implementation state: native/provider/public matrix/protection PASS / 40 of 40
-next decision: keep P4-N4 closed; start AIRE-G5/G6 only after separate Plan and user authorization
+implementation authorization: Phase 5 Product and validation closure complete; this document closure authorizes no additional Product/Script/Content/Config work
+implementation state: P5-N3 24/24 / P5-N4 RP 12/12 + Native 12/12 + Provider 20/20 / P5-MI post-regression 24/24 / exact 17 protected
+next decision: keep Phase 5 closed; AIRE-G6 remains a separate Not Started / Not Authorized gate
 accepted foundation: ADUMP-v1.0.2-AICB and all accepted v0.7.1-v1.0.2 contracts
 primary consumer: Browser GPT / AI Agent
 transport boundary: GoPyMCP
 first product vertical slice: Niagara FX Evidence / Browser Consumer Accepted
-final completion state: Completed / Consumer Accepted only after AIRE-G5+G6
+overall AIRE completion state: not claimed; historical G5 remains FAILED_REAL_PROJECT_EVIDENCE and AIRE-G6 is not started
 ```
 
 `Documents/RoleBoundaryPolicy.md`의 기능 제안 역할 게이트 판정은 `PASS`다.
@@ -166,6 +251,8 @@ Completed / Consumer Accepted
 | `AIREP4N4Result.md` | r4 revised exact 40 actual, 40 PASS / 0 FAIL, protection PASS와 terminal `P4_N4_PASS` result |
 | `AIResourceEvidenceP4N4FXReport.md` | P4-N4 Evidence-ID FX report, zero-instance equality와 bounds/negative/determinism disclosure |
 | `AIResourceEvidenceP4N4Acceptance.json` | machine-readable 40/40 Consumer acceptance와 external artifact manifest |
+| `AIResourceEvidenceG5Plan.md` | actual CarFight real-project validation contract와 no-write execution boundary |
+| `AIResourceEvidenceG5Result.md` | 9,103-Entity actual, renderer Material/Mesh dependency gap와 protection observation |
 | `AIResourceEvidencePhase4ContractReview.md` | Phase 4 independent static review, compatibility corrections와 acceptance 판정 |
 | `AIREP4N1Result.md` | P4-N1 exact Source implementation, fresh Phase 2/1과 final PASS 증거 |
 | `AIResourceEvidencePhase4P4N2SourceAuthorizationReview.md` | P4-N2 exact 3-file Product Source, runner, Temp rehearsal와 Source-only approval boundary |

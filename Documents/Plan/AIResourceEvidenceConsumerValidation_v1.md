@@ -1,11 +1,39 @@
 # Consumer Validation Plan
 
-- 문서 버전: v1.20
-- 최근 갱신일: 2026-08-07
-- 문서 상태: Current / AIRE-G0~G4 Passed / P4-N4 P4_N4_PASS / G5~G6 Not Started
+- 문서 버전: v1.23
+- 최근 갱신일: 2026-08-10
+- 문서 상태: Current / Phase 5 Completed / Accepted / G5 Historical Failed / G6 Not Started
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
 
-## Current Gate Override — 2026-08-07
+## Current Phase 5 Validation Closure — 2026-08-10
+
+```text
+AIRE-G0~G4: PASS
+P4-N4: P4_N4_PASS / Closed
+AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+P5-N0: COMPLETE / P5_N0_GO_PUBLIC_API
+P5-N1: COMPLETE / BuildPlugin PASS
+P5-N2: COMPLETE / P5-N2.1 EXTERNAL PREP PASS
+P5-N3: P5_FIXTURE_24_PASS / 24/24
+P5-N4: RP01-RP12 12/12 / Native lifecycle 12/12 / Provider lifecycle 20/20
+P5-ID-GATE: PASS
+P5-MI real-project probe: PASS / MI facet 4/4 / direct overrides 11 / non-MI leak 0
+P5-MI static-switch positive: PASS / native 1 / detail 1
+P5-MI post-regression: F01-F24 24/24 PASS
+P5-MI validation closure: COMPLETE / PASS
+Phase 5: Completed / Accepted
+AIRE-G6: Not Started / Not Authorized
+```
+
+Historical G5는 재분류하지 않는다. Phase 5 accepted successor evidence가 G5에서 발견된 renderer resource/dependency/MI gap을 해결했으며, 이 문서 closure에서는 기존 BuildPlugin/F01-F24/lifecycle 검증을 재실행하지 않았다.
+
+### v1.23 Changelog / Migration
+
+- Phase 5 identity, real-project, lifecycle와 P5-MI validation evidence를 current Consumer validation 상태에 반영했다.
+- static-switch positive proof와 post-MI 24/24 regression을 acceptance 근거로 추가했다.
+- G5 historical failure와 G6 미착수 상태를 분리해 보존했다.
+
+## Historical Gate Override — 2026-08-07
 
 ```text
 AIRE-G0~G4: PASS
@@ -27,11 +55,25 @@ P4-N4 revised exact 40 r3: 39 PASS / 1 FAIL / Historical mismatch 1
 P4-N4 revised exact 40 r4: 40 PASS / 0 FAIL / Protection PASS
 P4-N4 terminal classification: P4_N4_PASS
 GoPyMCP modification required: false
-AIRE-G5: Not Started
-AIRE-G6: Not Started
+AIRE-G5: Exercised / FAILED_REAL_PROJECT_EVIDENCE / protection also failed
+AIRE-G6: Not Started / Not Authorized
 ```
 
 P4-N4 revised v1.1은 r4 public matrix에서 profile/registry ownership, zero-instance equality, positive Module Output, bounds, stable negatives와 determinism을 검증해 40개 predicate를 모두 통과했다. public calls 전후 AssetDump·GoPyMCP 보호 기준선과 지정 COV 파일도 동일해 D08 protection predicate가 PASS했다.
+
+### v1.22 Changelog / Migration
+
+- actual CarFight `NS_AOE_Explosion_1`을 Level F real-project input으로 검증했다.
+- public Entity/Renderer/topology/large bounds는 PASS했지만 Material/Mesh dependency Evidence ID chain이 닫히지 않아 G5-C/E가 실패했다.
+- one continuation provider-process issue와 external GoPyMCP COV-06C protection mismatch를 기록했다.
+- G5를 `FAILED_REAL_PROJECT_EVIDENCE`, Phase 5를 Planning Candidate / Not Authorized로 라우팅했다.
+- G6는 계속 Not Started / Not Authorized다.
+
+### v1.21 Changelog / Migration
+
+- P4-N4 PASS를 유지한 채 사용자 승인에 따라 AIRE-G5 Real Project Acceptance를 활성화했다.
+- selected CarFight real Niagara `NS_AOE_Explosion_1`과 validation-only G5 Plan을 등록했다.
+- Product/CarFight/GoPyMCP writes를 금지하고 G6를 Not Authorized로 유지했다.
 
 ### v1.20 Changelog / Migration
 
@@ -93,10 +135,12 @@ UE Asset
 | `AIRE-G2` | Index Query Context | `PASS — 2026-07-31`, discovery, nested locator, filters, bounds, continuation, context, 26 actual failures and Level 3 closure |
 | `AIRE-G3` | MCP Exposure | `PASS — 2026-08-05`, Browser full chain, multi-kind transport, native equality, runtime canary, `failure_count=0` |
 | `AIRE-G4` | Consumer Workflow | `PASS — 2026-08-05`, Golden Journey 12/12, reports, continuation, traceability, no manual file access |
-| `AIRE-G5` | Real Project Acceptance | 사용자 지정 실제 Niagara asset 성공 |
-| `AIRE-G6` | Release Hardening | BuildPlugin, Generic Host, matrices, invariance, migration |
+| `AIRE-G5` | Real Project Acceptance | Historical actual `FAILED_REAL_PROJECT_EVIDENCE`; classification preserved, not re-run/reclassified |
+| `P5-ID-GATE` | Renderer Resource Identity Closure | `PASS`, F01-F24 24/24, RP01-RP12 12/12, Native 12/12, Provider 20/20 |
+| `P5-MI` | Material Instance Detail Closure | `COMPLETE / PASS`, real-project probe + static-switch positive + post-regression 24/24 |
+| `AIRE-G6` | Release Hardening | `Not Started / Not Authorized`; BuildPlugin, Generic Host, matrices, invariance, migration |
 
-최종 상태는 G0~G6가 모두 통과해야 `Completed / Consumer Accepted`다.
+Phase 5는 historical G5 gap의 accepted successor closure로 완료됐다. 전체 AIRE `Completed / Consumer Accepted`는 이번 문서 closure에서 주장하지 않으며, AIRE-G6는 별도 승인과 실제 evidence 없이는 PASS로 전환하지 않는다.
 
 ---
 

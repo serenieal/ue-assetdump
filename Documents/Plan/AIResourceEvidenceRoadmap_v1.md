@@ -1,12 +1,73 @@
 # AI Resource Evidence Roadmap
 
-- 문서 버전: v1.29
-- 최근 갱신일: 2026-08-07
-- 문서 상태: Current / P4-N4 Closed / P4_N4_PASS / Revised Exact 40 40 PASS / 0 FAIL
+- 문서 버전: v1.33
+- 최근 갱신일: 2026-08-10
+- 문서 상태: Current / Phase 5 Completed / Accepted / AIRE-G6 Not Started
 
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
 
-## Current Roadmap Override — 2026-08-07
+## Current Phase 5 Closure Override — 2026-08-10
+
+```text
+Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2
+P5-P0 Planning: COMPLETE
+P5-N0: COMPLETE / P5_N0_GO_PUBLIC_API
+P5-N1: COMPLETE / BuildPlugin PASS
+P5-N2: COMPLETE / P5-N2.1 EXTERNAL PREP PASS
+P5-N3: COMPLETE / P5_FIXTURE_24_PASS / 24/24
+P5-N4: COMPLETE / RP01-RP12 12/12 / Native 12/12 / Provider 20/20
+P5-ID-GATE: PASS
+P5-MI Scope Review: COMPLETE
+P5-MI v1: IMPLEMENTED / validation closure COMPLETE / PASS
+P5-MI static-switch positive: PASS
+P5-MI post-regression: F01-F24 24/24 PASS
+AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+AIRE-G6: Not Started / Not Authorized
+```
+
+Phase 5는 G5에서 확인된 renderer resource/dependency/MI gap을 후속 accepted evidence로 닫았다. historical G5 결과 자체는 재분류하지 않는다.
+
+## v1.33 Changelog / Migration
+
+- Phase 5를 P5-N0~N4, P5-ID-GATE와 P5-MI validation evidence에 근거해 `Completed / Accepted`로 전환했다.
+- static-switch positive proof와 post-MI F01-F24 24/24를 Roadmap closure에 추가했다.
+- AIRE-G6는 별도 `Not Started / Not Authorized` gate로 유지했다.
+
+## Historical P5-N0 Override — 2026-08-07
+
+```text
+Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.1
+P5-P0 Planning: COMPLETE
+P5-N0 UE 5.8 Renderer Resource API spike: COMPLETE / P5_N0_GO_PUBLIC_API
+P5-N0 Result: Documents/Plan/AIREP5N0Result.md v1.0
+P5-N1 Product Source: Not Authorized / Authorization Review Candidate
+P5-N2 Validation Runner: Not Authorized
+P5-N3 Fixture/Native Closure: Not Authorized
+P5-N4 Real Project/Lifecycle: Not Authorized
+P5-ID-GATE: Not Started
+Material Instance Detail Review: Not Authorized
+AIRE-G6: Not Authorized
+```
+
+Phase 5는 Renderer resource identity를 먼저 닫는다. 새 profile 후보는 `niagara_material_evidence` / `niagara_material_v1`이며 Deep exact 18/12를 보존한 채 `niagara_renderer_resource` 하나를 append한 19/12 전략이다. Renderer→resource는 기존 `references` relation을 사용하고 dependency query는 기존 schema를 유지한 additive edge로 통합한다.
+
+## v1.32 Changelog / Migration
+
+- P5-N0 read-only public API spike를 완료하고 `P5_N0_GO_PUBLIC_API`로 분류했다.
+- Sprite/Ribbon direct Material, Mesh used-mesh accessor와 explicit override typed path를 Roadmap에 반영했다.
+- P5-N1을 Authorization Review Candidate로 전환하되 구현은 Not Authorized로 유지했다.
+- P5-N2+, Material Instance Detail Review와 AIRE-G6는 미승인 상태를 유지했다.
+
+## v1.31 Changelog / Migration
+
+- G5 historical actual을 Phase 5 exact implementation/validation contract로 전환했다.
+- Renderer Resource Identity, bounded typed Entity, dependency bridge와 repeated native/provider lifecycle robustness를 Phase 5 1차 범위로 고정했다.
+- Material Instance parent/parameter/texture/function 상세는 P5-ID-GATE 이후 review-only로 지연했다.
+- Product implementation과 AIRE-G6는 Not Authorized로 유지했다.
+
+## Historical Roadmap Snapshot — AIRE-G5 Terminal
+
+아래 block은 Phase 5 planning 완료 직전 G5 terminal snapshot이며, 현재 상태는 문서 최상단의 `Current Phase 5 Closure Override`가 우선한다.
 
 ```text
 Phase 0: Completed / AIRE-G0 PASS
@@ -29,8 +90,17 @@ Phase 4 P4-N4 revised exact 40 r2: 39 PASS / 1 FAIL / Historical mismatch 8
 Phase 4 P4-N4 revised exact 40 r3: 39 PASS / 1 FAIL / Historical mismatch 1
 Phase 4 P4-N4 revised exact 40 r4: 40 PASS / 0 FAIL / Protection PASS
 Phase 4 P4-N4 terminal: P4_N4_PASS / Closed
-Phase 5~6: Not Started / Not Authorized
+AIRE-G5 actual: FAILED_REAL_PROJECT_EVIDENCE / Material-Mesh dependency coverage gap / protection also failed
+Phase 5 Material Evidence Adapter: Planning Candidate / Not Authorized
+Phase 6 / AIRE-G6: Not Started / Not Authorized
 ```
+
+### v1.30 Changelog / Migration
+
+- actual CarFight `NS_AOE_Explosion_1` G5 validation 결과를 Roadmap에 반영했다.
+- real-project System/Emitter/Renderer/large bounds PASS와 Material/Mesh dependency public evidence gap을 분리했다.
+- G5 primary classification을 `FAILED_REAL_PROJECT_EVIDENCE`로 기록하고 secondary protection failure를 보존했다.
+- Phase 5를 evidence-driven Planning Candidate로 전환하되 implementation과 G6는 Not Authorized로 유지했다.
 
 ### v1.29 Changelog / Migration
 
@@ -377,10 +447,14 @@ Phase 4 P4-N4 revised exact 40 r2: 39 PASS / 1 FAIL / Historical mismatch 8
 Phase 4 P4-N4 revised exact 40 r3: 39 PASS / 1 FAIL / Historical mismatch 1
 Phase 4 P4-N4 revised exact 40 r4: 40 PASS / 0 FAIL / Protection PASS
 Phase 4 P4-N4 terminal: P4_N4_PASS / Closed
-Phase 5~6: Not Started / Not Authorized
+AIRE-G5 historical actual: FAILED_REAL_PROJECT_EVIDENCE / Material-Mesh dependency coverage gap / protection also failed / unchanged
+Phase 5 Material Evidence Adapter: Completed / Accepted
+P5-ID-GATE: PASS
+P5-MI v1 validation closure: COMPLETE / PASS
+Phase 6 / AIRE-G6: Not Started / Not Authorized
 ```
 
-P4-N2 Product Source는 승인된 exact 3 files와 Phase 4 runner 경계 안에서 완료됐다. accepted controlled Content는 기존 exact 12를 byte-identical하게 보존하면서 exact-five를 추가해 16 `.uasset` + 1 `.umap`의 exact 17 binary files로 전환됐다. P4-N4 Consumer closure도 완료됐으며 다음 Gate는 별도 승인된 AIRE-G5 Real Project Acceptance 또는 AIRE-G6 Release Hardening이다.
+P4-N2 Product Source와 accepted exact-17 Content, P4-N3, P4-N4는 계속 PASS다. Historical AIRE-G5는 real CarFight FX에서 renderer Material/Mesh dependency Evidence ID chain 부족을 확인한 실패 actual로 그대로 보존한다. Phase 5는 해당 gap을 typed renderer resource, dependency bridge와 MI detail successor evidence로 해결해 `Completed / Accepted`로 닫혔으며, 다음 단계 AIRE-G6는 별도 승인 전까지 시작하지 않는다.
 
 ---
 
