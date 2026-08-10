@@ -1,35 +1,54 @@
 # AI Resource Evidence Plan
 
-- 문서 버전: v1.35
+- 문서 버전: v1.38
 - 최근 갱신일: 2026-08-10
-- 문서 상태: Current / Phase 5 Completed / Accepted / AIRE-G6 Not Started
+- 문서 상태: Current / ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
 - 작업 ID: `ADUMP-v1.2.0-AIRE`
 - 역할: AI가 UE 리소스를 실제로 탐색·조회·사용할 수 있게 만드는 Current 대표 Plan
 
-## Current Phase 5 Closure Override — 2026-08-10
+## Current AIRE-G6 Closure Override — 2026-08-10
 
 ```text
-current task: ADUMP-v1.2.0-AIRE-P5 / Completed / Accepted
-representative Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2
-P5-N0: COMPLETE / P5_N0_GO_PUBLIC_API
-P5-N1: COMPLETE / BuildPlugin PASS
-P5-N2: COMPLETE / P5-N2.1 EXTERNAL PREP PASS
-P5-N3: COMPLETE / P5_FIXTURE_24_PASS / 24/24
-P5-N4: COMPLETE / RP01-RP12 12/12 / Native 12/12 / Provider 20/20
-P5-ID-GATE: PASS
-P5-MI Scope Review: COMPLETE
-P5-MI v1 Product: IMPLEMENTED
-P5-MI validation closure: COMPLETE / PASS
-P5-MI real-project probe: PASS / MI detail facet 4/4 / direct overrides 11 / non-MI leak 0
-P5-MI static-switch positive: PASS
-P5-MI post-regression: F01-F24 24/24 PASS
-niagara_deep_v1: exact 18 Entity / 12 Relation / preserved
-niagara_material_v1: exact 19 Entity / 12 Relation / accepted
-AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged; Phase 5 is the accepted successor gap closure
-AIRE-G6: Not Started / Not Authorized
+current task: ADUMP-v1.2.0-AIRE-G6 / Completed / AIRE_G6_PASS
+representative Result: Documents/Plan/AIREG6Result.md v1.2
+Phase 5: Completed / Accepted
+AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+Phase 6 Hardening and Release: Completed / Accepted
+Product release correction: AssetDumpCommandlet.cpp v0.24.2 / case-sensitive index ordering
+final Phase 2: PASS / SHA-256 66a07acef3abd7f1d8a73dc551adb719043f9fa991b3f3ff64530cf448562c13
+final Phase 1 Matrix: PASS / failure_count=0 / SHA-256 24617984bedb885a0bc411ffb01d4d79117e56fe7ff0f3e0949e51b7158ec205
+fresh real-project probe: P5_MI_V1_PROBE_PASS / Deep 18/12 / Material 19/12 / MI detail 4/4 / overrides 11
+fresh real-project report SHA-256: 0f4a2251968365622265eee7c6b34d526089e5548c991d654dcc528ad490f15e
+fresh public Consumer revalidation: PASS / same real-project explicit provider / AIREG6ConsumerReval.json SHA-256 cbf4721418650530b6441c0a24f40b197f4ad39c1858d17f15e86031515d2720
+exact 17 Content: PASS / unchanged
+AIRE-G6: PASS
+ADUMP-v1.2.0-AIRE: Completed / Consumer Accepted
 ```
 
-Phase 5 acceptance does not rewrite the historical G5 result and does not authorize AIRE-G6. Overall AIRE `Completed / Consumer Accepted` is not claimed by this closure.
+G6 completion does not rewrite the historical G5 result. Phase 5 accepted successor remediation and current v0.24.2 same-real-project public Consumer chain provide the cumulative acceptance chain for final `Completed / Consumer Accepted`.
+
+## v1.38 Changelog / Migration
+
+- stronger Level 4 revalidation에서 current v0.24.2 package의 real-project explicit provider RP12/12/native12/12와 public discover/query/context/dependency chain을 PASS했다.
+- `AIREG6Result.md` v1.2와 `AIREG6ConsumerReval.json` SHA-256 `cbf4721418650530b6441c0a24f40b197f4ad39c1858d17f15e86031515d2720`을 terminal acceptance chain에 등록했다.
+- `RunAIREP5Verify.ps1 v0.3.4`는 runner finalization correction이며 Product/runtime query predicate와 public schema 의미는 변경하지 않는다.
+
+
+## v1.37 Changelog / Migration
+
+- Release Level 4 Consumer Integration 재감사에서 post-correction `asset_index_v1` public discovery ordering과 controlled query/context/dependency chain을 fresh PASS로 확인했다.
+- `AIREG6Result.md` v1.1과 `AIREG6ConsumerReval.json`을 terminal acceptance chain에 추가했다.
+- real-project managed entity query scope mismatch는 provider preparation 범위로 분리하고 Level F evidence는 existing v0.24.2 external package probe가 계속 소유한다.
+- Product/Script/Content/Config/GoPyMCP/CarFight write 없이 `Completed / Consumer Accepted`를 유지한다.
+
+## v1.36 Changelog / Migration
+
+- G6 release hardening에서 accepted case-sensitive `asset_index_v1`/`section_index_v1` ordering과 Product 구현의 불일치를 발견해 `AssetDumpCommandlet.cpp v0.24.2`로 교정했다.
+- Phase 2 runner의 legacy exact-12 P2-N4 assertion을 current exact-17 baseline으로 동기화하고 final Phase 2/Phase 1/fresh real-project evidence를 PASS로 닫았다.
+- AIRE-G6를 PASS, 전체 AIRE를 `Completed / Consumer Accepted`로 전환하되 historical G5 failure는 재분류하지 않는다.
+- public schema, relation 의미와 Consumer data migration은 변경하지 않는다.
+
+
 
 ## v1.35 Changelog / Migration
 
@@ -124,7 +143,7 @@ Phase 5 identity candidate는 기존 `niagara_deep_v1` exact 18/12를 변경하�
 ## 1. 현재 결정
 
 ```text
-lifecycle: Feature Development Reactivated
+lifecycle: ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted
 current work: ADUMP-v1.2.0-AIRE
 completed phase: Phase 1 — Entity Evidence Core / Native Entity Core Accepted
 completed phase: Phase 2 — Niagara MVP Adapter / Completed / Accepted
@@ -133,8 +152,8 @@ completed gate: AIRE-G1 Native Evidence Contract — PASS
 completed gate: AIRE-G2 Index Query Context — PASS
 completed gate: AIRE-G3 MCP Exposure — PASS / 2026-08-05
 completed gate: AIRE-G4 Consumer Workflow — PASS / 2026-08-05
-current task: ADUMP-v1.2.0-AIRE-P5 / Completed / Accepted
-representative current Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2
+current task: ADUMP-v1.2.0-AIRE-G6 / Completed / AIRE_G6_PASS
+representative current Result: Documents/Plan/AIREG6Result.md v1.2
 historical G5 Result: Documents/Plan/AIResourceEvidenceG5Result.md v1.1 / FAILED_REAL_PROJECT_EVIDENCE / unchanged
 contract review: Documents/Plan/AIResourceEvidencePhase4ContractReview.md v1.9
 authorization review: Documents/Plan/AIResourceEvidencePhase4P4N1AuthorizationReview.md v1.1 / Authorization Exercised / Historical
@@ -156,7 +175,7 @@ P4-N0R result: Documents/Plan/AIREP4N0RResult.md v1.0 / GO_REDUCED
 representative Phase 3 Result: Documents/Plan/AIResourceEvidenceG4Result.md v1.0
 completed provider Plan: Documents/Plan/AIREP3ProviderReady.md v1.1.0
 representative accepted baseline: Documents/Plan/AIResourceEvidencePhase2Plan_v1.md
-current phase: Phase 5 Material Evidence Adapter / Completed / Accepted
+current phase: Phase 6 Hardening and Release / Completed / Accepted
 completed gate: P4-P0 Contract Review — PASS / Accepted / 2026-08-05
 completed gate: P4-N0 UE 5.8 Deep API Spike — NO_GO under frozen contract / 2026-08-05
 completed gate: P4-N0R Reduced Contract Validation — GO_REDUCED / failure_count=0 / 2026-08-05
@@ -171,16 +190,17 @@ P4-N4 revised exact 40 v1.1: r2 39/40 Historical / r3 39/40 Historical / r4 40/4
 P5-N0~N4: COMPLETE
 P5-ID-GATE: PASS
 P5-MI v1: IMPLEMENTED / validation closure COMPLETE / PASS
-current gate: Phase 5 Closed / Accepted; AIRE-G6 Not Started / Not Authorized
+AIRE-G6 Result: Documents/Plan/AIREG6Result.md v1.2 / AIRE_G6_PASS
+current gate: AIRE-G6 PASS / Phase 6 Completed / Accepted
 role gate: PASS / AssetDump feature candidate
-implementation authorization: Phase 5 Product and validation closure complete; this document closure authorizes no additional Product/Script/Content/Config work
-implementation state: P5-N3 24/24 / P5-N4 RP 12/12 + Native 12/12 + Provider 20/20 / P5-MI post-regression 24/24 / exact 17 protected
-next decision: keep Phase 5 closed; AIRE-G6 remains a separate Not Started / Not Authorized gate
+implementation authorization: G6 release correction and validation exercised and closed; no additional Product/Script/Content/Config work is authorized by this closure
+implementation state: v0.24.2 ordering correction / final Phase2 PASS / Phase1 Matrix PASS / fresh real-project PASS / exact 17 protected
+next decision: AIRE release lifecycle closed; future feature work requires a new explicit lifecycle and Plan
 accepted foundation: ADUMP-v1.0.2-AICB and all accepted v0.7.1-v1.0.2 contracts
 primary consumer: Browser GPT / AI Agent
 transport boundary: GoPyMCP
 first product vertical slice: Niagara FX Evidence / Browser Consumer Accepted
-overall AIRE completion state: not claimed; historical G5 remains FAILED_REAL_PROJECT_EVIDENCE and AIRE-G6 is not started
+overall AIRE completion state: Completed / Consumer Accepted; historical G5 remains FAILED_REAL_PROJECT_EVIDENCE and is not reclassified
 ```
 
 `Documents/RoleBoundaryPolicy.md`의 기능 제안 역할 게이트 판정은 `PASS`다.
@@ -579,7 +599,7 @@ The controlled Niagara Golden Consumer Journey completed through public GoPyMCP 
 - `ue.assetdump_evidence_safe`는 Browser actual publication과 full chain이 PASS한 현재 공개 surface다.
 - Browser Golden Journey는 local dump file, `repo.read_batch`, shell 또는 수동 JSON 복사로 우회하지 않는다.
 - GoPyMCP 내부 branch/task 상태는 AssetDump SSOT가 아니며 public tool contract, required capability와 acceptance evidence만 Phase 3 문서에 기록한다.
-- 전체 `ADUMP-v1.2.0-AIRE`는 AIRE-G5 Real Project Acceptance와 AIRE-G6 Release Hardening이 남아 있어 최종 완료가 아니다.
+- 전체 `ADUMP-v1.2.0-AIRE`는 Phase 5 successor remediation과 AIRE-G6 Release Hardening/fresh real-project evidence가 완료되어 `Completed / Consumer Accepted`다. AIRE-G5 historical failed actual은 재분류하지 않는다.
 - v1.2의 AIRE-G2 validation-only 지침은 완료 이력으로 유지한다.
 - AIRE-G1 fixture와 Entity Source는 Phase 1 accepted baseline으로 계속 동결한다.
 - 기존 AssetDump Consumer는 accepted command와 schema를 그대로 사용한다.

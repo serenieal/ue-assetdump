@@ -1,28 +1,48 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.39
+- 문서 버전: v1.42
 - 최근 갱신일: 2026-08-10
-- 문서 상태: Current / Phase 5 Completed / Accepted / AIRE-G6 Not Started
+- 문서 상태: Current / ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
 
-## Current P5 Closure Route — 2026-08-10
+## Current AIRE-G6 Release Route — 2026-08-10
 
 ```text
-Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2 / Completed / Accepted
-P5-N0: COMPLETE / P5_N0_GO_PUBLIC_API
-P5-N1: COMPLETE / BuildPlugin PASS
-P5-N2: COMPLETE / P5-N2.1 EXTERNAL PREP PASS
-P5-N3: COMPLETE / P5_FIXTURE_24_PASS / 24/24
-P5-N4: COMPLETE / RP01-RP12 12/12 / Native 12/12 / Provider 20/20
-P5-ID-GATE: PASS
-P5-MI v1: IMPLEMENTED / validation closure COMPLETE / PASS
-P5-MI static-switch positive: PASS
-P5-MI post-regression: F01-F24 24/24 PASS
-AIRE-G5 Result: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged; successor gap resolved by Phase 5 acceptance
-AIRE-G6: Not Started / Not Authorized
+AIRE-G6 Result: Documents/Plan/AIREG6Result.md v1.2 / AIRE_G6_PASS
+Phase 5 Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.4 / Completed / Accepted
+Phase 6 Hardening and Release: Completed / Accepted
+Final Phase 2 report SHA-256: 66a07acef3abd7f1d8a73dc551adb719043f9fa991b3f3ff64530cf448562c13
+Final Phase 1 Matrix report SHA-256: 24617984bedb885a0bc411ffb01d4d79117e56fe7ff0f3e0949e51b7158ec205
+Fresh real-project report SHA-256: 0f4a2251968365622265eee7c6b34d526089e5548c991d654dcc528ad490f15e
+Fresh public Consumer revalidation: Documents/Plan/AIREG6ConsumerReval.json / same real-project explicit provider PASS / SHA-256 cbf4721418650530b6441c0a24f40b197f4ad39c1858d17f15e86031515d2720
+AIRE-G5 Result: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+AIRE-G6: PASS
+ADUMP-v1.2.0-AIRE: Completed / Consumer Accepted
 ```
 
-Phase 5는 닫혔으며 추가 Product/Script/Content 변경은 이 route에서 허용되지 않는다. 다음 구현 단계는 자동 승격하지 않고 AIRE-G6의 별도 사용자 승인을 요구한다.
+G6는 current v0.24.2 package에 대해 BuildPlugin/Generic Host/Phase 2/Phase 1/fresh real-project protection과 동일 real-project explicit provider의 public discover/query/context/dependency chain까지 닫았다. historical G5 실패는 재분류하지 않는다.
+
+## v1.42 Changelog / Migration
+
+- Release route를 `AIREG6Result.md` v1.2와 stronger `AIREG6ConsumerReval.json` explicit real-project provider evidence에 동기화했다.
+- P5-N4 current package recovery RP12/12, native 12/12와 same-real-project public Consumer chain PASS를 terminal route에 반영했다.
+- Product Source, tracked Content, public schema/data migration은 변경하지 않는다.
+
+
+
+## v1.41 Changelog / Migration
+
+- AIRE-G6 Release route를 `AIREG6Result.md` v1.1과 `AIREG6ConsumerReval.json` fresh public Consumer evidence에 맞춰 동기화했다.
+- Migration의 stale Phase 5/G6 미착수 current 문구를 `Completed / Consumer Accepted / AIRE-G6 PASS` terminal lifecycle로 교정했다.
+- historical G5/Phase 4/Phase 5 route와 public schema/data migration 없음은 그대로 보존한다.
+
+## v1.40 Changelog / Migration
+
+- `AIREG6Result.md` v1.0을 최종 Release Hardening result route로 등록했다.
+- AIRE-G6를 PASS, Phase 6을 `Completed / Accepted`, 전체 AIRE를 `Completed / Consumer Accepted`로 전환했다.
+- historical G5 `FAILED_REAL_PROJECT_EVIDENCE`는 그대로 보존하고 public schema/data migration은 없음을 명시했다.
+
+
 
 ## v1.39 Changelog / Migration
 
@@ -174,6 +194,7 @@ AGENTS.md
 | P4-N4 Acceptance JSON 확인 | `Documents/Plan/AIResourceEvidenceP4N4Acceptance.json` | machine-readable 40/40 Consumer acceptance와 artifact manifest |
 | AIRE-G5 real-project 계약 확인 | `Documents/Plan/AIResourceEvidenceG5Plan.md` | CarFight selected Niagara validation-only execution boundary와 acceptance matrix |
 | AIRE-G5 actual 결과 확인 | `Documents/Plan/AIResourceEvidenceG5Result.md` | 9,103 Entity real FX actual, Material/Mesh evidence gap와 protection failure |
+| AIRE-G6 Release Hardening 최종 결과 확인 | `Documents/Plan/AIREG6Result.md` | v0.24.2 ordering correction, final Phase 2/1, fresh real-project와 protection `AIRE_G6_PASS` evidence |
 | P4-N3 exact 10 Source correction 승인 후보 확인 | `Documents/Plan/AIResourceEvidencePhase4P4N3SourceDefectAuthorizationReview.md` | exact 3 Source allowlist, reason registry ownership, observation/projection, dirty protection과 60-case rerun Gate |
 | accepted Asset Intelligence 기반 계약 확인 | `Documents/Plan/AssetIntelligencePlan/README.md` | `SectionRegistry_v1.md`, `ValidationPolicy_v1.md` |
 | DataAsset Diff Report Contract 이력 확인 | `Documents/ActiveWork.md` | 완료 TaskSource 이력, 스크립트와 canonical closure report |
@@ -402,8 +423,8 @@ Browser MCP 문서·코드 작업은 다음을 확인한다.
 - 제품 역할, 새 기능 범위 또는 분석 책임 판단은 `Documents/RoleBoundaryPolicy.md`를 먼저 적용한다.
 - 새 public 기능은 역할 게이트를 통과하지 못하면 Current Plan 후보로 등록하지 않는다.
 - 기존 accepted 결정론적 파생 계약은 정책 도입만으로 제거하거나 의미 판단 기능으로 재해석하지 않는다.
-- 현재 lifecycle은 `Feature Development Reactivated / Phase 5 Completed / Accepted / AIRE-G6 Not Started`다. P4-N4와 Phase 4는 계속 Closed/PASS이며 세션 복원은 `Documents/ActiveWork.md`, `AIResourceEvidencePlan.md` v1.35, `AIREPhase5Plan_v1.md` v1.2와 historical `AIResourceEvidenceG5Result.md` v1.1을 확인한다.
-- authoritative G5 state는 historical `FAILED_REAL_PROJECT_EVIDENCE`로 보존된다. Phase 5가 해당 renderer resource/dependency/MI gap을 accepted successor evidence로 해결했으며, G5를 재실행·재분류하지 않는다. 다음 Gate인 AIRE-G6는 `Not Started / Not Authorized`이고 별도 승인 전에는 시작하지 않는다.
+- 현재 lifecycle은 `ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted / AIRE-G6 PASS`다. 세션 복원은 `Documents/ActiveWork.md`, `AIResourceEvidencePlan.md` v1.38, `AIREG6Result.md` v1.2, `AIREG6ConsumerReval.json`과 historical `AIResourceEvidenceG5Result.md` v1.1을 확인한다.
+- authoritative G5 state는 historical `FAILED_REAL_PROJECT_EVIDENCE`로 보존된다. Phase 5가 해당 renderer resource/dependency/MI gap을 accepted successor evidence로 해결했고, 별도 승인·실행된 AIRE-G6는 current release package와 fresh public Consumer revalidation까지 PASS했다. lifecycle은 닫혔으며 후속 public feature는 새 explicit lifecycle/Plan을 요구한다.
 - defect correction, engine/toolchain compatibility, packaging, validation, documentation과 security hardening은 accepted baseline을 보존하는 별도 유지보수로 계속 라우팅한다.
 - 새 public command mode, schema, section 또는 기능은 역할 게이트와 Current Plan의 Consumer Acceptance 기준을 우회하지 않는다.
 - 기존 `Documents/Plan/AssetIntelligencePlan/` 문서와 파일 경로는 변경하지 않는다.

@@ -1,8 +1,8 @@
 # AIRE Phase 5 — Material Evidence Adapter Plan
 
-- 문서 버전: v1.2
+- 문서 버전: v1.4
 - 최근 갱신일: 2026-08-10
-- 문서 상태: Completed / Accepted / P5-MI Validation Closure PASS / AIRE-G6 Not Authorized
+- 문서 상태: Completed / Accepted / P5-MI Validation Closure PASS / Successor AIRE-G6 PASS
 - 작업 ID: `ADUMP-v1.2.0-AIRE-P5`
 - 역할: AIRE-G5 actual gap을 Renderer-owned Material/Mesh resource identity, dependency continuation과 Material Instance direct-detail evidence로 해결한 Phase 5 대표 Plan 및 closure SSOT
 
@@ -26,8 +26,15 @@ P5-MI post-regression = F01-F24 24/24 PASS
 P5-MI validation closure = COMPLETE / PASS
 Phase 5 final = Completed / Accepted
 AIRE-G5 = historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
-AIRE-G6 = NOT STARTED / NOT AUTHORIZED
+AIRE-G6 successor = COMPLETED / AIRE_G6_PASS / Documents/Plan/AIREG6Result.md v1.2
 ```
+
+## v1.4 Changelog / Migration
+
+- Phase 5 accepted contract 자체는 변경하지 않고 successor route를 `AIREG6Result.md` v1.2의 stronger Level 4 Consumer evidence에 동기화했다.
+- current v0.24.2 same-real-project explicit-provider revalidation은 Phase 6 evidence이며 Phase 5 historical acceptance 의미를 재작성하지 않는다.
+- Product/Content/public schema migration은 없다.
+
 
 Accepted MI detail contract:
 
@@ -73,6 +80,13 @@ classification = P5_FIXTURE_24_PASS / required 24 / passed 24 / failed 0 / block
 ```
 
 The post-MI matrix used summary-checkpoint finalization after final serialization; no commandlet rerun was performed. This closure also performs no new build/runtime execution.
+
+## v1.3 Changelog / Migration
+
+- Phase 5 자체의 accepted Product/fixture/real-project/MI closure 의미는 변경하지 않고 후속 AIRE-G6 terminal route만 동기화했다.
+- 별도 승인·실행된 successor AIRE-G6가 `AIRE_G6_PASS`로 완료됐으며 authoritative result는 `AIREG6Result.md` v1.1이다.
+- historical AIRE-G5 `FAILED_REAL_PROJECT_EVIDENCE`는 재분류하지 않고 Phase 5가 해당 gap을 해결한 successor evidence라는 의미를 유지한다.
+- public schema/data migration과 Phase 5 Product/Content 추가 변경은 없다.
 
 ## v1.2 Changelog / Migration
 
@@ -164,14 +178,14 @@ P5-MI Scope Review: COMPLETE
 P5-MI v1 Product: IMPLEMENTED
 P5-MI validation closure: COMPLETE / PASS
 AIRE-G5 rerun: NOT PERFORMED / historical actual remains FAILED_REAL_PROJECT_EVIDENCE
-AIRE-G6: NOT STARTED / NOT AUTHORIZED
+AIRE-G6 successor: COMPLETED / AIRE_G6_PASS / Documents/Plan/AIREG6Result.md v1.2
 Tracked Content modification for P5 closure: 0 / exact 17 protected
 GoPyMCP Source/schema/config modification for P5 closure: 0
 CarFight modification for P5 closure: 0
 Git history write: NOT AUTHORIZED
 ```
 
-Phase 5는 authoritative Product, fixture, real-project, lifecycle와 MI validation evidence에 따라 `Completed / Accepted`다. 이 판정은 historical AIRE-G5를 PASS로 재분류하지 않으며 AIRE-G6를 자동 승인하지 않는다.
+Phase 5는 authoritative Product, fixture, real-project, lifecycle와 MI validation evidence에 따라 `Completed / Accepted`다. 이 Phase 5 판정 자체는 historical AIRE-G5를 PASS로 재분류하거나 당시 AIRE-G6를 자동 승인하지 않았다. 이후 AIRE-G6는 별도 승인·실행되어 `AIRE_G6_PASS`로 완료됐다.
 
 현재 상태:
 
@@ -181,7 +195,7 @@ Native Contract Passed
 Real Project P5 Acceptance Passed
 P5-MI Validation Passed
 Phase 5 Completed / Accepted
-AIRE-G6 Not Started / Not Authorized
+Successor AIRE-G6 Completed / AIRE_G6_PASS
 ```
 
 ---

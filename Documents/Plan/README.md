@@ -1,23 +1,40 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.96
+- 문서 버전: v1.98
 - 최근 갱신일: 2026-08-10
-- 문서 상태: Current / Phase 5 Completed / Accepted / AIRE-G6 Not Started
+- 문서 상태: Current / ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
 
 ## Current Index Override — 2026-08-10
 
-- `AIREPhase5Plan_v1.md` v1.2: authoritative Phase 5 `Completed / Accepted` contract와 P5-N0~N4, P5-ID-GATE, P5-MI closure evidence.
+- `AIREG6Result.md` v1.2: authoritative `AIRE_G6_PASS`, final release-hardening and same-real-project explicit-provider Consumer evidence.
+- `AIREG6ConsumerReval.json`: `AIRE_G6_PUBLIC_CONSUMER_REVALIDATION_PASS`, SHA-256 `cbf4721418650530b6441c0a24f40b197f4ad39c1858d17f15e86031515d2720`.
+- `AIResourceEvidencePlan.md` v1.38: overall `Completed / Consumer Accepted`, historical G5 preservation and G6 closure routing.
+- `AIResourceEvidenceRoadmap_v1.md` v1.36: Phase 6 `Completed / Accepted / AIRE-G6 PASS`.
+- `AIResourceEvidenceConsumerValidation_v1.md` v1.26: final release validation, same-real-project public Consumer chain and cumulative Consumer Acceptance.
+- `AIREPhase5Plan_v1.md` v1.4: authoritative Phase 5 `Completed / Accepted` successor remediation contract.
 - `AIREP5N0Result.md` v1.0: historical authoritative `P5_N0_GO_PUBLIC_API` spike result; unchanged.
-- `AIResourceEvidencePlan.md` v1.35: Phase 5 closure와 AIRE-G6 separate-gate routing.
-- `AIResourceEvidenceRoadmap_v1.md` v1.33: Phase 5 `Completed / Accepted`, AIRE-G6 `Not Started / Not Authorized`.
-- `AIResourceEvidenceConsumerValidation_v1.md` v1.23: P5-ID/P5-MI validation closure와 historical G5 preservation.
 - `AIResourceEvidenceG5Plan.md` v1.1: exercised historical CarFight real-project validation contract; unchanged.
-- `AIResourceEvidenceG5Result.md` v1.1: `FAILED_REAL_PROJECT_EVIDENCE` classification preserved; Phase 5 successor resolution follow-up added without reclassification.
+- `AIResourceEvidenceG5Result.md` v1.1: `FAILED_REAL_PROJECT_EVIDENCE` classification preserved and not reclassified by G6.
 - `AIResourceEvidencePhase4Plan_v1.md` v1.20: r4 revised exact 40 `P4_N4_PASS / 40 of 40` closure.
 - `AIREP4N4Result.md` v1.4: authoritative `P4_N4_PASS / r4 40 PASS / 0 FAIL / protection PASS` result.
-- Phase 5 authoritative closure: P5-N3 `24/24`, P5-N4 `RP 12/12 + Native 12/12 + Provider 20/20`, P5-ID-GATE `PASS`, P5-MI real-project/static-switch/post-regression `PASS`.
-- Historical AIRE-G5 remains `FAILED_REAL_PROJECT_EVIDENCE`; Phase 5 resolves that gap prospectively and does not rewrite the historical result.
-- AIRE-G6 remains `Not Started / Not Authorized`; no new build/runtime validation was executed for this document closure.
+- G6 release evidence: Product ordering correction v0.24.2, final Phase 2/1 PASS, fresh real-project MI probe, P5-N4 RP12/12 + native12/12 recovery, same real asset public discover/query/context/dependency PASS, exact 17 and protection PASS.
+- Historical AIRE-G5 remains `FAILED_REAL_PROJECT_EVIDENCE`; final acceptance uses Phase 5 successor remediation plus G6 fresh release/Consumer evidence and does not rewrite the historical result.
+
+### v1.98 Changelog / Migration
+
+- Plan Index를 `AIREG6Result.md` v1.2와 stronger `AIREG6ConsumerReval.json` evidence로 갱신했다.
+- 상위 Plan/Roadmap/ConsumerValidation/Phase5 current versions를 v1.38/v1.36/v1.26/v1.4로 동기화했다.
+- Product/runtime public schema migration 없이 same-real-project Level 4 Consumer chain closure를 등록했다.
+
+
+
+### v1.97 Changelog / Migration
+
+- `AIREG6Result.md` v1.0을 final release result로 등록하고 AIRE-G6를 PASS로 전환했다.
+- 상위 Plan/Roadmap/Consumer Validation route를 G6 final Phase2/Phase1/fresh real-project evidence에 맞춰 갱신했다.
+- 전체 AIRE를 `Completed / Consumer Accepted`로 닫되 historical G5 failure와 no-public-schema-migration 경계를 보존했다.
+
+
 
 ### v1.96 Changelog / Migration
 
@@ -96,7 +113,8 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 | `P1ARuntimeVerificationAudit.md` | `P1A Plugin Runtime Contract Accepted / Host Invariance Pending` | Codex strict 결과, v1.6.1 diff, regression blocker와 Host binary attribution 감사 | `P1ARuntimeVerificationAudit.md` |
 | `P1BRuntimeVerificationCodexWorkOrder.md` | `Executed / Browser Scoped Audit Accepted` | P1B parser·self-test·Plugin isolation·restoration과 Project routing 증거 실행 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | `P2ABuildPluginVerificationWorkOrder.md` | `Superseded / Historical P2A-1 Contract` | Phase 묶음 도입 전 P2A-1 단독 실행 계약 이력 | `P2ABuildPluginVerificationWorkOrder.md` |
-| `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / Phase 5 Completed / Accepted / AIRE-G6 Not Started` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
+| `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted / AIRE-G6 PASS` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
+| `AIREG6Result.md` | `ADUMP-v1.2.0-AIRE-G6 / AIRE_G6_PASS / Completed` | v0.24.2 release correction, final Phase 2/1, fresh real-project와 protection terminal evidence | `AIREG6Result.md` |
 | `AIREP3ProviderReady.md` | `ADUMP-v1.2.0-AIRE-P3-PR / Completed / Provider Ready / Classification A` | managed partial dataset 진단, fresh Niagara asset/entity index와 query closure 및 GoPyMCP handoff 증거 | `AIREP3ProviderReady.md` |
 | `AIResourceEvidencePhase3Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P3 / Completed / AIRE-G3+G4 Passed / Consumer Workflow Accepted` | Browser-only evidence tool, actual transport, native equality와 Golden Consumer Journey 완료 계약 | `AIResourceEvidencePhase3Plan_v1.md` |
 | `AIResourceEvidenceG4Result.md` | `ADUMP-v1.2.0-AIRE-P3-G4 / Completed / AIRE-G4 Passed` | 12/12 actual public call, continuation, context chain, reports와 final acceptance | `AIResourceEvidenceG4Result.md` |

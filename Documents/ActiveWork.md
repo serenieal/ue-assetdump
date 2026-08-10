@@ -1,37 +1,55 @@
 # AssetDump Active Work
 
-- 문서 버전: v3.10
+- 문서 버전: v3.13
 - 최근 갱신일: 2026-08-10
-- 문서 상태: Current / Phase 5 Completed / Accepted / AIRE-G6 Not Started
+- 문서 상태: Current / ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
 
 - 역할: AssetDump 독립 저장소의 현재 feature lifecycle, 활성 대표 Plan과 최근 완료 체크포인트를 연결하는 세션 복원 색인
 
-## Current P5 Closure Override — 2026-08-10
+## Current AIRE-G6 Closure Override — 2026-08-10
 
 ```text
-active task: ADUMP-v1.2.0-AIRE-P5 / Completed / Accepted
-representative Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2
-P5-N0: COMPLETE / P5_N0_GO_PUBLIC_API
-P5-N1: COMPLETE / BuildPlugin PASS
-P5-N2: COMPLETE
-P5-N2.1: EXTERNAL PREP PASS
-P5-N3: COMPLETE / P5_FIXTURE_24_PASS / 24/24
-P5-N4: COMPLETE / RP01-RP12 12/12 / Native lifecycle 12/12 / Provider lifecycle 20/20
-P5-ID-GATE: PASS
-P5-MI Scope Review: COMPLETE
-P5-MI v1 Product: IMPLEMENTED
-P5-MI validation closure: COMPLETE / PASS
-P5-MI real-project probe: PASS / MI Detail Facet 4/4 / Direct Overrides 11 / non-MI detail leak 0
-P5-MI static-switch positive: PASS / native override 1 / detail override 1
-P5-MI post-regression: F01-F24 24/24 PASS
-BuildPlugin report SHA-256: 24d2d99679d0504e9079d423929e75a14b1ab4d84ae9c9db411f160be090d6dc
-P5-MI probe report SHA-256: 88917dcf979e12cac25830acdabef7856f1e65efd976a4589f8bc3915dd58397
-P5 external prep report SHA-256: 597a8a9bffd4e36f2cf2b5f74a85fbf9e18ece563d3b0333918b3b3cbbd288d0
-P5 recovered fixture report SHA-256: 58768c41a68c658fee97576fca09765a1b9d565b5cc35284fa2a268b09ae82df
-AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged; gap resolved by accepted Phase 5 successor evidence
-AIRE-G6: Not Started / Not Authorized
-next decision: keep Phase 5 closed; AIRE-G6 requires separate authorization
+active lifecycle: ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted
+active task: ADUMP-v1.2.0-AIRE-G6 / Completed / AIRE_G6_PASS
+representative Result: Documents/Plan/AIREG6Result.md v1.2
+Phase 5: Completed / Accepted
+AIRE-G5: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+Phase 6 Hardening and Release: Completed / Accepted
+Product release correction: AssetDumpCommandlet.cpp v0.24.2 / case-sensitive asset_index_v1 + section_index_v1 ordering
+Phase 2 release verification: PASS / report SHA-256 66a07acef3abd7f1d8a73dc551adb719043f9fa991b3f3ff64530cf448562c13
+Phase 1 Matrix: PASS / failure_count=0 / report SHA-256 24617984bedb885a0bc411ffb01d4d79117e56fe7ff0f3e0949e51b7158ec205
+fresh real-project probe: P5_MI_V1_PROBE_PASS / Deep 18/12 / Material 19/12 / MI 4/4 / overrides 11
+fresh real-project report SHA-256: 0f4a2251968365622265eee7c6b34d526089e5548c991d654dcc528ad490f15e
+fresh public Consumer revalidation: PASS / same real-project explicit provider chain / AIREG6ConsumerReval.json SHA-256 cbf4721418650530b6441c0a24f40b197f4ad39c1858d17f15e86031515d2720
+exact 17 Content: PASS / unchanged
+CarFight real asset: unchanged
+AIRE-G6: PASS
+next decision: AIRE release lifecycle closed; future feature work requires a new explicit lifecycle/Plan
 ```
+
+## v3.13 Changelog / Migration
+
+- current v0.24.2 package로 동일 real-project explicit provider를 fresh 준비해 RP12/12, native lifecycle 12/12와 public `discover -> entity_query -> entity_context -> dependency_query` chain을 모두 PASS했다.
+- `RunAIREP5Verify.ps1 v0.3.4` runner finalization correction과 fresh read-only UE Registry RP07 evidence를 반영했으며 Product Source와 exact 17 Content는 변경하지 않았다.
+- `AIREG6ConsumerReval.json`을 stronger explicit-provider evidence로 갱신하고 `AIREG6Result.md` v1.2에 연결했다.
+- historical G5와 기존 accepted Phase 4/5 evidence는 재분류하지 않는다.
+
+## v3.12 Changelog / Migration
+
+
+- Release Level 4 Consumer Integration 재감사에서 post-correction `asset_index_v1` public discovery ordering과 controlled query/context/dependency chain을 fresh PASS로 확인했다.
+- `Documents/Plan/AIREG6ConsumerReval.json`을 machine-readable Consumer revalidation evidence로 추가하고 `AIREG6Result.md` v1.1에 연결했다.
+- current lifecycle/state routing의 stale Phase 4/G6 미착수 문구를 terminal `Completed / Consumer Accepted / AIRE-G6 PASS`에 맞춰 교정했다.
+- historical AIRE-G5 `FAILED_REAL_PROJECT_EVIDENCE`와 Phase 4/5 historical snapshots은 재분류하지 않으며 Product/Script/Content/Config 변경은 없다.
+
+## v3.11 Changelog / Migration
+
+- G6 fresh release validation에서 `asset_index_v1`과 `section_index_v1`의 case-sensitive deterministic ordering 구현 결함을 발견해 `AssetDumpCommandlet.cpp v0.24.2`로 교정했다.
+- Phase 2 runner의 stale exact-12 P2-N4 baseline을 current exact-17로 동기화하고 final Phase 2, Phase 1 Matrix와 fresh real-project probe를 모두 PASS로 닫았다.
+- AIRE-G6를 `PASS`, Phase 6을 `Completed / Accepted`, 전체 `ADUMP-v1.2.0-AIRE`를 `Completed / Consumer Accepted`로 전환했다.
+- historical AIRE-G5 `FAILED_REAL_PROJECT_EVIDENCE`는 재분류하지 않으며 public schema/data migration은 없다.
+
+
 
 ## Historical P5-N0 Result Override — 2026-08-07
 
@@ -160,14 +178,14 @@ ActiveWork = 현재 lifecycle, 활성 대표 Plan과 마지막 완료 초점
 
 ## 2. 현재 수명주기 상태
 
-현재 AssetDump는 `Feature Development Reactivated / P4-N4 Closed / P4_N4_PASS` 상태다. fresh r4 registrations 아래 revised exact 40 v1.1 전체가 40 PASS / 0 FAIL로 종료됐고 public call 28회, protected mismatch 0, prohibited call 0을 확인했다. r2/r3의 39/40 결과는 concurrent GoPyMCP worktree 변화가 있던 historical failed-protection attempts로 보존한다.
+현재 AssetDump는 `ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted / AIRE-G6 PASS` 상태다. Phase 5 successor remediation, current v0.24.2 release package의 Phase 2/1 regression과 real-project probe, post-correction public Consumer revalidation까지 완료됐다. Historical AIRE-G5는 `FAILED_REAL_PROJECT_EVIDENCE`로 그대로 보존하며 P4-N4와 r2/r3 failed-protection attempts도 완료 이력으로 유지한다.
 
 ### 현재 활성 계획
 
 ```text
-active feature lifecycle: ADUMP-v1.2.0-AIRE / Phase 5 Completed / Accepted / AIRE-G6 Not Started
-active feature task: ADUMP-v1.2.0-AIRE-P5 / Completed / Accepted
-representative current Plan: Documents/Plan/AIREPhase5Plan_v1.md v1.2
+active feature lifecycle: ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted
+active feature task: ADUMP-v1.2.0-AIRE-G6 / Completed / AIRE_G6_PASS
+representative current Result: Documents/Plan/AIREG6Result.md v1.2
 historical G5 result: Documents/Plan/AIResourceEvidenceG5Result.md v1.1 / FAILED_REAL_PROJECT_EVIDENCE / unchanged
 contract review: Documents/Plan/AIResourceEvidencePhase4ContractReview.md v1.9
 contract revision: Documents/Plan/AIResourceEvidencePhase4ContractRevision.md v1.2 / Accepted
@@ -185,6 +203,8 @@ P4-N0R result: Documents/Plan/AIREP4N0RResult.md v1.0 / GO_REDUCED
 completed phase: Phase 1 — Entity Evidence Core / Native Entity Core Accepted
 completed phase: Phase 2 — Niagara MVP Adapter / Completed / Accepted
 completed phase: Phase 3 — GoPyMCP Consumer Integration / Completed / Consumer Workflow Accepted
+completed phase: Phase 5 — Material Evidence Adapter / Completed / Accepted
+completed phase: Phase 6 — Hardening and Release / Completed / Accepted
 completed gate: AIRE-G1 Native Evidence Contract — PASS
 completed gate: AIRE-G2 Index Query Context — PASS
 completed gate: AIRE-G3 MCP Exposure — PASS / 2026-08-05
@@ -199,18 +219,18 @@ P4-N4 provider registration: PASS at verification time / active explicit / same 
 P4-N4 provider root: MATCHED_PROVIDER_ROOT
 P4-N4 original exact 40: BLOCKED_AUTHORIZATION_CONTRACT / 31 satisfiable / 9 unsatisfiable
 P4-N4 revised exact 40 v1.1: r2 39/40 Historical / r3 39/40 Historical / r4 40/40 Accepted
-current gate: Phase 5 Closed / Completed / Accepted; AIRE-G6 Not Started / Not Authorized
-current phase: Phase 5 Material Evidence Adapter Completed / Accepted
+current gate: AIRE-G6 PASS / AIRE_G6_PASS
+current phase: Phase 6 Hardening and Release / Completed / Accepted
 role gate: PASS / AssetDump feature candidate
 AIRE-G0~G4: PASS
-AIRE-G5: Exercised / FAILED_REAL_PROJECT_EVIDENCE / Protection Also Failed
-AIRE-G6: Not Started / Not Authorized
+AIRE-G5: Exercised / FAILED_REAL_PROJECT_EVIDENCE / Historical / unchanged
+AIRE-G6: PASS
 primary consumer: Browser GPT / AI Agent
 transport boundary: GoPyMCP
-implementation authorization: Phase 5 Product and validation work exercised and closed; this document-only closure authorizes no additional Product/Script/Content/Config work
-implementation state: P5-N0~N4 complete / P5-ID-GATE PASS / P5-MI v1 COMPLETE / PASS / exact 17 protected
-next decision: keep Phase 5 closed; AIRE-G6 remains a separate Not Started / Not Authorized gate
-overall AIRE completion state: not claimed; historical G5 remains FAILED_REAL_PROJECT_EVIDENCE and AIRE-G6 is not started
+implementation authorization: G6 release correction and validation exercised and closed; no additional Product/Script/Content/Config work is authorized by this closure
+implementation state: v0.24.2 ordering correction / final Phase2 PASS / Phase1 Matrix PASS / fresh real-project PASS / exact 17 protected
+next decision: AIRE release lifecycle closed; future feature work requires a new explicit lifecycle and Plan
+overall AIRE completion state: Completed / Consumer Accepted; historical G5 remains FAILED_REAL_PROJECT_EVIDENCE and is not reclassified
 accepted foundation: ADUMP-v1.0.2-AICB and accepted v0.7.1-v1.0.2 contracts
 ```
 
@@ -786,7 +806,7 @@ ADUMP-v0.8.2-BSI = Completed / Contract Accepted
 현재 상태:
 
 ```text
-lifecycle: Feature Development Reactivated / P4-N4 Closed / P4_N4_PASS / 40 PASS / 0 FAIL
+lifecycle: ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted / AIRE-G6 PASS
 active_feature: ADUMP-v1.2.0-AIRE
 completed_subtask: ADUMP-v1.2.0-AIRE-P4-N2-CONTENT / P4_N2_CONTENT_PASS
 completed_source_subtask: ADUMP-v1.2.0-AIRE-P4-N2-SOURCE / P4_N2_SOURCE_PASS
@@ -794,7 +814,8 @@ parent_feature: ADUMP-v1.2.0-AIRE
 completed_phase: Phase 1 — Entity Evidence Core / Native Entity Core Accepted
 completed_phase_2: Phase 2 — Niagara MVP Adapter / Completed / Accepted
 completed_phase_3: Phase 3 — GoPyMCP Consumer Integration / Completed
-current_phase: Phase 4 — Niagara Deep Evidence / Completed / P4_N4_PASS
+completed_phase_5: Phase 5 — Material Evidence Adapter / Completed / Accepted
+current_phase: Phase 6 — Hardening and Release / Completed / Accepted
 completed_gate_AIRE_G1: PASS / Contract Accepted
 completed_gate_AIRE_G2: PASS / Contract Accepted
 completed_gate_P2_N1: PASS / Source Change Check
@@ -822,8 +843,10 @@ P4_N4_fresh_preparation: P4_N3_PASS / 60 of 60 / protection PASS
 P4_N4_provider_registration: PASS at verification time
 P4_N4_provider_root: MATCHED_PROVIDER_ROOT
 P4_N4_revised_exact_40: r2 39/40 Historical / r3 39/40 Historical / r4 40/40 Accepted
-current_gate: P4-N4 Closed / AIRE-G5 and AIRE-G6 remain separate authorization gates
-representative_plan: Documents/Plan/AIResourceEvidencePhase4Plan_v1.md v1.20
+current_gate: AIRE-G6 PASS / AIRE_G6_PASS
+representative_result: Documents/Plan/AIREG6Result.md v1.2
+consumer_revalidation: Documents/Plan/AIREG6ConsumerReval.json / AIRE_G6_PUBLIC_CONSUMER_REVALIDATION_PASS / SHA-256 cbf4721418650530b6441c0a24f40b197f4ad39c1858d17f15e86031515d2720
+phase4_representative_plan: Documents/Plan/AIResourceEvidencePhase4Plan_v1.md v1.20
 contract_review: Documents/Plan/AIResourceEvidencePhase4ContractReview.md v1.9
 contract_revision: Documents/Plan/AIResourceEvidencePhase4ContractRevision.md v1.2
 authorization_review: Documents/Plan/AIResourceEvidencePhase4P4N1AuthorizationReview.md v1.1 / Authorization Exercised
@@ -846,9 +869,9 @@ AIRE_G1: PASS / Contract Accepted / 2026-07-31
 AIRE_G2: PASS / Contract Accepted / 2026-07-31
 AIRE_G3: PASS / Browser full chain / native equality / runtime canary / failure_count=0
 AIRE_G4: PASS / Golden Consumer Journey / reports / no manual file access
-implementation_authorization: terminal P4-N4 result/current routing only; Product/Script/Content/Config and GoPyMCP change none
-implementation_state: native provider PASS / registration PASS / root matched / public exact 40 PASS / protection PASS
-next_decision: keep P4-N4 closed; start AIRE-G5/G6 only after separate Plan and user authorization
+implementation_authorization: G6 release correction and validation exercised and closed; no additional Product/Script/Content/Config work is authorized by this closure
+implementation_state: v0.24.2 ordering correction / final Phase2 PASS / Phase1 Matrix PASS / fresh real-project PASS / fresh public Consumer revalidation PASS / exact 17 protected
+next_decision: AIRE release lifecycle closed; future feature work requires a new explicit lifecycle and Plan
 Phase_2_foundation_spike: PASS / GO_FOUNDATION
 Phase_2_spike_job: 7de87ae6632b447598e869656c297f4e
 Phase_2_spike_report_sha256: 4c644bd9238a7e339913d9561e16882c2ae309d67d3091aca87ae8124bb5aa45
