@@ -1,6 +1,8 @@
 // File: AssetDumpCommandlet.cpp
-// Version: v0.24.0
+// Version: v0.24.2
 // Changelog:
+// - v0.24.2: section_index_v1의 section/symbol deterministic ordering과 validator를 accepted ordinal case-sensitive key 비교로 교정.
+// - v0.24.1: asset_index_v1의 accepted case-sensitive object_path 정렬 계약을 명시적 FString::Compare(CaseSensitive)로 교정하고 validator도 같은 비교 의미로 정렬.
 // - v0.24.0: P5-N1 niagara_material_evidence Profile과 Renderer Resource 기반 additive dependency_index hard-edge bridge를 추가.
 // - v0.23.0: P4-N1 niagara_deep_evidence Profile, exact entity_evidence mapping과 Sections > Intent > Profile precedence self-test를 추가.
 // - v0.22.3: asset_index_v1 available_sections가 full-mode placeholder를 실제 section으로 오인하지 않도록 실행 요청과 section schema 기준으로 교정.
@@ -966,8 +968,8 @@ namespace
 			}
 
 			const FString ObjectPathText = GetCommandletStringFieldOrEmpty(EntryObject, TEXT("object_path"));
-			if (ObjectPathText.IsEmpty() || UniqueObjectPaths.Contains(ObjectPathText)
-				|| (!PreviousObjectPath.IsEmpty() && ObjectPathText < PreviousObjectPath))
+						if (ObjectPathText.IsEmpty() || UniqueObjectPaths.Contains(ObjectPathText)
+				|| (!PreviousObjectPath.IsEmpty() && ObjectPathText.Compare(PreviousObjectPath, ESearchCase::CaseSensitive) < 0))
 			{
 				OutDetail = TEXT("object_path_identity_or_order_mismatch");
 				return false;
@@ -1242,8 +1244,9 @@ namespace
 				return false;
 			}
 
-			const FString SectionSortKey = MakeCommandletSectionSortKey(SectionObject);
-			if (!PreviousSectionSortKey.IsEmpty() && SectionSortKey < PreviousSectionSortKey)
+						const FString SectionSortKey = MakeCommandletSectionSortKey(SectionObject);
+			if (!PreviousSectionSortKey.IsEmpty()
+				&& SectionSortKey.Compare(PreviousSectionSortKey, ESearchCase::CaseSensitive) < 0)
 			{
 				OutDetail = TEXT("section_order_mismatch");
 				return false;
@@ -1316,8 +1319,9 @@ namespace
 				return false;
 			}
 
-			const FString SymbolSortKey = MakeCommandletSymbolSortKey(SymbolObject);
-			if (!PreviousSymbolSortKey.IsEmpty() && SymbolSortKey < PreviousSymbolSortKey)
+						const FString SymbolSortKey = MakeCommandletSymbolSortKey(SymbolObject);
+			if (!PreviousSymbolSortKey.IsEmpty()
+				&& SymbolSortKey.Compare(PreviousSymbolSortKey, ESearchCase::CaseSensitive) < 0)
 			{
 				OutDetail = TEXT("symbol_order_mismatch");
 				return false;
@@ -9288,12 +9292,14 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(
 			return GetCommandletStringFieldOrEmpty(AssetEntryObject, TEXT("asset_key"));
 		});
 
-		Algo::SortBy(
-		AssetIndexEntryObjectArray,
-		[](const TSharedPtr<FJsonObject>& InObject)
-		{
-			return GetCommandletStringFieldOrEmpty(InObject, TEXT("object_path"));
-		});
+			AssetIndexEntryObjectArray.Sort([](
+		const TSharedPtr<FJsonObject>& InLeftObject,
+		const TSharedPtr<FJsonObject>& InRightObject)
+	{
+		const FString LeftObjectPath = GetCommandletStringFieldOrEmpty(InLeftObject, TEXT("object_path"));
+		const FString RightObjectPath = GetCommandletStringFieldOrEmpty(InRightObject, TEXT("object_path"));
+		return LeftObjectPath.Compare(RightObjectPath, ESearchCase::CaseSensitive) < 0;
+	});
 
 		// AssetIndexEntryArray는 순차 asset_id가 부여된 asset_index.json assets 배열이다.
 	TArray<TSharedPtr<FJsonValue>> AssetIndexEntryArray;
@@ -9341,18 +9347,22 @@ bool UAssetDumpCommandlet::BuildDumpIndexFiles(
 		SymbolEntryObject->SetStringField(TEXT("asset_id"), AssetIdText);
 	}
 
-	Algo::SortBy(
-		SectionIndexEntryObjectArray,
-		[](const TSharedPtr<FJsonObject>& InObject)
-		{
-			return MakeCommandletSectionSortKey(InObject);
-		});
-	Algo::SortBy(
-		SectionIndexSymbolObjectArray,
-		[](const TSharedPtr<FJsonObject>& InObject)
-		{
-			return MakeCommandletSymbolSortKey(InObject);
-		});
+		SectionIndexEntryObjectArray.Sort([](
+		const TSharedPtr<FJsonObject>& InLeftObject,
+		const TSharedPtr<FJsonObject>& InRightObject)
+	{
+		const FString LeftSortKey = MakeCommandletSectionSortKey(InLeftObject);
+		const FString RightSortKey = MakeCommandletSectionSortKey(InRightObject);
+		return LeftSortKey.Compare(RightSortKey, ESearchCase::CaseSensitive) < 0;
+	});
+	SectionIndexSymbolObjectArray.Sort([](
+		const TSharedPtr<FJsonObject>& InLeftObject,
+		const TSharedPtr<FJsonObject>& InRightObject)
+	{
+		const FString LeftSortKey = MakeCommandletSymbolSortKey(InLeftObject);
+		const FString RightSortKey = MakeCommandletSymbolSortKey(InRightObject);
+		return LeftSortKey.Compare(RightSortKey, ESearchCase::CaseSensitive) < 0;
+	});
 
 	TArray<TSharedPtr<FJsonValue>> SectionIndexEntryArray;
 	SectionIndexEntryArray.Reserve(SectionIndexEntryObjectArray.Num());

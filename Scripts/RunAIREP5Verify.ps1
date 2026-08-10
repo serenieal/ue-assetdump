@@ -1,6 +1,10 @@
 # File: RunAIREP5Verify.ps1
-# Version: v0.3.0
+# Version: v0.3.4
 # Changelog:
+# - v0.3.4: P5-N4 references-only Registry dump가 main asset.dump.json에 embedded references만 기록하는 경우를 허용하고, 동일 evidence를 native/recovery RP07에서 소비하도록 runner finalization을 교정. Product/runtime query predicate는 변경하지 않음.
+# - v0.3.3: AIRE-G6 AssetDumpCommandlet v0.24.2 최종 SHA를 exact-eight Product anchor에 동기화. P5 runtime predicate는 변경하지 않음.
+# - v0.3.2: AIRE-G6 AssetDumpCommandlet v0.24.2 section_index_v1 section/symbol case-sensitive 정렬 교정의 Product SHA anchor만 동기화. P5 runtime predicate는 변경하지 않음.
+# - v0.3.1: AIRE-G6에서 교정한 AssetDumpCommandlet v0.24.1 case-sensitive asset_index_v1 정렬의 Product SHA anchor만 동기화. P5 fixture/real-project/MI 검증 의미는 변경하지 않음.
 # - v0.3.0: P5-MI v1 Source anchor/static contract와 external real-project material_instance_detail_v1 runtime probe를 추가.
 # - v0.2.2: completed P5-N4 native workspace와 UE read-only Registry dependency package set을 소비해 commandlet 재실행 없이 RP01-RP12/native12를 복구하고 provider registration을 생성하는 mode 추가.
 # - v0.2.1: P5-N4 Material profile activation에서 -Sections override를 제거하고 RP07 Registry reconciliation을 별도 references-only dump로 분리.
@@ -12,6 +16,10 @@
 #   accepted exact-17 Content protection, typed Renderer Resource query/context/dependency reconciliation,
 #   synthetic 1024/1025 bound model, deterministic repeat와 legacy dependency regression contract를 추가.
 # Migration:
+# - v0.3.4는 references-only dump의 sidecar/embedded serialization 차이를 같은 Registry evidence로 취급한다. 기존 sidecar 경로는 우선 사용하고, 없을 때만 main dump embedded references로 fallback한다.
+# - v0.3.3은 v0.24.2 readback SHA를 exact-eight Product identity에 고정하며 검증 의미를 변경하지 않는다.
+# - v0.3.2는 P5 runtime predicate를 변경하지 않고 G6 section_index_v1 section/symbol 정렬 교정 후 exact-eight Product identity만 갱신한다.
+# - v0.3.1은 P5 runtime predicate를 변경하지 않고 G6 asset_index_v1 case-sensitive 정렬 교정 후 exact-eight Product identity만 갱신한다.
 # - v0.3.0 MI probe는 새 package를 repository-external Host에 설치하고 Deep 18/12, Material 19/12, MI detail facet, exact17/real-asset/repository invariance를 검증한다.
 # - v0.2.2 recovery는 기존 native 12-call JSON과 terminal process log만 소비하며 UE commandlet을 다시 실행하지 않는다. RP07은 UE AssetTools.get_dependencies의 package-path set을 사용한다.
 # - v0.2.1은 niagara_material_evidence exact profile activation을 보존하고 Registry/reference 관측을 독립 dump로 수행한다.
@@ -124,7 +132,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ScriptVersion = "v0.3.0"
+$ScriptVersion = "v0.3.4"
 $AcceptedP4N2ContentReportSha256 = "2a8be1a0783f7058fd524d22604ea4f041c4773c38a65a0f6e59881a3da57e4a"
 $script:ExternalStepTimeoutSeconds = $ExternalStepTimeoutSeconds
 $script:OverallDeadlineUtc = (Get-Date).ToUniversalTime().AddSeconds($OverallTimeoutSeconds)
@@ -138,7 +146,7 @@ $ExpectedP5SourceSha256 = [ordered]@{
                 "Source/AssetDump/Private/ADumpEntityEvidence.cpp" = "e79bb0593292e857f2f30127a264de32ff1f0b6b708a92a21071686e3f09122d"
     "Source/AssetDump/Private/ADumpEntityQuery.cpp" = "8608051f6fbd9d1e5d49264a43089994e3070624ed2243b5a9ec303703064ab1"
     "Source/AssetDump/Private/ADumpService.cpp" = "e0e63e30f0b9dc5ccb082c5c659f77ad6c6fe929a4021a88408ea9076a59ff3e"
-    "Source/AssetDump/Private/AssetDumpCommandlet.cpp" = "aa0ab145e35f1ccf47657a429026669b91713cff5771436f772dc4b6e6d40a92"
+                "Source/AssetDump/Private/AssetDumpCommandlet.cpp" = "9b39a22b92bc0ede15d2735cfa26ab4d0c3266792ae05e02c45b62a668c2d30e"
 }
 
 $ExpectedDeepEntityRegistry = @(
@@ -1058,9 +1066,11 @@ function Invoke-P5N4Native {
     $EntityIndexPath = Join-Path $MaterialRoot "entity_index.json"
     $DependencyIndexPath = Join-Path $MaterialRoot "dependency_index.json"
     $AssetIndexPath = Join-Path $MaterialRoot "asset_index.json"
-    $RegistryReferencesPath = Join-Path $RegistryRoot "references.json"
-    $RP01 = [bool]$Dump.run.succeeded -and [bool]$Index.run.succeeded -and [bool]$RegistryDump.run.succeeded -and (Test-Path -LiteralPath $EntityIndexPath -PathType Leaf) -and (Test-Path -LiteralPath $AssetIndexPath -PathType Leaf) -and (Test-Path -LiteralPath $DependencyIndexPath -PathType Leaf) -and (Test-Path -LiteralPath $RegistryReferencesPath -PathType Leaf)
-    Add-N4Case "RP01" $RP01 "fresh Material-profile dump/index plus independent references-only Registry dump" ([pscustomobject]@{dump=$DumpPath;entity_index=(Test-Path $EntityIndexPath);registry_references=(Test-Path $RegistryReferencesPath)})
+        $RegistryReferencesPath = Join-Path $RegistryRoot "references.json"
+    $RegistryEmbeddedReferencesAvailable = $null -ne $RegistryDump.value -and $null -ne $RegistryDump.value.references
+    $RegistryReferencesAvailable = (Test-Path -LiteralPath $RegistryReferencesPath -PathType Leaf) -or $RegistryEmbeddedReferencesAvailable
+    $RP01 = [bool]$Dump.run.succeeded -and [bool]$Index.run.succeeded -and [bool]$RegistryDump.run.succeeded -and (Test-Path -LiteralPath $EntityIndexPath -PathType Leaf) -and (Test-Path -LiteralPath $AssetIndexPath -PathType Leaf) -and (Test-Path -LiteralPath $DependencyIndexPath -PathType Leaf) -and $RegistryReferencesAvailable
+    Add-N4Case "RP01" $RP01 "fresh Material-profile dump/index plus independent references-only Registry dump" ([pscustomobject]@{dump=$DumpPath;entity_index=(Test-Path $EntityIndexPath);registry_references_sidecar=(Test-Path $RegistryReferencesPath);registry_references_embedded=$RegistryEmbeddedReferencesAvailable})
 
     $SystemPath = Join-Path $OutputRoot "system_list.json"
     $EmitterPath = Join-Path $OutputRoot "emitter_list.json"
@@ -1124,9 +1134,17 @@ function Invoke-P5N4Native {
     }
     Add-N4Case "RP06" ($EmitterRenders.Count -gt 0 -and $AllExpandClose) "Emitter->Renderer renders_with and Renderer->Resource references closure" ([pscustomobject]@{emitter_edges=$EmitterRenders.Count;renderer_cycles_closed=$AllExpandClose})
 
-        $DependencyIndex=Read-JsonFile -PathText $DependencyIndexPath
+                $DependencyIndex=Read-JsonFile -PathText $DependencyIndexPath
     $ResourcePaths=@($ResourceRows|ForEach-Object{[string]$_.object_path}|Where-Object{-not [string]::IsNullOrWhiteSpace($_)}|Select-Object -Unique)
-    $RegistryReferences=Read-JsonFile -PathText $RegistryReferencesPath
+    if (Test-Path -LiteralPath $RegistryReferencesPath -PathType Leaf) {
+        $RegistryReferences=Read-JsonFile -PathText $RegistryReferencesPath
+        $RegistryEvidenceSource="references_sidecar"
+    } elseif ($RegistryEmbeddedReferencesAvailable) {
+        $RegistryReferences=$RegistryDump.value
+        $RegistryEvidenceSource="references_only_main_dump"
+    } else {
+        throw "P5-N4 references-only Registry evidence missing from both sidecar and main dump."
+    }
     $RegistryReferencePaths=@(
         @($RegistryReferences.references.hard) + @($RegistryReferences.references.soft) |
         ForEach-Object { [string]$_.path } |
@@ -1210,8 +1228,8 @@ function ConvertTo-P5N4PackagePath {
 
 # Invoke-P5N4NativeRecovery는 completed native artifacts를 재사용해 RP01-RP12/native12를 복구한다.
 function Invoke-P5N4NativeRecovery {
-    if ([string]::IsNullOrWhiteSpace($P5N4RecoveryWorkspaceRoot) -or [string]::IsNullOrWhiteSpace($P5N4RecoveryProcessLogPath) -or [string]::IsNullOrWhiteSpace($RegistryDependencyPackages) -or [string]::IsNullOrWhiteSpace($EngineRoot) -or [string]::IsNullOrWhiteSpace($RealContentRoot) -or [string]::IsNullOrWhiteSpace($AcceptedP4N2ContentReport) -or [string]::IsNullOrWhiteSpace($AcceptedP5N3Report) -or [string]::IsNullOrWhiteSpace($AcceptedP5N3ReportSha256)) {
-        throw "-RecoverP5N4Native requires recovery workspace/log, RegistryDependencyPackages, EngineRoot, RealContentRoot, accepted P4-N2 Content report, and accepted P5-N3 report/SHA."
+        if ([string]::IsNullOrWhiteSpace($P5N4RecoveryWorkspaceRoot) -or [string]::IsNullOrWhiteSpace($P5N4RecoveryProcessLogPath) -or [string]::IsNullOrWhiteSpace($EngineRoot) -or [string]::IsNullOrWhiteSpace($RealContentRoot) -or [string]::IsNullOrWhiteSpace($AcceptedP4N2ContentReport) -or [string]::IsNullOrWhiteSpace($AcceptedP5N3Report) -or [string]::IsNullOrWhiteSpace($AcceptedP5N3ReportSha256)) {
+        throw "-RecoverP5N4Native requires recovery workspace/log, EngineRoot, RealContentRoot, accepted P4-N2 Content report, and accepted P5-N3 report/SHA. RegistryDependencyPackages is optional when the completed references-only Registry dump is present."
     }
     $ResolvedWorkspace = Assert-ExternalPath -PathText $P5N4RecoveryWorkspaceRoot -Label "P5-N4 recovery workspace"
     $ResolvedProcessLog = [System.IO.Path]::GetFullPath($P5N4RecoveryProcessLogPath)
@@ -1228,8 +1246,9 @@ function Invoke-P5N4NativeRecovery {
     $SourceBaseline = Test-P5SourceBaseline
     if (-not [bool]$ContentBaseline.passed -or -not [bool]$SourceBaseline.passed) { throw "P5-N4 recovery protection baseline mismatch." }
 
-    $MaterialRoot = Join-Path $ResolvedWorkspace "Outputs\Material"
+        $MaterialRoot = Join-Path $ResolvedWorkspace "Outputs\Material"
     $OutputRoot = Join-Path $ResolvedWorkspace "Outputs"
+    $RegistryDumpPath = Join-Path $ResolvedWorkspace "Outputs\Registry\asset.dump.json"
     $HostProject = Join-Path $ResolvedWorkspace "Host\AssetDumpP5N4Host.uproject"
     $RequiredPaths = @(
         "Material\asset.dump.json","Material\asset_index.json","Material\entity_index.json","Material\dependency_index.json",
@@ -1275,7 +1294,21 @@ function Invoke-P5N4NativeRecovery {
     $EmitterClosure=@($EmitterExpand.relations|Where-Object{[string]$_.relation_kind -ceq "renders_with" -and [string]$_.to_entity_id -ceq [string]$RepresentativeRenderer.entity_id}).Count -gt 0
     $RendererClosure=@($RendererExpands|Where-Object{@($_.relations|Where-Object{[string]$_.relation_kind -ceq "references" -and [string]$_.to_entity_id -ceq [string]$RepresentativeResource.entity_id}).Count -gt 0}).Count -eq 3
     Add-RecoveryCase "RP06" ($EmitterClosure -and $RendererClosure) ([pscustomobject]@{emitter_closure=$EmitterClosure;renderer_cycles=$RendererClosure})
-    $RegistryPackages=@($RegistryDependencyPackages.Split('|')|Where-Object{-not [string]::IsNullOrWhiteSpace($_)}|Select-Object -Unique)
+        if (-not [string]::IsNullOrWhiteSpace($RegistryDependencyPackages)) {
+        $RegistryPackages=@($RegistryDependencyPackages.Split('|')|Where-Object{-not [string]::IsNullOrWhiteSpace($_)}|Select-Object -Unique)
+        $RegistryEvidenceSource="UE AssetTools.get_dependencies read-only"
+    } elseif (Test-Path -LiteralPath $RegistryDumpPath -PathType Leaf) {
+        $RecoveryRegistryDump=Read-JsonFile -PathText $RegistryDumpPath
+        $RegistryPackages=@(
+            @($RecoveryRegistryDump.references.hard) + @($RecoveryRegistryDump.references.soft) |
+            ForEach-Object { ConvertTo-P5N4PackagePath -PathText ([string]$_.path) } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Select-Object -Unique
+        )
+        $RegistryEvidenceSource="references-only Registry main dump"
+    } else {
+        throw "P5-N4 recovery Registry evidence missing: provide RegistryDependencyPackages or preserve Outputs\\Registry\\asset.dump.json."
+    }
     $ResourcePackages=@($ResourceRows|ForEach-Object{ConvertTo-P5N4PackagePath -PathText ([string]$_.object_path)}|Where-Object{-not [string]::IsNullOrWhiteSpace($_)}|Select-Object -Unique)
     $RegistryMissing=@($ResourcePackages|Where-Object{$RegistryPackages -notcontains $_})
     Add-RecoveryCase "RP07" ($ResourcePackages.Count -gt 0 -and $RegistryMissing.Count -eq 0) ([pscustomobject]@{resource_packages=$ResourcePackages;registry_missing=$RegistryMissing})
@@ -1312,7 +1345,7 @@ function Invoke-P5N4NativeRecovery {
         }catch{$RegistrationFailure=$_.Exception.Message;$Classification="BLOCKED_EXTERNAL_PROVIDER_PREPARATION"}
     }
     $ReportPath=Join-Path $ReportRoot "p5_n4_native_recovered_$RunId.json"
-    $Report=[ordered]@{schema_version="p5_n4_native_result_v1";script_version=$ScriptVersion;recovery_kind="completed_native_workspace";classification=$Classification;rp_required=12;rp_passed=@($CaseResults|Where-Object{[string]$_.status -ceq "pass"}).Count;rp_failed=$FailedCases.Count;native_lifecycle_required=12;native_lifecycle_passed=if($Native12Pass){12}else{0};native_unexpected_failures=0;workspace_root=$ResolvedWorkspace;source_process_log_path=$ResolvedProcessLog;source_process_log_sha256=Get-FileSha256 -PathText $ResolvedProcessLog;registry_dependency_source="UE AssetTools.get_dependencies read-only";resource_count=$Resources.Count;material_resource_count=$MaterialCount;mesh_resource_count=$MeshCount;representative_renderer_stable_key=$RendererStableKey;case_results=@($CaseResults);protection=[pscustomobject]@{passed=$true;exact17=[bool]$ContentBaseline.passed;source_baseline=[bool]$SourceBaseline.passed;tracked_content_write_count=0;product_source_write_count=0;config_write_count=0;carfight_tracked_write_count=0;gopymcp_write_count=0;git_history_write_count=0};provider_contract_path=if(Test-Path $ProviderContractPathLocal){$ProviderContractPathLocal}else{""};provider_registration_count=$Registrations.Count;provider_registration_failure=$RegistrationFailure}
+    $Report=[ordered]@{schema_version="p5_n4_native_result_v1";script_version=$ScriptVersion;recovery_kind="completed_native_workspace";classification=$Classification;rp_required=12;rp_passed=@($CaseResults|Where-Object{[string]$_.status -ceq "pass"}).Count;rp_failed=$FailedCases.Count;native_lifecycle_required=12;native_lifecycle_passed=if($Native12Pass){12}else{0};native_unexpected_failures=0;workspace_root=$ResolvedWorkspace;source_process_log_path=$ResolvedProcessLog;source_process_log_sha256=Get-FileSha256 -PathText $ResolvedProcessLog;registry_dependency_source=$RegistryEvidenceSource;resource_count=$Resources.Count;material_resource_count=$MaterialCount;mesh_resource_count=$MeshCount;representative_renderer_stable_key=$RendererStableKey;case_results=@($CaseResults);protection=[pscustomobject]@{passed=$true;exact17=[bool]$ContentBaseline.passed;source_baseline=[bool]$SourceBaseline.passed;tracked_content_write_count=0;product_source_write_count=0;config_write_count=0;carfight_tracked_write_count=0;gopymcp_write_count=0;git_history_write_count=0};provider_contract_path=if(Test-Path $ProviderContractPathLocal){$ProviderContractPathLocal}else{""};provider_registration_count=$Registrations.Count;provider_registration_failure=$RegistrationFailure}
     Write-JsonFileAtomic -PathText $ReportPath -ValueObject $Report
     Write-Host "P5_N4_NATIVE_RECOVERED_RESULT_JSON=$ReportPath"
     if(Test-Path $ProviderContractPathLocal){Write-Host "P5_N4_PROVIDER_CONTRACT_JSON=$ProviderContractPathLocal"}

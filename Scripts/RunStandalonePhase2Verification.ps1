@@ -1,6 +1,7 @@
 ﻿# File: RunStandalonePhase2Verification.ps1
-# Version: v1.18.22
+# Version: v1.18.23
 # Changelog:
+# - v1.18.23: P4-N2 이후 accepted Content/Validation exact-17 baseline에서 legacy Phase 2 Niagara fixture가 포함·불변인지 검증하도록 P2-N4 baseline count를 12에서 17로 동기화. Niagara MVP registry/query/context predicate는 변경하지 않음.
 # - v1.18.22: bare 저장소명 `ue-assetdump`를 process ownership 기준에서 제거하고 실제 runner/Temp workspace/Host 식별자만 충돌로 판정해 GitHub CLI 등 무관 프로세스 오인을 방지.
 # - v1.18.21: Phase 4 read-only inspection/recovery 모드를 충돌 preflight에서 제외해 관찰 프로세스가 실행 중 Phase 2를 중단시키지 않도록 교정.
 # - v1.18.20: `Start-Process` exit-code 손실을 제거하고 `.NET Process` + `cmd.exe` 파일 리디렉션으로 wrapper의 실제 종료 코드를 authoritative하게 수집.
@@ -75,6 +76,7 @@
 # - v1.18.11 focused probe는 Actor selector 경로와 분리된 ComponentTree closure fixture를 사용한다.
 # - v1.18.12는 unfiltered entity/relation kind와 count를 probe report에 추가하며 canonical acceptance predicate는 변경하지 않는다.
 # - v1.18.13은 command line list parsing 결과를 query envelope에서 readback해 진단한다.
+# - v1.18.23은 Phase 2 fixture 자체를 exact-12로 되돌리지 않고 current accepted exact-17 Content baseline 안에서 NE_ADumpMvp/NS_ADumpMvp 존재와 전체 package/host invariance를 검증한다.
 
 [CmdletBinding()]
 param(
@@ -1653,9 +1655,9 @@ if ($RunFocusedEntityClosure) {
     $FocusedPassed = $null -ne $FocusedSelectedIndex
     $FocusedReportPath = Join-Path $FocusedReportRootPath "focused_entity_closure_report.json"
                                                 $FocusedReport = [ordered]@{
-        schema_version = "entity_filtered_closure_probe_v1"
+                schema_version = "entity_filtered_closure_probe_v1"
         generated_time = [DateTime]::UtcNow.ToString("o")
-                        script_version = "v1.18.22"
+                        script_version = "v1.18.23"
         workspace_root = $FocusedWorkspaceRoot
         entity_root = $FocusedEntityRootPath
         target_asset = $FocusedTargetBlueprintPath
@@ -3968,7 +3970,7 @@ try {
     $NiagaraAssetPath = "/AssetDump/Validation/NS_ADumpMvp.NS_ADumpMvp"
     $NiagaraEmitterFixturePath = Join-Path $HostValidationRootPath "NE_ADumpMvp.uasset"
     $NiagaraSystemFixturePath = Join-Path $HostValidationRootPath "NS_ADumpMvp.uasset"
-    $NiagaraFixtureBaselinePassed = $HostValidationBefore.file_count -eq 12 -and $PackageValidationBefore.file_count -eq 12 -and
+        $NiagaraFixtureBaselinePassed = $HostValidationBefore.file_count -eq 17 -and $PackageValidationBefore.file_count -eq 17 -and
         (Test-Path -LiteralPath $NiagaraEmitterFixturePath -PathType Leaf) -and (Test-Path -LiteralPath $NiagaraSystemFixturePath -PathType Leaf)
 
     $BlueprintOnlyDumpPath = Join-Path $BlueprintOnlyRootPath "Blueprint\actor.dump.json"
@@ -4294,9 +4296,9 @@ try {
 
 $Phase2Passed = $FailureList.Count -eq 0
 $FinalReport = [ordered]@{
-    schema_version = "assetdump_standalone_phase2_verification_v1"
+        schema_version = "assetdump_standalone_phase2_verification_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-                                                script_version = "v1.18.22"
+                                                script_version = "v1.18.23"
     workspace_root = $ResolvedWorkspaceRoot
     engine_root_source = $EngineResolution.source
     engine_root = $ResolvedEngineRoot
