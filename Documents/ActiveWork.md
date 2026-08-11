@@ -1,10 +1,151 @@
 # AssetDump Active Work
 
-- 문서 버전: v3.13
-- 최근 갱신일: 2026-08-10
-- 문서 상태: Current / ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
+- 문서 버전: v3.22
+- 최근 갱신일: 2026-08-11
+- 문서 상태: Current / ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
 
 - 역할: AssetDump 독립 저장소의 현재 feature lifecycle, 활성 대표 Plan과 최근 완료 체크포인트를 연결하는 세션 복원 색인
+
+## Current Full Public Usability Override — 2026-08-11
+
+```text
+active lifecycle: ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
+representative Plan: Documents/Plan/PublicUsabilityClosurePlan_v1.md v1.2
+PUC-0 Audit: Documents/Plan/PublicUsabilityAudit_v1.md v1.0 / PU-G0 PASS
+PUC-1 Result: Documents/Plan/PublicUsabilityPUC1Result.md v1.0 / PU-G1 PASS
+GoPyMCP Result: Workspace/docs/plan/PUC1_ManagedFresh_Result.md v1.1.0 / Browser actual chain PASS
+actual fixture: /Game/Test/NS_ADumpPositiveFixture.NS_ADumpPositiveFixture
+actual calls batch/discover/query/context/dependency/retry: 1/1/1/1/1/0
+same dataset_ref: PASS
+entity_query_available: true
+query -> context reference: PASS
+manual provider registration / local path leakage / caller filesystem path: 0 / 0 / 0
+Asset/Editor mutation / live UE MCP: 0 / 0
+capabilities: 35 / PUBLIC_READY 12 / NATIVE_ONLY_BY_DESIGN 6 / IMPLEMENTED_BUT_UNMAPPED 17 / unclassified 0
+PU-G0: PASS
+PU-G1: PASS
+PU-G2..PU-G6: not started
+AssetDump Product Source correction required: false
+base AIRE: Completed / Consumer Accepted / AIRE-G6 PASS / preserved
+base BPGRAPH: Completed / Browser Accepted / Closed / preserved
+next action: PUC-2 Stored Section Public Coverage
+```
+
+## v3.22 Changelog / Migration
+
+- PUC-1 managed fresh preparation actual Browser acceptance를 `PU-G1 PASS`로 Current에 반영했다.
+- same dataset chain, entity readiness, query/context reference, registration/path/retry 0과 Product/asset mutation 0을 `PublicUsabilityPUC1Result.md` v1.0에 연결했다.
+- current matrix를 12 ready / 6 native-only / 17 unmapped로 갱신하고 다음 작업을 PUC-2 Stored Section Public Coverage로 전환했다.
+
+Migration: PUC-1 runtime을 반복하지 않는다. PUC-2는 stored section retrieval에 한정하고 PUC-3 specialized capability와 Product Source correction은 별도 Gate로 유지한다.
+
+## v3.21 Changelog / Migration
+
+- PUC-0 exact capability/ownership audit을 완료하고 `PU-G0 PASS`로 전환했다.
+- `PublicUsabilityAudit_v1.md` v1.0과 `PublicUsabilityMatrix_v1.json`을 authoritative PUC-0 evidence로 등록했다.
+- active 35개를 PUBLIC_READY 9 / NATIVE_ONLY_BY_DESIGN 6 / IMPLEMENTED_BUT_UNMAPPED 20 / unclassified 0으로 동결했다.
+- AssetDump Product Source correction은 아직 필요하지 않으며 다음 단계는 GoPyMCP Codex-owner `PUC-1 Managed Fresh Preparation`이다.
+
+Migration: PUC-1은 dataset/preparation만 다루고 stored-section 확장과 specialized diff/context는 PUC-2/3로 유지한다.
+
+## v3.20 Changelog / Migration
+
+- 사용자 요청으로 `ADUMP-v1.4.0-PUC` Full Public Usability Closure lifecycle을 planning 상태로 활성화했다.
+- fresh Niagara default batch 이후 Entity Query가 준비되지 않는 actual gap과 accepted stored section의 Browser retrieval gap을 대표 문제로 등록했다.
+- prepared Entity Query/Context와 current Blueprint Graph/Dependency/section read PASS는 보존해 Product correctness와 public preparation 문제를 분리했다.
+- `PublicUsabilityClosurePlan_v1.md` v1.0의 Managed Evidence Dataset, capability classification과 PUC-0~PUC-6 roadmap을 Current route로 등록했다.
+- 기존 AIRE/BPGRAPH terminal acceptance를 재분류하지 않으며 Product Source/GoPyMCP 구현은 아직 시작하지 않는다.
+
+Migration: Full Public Usability 완료 전에는 개별 accepted 기능의 PASS를 `Browser에서 전 기능 원활 사용 가능`으로 확대 해석하지 않는다. 다음 단계는 Source 수정 없는 PUC-0 exact capability/ownership audit이다.
+
+## Current Blueprint Graph Access Override — 2026-08-11
+
+```text
+active lifecycle: ADUMP-v1.3.0-BPGRAPH / Completed / Browser Accepted / Closed
+representative Plan: Documents/Plan/BlueprintGraphAccessPlan_v1.md v1.2
+representative Result: Documents/Plan/BlueprintGraphAccessResult.md v1.0
+role gate: PASS
+BP-G0: PASS
+BP-G1: NATIVE_BACKEND_PASS
+BP-G1 native report SHA-256: 17af480ab6c5745c84f8eb863e50208db245b548ed6ceeaf338a955b2405da62
+BP-G2: PUBLIC_SHAPE_ACCEPTED / SAME_TOOL_BOUNDED_BLUEPRINT_GRAPH
+BP-G3: INTEGRATION_REGRESSION_PASS / focused+regression 101 passed
+BP-G4: BROWSER_BPGRAPH_PASS / BROWSER_ACCEPTED
+selected public surface: ue.assetdump_evidence_safe / operation=blueprint_graph
+EventGraph actual: PASS
+Function graph actual: PASS / function_graph
+node/pin/link + role + execution preview fidelity: PASS
+LinksOnly Exec/Data GUID fidelity: PASS
+local path leakage: 0
+public MCP Tool count delta: 0
+AssetDump Product Source changes for BPGRAPH: 0
+BPGRAPH validation Script: Scripts/RunBlueprintGraphAccessVerification.ps1 v0.2.3 / final v0.2.3 runtime Not Run (tool-blocked)
+tracked Content changes for BPGRAPH: 0
+remaining validation/blocker: 0
+base state preserved: AIRE-CSC Completed / AIRE_CSC_PASS / AIRE Closed
+next action: none / lifecycle closed; future feature requires a new explicit lifecycle/Plan
+```
+
+## v3.19 Changelog / Migration
+
+- `ADUMP-NIAGARA-POSITIVE-EFFECTTYPE-RCA`를 fixture persistence cause confirmed로 닫았다.
+- 저장되지 않은 `NET_ADumpPositiveFixture`가 false readback의 원인이었고, 저장 후 expected Effect Type bool/path를 fresh focused evidence에서 PASS했다.
+- stale package/Product defect/UE 5.8 API mismatch를 배제했으며 Product Source와 기존 AIRE/BPGRAPH acceptance는 변경하지 않았다.
+
+Migration: positive Effect Type fixture acceptance 전 referenced `NiagaraEffectType` asset과 System의 Save 완료를 확인한다.
+
+## v3.18 Changelog / Migration
+
+- BP3 integration regression 101 PASS와 BP4 actual Browser acceptance를 반영했다.
+- EventGraph/Function graph, role/execution preview, LinksOnly Exec/Data GUID fidelity와 local path leakage 0을 terminal PASS로 등록했다.
+- `BlueprintGraphAccessResult.md` v1.0을 authoritative Result로 등록하고 BPGRAPH lifecycle을 Closed로 전환했다.
+- Product Source/Content와 AIRE/CSC historical evidence를 변경하지 않았다.
+
+Migration: accepted Browser surface는 기존 `ue.assetdump_evidence_safe / operation=blueprint_graph`이며 별도 public Tool 추가는 없다.
+
+
+
+
+## Current Niagara Core Settings Coverage Override — 2026-08-10
+
+```text
+active lifecycle: ADUMP-v1.2.0-AIRE-CSC / Completed / AIRE_CSC_PASS
+representative Plan: Documents/Plan/AIRECoreSettingsCoveragePlan_v1.md v1.3
+representative Result: Documents/Plan/AIRECSCResult.md v1.1
+scope: existing niagara_system + niagara_emitter core settings additive coverage only
+Product Source allowlist: ADumpTypes.h / ADumpNiagara.cpp / ADumpEntityEvidence.cpp
+validation allowlist: RunStandalonePhase2Verification.ps1
+fresh Phase2: PASS / failure_count=0 / report SHA-256 6f4e9e10bd5d35327798163c351b1fa7b148591028553a5e36611aea6923588a
+Phase1 full matrix: PASS / fresh Phase2 evidence reused
+real-project: PASS / NS_AOE_Explosion_1 / System 1 / Emitter 11 / report SHA-256 1afa28a1ea8dfed54c2d14be9bbcc50db5c5897e79fcbe23660a820c47d227e6
+public Consumer: PASS / explicit current-package provider / entity_query -> entity_context
+asset_guid: excluded from deterministic System evidence / real-project + public absence confirmed
+new Entity/Relation/Profile: 0
+tracked Content changes: 0 / exact 17 protected
+GoPyMCP Source/schema/config changes: 0
+Material/Texture/new Adapter work: 0
+base state preserved: ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
+positive Effect Type RCA: CLOSED / fixture persistence cause / NET asset had not been saved
+positive Effect Type final: has_effect_type=true / /Game/Test/NET_ADumpPositiveFixture.NET_ADumpPositiveFixture
+RCA ownership: Test Fixture / stale package=false / Product defect=false / Source correction=none
+next decision: AIRE lifecycle closed; future feature work requires a new explicit lifecycle/Plan
+```
+
+## v3.15 Changelog / Migration
+
+- `ADUMP-v1.2.0-AIRE-CSC`의 fresh Phase2, Phase1, real-project current-package와 public Consumer representative closure를 모두 PASS했다.
+- transient Niagara System `asset_guid` 제거 후 repeat determinism과 real/public readback absence를 확인했다.
+- exact17 Content와 기존 Entity/Relation/Profile, G6/historical G5 상태를 보존하고 AIRE lifecycle을 다시 닫았다.
+- authoritative evidence는 `Documents/Plan/AIRECSCResult.md` v1.0이다.
+
+Migration: public schema/selector/query semantics와 Consumer data migration은 없다.
+
+## v3.14 Changelog / Migration
+
+- 사용자 승인으로 terminal AIRE 상태에서 `ADUMP-v1.2.0-AIRE-CSC` Niagara Core Settings Coverage를 좁게 재활성화했다.
+- frozen Product Goal에 남아 있던 Simulation Target, Local Space, Bounds, Scalability와 저비용 System/Emitter summary만 보완 대상으로 고정했다.
+- exact17 Content, existing Entity/Relation/Profile, GoPyMCP와 Material/Deep 계약은 변경하지 않는다.
+- AIRE-G6 PASS와 historical G5 결과는 base evidence로 보존한다.
 
 ## Current AIRE-G6 Closure Override — 2026-08-10
 

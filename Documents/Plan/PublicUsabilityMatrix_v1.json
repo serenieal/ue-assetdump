@@ -1,0 +1,470 @@
+{
+  "schema_version": "public_usability_matrix_v1",
+    "generated_date": "2026-08-11",
+  "updated_date": "2026-08-11",
+  "matrix_revision": "v1.1",
+  "work_id": "ADUMP-v1.4.0-PUC",
+  "baseline_work_id": "ADUMP-v1.4.0-PUC-PUC0",
+  "latest_gate": "PU-G1",
+  "source_plan": "Documents/Plan/PublicUsabilityClosurePlan_v1.md",
+  "audit_scope": "active accepted top-level evidence, selection, index/query/context, and accepted derived/adapter capabilities",
+  "granularity_rule": "one row per top-level released/accepted section, command/query/context capability, selection mechanism that changes evidence semantics, or accepted additive derived/adapter contract; internal fields/entity kinds/relation kinds remain owned by their parent capability",
+  "counts": {
+    "active_capability_count": 35,
+        "public_ready_count": 12,
+    "native_only_by_design_count": 6,
+    "implemented_but_unmapped_count": 17,
+    "historical_or_retired_active_count": 0,
+    "unclassified_count": 0,
+    "excluded_non_active_count": 5
+  },
+  "public_surface_observed": {
+    "batchdump_tool": "ue.batchdump_safe",
+        "batchdump_has_sections_input": true,
+    "batchdump_has_profile_input": true,
+    "batchdump_has_dataset_ref": true,
+    "evidence_tool": "ue.assetdump_evidence_safe",
+    "evidence_operations": [
+      "discover",
+      "asset_sections",
+      "entity_query",
+      "entity_context",
+      "dependency_query",
+      "blueprint_graph"
+    ],
+    "asset_sections_allowed": [
+      "details",
+      "data_asset_values",
+      "references"
+    ],
+        "evidence_has_dataset_ref": true,
+    "explicit_provider_control_public": false
+  },
+  "capabilities": [
+    {
+      "capability_id": "batchdump",
+      "family": "preparation",
+      "accepted_contract": "AssetDump batchdump + run_report/index rebuild controls",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.batchdump_safe",
+      "fresh_preparation": "available",
+            "audit_evidence": "PU-G1 actual managed batch PASS; 1 of 1 asset succeeded; public Sections/Profile/managed schema published; opaque dataset_ref accepted",
+      "owner": "GoPyMCP public wrapper + AssetDump native batchdump",
+      "next_action": "preserve legacy/default compatibility and managed dataset non-regression"
+    },
+    {
+      "capability_id": "summary",
+      "family": "stored_section",
+      "accepted_contract": "main dump summary",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none for section value; discover exposes only section name availability",
+      "fresh_preparation": "implicit full mode",
+      "audit_evidence": "asset_sections closed allowlist excludes summary",
+      "owner": "GoPyMCP public retrieval",
+      "next_action": "add summary to bounded asset_sections section registry"
+    },
+    {
+      "capability_id": "digest",
+      "family": "stored_section",
+      "accepted_contract": "main dump digest",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none for section value",
+      "fresh_preparation": "implicit full mode",
+      "audit_evidence": "asset_sections closed allowlist excludes digest",
+      "owner": "GoPyMCP public retrieval",
+      "next_action": "add digest to bounded asset_sections section registry"
+    },
+    {
+      "capability_id": "details",
+      "family": "stored_section",
+      "accepted_contract": "main dump/details evidence",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=asset_sections section=details",
+      "fresh_preparation": "ue.batchdump_safe include_details=true",
+      "audit_evidence": "fresh Browser audit PASS",
+      "owner": "existing public surface",
+      "next_action": "non-regression only"
+    },
+    {
+      "capability_id": "graphs",
+      "family": "stored_section",
+      "accepted_contract": "Blueprint graph data",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=blueprint_graph",
+      "fresh_preparation": "direct native bpgraph/bpdump managed call; no stored provider preparation required",
+      "audit_evidence": "EventGraph and Function graph Browser acceptance; current fresh Function graph 2 nodes/2 links PASS",
+      "owner": "existing public surface",
+      "next_action": "non-regression only; raw graphs section exposure not required"
+    },
+    {
+      "capability_id": "references",
+      "family": "stored_section",
+      "accepted_contract": "asset references/dependencies section",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=asset_sections section=references",
+      "fresh_preparation": "ue.batchdump_safe include_references=true",
+      "audit_evidence": "fresh Browser audit PASS",
+      "owner": "existing public surface",
+      "next_action": "non-regression only"
+    },
+    {
+      "capability_id": "widget_designer",
+      "family": "stored_section",
+      "accepted_contract": "widget_designer_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none",
+      "fresh_preparation": "supported Widget full/explicit native generation",
+      "audit_evidence": "asset_sections closed allowlist excludes widget_designer",
+      "owner": "GoPyMCP public retrieval",
+      "next_action": "add to asset_sections and validate Widget actual"
+    },
+    {
+      "capability_id": "data_asset_values",
+      "family": "stored_section",
+      "accepted_contract": "data_asset_values_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=asset_sections section=data_asset_values",
+      "fresh_preparation": "supported DataAsset full generation",
+      "audit_evidence": "actual CarFight DataAsset returned 7 fields in 2026-08-11 audit",
+      "owner": "existing public surface",
+      "next_action": "non-regression only"
+    },
+    {
+      "capability_id": "data_asset_diff",
+      "family": "specialized_section",
+      "accepted_contract": "data_asset_diff_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none",
+      "fresh_preparation": "native comparison requires baseline evidence input",
+      "audit_evidence": "accepted Product contract exists; Browser has neither diff operation nor opaque baseline input",
+      "owner": "cross-repo; public orchestration primarily GoPyMCP, Product change only if opaque managed baseline cannot use existing native contract",
+      "next_action": "PUC-3 same-tool data_asset_diff + opaque baseline_ref design or prove semantic replacement"
+    },
+    {
+      "capability_id": "input_summary",
+      "family": "stored_section",
+      "accepted_contract": "input_summary_v1; release-ready gate passed, human release review pending",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none",
+      "fresh_preparation": "native full/explicit generation",
+      "audit_evidence": "asset_sections closed allowlist excludes input_summary",
+      "owner": "GoPyMCP public retrieval",
+      "next_action": "add to asset_sections and validate InputAction/InputMappingContext actual"
+    },
+    {
+      "capability_id": "component_tree",
+      "family": "stored_section",
+      "accepted_contract": "component_tree_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none",
+      "fresh_preparation": "native full/explicit Actor Blueprint generation",
+      "audit_evidence": "contract accepted but asset_sections closed allowlist excludes component_tree",
+      "owner": "GoPyMCP public retrieval",
+      "next_action": "add to asset_sections and validate Actor Blueprint actual"
+    },
+    {
+      "capability_id": "bp_search_index",
+      "family": "stored_section",
+      "accepted_contract": "bp_search_index_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none",
+      "fresh_preparation": "native graph-backed full/explicit generation",
+      "audit_evidence": "contract accepted but asset_sections closed allowlist excludes bp_search_index",
+      "owner": "GoPyMCP public retrieval",
+      "next_action": "add bounded retrieval; symbol search can be Consumer-side over returned deterministic index unless a separate bounded selector is later justified"
+    },
+    {
+            "capability_id": "entity_evidence",
+      "family": "stored_section",
+      "accepted_contract": "entity_evidence_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.batchdump_safe managed preparation -> discover/entity_query/entity_context on same dataset_ref",
+      "fresh_preparation": "available through managed dataset preparation",
+      "audit_evidence": "PU-G1 actual fixture: fresh managed preparation produced discover.entity_query_available=true and query/context succeeded on same dataset_ref",
+      "owner": "existing public preparation/query route",
+      "next_action": "raw section exposure remains unnecessary; preserve PU-G1 non-regression"
+    },
+    {
+      "capability_id": "asset_index",
+      "family": "index_discovery",
+      "accepted_contract": "asset_index_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=discover",
+      "fresh_preparation": "ue.batchdump_safe rebuild_index=true",
+      "audit_evidence": "fresh index + discover PASS; bounded cursor/filter projection available",
+      "owner": "existing public surface",
+      "next_action": "raw index file remains hidden; non-regression only"
+    },
+    {
+      "capability_id": "section_index",
+      "family": "index",
+      "accepted_contract": "section_index_v1",
+      "visibility_class": "NATIVE_ONLY_BY_DESIGN",
+      "current_public_route": "no raw index exposure",
+      "fresh_preparation": "native index rebuild",
+      "audit_evidence": "section_index is a location/pointer backing contract, not a user-facing result schema",
+      "owner": "AssetDump native backing store",
+      "next_action": "keep raw index private; public section and bp_search_index capabilities must independently reach PUBLIC_READY"
+    },
+    {
+      "capability_id": "lazy_section_dump",
+      "family": "query_retrieval",
+      "accepted_contract": "lazy_section_dump_v1 / sectiondump",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "partial semantic route: asset_sections",
+      "fresh_preparation": "stored asset dump/index",
+      "audit_evidence": "public asset_sections supports only details,data_asset_values,references; accepted canonical stored-section selection is broader",
+      "owner": "GoPyMCP public retrieval",
+      "next_action": "expand section registry and prove exact/bounded retrieval across all public-by-design stored sections"
+    },
+    {
+      "capability_id": "dependency_trace_query",
+      "family": "query_retrieval",
+      "accepted_contract": "dependency_trace_query_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=dependency_query",
+      "fresh_preparation": "ue.batchdump_safe with dependencies/index",
+      "audit_evidence": "2026-08-11 fresh dataset query PASS; direction/strength/depth/node/edge bounds map to native contract",
+      "owner": "existing public surface",
+      "next_action": "non-regression; Niagara material edges depend on profile preparation"
+    },
+    {
+      "capability_id": "query_mode",
+      "family": "routing",
+      "accepted_contract": "Mode=query QueryKind=section|dependency",
+      "visibility_class": "NATIVE_ONLY_BY_DESIGN",
+      "current_public_route": "semantic split routes asset_sections and dependency_query",
+      "fresh_preparation": "not applicable",
+      "audit_evidence": "query is a native router, not a response schema; public dedicated operations preserve its two meanings",
+      "owner": "AssetDump native compatibility",
+      "next_action": "no generic Browser query-mode operation required"
+    },
+    {
+      "capability_id": "query_result",
+      "family": "response_wrapper",
+      "accepted_contract": "query_result_v1",
+      "visibility_class": "NATIVE_ONLY_BY_DESIGN",
+      "current_public_route": "public facade uses operation-specific bounded success envelopes/result_ref",
+      "fresh_preparation": "not applicable",
+      "audit_evidence": "query_result_v1 is a success wrapper around section/dependency native payload, not distinct evidence",
+      "owner": "AssetDump native bridge",
+      "next_action": "retain as native input contract for generic context; no exact wrapper exposure required"
+    },
+    {
+      "capability_id": "ai_context_bundle",
+      "family": "context",
+      "accepted_contract": "ai_context_bundle_v1 / contextbundle",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "none for generic section/dependency context",
+      "fresh_preparation": "requires one query_result_v1 input",
+      "audit_evidence": "current entity_context is entity_query-specific and does not semantically replace generic section/dependency context bundle",
+      "owner": "GoPyMCP public orchestration with existing AssetDump contextbundle preferred",
+      "next_action": "PUC-3 same-tool generic context mapping using opaque/result ref; do not require local input file"
+    },
+    {
+      "capability_id": "entity_index",
+      "family": "index",
+      "accepted_contract": "entity_index_v1",
+      "visibility_class": "NATIVE_ONLY_BY_DESIGN",
+      "current_public_route": "discover entity_query_available + entity_query use it indirectly",
+      "fresh_preparation": "must be generated in managed dataset",
+      "audit_evidence": "raw entity index is a backing lookup contract; no direct Browser payload requirement",
+      "owner": "AssetDump native backing store",
+            "next_action": "raw index stays private; preserve managed same-dataset entity readiness non-regression"
+    },
+    {
+            "capability_id": "entity_query",
+      "family": "query_retrieval",
+      "accepted_contract": "entity_query_result_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=entity_query + dataset_ref",
+      "fresh_preparation": "managed dataset route available",
+      "audit_evidence": "PU-G1 actual: available 746 / included 66 on fresh same dataset_ref",
+      "owner": "existing public surface",
+      "next_action": "non-regression; specialized Deep/Material semantic coverage remains later Gate"
+    },
+    {
+            "capability_id": "entity_context",
+      "family": "context",
+      "accepted_contract": "entity_context_bundle_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "ue.assetdump_evidence_safe operation=entity_context + same-dataset source_result_ref",
+      "fresh_preparation": "managed query chain available",
+      "audit_evidence": "PU-G1 actual: query result_ref -> context source_result_ref PASS; available 66 / included 61",
+      "owner": "existing public surface",
+      "next_action": "non-regression; generic ai_context_bundle_v1 remains separate PUC-3 capability"
+    },
+    {
+      "capability_id": "explicit_sections_selection",
+      "family": "selection",
+      "accepted_contract": "Sections > Intent > Profile > implicit full",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+            "current_public_route": "ue.batchdump_safe sections[] public field implemented and published",
+      "fresh_preparation": "public forwarding implemented",
+      "audit_evidence": "PU-G1 schema/forwarding contract PASS; selector-specific Browser coverage is not isolated as its own actual acceptance yet",
+      "owner": "GoPyMCP batch preparation",
+      "next_action": "PUC-2 fresh section preparation/retrieval matrix before PUBLIC_READY reclassification"
+    },
+    {
+      "capability_id": "intent_presets",
+      "family": "selection",
+      "accepted_contract": "quick_overview|widget_layout|blueprint_logic|dependency_trace",
+      "visibility_class": "NATIVE_ONLY_BY_DESIGN",
+      "current_public_route": "none",
+      "fresh_preparation": "native supported",
+      "audit_evidence": "intents are static section presets and add no unique evidence semantics",
+      "owner": "AssetDump native convenience presets",
+      "next_action": "Browser/AI chooses exact public sections/operations directly; do not expose Intent unless a future unique semantic appears"
+    },
+    {
+      "capability_id": "generic_profiles",
+      "family": "selection",
+      "accepted_contract": "full|summary_only|digest_only|ai_context",
+      "visibility_class": "NATIVE_ONLY_BY_DESIGN",
+      "current_public_route": "implicit full plus future explicit section selection is semantic equivalent",
+      "fresh_preparation": "native supported",
+      "audit_evidence": "these profiles are static selection presets and do not change adapter evidence semantics",
+      "owner": "AssetDump native convenience presets",
+      "next_action": "keep native-only; PUC-2 public sections must supply equivalent evidence"
+    },
+    {
+      "capability_id": "niagara_deep_profile",
+      "family": "selection_adapter",
+      "accepted_contract": "Profile=niagara_deep_evidence -> adapter_profile=niagara_deep_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+            "current_public_route": "ue.batchdump_safe profile=niagara_deep_evidence implemented and published",
+      "fresh_preparation": "exact Profile forwarding implemented; explicit Sections=entity_evidence still intentionally selects MVP",
+      "audit_evidence": "PU-G1 public schema and focused forwarding/fail-closed evidence PASS; exact Deep payload was not isolated in the PU-G1 actual chain",
+      "owner": "GoPyMCP batch preparation",
+      "next_action": "PUC-3/4 actual Deep adapter payload acceptance before PUBLIC_READY reclassification"
+    },
+    {
+            "capability_id": "niagara_material_profile",
+      "family": "selection_adapter",
+      "accepted_contract": "Profile=niagara_material_evidence -> adapter_profile=niagara_material_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "ue.batchdump_safe profile=niagara_material_evidence implemented and published",
+      "fresh_preparation": "exact Profile forwarding implemented",
+      "audit_evidence": "PU-G1 public schema and focused forwarding/fail-closed evidence PASS; exact Material/MI payload was not isolated in the PU-G1 actual chain",
+      "owner": "GoPyMCP batch preparation",
+      "next_action": "PUC-3/4 actual Material/MI adapter payload acceptance before PUBLIC_READY reclassification"
+    },
+    {
+      "capability_id": "graph_node_role",
+      "family": "derived_evidence",
+      "accepted_contract": "graph_node_role_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "blueprint_graph nodes[].role",
+      "fresh_preparation": "direct managed native graph call",
+      "audit_evidence": "Browser Event/Function graph fidelity acceptance PASS",
+      "owner": "existing public surface",
+      "next_action": "non-regression only"
+    },
+    {
+      "capability_id": "execution_path_preview",
+      "family": "derived_evidence",
+      "accepted_contract": "execution_path_preview_v1",
+      "visibility_class": "PUBLIC_READY",
+      "current_public_route": "blueprint_graph graphs[].execution_preview",
+      "fresh_preparation": "direct managed native graph/detail call",
+      "audit_evidence": "Browser graph acceptance PASS including schema/fidelity/bounds",
+      "owner": "existing public surface",
+      "next_action": "non-regression only"
+    },
+    {
+      "capability_id": "niagara_mvp",
+      "family": "adapter",
+      "accepted_contract": "niagara_mvp_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "entity_query/entity_context after prepared entity_evidence",
+      "fresh_preparation": "not available through public batch",
+      "audit_evidence": "native/explicit-provider acceptance exists, but fresh Browser default batch cannot create query-ready Entity Evidence",
+      "owner": "GoPyMCP managed preparation",
+      "next_action": "PUC-1 entity_evidence managed preparation"
+    },
+    {
+      "capability_id": "niagara_deep",
+      "family": "adapter",
+      "accepted_contract": "niagara_deep_v1 exact 18 Entity / 12 Relation",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "prepared explicit provider only",
+      "fresh_preparation": "Profile=niagara_deep_evidence unavailable publicly",
+      "audit_evidence": "accepted Phase 4/Phase 5 baseline; public batch cannot activate profile",
+      "owner": "GoPyMCP managed preparation",
+      "next_action": "PUC-1 profile+dataset support; existing entity query transport retained"
+    },
+    {
+      "capability_id": "niagara_material",
+      "family": "adapter",
+      "accepted_contract": "niagara_material_v1 exact 19 Entity / 12 Relation + renderer resource dependency bridge",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "prepared explicit provider only",
+      "fresh_preparation": "Profile=niagara_material_evidence unavailable publicly",
+      "audit_evidence": "Phase 5 Completed/Accepted; current batch wrapper cannot activate material profile",
+      "owner": "GoPyMCP managed preparation",
+      "next_action": "PUC-1 profile+dataset support; dependency_query remains existing public route"
+    },
+    {
+      "capability_id": "material_instance_detail",
+      "family": "adapter_facet",
+      "accepted_contract": "material_instance_detail_v1",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "entity query facets only after niagara_material_v1 dataset exists",
+      "fresh_preparation": "material profile unavailable publicly",
+      "audit_evidence": "Phase 5 P5-MI accepted real-project/fixture evidence; no normal Browser preparation route",
+      "owner": "GoPyMCP managed preparation",
+      "next_action": "revalidate through PUC-1 material dataset; no Product schema change"
+    },
+    {
+      "capability_id": "niagara_core_settings",
+      "family": "adapter_facet",
+      "accepted_contract": "niagara_native_evidence_v1 system/emitter core settings coverage",
+      "visibility_class": "IMPLEMENTED_BUT_UNMAPPED",
+      "current_public_route": "entity_query/entity_context after prepared current-package provider",
+      "fresh_preparation": "normal public batch lacks entity_evidence preparation",
+      "audit_evidence": "AIRE-CSC PASS and positive Effect Type PASS; fresh default Browser dataset remains query-unready",
+      "owner": "GoPyMCP managed preparation",
+      "next_action": "PUC-1 fresh entity evidence path; Product Source correction not required"
+    }
+  ],
+  "excluded_non_active": [
+    {
+      "capability_id": "material_param_summary",
+      "state": "planned_draft_not_accepted",
+      "reason": "SectionRegistry marks Draft v0.7.4"
+    },
+    {
+      "capability_id": "blueprint_graph_digest",
+      "state": "planned_not_activated",
+      "reason": "reserved later v0.8.x; not activated by Graph Role/Execution Preview"
+    },
+    {
+      "capability_id": "reserved_intents",
+      "state": "reserved_not_activated",
+      "reason": "data_asset_values, input_bindings, component_overview Intent names remain unavailable"
+    },
+    {
+      "capability_id": "natural_query_request_v1",
+      "state": "historical_unaccepted_retired",
+      "reason": "ADUMP-v1.1.0-NQAC cancelled"
+    },
+    {
+      "capability_id": "assetdump_query_request_v1",
+      "state": "historical_unaccepted_retired",
+      "reason": "ADUMP-v1.1.0-NQAC cancelled"
+    }
+  ],
+    "gate": {
+    "gate_id": "PU-G1",
+    "previous_gate": "PU-G0_PASS",
+    "unclassified_zero": true,
+    "role_boundary_passed": true,
+    "managed_fresh_preparation_passed": true,
+    "same_dataset_chain_passed": true,
+    "manual_provider_registration_count": 0,
+    "local_path_leakage_count": 0,
+    "product_source_change_required": false,
+    "next_gate": "PU-G2",
+    "status": "PASS"
+  }
+}

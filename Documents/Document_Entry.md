@@ -1,9 +1,126 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.42
-- 최근 갱신일: 2026-08-10
-- 문서 상태: Current / ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
+- 문서 버전: v1.50
+- 최근 갱신일: 2026-08-11
+- 문서 상태: Current / ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
+
+## Current Full Public Usability Route — 2026-08-11
+
+```text
+lifecycle: ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
+representative Plan: Documents/Plan/PublicUsabilityClosurePlan_v1.md v1.2
+PUC-0 Result: Documents/Plan/PublicUsabilityAudit_v1.md v1.0 / PU-G0 PASS
+PUC-1 Result: Documents/Plan/PublicUsabilityPUC1Result.md v1.0 / PU-G1 PASS
+PUC Matrix: Documents/Plan/PublicUsabilityMatrix_v1.json / v1.1 / 12 ready / 6 native-only / 17 unmapped
+actual managed fixture: /Game/Test/NS_ADumpPositiveFixture.NS_ADumpPositiveFixture
+same dataset entity readiness/query/context/dependency: PASS
+manual provider registration / local path leakage / caller path / retry: 0 / 0 / 0 / 0
+Product Source correction required: false
+next gate: PUC-2 Stored Section Public Coverage
+base AIRE/BPGRAPH: preserved
+```
+
+Full Public Usability 작업은 `PublicUsabilityClosurePlan_v1.md`를 먼저 읽는다. 기존 AIRE explicit-provider acceptance와 BPGRAPH acceptance는 유효한 correctness evidence로 보존하지만, PUC terminal gate 전에는 이를 전체 Browser 사용성으로 확대 해석하지 않는다.
+
+## v1.50 Changelog / Migration
+
+- PUC-1 Browser actual managed chain과 `PU-G1 PASS`를 Current route에 동기화했다.
+- AssetDump PUC-1 Result v1.0과 current matrix v1.1을 등록하고 capability 상태를 12/6/17로 갱신했다.
+- next route를 PUC-2 Stored Section Public Coverage로 전환했다.
+
+Migration: PUC-1 actual acceptance는 재실행하지 않으며 Full Public Usability는 PU-G2~G6 전까지 Accepted가 아니다.
+
+## v1.49 Changelog / Migration
+
+- PUC-0 `PU-G0 PASS`와 35-capability exact classification을 Current route에 등록했다.
+- authoritative Audit v1.0과 machine-readable Matrix를 추가하고 Product correction required=false를 명시했다.
+- 다음 route를 `PUC-1 Managed Fresh Preparation`으로 전환했다.
+- AIRE/BPGRAPH terminal correctness evidence는 그대로 보존한다.
+
+Migration: Full Public Usability는 아직 Accepted가 아니며 PUC-1 이후 PU-G1~G6를 계속 통과해야 한다.
+
+## v1.48 Changelog / Migration
+
+- `ADUMP-v1.4.0-PUC`를 새 Current public-usability lifecycle로 등록했다.
+- fresh preparation, stored section exposure, specialized capability mapping, Browser fresh matrix와 real-project reliability를 PUC-0~PUC-6으로 라우팅했다.
+- Managed Evidence Dataset + opaque dataset reference를 preferred cross-repository integration architecture로 등록했다.
+- AIRE/BPGRAPH terminal evidence는 unchanged이며 Source/Script/Content 구현은 아직 시작하지 않았다.
+
+Migration: 전 기능 Browser 사용성 판단은 `PublicUsabilityClosurePlan_v1.md`의 capability matrix와 PU-G0~PU-G6를 따른다.
+
+## Current Blueprint Graph Access Route — 2026-08-11
+
+```text
+lifecycle: ADUMP-v1.3.0-BPGRAPH / Completed / Browser Accepted / Closed
+representative Plan: Documents/Plan/BlueprintGraphAccessPlan_v1.md v1.2
+representative Result: Documents/Plan/BlueprintGraphAccessResult.md v1.0
+BP-G0: PASS
+BP-G1: NATIVE_BACKEND_PASS
+BP-G2: PUBLIC_SHAPE_ACCEPTED / SAME_TOOL_BOUNDED_BLUEPRINT_GRAPH
+BP-G3: INTEGRATION_REGRESSION_PASS / focused+regression 101 passed
+BP-G4: BROWSER_BPGRAPH_PASS / BROWSER_ACCEPTED
+EventGraph actual: PASS
+Function graph actual: PASS / function_graph
+node/pin/link + role + execution preview fidelity: PASS
+LinksOnly Exec/Data GUID fidelity: PASS
+local path leakage: 0
+public MCP Tool count delta: 0
+AssetDump Product Source delta for BPGRAPH: 0
+tracked Content delta for BPGRAPH: 0
+remaining BP4 validation/blocker: 0
+base AIRE-CSC: Completed / AIRE_CSC_PASS / Closed / unchanged
+```
+
+Blueprint graph public access는 기존 `ue.assetdump_evidence_safe`의 `operation=blueprint_graph`로 accepted됐다. 별도 `ue.dump_bpgraph_safe` Browser publication은 추가하지 않으며, authoritative terminal evidence는 `BlueprintGraphAccessResult.md` v1.0이다.
+
+## v1.47 Changelog / Migration
+
+- AIRE-CSC positive Effect Type fixture RCA를 `AIRECSCResult.md` v1.1로 라우팅했다.
+- unsaved `NET_ADumpPositiveFixture` 원인과 저장 후 expected bool/path PASS를 Current route에 추가했다.
+- AssetDump Product defect/source correction 없이 기존 AIRE-CSC/AIRE/BPGRAPH closure를 유지한다.
+
+Migration: positive Effect Type fixture 검증 전 referenced Effect Type asset과 System Save를 완료한다.
+
+## v1.46 Changelog / Migration
+
+- BP3 integration regression 101 PASS와 BP4 Browser EventGraph/Function graph actual acceptance를 반영했다.
+- role/execution preview 및 LinksOnly Exec/Data GUID fidelity, local path leakage 0, public Tool delta 0을 terminal evidence로 등록했다.
+- `BlueprintGraphAccessResult.md` v1.0을 authoritative Result로 추가하고 `ADUMP-v1.3.0-BPGRAPH`를 Completed / Browser Accepted / Closed로 전환했다.
+- AIRE/CSC closure와 historical evidence는 재분류하지 않는다.
+
+Migration: Browser Consumer는 별도 신규 Tool이 아니라 기존 `ue.assetdump_evidence_safe`의 accepted `blueprint_graph` operation을 사용한다.
+
+
+
+
+## Current AIRE-CSC Closure Route — 2026-08-10
+
+```text
+Core Settings Plan: Documents/Plan/AIRECoreSettingsCoveragePlan_v1.md v1.3 / Completed
+Core Settings Result: Documents/Plan/AIRECSCResult.md v1.1 / AIRE_CSC_PASS / Positive Fixture RCA Closed
+fresh Phase 2: PASS / failure_count=0 / SHA-256 6f4e9e10bd5d35327798163c351b1fa7b148591028553a5e36611aea6923588a
+Phase 1 full matrix: PASS / fresh Phase2 evidence reused
+actual real-project: NS_AOE_Explosion_1 / System 1 / Emitter 11 / core settings PASS / asset_guid absent / asset invariant
+real-project report SHA-256: 1afa28a1ea8dfed54c2d14be9bbcc50db5c5897e79fcbe23660a820c47d227e6
+public Consumer: explicit current-package provider / entity_query -> entity_context PASS
+exact 17 Content: protected / tracked diff 0
+AIRE-G6 Result: preserved / AIRE_G6_PASS
+AIRE-G5 Result: historical FAILED_REAL_PROJECT_EVIDENCE / unchanged
+ADUMP-v1.2.0-AIRE: Completed / Consumer Accepted / Closed
+positive Effect Type RCA: fixture persistence cause confirmed / Product defect=false
+positive Effect Type final: has_effect_type=true / /Game/Test/NET_ADumpPositiveFixture.NET_ADumpPositiveFixture
+```
+
+Core Settings Coverage는 새 Entity/Relation/Profile이나 public schema migration 없이 existing System/Emitter observed facet coverage만 닫았다. `UNiagaraSystem::GetAssetGuid()`는 cross-process transient 값이라 deterministic System evidence에 포함하지 않는다.
+
+## v1.43 Changelog / Migration
+
+- `ADUMP-v1.2.0-AIRE-CSC`를 `AIRE_CSC_PASS / Completed`로 등록하고 authoritative `AIRECSCResult.md` v1.0으로 라우팅했다.
+- fresh Phase2/Phase1, current-package real-project와 explicit public Consumer representative query/context PASS를 Current route에 반영했다.
+- exact17, existing Entity/Relation/Profile, G6/historical G5와 no-public-schema-migration 경계를 보존했다.
+
+Migration: AIRE-CSC는 additive observed coverage closure이며 Consumer selector/query/context 계약 변경은 없다.
 
 ## Current AIRE-G6 Release Route — 2026-08-10
 

@@ -1,8 +1,110 @@
 # AssetDump Plan Index
 
-- 문서 버전: v1.98
-- 최근 갱신일: 2026-08-10
-- 문서 상태: Current / ADUMP-v1.2.0-AIRE Completed / Consumer Accepted / AIRE-G6 PASS
+- 문서 버전: v2.7
+- 최근 갱신일: 2026-08-11
+- 문서 상태: Current / ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
+
+## Current Full Public Usability Override — 2026-08-11
+
+- `PublicUsabilityClosurePlan_v1.md` v1.2: `ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready` representative Plan.
+- `PublicUsabilityAudit_v1.md` v1.0: authoritative PUC-0 capability/ownership baseline.
+- `PublicUsabilityPUC1Result.md` v1.0: authoritative AssetDump cross-repository PU-G1 actual acceptance Result.
+- `PublicUsabilityMatrix_v1.json` v1.1: active 35 / PUBLIC_READY 12 / NATIVE_ONLY_BY_DESIGN 6 / IMPLEMENTED_BUT_UNMAPPED 17 / unclassified 0.
+- GoPyMCP PUC-1 v1.1.0: managed preparation, opaque dataset_ref, public Sections/Profile schema and actual same-dataset Entity chain PASS.
+- manual provider registration/local path/caller path/retry: 0/0/0/0; AssetDump Product Source correction required=false.
+- next: PUC-2 Stored Section Public Coverage; DataAsset Diff/generic context and Deep/Material specialized payload closure remain PUC-3/4.
+- base AIRE-G6 and BPGRAPH closure: preserved / unchanged.
+- Full Public Usability Accepted: false.
+
+### v2.7 Changelog / Migration
+
+- PUC-1 actual Browser acceptance를 `PU-G1 PASS`로 Plan Index에 등록했다.
+- PUC-1 Result v1.0과 matrix v1.1의 12/6/17 current classification을 연결했다.
+- next route를 PUC-2 stored-section coverage로 전환하고 Product Source와 historical acceptance를 보존했다.
+
+Migration: PUC-2는 stored-section retrieval만 닫는다. PUC-1 runtime actual은 반복하지 않고 PUC-3/4 specialized payload acceptance를 별도 유지한다.
+
+### v2.6 Changelog / Migration
+
+- PUC-0 exact inventory and ownership audit을 `PU-G0 PASS`로 닫았다.
+- Audit v1.0과 machine-readable Matrix를 Current Plan Index에 등록했다.
+- active 35개 중 20개가 implemented-but-unmapped임을 고정하고 다음 작업을 PUC-1 managed preparation으로 한정했다.
+- SectionRegistry profile documentation을 accepted Deep/Material 상태와 동기화하되 Product/runtime contract는 변경하지 않았다.
+
+Migration: PUC-1은 GoPyMCP Codex-owner implementation이며 AssetDump Product Source는 native insufficiency가 실제 증명되기 전까지 보호한다.
+
+### v2.5 Changelog / Migration
+
+- `ADUMP-v1.4.0-PUC` Full Public Usability Closure Plan을 Current index에 등록했다.
+- fresh preparation, public section retrieval, specialized capability mapping, Browser fresh matrix, real-project operational reliability와 terminal trust matrix를 PUC-0~PUC-6으로 정의했다.
+- 기존 AIRE/BPGRAPH acceptance를 correctness evidence로 유지하되 full usability claim과 분리했다.
+
+Migration: 다음 작업은 Product Source 수정이 아니라 `PublicUsabilityClosurePlan_v1.md`의 PUC-0 Capability Freeze and Mapping Audit이다.
+
+## Current Blueprint Graph Access Override — 2026-08-11
+
+- `BlueprintGraphAccessPlan_v1.md` v1.2: `ADUMP-v1.3.0-BPGRAPH / Completed / BP-G4 BROWSER_ACCEPTED / Closed` representative Plan.
+- `BlueprintGraphAccessResult.md` v1.0: authoritative BP1-BP5 terminal Result.
+- public surface: existing `ue.assetdump_evidence_safe` + `operation=blueprint_graph`; public Tool delta 0.
+- BP-G1: `NATIVE_BACKEND_PASS`; stored/native selector/filter/determinism/invariance PASS.
+- BP-G1 native report SHA-256: `17af480ab6c5745c84f8eb863e50208db245b548ed6ceeaf338a955b2405da62`.
+- BP-G2: `PUBLIC_SHAPE_ACCEPTED / SAME_TOOL_BOUNDED_BLUEPRINT_GRAPH`.
+- BP-G3: `INTEGRATION_REGRESSION_PASS`; focused/regression 101 passed.
+- BP-G4: `BROWSER_BPGRAPH_PASS / BROWSER_ACCEPTED`.
+- Browser actual: EventGraph PASS, Function graph PASS / `function_graph`.
+- node/pin/link, role, execution preview fidelity: PASS.
+- LinksOnly Exec/Data GUID fidelity: PASS.
+- local path leakage: 0.
+- remaining BP4 validation/blocker: 0.
+- AssetDump Product Source/Content changes for BPGRAPH: 0.
+- validation-only addition: `RunBlueprintGraphAccessVerification.ps1` v0.2.3; final v0.2.3 runtime/self-test re-run remains `Not Run / tool-blocked`.
+- AIRE-CSC/AIRE terminal evidence와 historical G5는 unchanged.
+
+### v2.3 Changelog / Migration
+
+- BP3 integration regression과 BP4 Browser actual acceptance를 Current Plan Index에 반영했다.
+- `BlueprintGraphAccessResult.md` v1.0을 terminal Result로 등록했다.
+- public MCP Tool delta 0과 AssetDump Product Source/Content delta 0을 유지한 채 BPGRAPH lifecycle을 Completed / Browser Accepted / Closed로 전환했다.
+
+Migration: accepted Browser Consumer는 기존 `ue.assetdump_evidence_safe`의 `blueprint_graph` operation을 사용하며 별도 public Tool migration은 없다.
+
+
+
+
+## Current Core Settings Coverage Override — 2026-08-10
+
+- `AIRECoreSettingsCoveragePlan_v1.md` v1.3: `ADUMP-v1.2.0-AIRE-CSC / Completed / AIRE_CSC_PASS / Positive Fixture RCA Closed`.
+- `AIRECSCResult.md` v1.1: authoritative fresh Phase2 + Phase1 + real-project + public Consumer + protection closure evidence and positive Effect Type fixture RCA.
+- Exact Product Source allowlist: `ADumpTypes.h`, `ADumpNiagara.cpp`, `ADumpEntityEvidence.cpp`; current/fresh-package SHA identity 3/3 MATCH.
+- Validation allowlist: `RunStandalonePhase2Verification.ps1` v1.18.29; focused real-project/provider modes are validation-only.
+- fresh Phase2 report SHA-256 `6f4e9e10bd5d35327798163c351b1fa7b148591028553a5e36611aea6923588a`, failure_count 0.
+- real-project report SHA-256 `1afa28a1ea8dfed54c2d14be9bbcc50db5c5897e79fcbe23660a820c47d227e6`; System 1 / Emitter 11 / asset_guid absent / asset invariant.
+- public explicit provider representative `entity_query -> entity_context`: PASS.
+- exact17 Content, existing Entity/Relation/Profile, GoPyMCP Source/schema/config and Material/Deep contracts unchanged.
+- Base terminal evidence remains `AIREG6Result.md` v1.2 / `AIRE_G6_PASS`; historical G5 remains unchanged.
+- Positive Effect Type RCA: unsaved `/Game/Test/NET_ADumpPositiveFixture` fixture persistence cause confirmed; final `has_effect_type=true` and exact Effect Type object path PASS; Product Source correction none.
+
+### v2.4 Changelog / Migration
+
+- positive Effect Type fixture RCA를 Result v1.1 / Plan v1.3에 연결했다.
+- unsaved referenced `NiagaraEffectType` asset이 원인이었고 저장 후 fresh focused expected bool/path가 PASS했음을 Current index에 반영했다.
+- stale package/Product defect/API mismatch를 배제하고 기존 BPGRAPH/AIRE terminal 상태를 유지했다.
+
+Migration: positive Effect Type acceptance 전에 referenced Effect Type asset과 System Save를 완료한다.
+
+### v2.0 Changelog / Migration
+
+- Niagara Core Settings Coverage lifecycle을 release-level closure PASS로 전환하고 `AIRECSCResult.md`를 authoritative Result로 등록했다.
+- fresh canonical Phase2, Phase1 full matrix, current-package real-project와 public explicit-provider 대표 readback을 모두 연결했다.
+- public migration 없이 AIRE lifecycle을 다시 Closed로 전환했다.
+
+Migration: 기존 AIRE-G6와 historical G5 evidence는 재분류하지 않는다.
+
+### v1.99 Changelog / Migration
+
+- 사용자 승인에 따라 Niagara Core Settings Coverage final closure lifecycle을 Current index에 등록했다.
+- 새 Adapter/Entity/Relation/Content 없이 frozen Product Goal의 System/Emitter settings gap만 닫도록 route를 제한했다.
+- 완료 전에는 기존 AIRE-G6 terminal evidence를 재분류하지 않는다.
 
 ## Current Index Override — 2026-08-10
 
@@ -113,7 +215,12 @@ CarFight `Document/Plan/README.md`와 GoPyMCP Plan 색인을 사용하지 않는
 | `P1ARuntimeVerificationAudit.md` | `P1A Plugin Runtime Contract Accepted / Host Invariance Pending` | Codex strict 결과, v1.6.1 diff, regression blocker와 Host binary attribution 감사 | `P1ARuntimeVerificationAudit.md` |
 | `P1BRuntimeVerificationCodexWorkOrder.md` | `Executed / Browser Scoped Audit Accepted` | P1B parser·self-test·Plugin isolation·restoration과 Project routing 증거 실행 이력 | `P1BRuntimeVerificationCodexWorkOrder.md` |
 | `P2ABuildPluginVerificationWorkOrder.md` | `Superseded / Historical P2A-1 Contract` | Phase 묶음 도입 전 P2A-1 단독 실행 계약 이력 | `P2ABuildPluginVerificationWorkOrder.md` |
+| `PublicUsabilityClosurePlan_v1.md` | `ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready` | accepted AssetDump capability 전체의 fresh Browser preparation·retrieval·query 사용성 closure, managed dataset와 terminal trust matrix | `PublicUsabilityClosurePlan_v1.md` |
+| `PublicUsabilityAudit_v1.md` / `PublicUsabilityMatrix_v1.json` | `PUC-0 baseline / current matrix PU-G1 PASS` | active 35-capability exact mapping, current 12/6/17 classification과 machine-readable trust baseline | `PublicUsabilityAudit_v1.md` |
+| `PublicUsabilityPUC1Result.md` | `ADUMP-v1.4.0-PUC-PUC1 / Completed / PU-G1 PASS` | managed fresh preparation, opaque dataset_ref와 actual same-dataset Entity chain cross-repository acceptance | `PublicUsabilityPUC1Result.md` |
 | `AIResourceEvidencePlan.md`와 동반 문서 | `ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted / AIRE-G6 PASS` | Browser GPT·GoPyMCP·Entity Evidence·Niagara vertical slice와 Consumer Acceptance의 상위 제품 Plan | `AIResourceEvidencePlan.md` |
+| `AIRECoreSettingsCoveragePlan_v1.md` | `ADUMP-v1.2.0-AIRE-CSC / Completed / AIRE_CSC_PASS` | 기존 Niagara System/Emitter의 additive core settings final coverage closure 계약 | `AIRECoreSettingsCoveragePlan_v1.md` |
+| `AIRECSCResult.md` | `ADUMP-v1.2.0-AIRE-CSC / AIRE_CSC_PASS / Completed` | fresh Phase2/Phase1, real-project, public Consumer와 protection authoritative terminal evidence | `AIRECSCResult.md` |
 | `AIREG6Result.md` | `ADUMP-v1.2.0-AIRE-G6 / AIRE_G6_PASS / Completed` | v0.24.2 release correction, final Phase 2/1, fresh real-project와 protection terminal evidence | `AIREG6Result.md` |
 | `AIREP3ProviderReady.md` | `ADUMP-v1.2.0-AIRE-P3-PR / Completed / Provider Ready / Classification A` | managed partial dataset 진단, fresh Niagara asset/entity index와 query closure 및 GoPyMCP handoff 증거 | `AIREP3ProviderReady.md` |
 | `AIResourceEvidencePhase3Plan_v1.md` | `ADUMP-v1.2.0-AIRE-P3 / Completed / AIRE-G3+G4 Passed / Consumer Workflow Accepted` | Browser-only evidence tool, actual transport, native equality와 Golden Consumer Journey 완료 계약 | `AIResourceEvidencePhase3Plan_v1.md` |
@@ -163,6 +270,7 @@ Documents/Plan/AIResourceEvidencePlan.md
 | 목적 | 선택 문서 |
 | --- | --- |
 | 제품 역할·분석 책임·새 기능 범위 판정 | `Documents/RoleBoundaryPolicy.md` |
+| Full Public Usability 현재 계획·Gate | `PublicUsabilityClosurePlan_v1.md`, `Documents/ActiveWork.md` |
 | 현재 AI Resource Evidence 개발 상태 | `AIResourceEvidencePlan.md`, `Documents/ActiveWork.md` |
 | 제품 목표와 완료 조건 | `AIResourceEvidenceProductGoal_v1.md` |
 | Browser GPT Golden Consumer Journey | `AIResourceEvidenceConsumerWorkflow_v1.md` |

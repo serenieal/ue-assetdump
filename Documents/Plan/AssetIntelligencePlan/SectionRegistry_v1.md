@@ -2,9 +2,9 @@
 
 ## Metadata
 
-- document_version: v1.48
+- document_version: v1.49
 - created_at: 2026-07-10
-- updated_at: 2026-08-05
+- updated_at: 2026-08-11
 - owner_repository: assetdump_repo
 - target_plugin: AssetDump
 - document_role: shared_registry
@@ -628,11 +628,14 @@ AssetDump v0.6.3 defines the initial profile contract as named selection presets
 | `summary_only` | `summary` |
 | `digest_only` | `summary,digest` |
 | `ai_context` | `summary,digest` unless an explicit Intent has higher priority |
-| `niagara_deep_evidence` | `entity_evidence`; Phase 4 exact Deep extraction opt-in |
+| `niagara_deep_evidence` | `entity_evidence`; accepted `niagara_deep_v1` exact Deep adapter activation |
+| `niagara_material_evidence` | `entity_evidence`; accepted `niagara_material_v1` Renderer resource/MI adapter activation |
 
-`ai_context` is a compact selection profile. It is not the future `ai_context_bundle_v1` export planned for v1.0.2.
+`ai_context` is a compact selection profile. It is not the `ai_context_bundle_v1` export accepted in v1.0.2.
 
-`niagara_deep_evidence` is an accepted Phase 4 contract value but is not implemented until P4-N0 and implementation authorization. Deep activation requires `profile=niagara_deep_evidence`, `section_source=profile` and effective `entity_evidence`. Explicit Sections or Intent override the Profile and keep MVP behavior.
+`niagara_deep_evidence` is an implemented and accepted Phase 4/5 profile value. Deep activation requires `profile=niagara_deep_evidence`, `section_source=profile` and effective `entity_evidence`; the accepted adapter profile is `niagara_deep_v1`. Explicit Sections or Intent override the Profile and keep MVP behavior.
+
+`niagara_material_evidence` is the implemented and accepted Phase 5 Material profile. Material activation requires `profile=niagara_material_evidence`, `section_source=profile` and effective `entity_evidence`; the accepted adapter profile is `niagara_material_v1`. It is a Deep superset and includes accepted Renderer resource evidence and `material_instance_detail_v1` where applicable. Explicit Sections or Intent override the Profile and do not activate Material semantics.
 
 ### Global Selection Precedence
 
@@ -658,24 +661,29 @@ Expected examples:
 
 Requested lower-priority profile or intent metadata may remain visible in the request envelope, but only the highest-priority source controls output and builders.
 
-Phase 4 compatibility examples:
+Niagara compatibility examples:
 
 ```text
 -Profile=niagara_deep_evidence
   section_source: profile
   sections: entity_evidence
-  adapter_profile: niagara_deep_v1 after implementation
+  adapter_profile: niagara_deep_v1
+
+-Profile=niagara_material_evidence
+  section_source: profile
+  sections: entity_evidence
+  adapter_profile: niagara_material_v1
 
 -Profile=niagara_deep_evidence -Sections=entity_evidence
   section_source: sections
   adapter_profile: niagara_mvp_v1
 
--Profile=niagara_deep_evidence -Intent=quick_overview
+-Profile=niagara_material_evidence -Intent=quick_overview
   section_source: intent
-  deep extraction: disabled
+  material extraction: disabled
 ```
 
-Existing implicit full, Profiles, Intents and explicit entity_evidence requests require no migration.
+Existing implicit full, Profiles, Intents and explicit `entity_evidence` requests require no schema migration. Consumers that need Deep or Material semantics must preserve exact Profile ownership rather than replacing the Profile with an explicit section request.
 
 ## AIRE-G0 Reserved Entity Contracts
 
@@ -793,6 +801,16 @@ No runtime migration is required for this registry. New section work must update
 None.
 
 ## Changelog
+
+### v1.49 - 2026-08-11
+
+- Synchronized Niagara Profile registry with the later accepted Phase 4/5 implementation state.
+- Promoted `niagara_deep_evidence` wording from historical pending implementation to current implemented/accepted `niagara_deep_v1` activation semantics.
+- Registered accepted `niagara_material_evidence` -> `entity_evidence` -> `niagara_material_v1` Profile mapping and preserved `material_instance_detail_v1` as profile-owned accepted facet evidence.
+- Preserved `Sections > Intent > Profile > implicit full`; explicit `Sections=entity_evidence` continues to select MVP rather than Deep/Material adapter semantics.
+- No Product schema, section name, Entity/Relation registry or runtime behavior changed.
+
+Migration: Profile-aware Consumers must pass the exact Deep/Material Profile when those adapter semantics are required. The v1.48 “not-yet-implemented” wording is historical and superseded by accepted Phase 4/5 results.
 
 ### v1.48 - 2026-08-05
 
