@@ -1,6 +1,8 @@
 // File: ADumpTypes.h
-// Version: v0.29.0
+// Version: v0.30.1
 // Changelog:
+// - v0.30.1: cross-process 변동하는 UNiagaraSystem::GetAssetGuid()를 deterministic evidence에서 제외하고 object-path/stable-key identity를 유지.
+// - v0.30.0: AIRE Core Settings Coverage용 Niagara System/Emitter의 bounds, scalability, simulation/local-space, determinism과 inventory summary typed evidence를 additive하게 추가.
 // - v0.29.0: P5-MI v1 material_instance_detail_v1용 immediate parent, direct scalar/vector/texture/static-switch override와 effective/base-property evidence를 additive하게 추가.
 // - v0.28.0: P5-N1 Renderer-owned Material/MI/Mesh typed resource evidence, material-profile activation state와 전용 1024 resource bound를 추가.
 // - v0.27.0: P4-N3 canonical Niagara reason registry와 exact 10 defect token의 단일 Product 소유권을 추가하고 기존 numeric hard cap을 보존.
@@ -11,6 +13,8 @@
 // - v0.22.0: AIRE Phase 2 Niagara MVP Adapter의 AssetDump-owned typed evidence 구조와 FADumpResult 저장소를 추가.
 // - v0.21.0: additive entity_evidence section enum과 Entity Evidence/Query forward contract를 추가.
 // Migration:
+// - v0.30.1은 transient AssetGuid field만 제거하며 기존 stable identity와 core settings 의미는 변경하지 않는다.
+// - v0.30.0은 새 Entity/Relation/Profile 없이 기존 niagara_system/niagara_emitter Facet에 직접 관측 settings만 추가한다.
 // - v0.29.0은 새 Entity/Relation kind 없이 기존 niagara_renderer_resource의 Material Instance detail payload만 확장한다.
 // - Niagara 타입은 public header에 노출하지 않고 문자열·값 기반 typed evidence로 격리한다.
 // - EntityEvidence는 기존 section 순서의 마지막에 유지하며 accepted full-mode 기본 출력은 변경하지 않는다.
@@ -1689,6 +1693,20 @@ struct FADumpNiagaraSystemEvidence
 	FString ClassPath;
 	bool bHasSystemSpawnScript = false;
 	bool bHasSystemUpdateScript = false;
+	FString EffectTypeObjectPath;
+	bool bHasEffectType = false;
+	bool bHasFixedTickDelta = false;
+	bool bNeedsDeterminism = false;
+	bool bFixedBounds = false;
+	bool bOverrideScalabilitySettings = false;
+	float WarmupTime = 0.0f;
+	float WarmupTickDelta = 0.0f;
+	float FixedTickDelta = 0.0f;
+	FVector FixedBoundsMin = FVector::ZeroVector;
+	FVector FixedBoundsMax = FVector::ZeroVector;
+	int32 WarmupTickCount = 0;
+	int32 UserParameterCount = 0;
+	int32 ScalabilityOverrideCount = 0;
 	bool bEmpty = true;
 	int32 AvailableEmitterCount = 0;
 	int32 IncludedEmitterCount = 0;
@@ -1705,7 +1723,23 @@ struct FADumpNiagaraEmitterEvidence
 	FString VersionGuid;
 	FString EmitterName;
 	FString EmitterObjectPath;
-	FString ParentEmitterObjectPath;
+		FString ParentEmitterObjectPath;
+	FString SettingsState = TEXT("unavailable");
+	FString SettingsReason = TEXT("emitter_data_unavailable");
+	FString SimulationTarget;
+	FString InterpolatedSpawnMode;
+	FString BoundsMode;
+	bool bLocalSpace = false;
+	bool bDeterminism = false;
+	bool bRequiresPersistentIds = false;
+	bool bHasFixedBounds = false;
+	FVector FixedBoundsMin = FVector::ZeroVector;
+	FVector FixedBoundsMax = FVector::ZeroVector;
+	int32 ScalabilityOverrideCount = 0;
+	int32 ExecutionGroupCount = 0;
+	int32 ModuleCount = 0;
+	int32 RendererCount = 0;
+	int32 SimulationStageCount = 0;
 	bool bEnabled = false;
 	int32 SemanticOrder = INDEX_NONE;
 };

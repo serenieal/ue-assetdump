@@ -1,6 +1,8 @@
 // File: ADumpEntityEvidence.cpp
-// Version: v1.9.0
+// Version: v1.10.1
 // Changelog:
+// - v1.10.1: cross-process transient Niagara System asset_guid projection을 제거해 Entity repeat determinism을 복원.
+// - v1.10.0: AIRE Core Settings Coverage의 Niagara System/Emitter core settings를 기존 Entity facet data에 additive projection.
 // - v1.9.0: P5-MI v1 material_instance resource에 material_instance_detail_v1 auxiliary facet을 additive projection.
 // - v1.8.1: P5-N1 F11 correction으로 Material-profile Renderer facet에 unsupported resource identity의 fail-closed state/reason을 additive하게 투영.
 // - v1.8.0: P5-N1 niagara_material_v1 exact 19/12 registry와 Renderer Resource references projection을 additive하게 구현.
@@ -15,6 +17,8 @@
 // - v1.1.0: Entity Architecture v1에 맞춰 string state, capability map, Facet envelope, exact bounds와 Stable Identity registry를 정렬.
 // - v1.0.0: stable_identity_v1, Blueprint 5 Entity Kind, 5 Relation Kind와 canonical local ID 생성을 구현.
 // Migration:
+// - v1.10.1은 transient asset_guid field만 제거하며 Entity/Relation/Profile registry와 stable identity는 변경하지 않는다.
+// - v1.10.0은 Entity/Relation/Profile registry를 변경하지 않고 niagara_system/niagara_emitter의 observed data field만 추가한다.
 // - v1.9.0은 기존 niagara_renderer_resource Entity/relations/19-12 registry를 유지하고 MI detail만 auxiliary facet으로 추가한다.
 // - v1.8.1은 Material profile에서만 Renderer resource_state/resource_reason을 추가하며 Deep/MVP facet shape와 기존 Relation 의미는 변경하지 않는다.
 // - GUID 또는 source identity가 불완전하거나 중복되면 stable_identity.quality=fallback을 명시한다.
@@ -65,6 +69,16 @@ namespace
 		int32 SemanticOrder = INDEX_NONE;
 		TSharedRef<FJsonObject> Attributes = MakeShared<FJsonObject>();
 	};
+
+		// MakeVectorObject는 observed FVector를 typed XYZ JSON object로 직렬화한다.
+	TSharedRef<FJsonObject> MakeVectorObject(const FVector& InValue)
+	{
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetNumberField(TEXT("x"), InValue.X);
+		Object->SetNumberField(TEXT("y"), InValue.Y);
+		Object->SetNumberField(TEXT("z"), InValue.Z);
+		return Object;
+	}
 
 	// MakeStringArray는 문자열 배열을 JSON string value 배열로 변환한다.
 	TArray<TSharedPtr<FJsonValue>> MakeStringArray(const TArray<FString>& InValues)
@@ -746,7 +760,31 @@ namespace ADumpEntityEvidence
 			SystemEntity.Facets->SetBoolField(TEXT("has_system_update_script"), System.bHasSystemUpdateScript);
 			SystemEntity.Facets->SetBoolField(TEXT("empty"), System.bEmpty);
 			SystemEntity.Facets->SetNumberField(TEXT("available_emitter_count"), System.AvailableEmitterCount);
-			SystemEntity.Facets->SetNumberField(TEXT("included_emitter_count"), System.IncludedEmitterCount);
+						SystemEntity.Facets->SetNumberField(TEXT("included_emitter_count"), System.IncludedEmitterCount);
+						// Niagara System identity는 deterministic object path/stable key를 사용하며 transient asset_guid는 투영하지 않는다.
+			SystemEntity.Facets->SetNumberField(TEXT("user_parameter_count"), System.UserParameterCount);
+			SystemEntity.Facets->SetBoolField(TEXT("has_effect_type"), System.bHasEffectType);
+			SystemEntity.Facets->SetStringField(TEXT("effect_type_object_path"), System.EffectTypeObjectPath);
+			SystemEntity.Facets->SetNumberField(TEXT("warmup_time"), System.WarmupTime);
+			SystemEntity.Facets->SetNumberField(TEXT("warmup_tick_count"), System.WarmupTickCount);
+			SystemEntity.Facets->SetNumberField(TEXT("warmup_tick_delta"), System.WarmupTickDelta);
+			SystemEntity.Facets->SetBoolField(TEXT("has_fixed_tick_delta"), System.bHasFixedTickDelta);
+			if (System.bHasFixedTickDelta) SystemEntity.Facets->SetNumberField(TEXT("fixed_tick_delta"), System.FixedTickDelta);
+			else SystemEntity.Facets->SetField(TEXT("fixed_tick_delta"), MakeShared<FJsonValueNull>());
+			SystemEntity.Facets->SetBoolField(TEXT("needs_determinism"), System.bNeedsDeterminism);
+			SystemEntity.Facets->SetBoolField(TEXT("fixed_bounds_enabled"), System.bFixedBounds);
+			if (System.bFixedBounds)
+			{
+				SystemEntity.Facets->SetObjectField(TEXT("fixed_bounds_min"), MakeVectorObject(System.FixedBoundsMin));
+				SystemEntity.Facets->SetObjectField(TEXT("fixed_bounds_max"), MakeVectorObject(System.FixedBoundsMax));
+			}
+			else
+			{
+				SystemEntity.Facets->SetField(TEXT("fixed_bounds_min"), MakeShared<FJsonValueNull>());
+				SystemEntity.Facets->SetField(TEXT("fixed_bounds_max"), MakeShared<FJsonValueNull>());
+			}
+			SystemEntity.Facets->SetBoolField(TEXT("override_scalability_settings"), System.bOverrideScalabilitySettings);
+			SystemEntity.Facets->SetNumberField(TEXT("scalability_override_count"), System.ScalabilityOverrideCount);
 			EntityDrafts.Add(MoveTemp(SystemEntity));
 
 			AddNiagaraRelation(
@@ -775,7 +813,31 @@ namespace ADumpEntityEvidence
 				Entity.Facets->SetStringField(TEXT("version_guid"), Emitter.VersionGuid);
 				Entity.Facets->SetStringField(TEXT("emitter_name"), Emitter.EmitterName);
 				Entity.Facets->SetStringField(TEXT("emitter_object_path"), Emitter.EmitterObjectPath);
-				Entity.Facets->SetStringField(TEXT("parent_emitter_object_path"), Emitter.ParentEmitterObjectPath);
+								Entity.Facets->SetStringField(TEXT("parent_emitter_object_path"), Emitter.ParentEmitterObjectPath);
+				Entity.Facets->SetStringField(TEXT("settings_state"), Emitter.SettingsState);
+				Entity.Facets->SetStringField(TEXT("settings_reason"), Emitter.SettingsReason);
+				Entity.Facets->SetBoolField(TEXT("local_space"), Emitter.bLocalSpace);
+				Entity.Facets->SetBoolField(TEXT("determinism"), Emitter.bDeterminism);
+				Entity.Facets->SetStringField(TEXT("simulation_target"), Emitter.SimulationTarget);
+				Entity.Facets->SetStringField(TEXT("interpolated_spawn_mode"), Emitter.InterpolatedSpawnMode);
+				Entity.Facets->SetBoolField(TEXT("requires_persistent_ids"), Emitter.bRequiresPersistentIds);
+				Entity.Facets->SetStringField(TEXT("bounds_mode"), Emitter.BoundsMode);
+				Entity.Facets->SetBoolField(TEXT("fixed_bounds_enabled"), Emitter.bHasFixedBounds);
+				if (Emitter.bHasFixedBounds)
+				{
+					Entity.Facets->SetObjectField(TEXT("fixed_bounds_min"), MakeVectorObject(Emitter.FixedBoundsMin));
+					Entity.Facets->SetObjectField(TEXT("fixed_bounds_max"), MakeVectorObject(Emitter.FixedBoundsMax));
+				}
+				else
+				{
+					Entity.Facets->SetField(TEXT("fixed_bounds_min"), MakeShared<FJsonValueNull>());
+					Entity.Facets->SetField(TEXT("fixed_bounds_max"), MakeShared<FJsonValueNull>());
+				}
+				Entity.Facets->SetNumberField(TEXT("scalability_override_count"), Emitter.ScalabilityOverrideCount);
+				Entity.Facets->SetNumberField(TEXT("execution_group_count"), Emitter.ExecutionGroupCount);
+				Entity.Facets->SetNumberField(TEXT("module_count"), Emitter.ModuleCount);
+				Entity.Facets->SetNumberField(TEXT("renderer_count"), Emitter.RendererCount);
+				Entity.Facets->SetNumberField(TEXT("simulation_stage_count"), Emitter.SimulationStageCount);
 				Entity.Facets->SetBoolField(TEXT("enabled"), Emitter.bEnabled);
 				EntityDrafts.Add(MoveTemp(Entity));
 				AddNiagaraRelation(

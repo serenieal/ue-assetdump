@@ -1,6 +1,8 @@
 // File: ADumpNiagara.cpp
-// Version: v0.8.0
+// Version: v0.9.1
 // Changelog:
+// - v0.9.1: UNiagaraSystem::GetAssetGuid()의 cross-process 변동을 실제 P2-N4에서 확인해 deterministic System evidence에서 제외.
+// - v0.9.0: AIRE Core Settings Coverage로 Niagara System/Emitter의 simulation/local-space, determinism, bounds, scalability와 inventory summary를 public API에서 직접 관측.
 // - v0.8.0: P5-MI v1 Renderer-owned Material Instance의 immediate parent, direct scalar/vector/texture/static-switch override와 effective/base properties를 bounded 관측.
 // - v0.7.0: P5-N1 Sprite/Ribbon Material, Mesh used-mesh와 explicit Material override를 Renderer-owned typed resource로 bounded 관측.
 // - v0.6.0: P4-N3 source type mismatch, resolution/Dynamic Input cycle와 depth/children/step/stage-access bounds의 canonical observation reason을 구현.
@@ -11,6 +13,8 @@
 // - v0.1.1: P2-N1에서 세부 emitter를 아직 투영하지 않는 non-empty System을 partial/omitted evidence로 명시.
 // - v0.1.0: UNiagaraSystem 타입, System Spawn/Update script와 emitter count의 P2-N1 typed observation을 구현.
 // Migration:
+// - v0.9.1은 transient AssetGuid 관측만 제거하며 object path/stable key와 나머지 core settings evidence는 유지한다.
+// - v0.9.0은 기존 Entity/Relation/Profile을 유지하고 UE 5.8 public Niagara System/Emitter settings를 additive native evidence로만 기록한다.
 // - P5-MI v1은 UMaterialInstance public typed data만 읽고 inherited/effective 값과 direct override를 분리하며 usage mutation API는 호출하지 않는다.
 // - P2-N2는 직접 관측한 identity, source order, pin link와 parameter store만 기록한다.
 // - P4-N2는 직접 관측된 graph/store/property endpoint만 기록하며 선택 branch, runtime value와 미관측 terminal source를 추론하지 않는다.
@@ -37,6 +41,7 @@
 #include "NiagaraScript.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraSimulationStageBase.h"
+#include "NiagaraEffectType.h"
 #include "NiagaraSystem.h"
 #include "NiagaraTypes.h"
 
@@ -1460,11 +1465,33 @@ namespace ADumpNiagara
 		OutEvidence.System.ClassPath = NiagaraSystem->GetClass()->GetPathName();
 		OutEvidence.System.StableKey = FString::Printf(TEXT("niagara_system:%s"), *OutEvidence.System.ObjectPath);
 		OutEvidence.System.bHasSystemSpawnScript = NiagaraSystem->GetSystemSpawnScript() != nullptr;
-		OutEvidence.System.bHasSystemUpdateScript = NiagaraSystem->GetSystemUpdateScript() != nullptr;
+				OutEvidence.System.bHasSystemUpdateScript = NiagaraSystem->GetSystemUpdateScript() != nullptr;
+				// GetAssetGuid는 commandlet process마다 변동하므로 deterministic evidence에서 의도적으로 제외한다.
+		TArray<FNiagaraVariable> ExposedParameters;
+		NiagaraSystem->GetExposedParameters().GetParameters(ExposedParameters);
+		OutEvidence.System.UserParameterCount = ExposedParameters.Num();
+		if (UNiagaraEffectType* EffectType = NiagaraSystem->GetEffectType())
+		{
+			OutEvidence.System.bHasEffectType = true;
+			OutEvidence.System.EffectTypeObjectPath = EffectType->GetPathName();
+		}
+		OutEvidence.System.WarmupTime = NiagaraSystem->GetWarmupTime();
+		OutEvidence.System.WarmupTickCount = NiagaraSystem->GetWarmupTickCount();
+		OutEvidence.System.WarmupTickDelta = NiagaraSystem->GetWarmupTickDelta();
+		OutEvidence.System.bHasFixedTickDelta = NiagaraSystem->HasFixedTickDelta();
+		OutEvidence.System.FixedTickDelta = OutEvidence.System.bHasFixedTickDelta ? NiagaraSystem->GetFixedTickDeltaTime() : 0.0f;
+		OutEvidence.System.bNeedsDeterminism = NiagaraSystem->NeedsDeterminism();
+		OutEvidence.System.bFixedBounds = NiagaraSystem->bFixedBounds != 0;
+		const FBox SystemFixedBounds = NiagaraSystem->GetFixedBounds();
+		OutEvidence.System.FixedBoundsMin = SystemFixedBounds.Min;
+		OutEvidence.System.FixedBoundsMax = SystemFixedBounds.Max;
+		OutEvidence.System.bOverrideScalabilitySettings = NiagaraSystem->GetOverrideScalabilitySettings();
+		OutEvidence.System.ScalabilityOverrideCount = NiagaraSystem->GetSystemScalabilityOverrides().Overrides.Num();
 
 				TSet<FString> ParameterKeys;
 		TSet<FString> DataInterfaceKeys;
-		TSet<FString> ReferenceKeys;
+				TSet<FString> ReferenceKeys;
+		AddReferenceEvidence(OutEvidence, ReferenceKeys, OutEvidence.System.StableKey, NiagaraSystem->GetEffectType(), TEXT("effect_type"));
 		bool bPartial = false;
 		AddParameterStoreEvidence(
 			OutEvidence,
@@ -1546,7 +1573,19 @@ namespace ADumpNiagara
 			if (EmitterData)
 			{
 				const FVersionedNiagaraEmitter ParentEmitter = EmitterData->GetParent();
-				Emitter.ParentEmitterObjectPath = ParentEmitter.Emitter ? ParentEmitter.Emitter->GetPathName() : FString();
+								Emitter.ParentEmitterObjectPath = ParentEmitter.Emitter ? ParentEmitter.Emitter->GetPathName() : FString();
+				Emitter.SettingsState = TEXT("complete");
+				Emitter.SettingsReason.Reset();
+				Emitter.bLocalSpace = EmitterData->bLocalSpace;
+				Emitter.bDeterminism = EmitterData->bDeterminism;
+				Emitter.SimulationTarget = ReflectedEnumValueText(EmitterData->SimTarget);
+				Emitter.InterpolatedSpawnMode = ReflectedEnumValueText(EmitterData->InterpolatedSpawnMode);
+				Emitter.bRequiresPersistentIds = EmitterData->RequiresPersistentIDs();
+				Emitter.BoundsMode = ReflectedEnumValueText(EmitterData->CalculateBoundsMode);
+				Emitter.bHasFixedBounds = EmitterData->CalculateBoundsMode == ENiagaraEmitterCalculateBoundMode::Fixed;
+				Emitter.FixedBoundsMin = EmitterData->FixedBounds.Min;
+				Emitter.FixedBoundsMax = EmitterData->FixedBounds.Max;
+				Emitter.ScalabilityOverrideCount = EmitterData->ScalabilityOverrides.Overrides.Num();
 			}
 			OutEvidence.Emitters.Add(MoveTemp(Emitter));
 
@@ -1568,6 +1607,8 @@ namespace ADumpNiagara
 				AddReferenceEvidence(OutEvidence, ReferenceKeys, EmitterStableKey, ParentEmitter.Emitter, TEXT("parent_emitter"));
 			}
 
+						const int32 AvailableExecutionGroupCountBefore = OutEvidence.Bounds.AvailableExecutionGroupCount;
+			const int32 AvailableModuleCountBefore = OutEvidence.Bounds.AvailableModuleCount;
 			TArray<UNiagaraScript*> EmitterScripts;
 			EmitterData->GetScripts(EmitterScripts, false, false);
 						for (int32 ScriptIndex = 0; ScriptIndex < EmitterScripts.Num(); ++ScriptIndex)
@@ -1587,7 +1628,10 @@ namespace ADumpNiagara
 				}
 			}
 
+						OutEvidence.Emitters.Last().ExecutionGroupCount = OutEvidence.Bounds.AvailableExecutionGroupCount - AvailableExecutionGroupCountBefore;
+			OutEvidence.Emitters.Last().ModuleCount = OutEvidence.Bounds.AvailableModuleCount - AvailableModuleCountBefore;
 			const TArray<UNiagaraRendererProperties*>& Renderers = EmitterData->GetRenderers();
+			OutEvidence.Emitters.Last().RendererCount = Renderers.Num();
 			for (int32 RendererIndex = 0; RendererIndex < Renderers.Num(); ++RendererIndex)
 			{
 				UNiagaraRendererProperties* Renderer = Renderers[RendererIndex];
@@ -1761,7 +1805,8 @@ namespace ADumpNiagara
 					TEXT("max_renderers"));
 			}
 
-			const TArray<UNiagaraSimulationStageBase*>& SimulationStages = EmitterData->GetSimulationStages();
+						const TArray<UNiagaraSimulationStageBase*>& SimulationStages = EmitterData->GetSimulationStages();
+			OutEvidence.Emitters.Last().SimulationStageCount = SimulationStages.Num();
 			for (int32 StageIndex = 0; StageIndex < SimulationStages.Num(); ++StageIndex)
 			{
 				UNiagaraSimulationStageBase* Stage = SimulationStages[StageIndex];
