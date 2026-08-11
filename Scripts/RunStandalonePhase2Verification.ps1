@@ -1,6 +1,12 @@
 ﻿# File: RunStandalonePhase2Verification.ps1
-# Version: v1.18.23
+# Version: v1.18.29
 # Changelog:
+# - v1.18.29: PASS한 AIRE-CSC focused real-project workspace를 GoPyMCP loopback explicit provider로 등록·status 확인만 하는 registration-only mode를 추가.
+# - v1.18.28: accepted fresh Phase2 workspace의 current packaged plugin을 external real-project Host에서 재사용해 Niagara core settings, native query/context와 real asset invariance를 검증하는 focused readback mode를 추가.
+# - v1.18.27: preserved comparison에서 유일한 변동 field로 확인된 transient asset_guid를 Core Settings required field에서 제거하고 deterministic contract를 object path/stable key로 유지.
+# - v1.18.26: inspection-only mode에서 NiagaraOnly와 preserved Mixed Niagara core data를 비교해 non-deterministic field를 직접 보고.
+# - v1.18.25: preserved Phase2 workspace의 P2-N4 closure/dump를 commandlet·build 없이 읽는 Niagara closure inspection-only recovery mode를 추가.
+# - v1.18.24: 기존 NS_ADumpMvp에서 Niagara System/Emitter Core Settings Coverage field presence, settings state와 repeat determinism을 P2-N4 canonical gate에 additive 검증.
 # - v1.18.23: P4-N2 이후 accepted Content/Validation exact-17 baseline에서 legacy Phase 2 Niagara fixture가 포함·불변인지 검증하도록 P2-N4 baseline count를 12에서 17로 동기화. Niagara MVP registry/query/context predicate는 변경하지 않음.
 # - v1.18.22: bare 저장소명 `ue-assetdump`를 process ownership 기준에서 제거하고 실제 runner/Temp workspace/Host 식별자만 충돌로 판정해 GitHub CLI 등 무관 프로세스 오인을 방지.
 # - v1.18.21: Phase 4 read-only inspection/recovery 모드를 충돌 preflight에서 제외해 관찰 프로세스가 실행 중 Phase 2를 중단시키지 않도록 교정.
@@ -76,6 +82,12 @@
 # - v1.18.11 focused probe는 Actor selector 경로와 분리된 ComponentTree closure fixture를 사용한다.
 # - v1.18.12는 unfiltered entity/relation kind와 count를 probe report에 추가하며 canonical acceptance predicate는 변경하지 않는다.
 # - v1.18.13은 command line list parsing 결과를 query envelope에서 readback해 진단한다.
+# - v1.18.29 provider registration-only mode는 AssetDump/CarFight/GoPyMCP 파일을 수정하지 않고 loopback runtime provider state만 TTL 범위로 등록하며 dump/index/commandlet을 재실행하지 않는다.
+# - v1.18.28 focused real-project mode는 BuildPlugin/Phase2를 재실행하지 않고 preserved current package, repository-external Host와 read-only Consumer Content만 사용하며 Product/Content를 수정하지 않는다.
+# - v1.18.27은 Product의 transient AssetGuid 제거와 정렬해 core-setting gate에서 asset_guid를 요구하지 않는다.
+# - v1.18.26 comparison도 preserved JSON readback만 사용하며 추가 commandlet 실행 없이 determinism defect를 좁힌다.
+# - v1.18.25 inspection-only mode는 preserved report/dump readback만 수행하며 BuildPlugin, Generic Host, commandlet와 Product state를 변경하지 않는다.
+# - v1.18.24는 새 fixture 없이 기존 NS_ADumpMvp의 niagara_system/niagara_emitter facet data에서 Core Settings Coverage를 검증하며 registry/profile/query 의미를 변경하지 않는다.
 # - v1.18.23은 Phase 2 fixture 자체를 exact-12로 되돌리지 않고 current accepted exact-17 Content baseline 안에서 NE_ADumpMvp/NS_ADumpMvp 존재와 전체 package/host invariance를 검증한다.
 
 [CmdletBinding()]
@@ -101,8 +113,38 @@ param(
     # RunFocusedEntityClosure는 기존 Generic Host workspace의 EntityEvidence index/list를 재사용해 filtered closure만 검증한다.
     [switch]$RunFocusedEntityClosure,
 
-        # FocusedEntityWorkspaceRoot는 focused closure가 재사용할 기존 Phase 2 workspace다.
+            # FocusedEntityWorkspaceRoot는 focused closure가 재사용할 기존 Phase 2 workspace다.
     [string]$FocusedEntityWorkspaceRoot = "",
+
+    # InspectNiagaraClosure는 preserved Phase 2 workspace의 P2-N4 report/dump만 읽는 inspection-only 모드다.
+    [switch]$InspectNiagaraClosure,
+
+        # InspectNiagaraWorkspaceRoot는 inspection-only 모드가 읽을 기존 Phase 2 workspace다.
+    [string]$InspectNiagaraWorkspaceRoot = "",
+
+    # RunRealNiagaraReadback은 accepted Phase2 current package를 외부 real-project Host에서 재사용해 대표 Niagara core settings를 검증한다.
+    [switch]$RunRealNiagaraReadback,
+
+    # RealNiagaraWorkspaceRoot는 focused readback이 재사용할 accepted fresh Phase2 workspace다.
+    [string]$RealNiagaraWorkspaceRoot = "",
+
+    # RealNiagaraContentRoot는 /Game mount로 읽기 전용 연결할 Consumer Project Content 디렉터리다.
+    [string]$RealNiagaraContentRoot = "",
+
+        # RealNiagaraAsset은 focused readback 대상 실제 Niagara System object path다.
+    [string]$RealNiagaraAsset = "/Game/sA_Megapack_v1/sA_StylizedAttacksPack/FX/NiagaraSystems/NS_AOE_Explosion_1.NS_AOE_Explosion_1",
+
+    # RegisterRealNiagaraProvider는 기존 PASS focused workspace를 public Consumer용 explicit provider로 등록만 한다.
+    [switch]$RegisterRealNiagaraProvider,
+
+    # RealNiagaraReadbackRoot는 registration-only mode가 소비할 PASS focused workspace root다.
+    [string]$RealNiagaraReadbackRoot = "",
+
+    # ProviderClientRequestId는 public Consumer 호출과 공유할 explicit provider request identity다.
+    [string]$ProviderClientRequestId = "",
+
+    # ProviderControlBaseUri는 GoPyMCP loopback-only provider control endpoint base다.
+    [string]$ProviderControlBaseUri = "http://127.0.0.1:8010",
 
     # ExternalStepTimeoutSeconds는 개별 UAT/UBT/Editor/child harness의 절대 제한시간이다.
     [ValidateRange(60, 3600)]
@@ -1552,6 +1594,369 @@ function Invoke-SelfTests {
     }
 }
 
+if ($InspectNiagaraClosure) {
+    if ([string]::IsNullOrWhiteSpace($InspectNiagaraWorkspaceRoot)) {
+        throw "InspectNiagaraClosure에는 -InspectNiagaraWorkspaceRoot가 필요합니다."
+    }
+
+    $InspectWorkspaceRoot = Convert-PathToFullPath -PathText $InspectNiagaraWorkspaceRoot.Trim().Trim('"')
+    $InspectClosureRoot = Join-Path $InspectWorkspaceRoot "GenericHost\Saved\AssetDumpPhase2\NiagaraPhase2Closure"
+    $InspectClosurePath = Resolve-RequiredFile -PathText (Join-Path $InspectClosureRoot "niagara_phase2_closure.json") -Label "Niagara closure report"
+        $InspectDumpPath = Resolve-RequiredFile -PathText (Join-Path $InspectClosureRoot "NiagaraOnly\Niagara\system.dump.json") -Label "Niagara evidence dump"
+    $InspectMixedDumpPath = Resolve-RequiredFile -PathText (Join-Path $InspectClosureRoot "Mixed\Niagara\system.dump.json") -Label "mixed Niagara evidence dump"
+    $InspectClosure = Read-JsonFile -PathText $InspectClosurePath
+    $InspectDump = Read-JsonFile -PathText $InspectDumpPath
+    $InspectMixedDump = Read-JsonFile -PathText $InspectMixedDumpPath
+    $InspectSystemEntities = @($InspectDump.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_system" })
+    $InspectEmitterEntities = @($InspectDump.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_emitter" })
+    $InspectMixedSystemEntities = @($InspectMixedDump.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_system" })
+    $InspectMixedEmitterEntities = @($InspectMixedDump.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_emitter" })
+    $InspectSystemDifferences = @()
+    if ($InspectSystemEntities.Count -eq 1 -and $InspectMixedSystemEntities.Count -eq 1) {
+        $LeftSystemData = $InspectSystemEntities[0].facets.niagara_system.data
+        $RightSystemData = $InspectMixedSystemEntities[0].facets.niagara_system.data
+        $SystemFieldNames = @($LeftSystemData.PSObject.Properties.Name + $RightSystemData.PSObject.Properties.Name | Sort-Object -Unique)
+        $InspectSystemDifferences = @($SystemFieldNames | ForEach-Object {
+            $FieldName = [string]$_
+            $LeftValue = $LeftSystemData.$FieldName | ConvertTo-Json -Depth 20 -Compress
+            $RightValue = $RightSystemData.$FieldName | ConvertTo-Json -Depth 20 -Compress
+            if ($LeftValue -cne $RightValue) { [pscustomobject]@{ field = $FieldName; niagara_only = $LeftValue; mixed = $RightValue } }
+        })
+    }
+    $InspectEmitterDifferences = @()
+    if ($InspectEmitterEntities.Count -eq $InspectMixedEmitterEntities.Count) {
+        for ($EmitterIndex = 0; $EmitterIndex -lt $InspectEmitterEntities.Count; ++$EmitterIndex) {
+            $LeftEmitterData = $InspectEmitterEntities[$EmitterIndex].facets.niagara_emitter.data
+            $RightEmitterData = $InspectMixedEmitterEntities[$EmitterIndex].facets.niagara_emitter.data
+            $EmitterFieldNames = @($LeftEmitterData.PSObject.Properties.Name + $RightEmitterData.PSObject.Properties.Name | Sort-Object -Unique)
+            foreach ($FieldNameValue in $EmitterFieldNames) {
+                $FieldName = [string]$FieldNameValue
+                $LeftValue = $LeftEmitterData.$FieldName | ConvertTo-Json -Depth 20 -Compress
+                $RightValue = $RightEmitterData.$FieldName | ConvertTo-Json -Depth 20 -Compress
+                if ($LeftValue -cne $RightValue) { $InspectEmitterDifferences += [pscustomobject]@{ emitter_index = $EmitterIndex; field = $FieldName; niagara_only = $LeftValue; mixed = $RightValue } }
+            }
+        }
+    }
+    $InspectSummary = [ordered]@{
+        schema_version = "niagara_phase2_closure_inspection_v1"
+        closure = [ordered]@{
+            all_passed = [bool]$InspectClosure.all_passed
+            fixture_baseline_passed = [bool]$InspectClosure.fixture_baseline_passed
+            actual_dump_passed = [bool]$InspectClosure.actual_dump_passed
+            core_settings_coverage_passed = [bool]$InspectClosure.core_settings_coverage_passed
+            system_core_settings_passed = [bool]$InspectClosure.system_core_settings_passed
+            emitter_core_settings_passed = [bool]$InspectClosure.emitter_core_settings_passed
+            registry_matrix_passed = [bool]$InspectClosure.registry_matrix_passed
+            query_context_matrix_passed = [bool]$InspectClosure.query_context_matrix_passed
+            loaded_registry_negative_passed = [bool]$InspectClosure.loaded_registry_negative_passed
+            entity_evidence_repeat_determinism_passed = [bool]$InspectClosure.entity_evidence_repeat_determinism_passed
+        }
+        system_entity_count = $InspectSystemEntities.Count
+                emitter_entity_count = $InspectEmitterEntities.Count
+        system_data = if ($InspectSystemEntities.Count -gt 0) { $InspectSystemEntities[0].facets.niagara_system.data } else { $null }
+        emitter_data = @($InspectEmitterEntities | ForEach-Object { $_.facets.niagara_emitter.data })
+        preserved_mixed_system_data_differences = @($InspectSystemDifferences)
+        preserved_mixed_emitter_data_differences = @($InspectEmitterDifferences)
+    }
+    Write-Host ("NIAGARA_CLOSURE_INSPECTION=" + ($InspectSummary | ConvertTo-Json -Depth 30 -Compress))
+    return
+}
+
+if ($RegisterRealNiagaraProvider) {
+    if ([string]::IsNullOrWhiteSpace($RealNiagaraReadbackRoot) -or [string]::IsNullOrWhiteSpace($ProviderClientRequestId)) {
+        throw "RegisterRealNiagaraProvider에는 -RealNiagaraReadbackRoot와 -ProviderClientRequestId가 필요합니다."
+    }
+
+    # ProviderReadbackRoot는 이미 PASS한 focused real-project workspace 절대 경로다.
+    $ProviderReadbackRoot = Convert-PathToFullPath -PathText $RealNiagaraReadbackRoot.Trim().Trim('"')
+    # ProviderReadbackReportPath는 registration이 소비할 PASS focused report다.
+    $ProviderReadbackReportPath = Resolve-RequiredFile -PathText (Join-Path $ProviderReadbackRoot "real_niagara_readback.json") -Label "AIRE-CSC real-project report"
+    # ProviderReadbackReport는 current-package readback acceptance와 source Phase2 provenance를 제공한다.
+    $ProviderReadbackReport = Read-JsonFile -PathText $ProviderReadbackReportPath
+    if (-not [bool]$ProviderReadbackReport.all_passed -or -not [bool]$ProviderReadbackReport.source_identity_passed -or -not [bool]$ProviderReadbackReport.real_asset_invariance_passed) {
+        throw "Explicit provider는 PASS한 AIRE-CSC real-project readback만 등록할 수 있습니다: $ProviderReadbackReportPath"
+    }
+
+    # ProviderHostProjectPath는 focused external Host의 project descriptor다.
+    $ProviderHostProjectPath = Resolve-RequiredFile -PathText (Join-Path $ProviderReadbackRoot "Host\AssetDumpCSCRealHost.uproject") -Label "focused provider Host project"
+    # ProviderDumpRoot는 current-package entity evidence와 indexes가 보존된 focused dump root다.
+    $ProviderDumpRoot = Convert-PathToFullPath -PathText ([string]$ProviderReadbackReport.dump_root)
+    if (-not (Test-Path -LiteralPath $ProviderDumpRoot -PathType Container)) {
+        throw "Focused provider dump root를 찾을 수 없습니다: $ProviderDumpRoot"
+    }
+    # ProviderEntityIndexPath는 public Entity query에 필요한 current-package entity index다.
+    $ProviderEntityIndexPath = Resolve-RequiredFile -PathText (Join-Path $ProviderDumpRoot "entity_index.json") -Label "focused entity_index.json"
+    # ProviderPhase2Workspace는 focused report가 사용한 accepted fresh Phase2 workspace다.
+    $ProviderPhase2Workspace = Convert-PathToFullPath -PathText ([string]$ProviderReadbackReport.source_phase2_workspace)
+    # ProviderPhase2ReportPath는 동일 Engine identity를 회수할 accepted Phase2 report다.
+    $ProviderPhase2ReportPath = Resolve-RequiredFile -PathText (Join-Path $ProviderPhase2Workspace "Reports\phase2_report.json") -Label "accepted Phase2 report"
+    # ProviderPhase2Report는 public provider commandlet engine provenance다.
+    $ProviderPhase2Report = Read-JsonFile -PathText $ProviderPhase2ReportPath
+    # ProviderEditorCmd는 focused current-package Host를 실행할 UnrealEditor-Cmd 절대 경로다.
+    $ProviderEditorCmd = Resolve-RequiredFile -PathText (Join-Path (Convert-PathToFullPath -PathText ([string]$ProviderPhase2Report.engine_root)) "Engine\Binaries\Win64\UnrealEditor-Cmd.exe") -Label "provider UnrealEditor-Cmd.exe"
+
+    # ProviderRegisterUri는 loopback explicit provider 등록 route다.
+    $ProviderRegisterUri = $ProviderControlBaseUri.TrimEnd('/') + "/internal/assetdump-provider/register"
+    # ProviderStatusUri는 방금 등록한 request identity를 확인하는 status route다.
+    $ProviderStatusUri = $ProviderControlBaseUri.TrimEnd('/') + "/internal/assetdump-provider/status"
+    # ProviderRegisterBody는 current focused Host/dump를 TTL 1시간 explicit provider로 등록하는 body다.
+    $ProviderRegisterBody = [ordered]@{
+        client_request_id = $ProviderClientRequestId
+        provider_root = $ProviderReadbackRoot
+        project_file = $ProviderHostProjectPath
+        dump_root = $ProviderDumpRoot
+        editor_cmd = $ProviderEditorCmd
+        ttl_seconds = 3600
+        replace_existing = $false
+    }
+    # ProviderRegisterResponse는 loopback register 응답이다.
+    $ProviderRegisterResponse = Invoke-RestMethod -Uri $ProviderRegisterUri -Method Post -ContentType "application/json" -Body ($ProviderRegisterBody | ConvertTo-Json -Depth 10 -Compress) -TimeoutSec 30
+    # ProviderStatusResponse는 동일 request identity의 active explicit provider 상태다.
+    $ProviderStatusResponse = Invoke-RestMethod -Uri $ProviderStatusUri -Method Post -ContentType "application/json" -Body (([ordered]@{ client_request_id = $ProviderClientRequestId }) | ConvertTo-Json -Compress) -TimeoutSec 30
+    # ProviderRegistrationPassed는 explicit provider가 active이며 TTL과 identity를 제공하는지 나타낸다.
+    $ProviderRegistrationPassed = [bool]$ProviderRegisterResponse.ok -and [bool]$ProviderStatusResponse.registered -and [string]$ProviderStatusResponse.registration_state -eq "active" -and [string]$ProviderStatusResponse.selected_provider -eq "explicit" -and [int]$ProviderStatusResponse.remaining_ttl_seconds -gt 0 -and -not [string]::IsNullOrWhiteSpace([string]$ProviderStatusResponse.registration_id) -and -not [string]::IsNullOrWhiteSpace([string]$ProviderStatusResponse.provider_fingerprint) -and -not [string]::IsNullOrWhiteSpace([string]$ProviderStatusResponse.server_instance_id)
+    # ProviderRegistrationSummary는 Browser public query 단계가 재사용할 bounded registration evidence다.
+    $ProviderRegistrationSummary = [ordered]@{
+        schema_version = "aire_csc_provider_registration_v1"
+        client_request_id = $ProviderClientRequestId
+        registered = [bool]$ProviderStatusResponse.registered
+        registration_state = [string]$ProviderStatusResponse.registration_state
+        selected_provider = [string]$ProviderStatusResponse.selected_provider
+        registration_id = [string]$ProviderStatusResponse.registration_id
+        provider_fingerprint = [string]$ProviderStatusResponse.provider_fingerprint
+        server_instance_id = [string]$ProviderStatusResponse.server_instance_id
+        remaining_ttl_seconds = [int]$ProviderStatusResponse.remaining_ttl_seconds
+        provider_root = $ProviderReadbackRoot
+        dump_root = $ProviderDumpRoot
+        entity_index_path = $ProviderEntityIndexPath
+        passed = $ProviderRegistrationPassed
+    }
+    Write-Host ("AIRE_CSC_PROVIDER_REGISTRATION=" + ($ProviderRegistrationSummary | ConvertTo-Json -Depth 10 -Compress))
+    if (-not $ProviderRegistrationPassed) { throw "AIRE-CSC explicit provider registration/status 검증 실패" }
+    return
+}
+
+if ($RunRealNiagaraReadback) {
+    if ([string]::IsNullOrWhiteSpace($RealNiagaraWorkspaceRoot) -or [string]::IsNullOrWhiteSpace($RealNiagaraContentRoot)) {
+        throw "RunRealNiagaraReadback에는 -RealNiagaraWorkspaceRoot와 -RealNiagaraContentRoot가 필요합니다."
+    }
+
+    # RealReadbackPhase2Root는 accepted fresh Phase2 workspace의 절대 경로다.
+    $RealReadbackPhase2Root = Convert-PathToFullPath -PathText $RealNiagaraWorkspaceRoot.Trim().Trim('"')
+    # RealReadbackContentRoot는 external Host의 /Game으로 연결할 Consumer Content 절대 경로다.
+    $RealReadbackContentRoot = Convert-PathToFullPath -PathText $RealNiagaraContentRoot.Trim().Trim('"')
+    if (-not (Test-Path -LiteralPath $RealReadbackContentRoot -PathType Container)) {
+        throw "RealNiagaraContentRoot를 찾을 수 없습니다: $RealReadbackContentRoot"
+    }
+
+    # RealReadbackClosurePath는 재사용 package가 accepted P2-N4 closure를 통과했음을 고정하는 report다.
+    $RealReadbackClosurePath = Resolve-RequiredFile -PathText (Join-Path $RealReadbackPhase2Root "GenericHost\Saved\AssetDumpPhase2\NiagaraPhase2Closure\niagara_phase2_closure.json") -Label "accepted Niagara closure report"
+    # RealReadbackClosure는 preserved P2-N4 terminal predicate다.
+    $RealReadbackClosure = Read-JsonFile -PathText $RealReadbackClosurePath
+    if (-not [bool]$RealReadbackClosure.all_passed -or -not [bool]$RealReadbackClosure.core_settings_coverage_passed -or -not [bool]$RealReadbackClosure.entity_evidence_repeat_determinism_passed) {
+        throw "Real-project readback은 accepted P2-N4 Core Settings closure workspace만 재사용할 수 있습니다: $RealReadbackClosurePath"
+    }
+
+    # RealReadbackSourcePluginRoot는 fresh Phase2에서 실제 runtime 검증에 사용한 current packaged plugin이다.
+    $RealReadbackSourcePluginRoot = Convert-PathToFullPath -PathText (Join-Path $RealReadbackPhase2Root "GenericHost\Plugins\AssetDump")
+    if (-not (Test-Path -LiteralPath $RealReadbackSourcePluginRoot -PathType Container)) {
+        throw "Preserved Phase2 packaged plugin을 찾을 수 없습니다: $RealReadbackSourcePluginRoot"
+    }
+
+    # RealReadbackIdentityRelativePaths는 CSC Product Source allowlist의 package/source identity를 고정한다.
+    $RealReadbackIdentityRelativePaths = @(
+        "Public\ADumpTypes.h",
+        "Private\ADumpNiagara.cpp",
+        "Private\ADumpEntityEvidence.cpp"
+    )
+    # RealReadbackIdentityRows는 current repository Source와 preserved packaged Source의 SHA-256 비교 결과다.
+    $RealReadbackIdentityRows = [System.Collections.Generic.List[object]]::new()
+    foreach ($RealReadbackRelativePath in $RealReadbackIdentityRelativePaths) {
+        # RealReadbackCurrentSourcePath는 현재 working tree의 허용 Product Source다.
+        $RealReadbackCurrentSourcePath = Resolve-RequiredFile -PathText (Join-Path (Join-Path $PSScriptRoot "..\Source\AssetDump") $RealReadbackRelativePath) -Label "current CSC source"
+        # RealReadbackPackagedSourcePath는 fresh Phase2 package에 보존된 동일 Product Source다.
+        $RealReadbackPackagedSourcePath = Resolve-RequiredFile -PathText (Join-Path (Join-Path $RealReadbackSourcePluginRoot "Source\AssetDump") $RealReadbackRelativePath) -Label "packaged CSC source"
+        # RealReadbackCurrentSourceSha는 current working tree Source SHA-256이다.
+        $RealReadbackCurrentSourceSha = Get-FileSha256 -PathText $RealReadbackCurrentSourcePath
+        # RealReadbackPackagedSourceSha는 preserved package Source SHA-256이다.
+        $RealReadbackPackagedSourceSha = Get-FileSha256 -PathText $RealReadbackPackagedSourcePath
+        $RealReadbackIdentityRows.Add([pscustomobject][ordered]@{
+            relative_path = $RealReadbackRelativePath.Replace("\", "/")
+            current_sha256 = $RealReadbackCurrentSourceSha
+            packaged_sha256 = $RealReadbackPackagedSourceSha
+            passed = $RealReadbackCurrentSourceSha -ceq $RealReadbackPackagedSourceSha
+        })
+    }
+    # RealReadbackSourceIdentityPassed는 CSC Product Source 3개가 fresh package와 exact 일치하는지 나타낸다.
+    $RealReadbackSourceIdentityPassed = @($RealReadbackIdentityRows | Where-Object { -not [bool]$_.passed }).Count -eq 0
+    if (-not $RealReadbackSourceIdentityPassed) {
+        throw "Preserved Phase2 package가 현재 CSC Product Source와 일치하지 않습니다. 새 BuildPlugin은 자동 실행하지 않습니다."
+    }
+
+    # RealReadbackEngineRoot는 accepted Phase2 report가 사용한 Engine root다.
+    $RealReadbackPhase2ReportPath = Resolve-RequiredFile -PathText (Join-Path $RealReadbackPhase2Root "Reports\phase2_report.json") -Label "accepted Phase2 report"
+    # RealReadbackPhase2Report는 current package provenance와 Engine root를 제공한다.
+    $RealReadbackPhase2Report = Read-JsonFile -PathText $RealReadbackPhase2ReportPath
+    # RealReadbackEngineRoot는 preserved Phase2와 동일한 Engine root 절대 경로다.
+    $RealReadbackEngineRoot = Convert-PathToFullPath -PathText ([string]$RealReadbackPhase2Report.engine_root)
+    # RealReadbackCommandletPath는 focused external Host를 실행할 UnrealEditor-Cmd 경로다.
+    $RealReadbackCommandletPath = Resolve-RequiredFile -PathText (Join-Path $RealReadbackEngineRoot "Engine\Binaries\Win64\UnrealEditor-Cmd.exe") -Label "real-project UnrealEditor-Cmd.exe"
+
+    # RealReadbackRunId는 repository-external Host/report 경로를 고유하게 만드는 실행 ID다.
+    $RealReadbackRunId = (Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss_fff") + "_" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+    # RealReadbackRoot는 focused run의 모든 mutable 산출물을 보존할 repository-external root다.
+    $RealReadbackRoot = Join-Path ([System.IO.Path]::GetTempPath()) "AssetDumpCSCReal\Run_$RealReadbackRunId"
+    # RealReadbackHostRoot는 current package와 real Content junction을 담는 임시 Host root다.
+    $RealReadbackHostRoot = Join-Path $RealReadbackRoot "Host"
+    # RealReadbackHostPluginRoot는 current packaged AssetDump를 복사할 Host plugin root다.
+    $RealReadbackHostPluginRoot = Join-Path $RealReadbackHostRoot "Plugins\AssetDump"
+    # RealReadbackHostProjectPath는 content-only external Host project descriptor다.
+    $RealReadbackHostProjectPath = Join-Path $RealReadbackHostRoot "AssetDumpCSCRealHost.uproject"
+    # RealReadbackHostContentPath는 Consumer Content를 /Game에 연결할 junction path다.
+    $RealReadbackHostContentPath = Join-Path $RealReadbackHostRoot "Content"
+    # RealReadbackOutputRoot는 bpdump/index/query/context structured evidence root다.
+    $RealReadbackOutputRoot = Join-Path $RealReadbackRoot "Evidence"
+    # RealReadbackLogRoot는 focused commandlet 전체 로그 root다.
+    $RealReadbackLogRoot = Join-Path $RealReadbackRoot "Logs"
+    # RealReadbackReportPath는 focused acceptance report 경로다.
+    $RealReadbackReportPath = Join-Path $RealReadbackRoot "real_niagara_readback.json"
+    New-Item -ItemType Directory -Path $RealReadbackHostPluginRoot, $RealReadbackOutputRoot, $RealReadbackLogRoot -Force | Out-Null
+    Copy-Item -Path (Join-Path $RealReadbackSourcePluginRoot "*") -Destination $RealReadbackHostPluginRoot -Recurse -Force
+    Write-JsonFile -PathText $RealReadbackHostProjectPath -ValueObject ([ordered]@{
+        FileVersion = 3
+        Category = ""
+        Description = "AssetDump AIRE-CSC real-project readback host"
+        Plugins = @(
+            [ordered]@{ Name = "AssetDump"; Enabled = $true },
+            [ordered]@{ Name = "Niagara"; Enabled = $true }
+        )
+    })
+    New-Item -ItemType Junction -Path $RealReadbackHostContentPath -Target $RealReadbackContentRoot | Out-Null
+
+    # RealReadbackObjectWithoutName은 object path에서 package-relative uasset 경로를 계산할 package 부분이다.
+    $RealReadbackObjectWithoutName = $RealNiagaraAsset
+    # RealReadbackDotIndex는 `.AssetName` suffix 시작 위치다.
+    $RealReadbackDotIndex = $RealReadbackObjectWithoutName.LastIndexOf('.')
+    if ($RealReadbackDotIndex -gt 0) { $RealReadbackObjectWithoutName = $RealReadbackObjectWithoutName.Substring(0, $RealReadbackDotIndex) }
+    if (-not $RealReadbackObjectWithoutName.StartsWith("/Game/")) { throw "RealNiagaraAsset은 /Game object path여야 합니다: $RealNiagaraAsset" }
+    # RealReadbackAssetRelativePath는 Consumer Content root 기준 실제 uasset 상대 경로다.
+    $RealReadbackAssetRelativePath = $RealReadbackObjectWithoutName.Substring(6).Replace('/', '\') + ".uasset"
+    # RealReadbackAssetFilePath는 read-only invariance를 검증할 실제 Consumer asset 파일이다.
+    $RealReadbackAssetFilePath = Resolve-RequiredFile -PathText (Join-Path $RealReadbackContentRoot $RealReadbackAssetRelativePath) -Label "real Niagara asset"
+    # RealReadbackAssetShaBefore는 commandlet 실행 전 real asset SHA-256이다.
+    $RealReadbackAssetShaBefore = Get-FileSha256 -PathText $RealReadbackAssetFilePath
+
+    # RealReadbackDumpPath는 real Niagara entity_evidence bpdump 경로다.
+    $RealReadbackDumpPath = Join-Path $RealReadbackOutputRoot "asset.dump.json"
+    # RealReadbackDumpArguments는 P2-N4와 동일한 explicit entity_evidence selection을 real asset에 적용한다.
+    $RealReadbackDumpArguments = @($RealReadbackHostProjectPath, "-run=AssetDump", "-Mode=bpdump", "-Asset=$RealNiagaraAsset", "-Output=$RealReadbackDumpPath", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+    [void](Invoke-ExternalCommand -FilePath $RealReadbackCommandletPath -Arguments $RealReadbackDumpArguments -StepName "AIRE-CSC Real Niagara Evidence" -LogPath (Join-Path $RealReadbackLogRoot "01_real_niagara_dump.log") -UseCompactLog:$CompactLog -ExpectedReportPath $RealReadbackDumpPath -ExpectedReportKind "bpdump")
+
+    # RealReadbackIndexArguments는 단일 real dump에서 asset/section/dependency/entity indexes를 생성한다.
+    $RealReadbackIndexArguments = @($RealReadbackHostProjectPath, "-run=AssetDump", "-Mode=index", "-DumpRoot=$RealReadbackOutputRoot", "-unattended", "-nop4", "-NoLogTimes")
+    [void](Invoke-ExternalCommand -FilePath $RealReadbackCommandletPath -Arguments $RealReadbackIndexArguments -StepName "AIRE-CSC Real Niagara Index" -LogPath (Join-Path $RealReadbackLogRoot "02_real_niagara_index.log") -UseCompactLog:$CompactLog)
+
+    # RealReadbackSystemQueryPath는 public/native Consumer와 같은 entity_query_result_v1 System query evidence다.
+    $RealReadbackSystemQueryPath = Join-Path $RealReadbackOutputRoot "system_query.json"
+    # RealReadbackSystemQueryArguments는 대표 System Entity를 bounded list한다.
+    $RealReadbackSystemQueryArguments = @($RealReadbackHostProjectPath, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$RealReadbackOutputRoot", "-Asset=$RealNiagaraAsset", "-EntityKinds=niagara_system", "-MaxEntities=64", "-MaxRelations=0", "-MaxBytes=1048576", "-Output=$RealReadbackSystemQueryPath", "-unattended", "-nop4", "-NoLogTimes")
+    [void](Invoke-ExternalCommand -FilePath $RealReadbackCommandletPath -Arguments $RealReadbackSystemQueryArguments -StepName "AIRE-CSC Real Niagara Query" -LogPath (Join-Path $RealReadbackLogRoot "03_real_niagara_query.log") -UseCompactLog:$CompactLog)
+
+    # RealReadbackContextPath는 System query를 소비한 entity_context_bundle_v1 evidence다.
+    $RealReadbackContextPath = Join-Path $RealReadbackOutputRoot "system_context.json"
+    # RealReadbackContextArguments는 대표 System query를 bounded context로 변환한다.
+    $RealReadbackContextArguments = @($RealReadbackHostProjectPath, "-run=AssetDump", "-Mode=entitycontext", "-Input=$RealReadbackSystemQueryPath", "-Output=$RealReadbackContextPath", "-MaxItems=64", "-MaxBytes=1048576", "-unattended", "-nop4", "-NoLogTimes")
+    [void](Invoke-ExternalCommand -FilePath $RealReadbackCommandletPath -Arguments $RealReadbackContextArguments -StepName "AIRE-CSC Real Niagara Context" -LogPath (Join-Path $RealReadbackLogRoot "04_real_niagara_context.log") -UseCompactLog:$CompactLog)
+
+    # RealReadbackDump은 직접 관측한 real Niagara entity_evidence payload다.
+    $RealReadbackDump = Read-JsonFile -PathText $RealReadbackDumpPath
+    # RealReadbackSystemQuery는 indexed System query payload다.
+    $RealReadbackSystemQuery = Read-JsonFile -PathText $RealReadbackSystemQueryPath
+    # RealReadbackContext는 query 결과를 소비한 context payload다.
+    $RealReadbackContext = Read-JsonFile -PathText $RealReadbackContextPath
+    # RealReadbackSystemEntities는 real dump의 Niagara System Entity 집합이다.
+    $RealReadbackSystemEntities = @($RealReadbackDump.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_system" })
+    # RealReadbackEmitterEntities는 real dump의 Niagara Emitter Entity 집합이다.
+    $RealReadbackEmitterEntities = @($RealReadbackDump.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_emitter" })
+    # RealReadbackRequiredSystemFields는 AIRE-CSC System core settings required field 집합이다.
+    $RealReadbackRequiredSystemFields = @("user_parameter_count", "has_effect_type", "effect_type_object_path", "warmup_time", "warmup_tick_count", "warmup_tick_delta", "has_fixed_tick_delta", "fixed_tick_delta", "needs_determinism", "fixed_bounds_enabled", "fixed_bounds_min", "fixed_bounds_max", "override_scalability_settings", "scalability_override_count")
+    # RealReadbackRequiredEmitterFields는 AIRE-CSC Emitter core settings required field 집합이다.
+    $RealReadbackRequiredEmitterFields = @("settings_state", "settings_reason", "local_space", "determinism", "simulation_target", "interpolated_spawn_mode", "requires_persistent_ids", "bounds_mode", "fixed_bounds_enabled", "fixed_bounds_min", "fixed_bounds_max", "scalability_override_count", "execution_group_count", "module_count", "renderer_count", "simulation_stage_count")
+
+    # RealReadbackSystemPassed는 real System core fields와 deterministic identity 계약을 검증한다.
+    $RealReadbackSystemPassed = $RealReadbackSystemEntities.Count -eq 1
+    # RealReadbackAssetGuidAbsent는 transient GetAssetGuid projection이 System facet에 재도입되지 않았는지 검증한다.
+    $RealReadbackAssetGuidAbsent = $false
+    if ($RealReadbackSystemPassed) {
+        # RealReadbackSystemData는 real Niagara System facet data다.
+        $RealReadbackSystemData = $RealReadbackSystemEntities[0].facets.niagara_system.data
+        # RealReadbackSystemFieldNames는 System facet의 observed field 이름 집합이다.
+        $RealReadbackSystemFieldNames = @($RealReadbackSystemData.PSObject.Properties.Name)
+        $RealReadbackAssetGuidAbsent = $RealReadbackSystemFieldNames -notcontains "asset_guid"
+        $RealReadbackSystemPassed = @($RealReadbackRequiredSystemFields | Where-Object { $RealReadbackSystemFieldNames -notcontains $_ }).Count -eq 0 -and $RealReadbackAssetGuidAbsent -and [int]$RealReadbackSystemData.user_parameter_count -ge 0 -and [int]$RealReadbackSystemData.scalability_override_count -ge 0
+    }
+
+    # RealReadbackEmitterPassed는 모든 real Emitter의 core field presence와 bounded count/state를 검증한다.
+    $RealReadbackEmitterPassed = $RealReadbackEmitterEntities.Count -gt 0
+    foreach ($RealReadbackEmitterEntity in $RealReadbackEmitterEntities) {
+        # RealReadbackEmitterData는 현재 real Niagara Emitter facet data다.
+        $RealReadbackEmitterData = $RealReadbackEmitterEntity.facets.niagara_emitter.data
+        # RealReadbackEmitterFieldNames는 현재 Emitter facet의 observed field 이름 집합이다.
+        $RealReadbackEmitterFieldNames = @($RealReadbackEmitterData.PSObject.Properties.Name)
+        # RealReadbackEmitterFieldsPresent는 Emitter required field가 모두 존재하는지 나타낸다.
+        $RealReadbackEmitterFieldsPresent = @($RealReadbackRequiredEmitterFields | Where-Object { $RealReadbackEmitterFieldNames -notcontains $_ }).Count -eq 0
+        # RealReadbackEmitterValuesValid는 real Emitter의 직접 관측 state/count 값이 유효 범위인지 나타낸다.
+        $RealReadbackEmitterValuesValid = $RealReadbackEmitterFieldsPresent -and [string]$RealReadbackEmitterData.settings_state -eq "complete" -and -not [string]::IsNullOrWhiteSpace([string]$RealReadbackEmitterData.simulation_target) -and -not [string]::IsNullOrWhiteSpace([string]$RealReadbackEmitterData.bounds_mode) -and [int]$RealReadbackEmitterData.scalability_override_count -ge 0 -and [int]$RealReadbackEmitterData.execution_group_count -ge 0 -and [int]$RealReadbackEmitterData.module_count -ge 0 -and [int]$RealReadbackEmitterData.renderer_count -ge 0 -and [int]$RealReadbackEmitterData.simulation_stage_count -ge 0
+        if (-not $RealReadbackEmitterValuesValid) { $RealReadbackEmitterPassed = $false }
+    }
+
+    # RealReadbackQueryEntities는 indexed System query가 반환한 Entity 집합이다.
+    $RealReadbackQueryEntities = @($RealReadbackSystemQuery.entities)
+    # RealReadbackQueryPassed는 entity_query_result_v1에서 real System 1개가 bounded하게 회수됐는지 나타낸다.
+    $RealReadbackQueryPassed = [string]$RealReadbackSystemQuery.schema_version -eq "entity_query_result_v1" -and $RealReadbackQueryEntities.Count -eq 1 -and [string]$RealReadbackQueryEntities[0].entity_kind -eq "niagara_system"
+    # RealReadbackContextPassed는 query 결과가 entity_context_bundle_v1으로 소비됐는지 나타낸다.
+    $RealReadbackContextPassed = [string]$RealReadbackContext.schema_version -eq "entity_context_bundle_v1" -and @($RealReadbackContext.items).Count -gt 0
+    # RealReadbackAssetShaAfter는 focused readback 종료 후 real asset SHA-256이다.
+    $RealReadbackAssetShaAfter = Get-FileSha256 -PathText $RealReadbackAssetFilePath
+    # RealReadbackAssetInvariancePassed는 real Consumer asset byte 불변 여부다.
+    $RealReadbackAssetInvariancePassed = $RealReadbackAssetShaBefore -ceq $RealReadbackAssetShaAfter
+    # RealReadbackAllPassed는 AIRE-CSC real-project focused closure의 단일 terminal predicate다.
+    $RealReadbackAllPassed = $RealReadbackSourceIdentityPassed -and $RealReadbackSystemPassed -and $RealReadbackEmitterPassed -and $RealReadbackAssetGuidAbsent -and $RealReadbackQueryPassed -and $RealReadbackContextPassed -and $RealReadbackAssetInvariancePassed
+
+    # RealReadbackReport는 focused real-project readback의 bounded machine-readable evidence다.
+    $RealReadbackReport = [ordered]@{
+        schema_version = "aire_csc_real_niagara_readback_v1"
+        source_phase2_workspace = $RealReadbackPhase2Root
+        real_asset = $RealNiagaraAsset
+        source_identity_passed = $RealReadbackSourceIdentityPassed
+        source_identity = @($RealReadbackIdentityRows)
+        system_entity_count = $RealReadbackSystemEntities.Count
+        emitter_entity_count = $RealReadbackEmitterEntities.Count
+        system_core_settings_passed = $RealReadbackSystemPassed
+        emitter_core_settings_passed = $RealReadbackEmitterPassed
+        asset_guid_absent = $RealReadbackAssetGuidAbsent
+        query_passed = $RealReadbackQueryPassed
+        context_passed = $RealReadbackContextPassed
+        real_asset_sha256_before = $RealReadbackAssetShaBefore
+        real_asset_sha256_after = $RealReadbackAssetShaAfter
+        real_asset_invariance_passed = $RealReadbackAssetInvariancePassed
+        dump_root = $RealReadbackOutputRoot
+        dump_path = $RealReadbackDumpPath
+        query_path = $RealReadbackSystemQueryPath
+        context_path = $RealReadbackContextPath
+        all_passed = $RealReadbackAllPassed
+    }
+    Write-JsonFile -PathText $RealReadbackReportPath -ValueObject $RealReadbackReport
+    # RealReadbackReportSha256는 focused report exact bytes의 provenance SHA-256이다.
+    $RealReadbackReportSha256 = Get-FileSha256 -PathText $RealReadbackReportPath
+    Write-Host "AIRE-CSC real-project report: $RealReadbackReportPath"
+    Write-Host "AIRE-CSC real-project report SHA-256: $RealReadbackReportSha256"
+    Write-Host "AIRE-CSC real-project all passed: $RealReadbackAllPassed"
+    Write-Host ("AIRE_CSC_REAL_READBACK=" + ($RealReadbackReport | ConvertTo-Json -Depth 30 -Compress))
+    if (-not $RealReadbackAllPassed) { throw "AIRE-CSC real-project focused readback 실패: $RealReadbackReportPath" }
+    return
+}
+
 if ($RunSelfTests) {
     Invoke-SelfTests
     return
@@ -1653,11 +2058,11 @@ if ($RunFocusedEntityClosure) {
     }
 
     $FocusedPassed = $null -ne $FocusedSelectedIndex
-    $FocusedReportPath = Join-Path $FocusedReportRootPath "focused_entity_closure_report.json"
+        $FocusedReportPath = Join-Path $FocusedReportRootPath "focused_entity_closure_report.json"
                                                 $FocusedReport = [ordered]@{
                 schema_version = "entity_filtered_closure_probe_v1"
         generated_time = [DateTime]::UtcNow.ToString("o")
-                        script_version = "v1.18.23"
+                        script_version = "v1.18.29"
         workspace_root = $FocusedWorkspaceRoot
         entity_root = $FocusedEntityRootPath
         target_asset = $FocusedTargetBlueprintPath
@@ -4021,13 +4426,50 @@ try {
     }
     $PackagedNiagaraSourcePath = Join-Path $HostPluginRootPath "Source\AssetDump\Private\ADumpNiagara.cpp"
     $PackagedNiagaraSourceText = Get-Content -LiteralPath $PackagedNiagaraSourcePath -Raw
-    $NiagaraPartialPropagationSourcePassed = $PackagedNiagaraSourceText.Contains("NIAGARA_SCRIPT_GRAPH_UNAVAILABLE") -and $PackagedNiagaraSourceText.Contains("UnavailableScriptGraphCount")
+        $NiagaraPartialPropagationSourcePassed = $PackagedNiagaraSourceText.Contains("NIAGARA_SCRIPT_GRAPH_UNAVAILABLE") -and $PackagedNiagaraSourceText.Contains("UnavailableScriptGraphCount")
+
+    $NiagaraSystemEntities = @($NiagaraDumpB.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_system" })
+    $NiagaraEmitterEntities = @($NiagaraDumpB.entity_evidence.entities | Where-Object { [string]$_.entity_kind -eq "niagara_emitter" })
+    $RequiredNiagaraSystemCoreSettingFields = @(
+                "user_parameter_count", "has_effect_type", "effect_type_object_path",
+        "warmup_time", "warmup_tick_count", "warmup_tick_delta", "has_fixed_tick_delta", "fixed_tick_delta",
+        "needs_determinism", "fixed_bounds_enabled", "fixed_bounds_min", "fixed_bounds_max",
+        "override_scalability_settings", "scalability_override_count"
+    )
+    $RequiredNiagaraEmitterCoreSettingFields = @(
+        "settings_state", "settings_reason", "local_space", "determinism", "simulation_target",
+        "interpolated_spawn_mode", "requires_persistent_ids", "bounds_mode", "fixed_bounds_enabled",
+        "fixed_bounds_min", "fixed_bounds_max", "scalability_override_count", "execution_group_count",
+        "module_count", "renderer_count", "simulation_stage_count"
+    )
+    $NiagaraSystemCoreSettingsPassed = $NiagaraSystemEntities.Count -eq 1
+    if ($NiagaraSystemCoreSettingsPassed) {
+        $SystemCoreData = $NiagaraSystemEntities[0].facets.niagara_system.data
+        $SystemCoreFieldNames = @($SystemCoreData.PSObject.Properties.Name)
+        $NiagaraSystemCoreSettingsPassed = @($RequiredNiagaraSystemCoreSettingFields | Where-Object { $SystemCoreFieldNames -notcontains $_ }).Count -eq 0 -and
+            [int]$SystemCoreData.user_parameter_count -ge 0 -and [int]$SystemCoreData.scalability_override_count -ge 0
+    }
+    $NiagaraEmitterCoreSettingsPassed = $NiagaraEmitterEntities.Count -gt 0
+    foreach ($EmitterEntity in $NiagaraEmitterEntities) {
+        $EmitterCoreData = $EmitterEntity.facets.niagara_emitter.data
+        $EmitterCoreFieldNames = @($EmitterCoreData.PSObject.Properties.Name)
+        $EmitterCoreFieldsPresent = @($RequiredNiagaraEmitterCoreSettingFields | Where-Object { $EmitterCoreFieldNames -notcontains $_ }).Count -eq 0
+        $EmitterCoreValuesValid = $EmitterCoreFieldsPresent -and [string]$EmitterCoreData.settings_state -eq "complete" -and
+            -not [string]::IsNullOrWhiteSpace([string]$EmitterCoreData.simulation_target) -and
+            -not [string]::IsNullOrWhiteSpace([string]$EmitterCoreData.interpolated_spawn_mode) -and
+            -not [string]::IsNullOrWhiteSpace([string]$EmitterCoreData.bounds_mode) -and
+            [int]$EmitterCoreData.scalability_override_count -ge 0 -and [int]$EmitterCoreData.execution_group_count -ge 0 -and
+            [int]$EmitterCoreData.module_count -ge 0 -and [int]$EmitterCoreData.renderer_count -ge 0 -and
+            [int]$EmitterCoreData.simulation_stage_count -ge 0
+        if (-not $EmitterCoreValuesValid) { $NiagaraEmitterCoreSettingsPassed = $false }
+    }
+    $NiagaraCoreSettingsCoveragePassed = $NiagaraSystemCoreSettingsPassed -and $NiagaraEmitterCoreSettingsPassed
     $NiagaraActualDumpPassed = [string]$NiagaraDumpB.entity_evidence.schema_version -eq "entity_evidence_v1" -and
         [string]$NiagaraDumpB.entity_evidence.adapter_profile -eq "niagara_mvp_v1" -and
         -not [bool]$NiagaraDumpB.entity_evidence.bounds.truncated -and
         (@($NiagaraObservedEntityKinds) -join "|") -ceq (@($ExpectedNiagaraEntityRegistry | Sort-Object) -join "|") -and
                 $NiagaraObservedRelationRegistrySubsetPassed -and $NiagaraRequiredRelationCoveragePassed -and
-        $NiagaraPartialStateContractPassed -and $NiagaraPartialPropagationSourcePassed -and
+                $NiagaraPartialStateContractPassed -and $NiagaraPartialPropagationSourcePassed -and $NiagaraCoreSettingsCoveragePassed -and
         $NiagaraEvidenceAJson -ceq $NiagaraEvidenceBJson
 
     $IndexResultByName = @{}
@@ -4194,7 +4636,10 @@ try {
     $NiagaraPhase2Closure = [ordered]@{
         schema_version = "niagara_phase2_closure_v1"
         fixture_baseline_passed = $NiagaraFixtureBaselinePassed
-        actual_dump_passed = $NiagaraActualDumpPassed
+                actual_dump_passed = $NiagaraActualDumpPassed
+        core_settings_coverage_passed = $NiagaraCoreSettingsCoveragePassed
+        system_core_settings_passed = $NiagaraSystemCoreSettingsPassed
+        emitter_core_settings_passed = $NiagaraEmitterCoreSettingsPassed
         actual_entity_count = [int]$NiagaraDumpB.entity_evidence.counts.entity_count
                 actual_relation_count = [int]$NiagaraDumpB.entity_evidence.counts.relation_count
         observed_entity_kinds = @($NiagaraObservedEntityKinds)
@@ -4298,7 +4743,7 @@ $Phase2Passed = $FailureList.Count -eq 0
 $FinalReport = [ordered]@{
         schema_version = "assetdump_standalone_phase2_verification_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-                                                script_version = "v1.18.23"
+                                                script_version = "v1.18.29"
     workspace_root = $ResolvedWorkspaceRoot
     engine_root_source = $EngineResolution.source
     engine_root = $ResolvedEngineRoot
