@@ -1,8 +1,8 @@
 # AssetDump Full Public Usability Closure Plan
 
-- 문서 버전: v1.2
-- 최근 갱신일: 2026-08-11
-- 문서 상태: Current / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
+- 문서 버전: v1.27
+- 최근 갱신일: 2026-08-13
+- 문서 상태: Completed / PU-G6 PASS / Full Public Usability Accepted / Matrix 29/6/0
 - 작업 ID: `ADUMP-v1.4.0-PUC`
 - 역할: accepted AssetDump 기능 전체를 Browser GPT가 실제 소비 가능한 상태인지 분류하고, fresh preparation부터 public retrieval까지 끊김 없는 사용성을 닫는 대표 Plan
 - 기반 상태: `ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted`, `ADUMP-v1.3.0-BPGRAPH / Completed / Browser Accepted / Closed`
@@ -11,7 +11,7 @@
 
 ## 0. 결정 요약
 
-현재 AssetDump는 개별 기능 구현과 acceptance는 넓게 완료됐지만, **Browser 사용자가 fresh asset에서 시작해 완료 기능 전체를 자연스럽게 소비할 수 있다는 제품 수준의 증거는 없다.**
+Plan 착수 시 없었던 fresh Browser 전체 기능 증거는 PUC-4 J1~J8에서 확보됐다. 현재 PU-G1~PU-G4가 PASS이고 matrix 29/6/0은 Browser actual로 확인됐다. PUC-5 Real Project/Operational Reliability와 PUC-6 terminal trust가 남아 있으므로 Full Public Usability Accepted는 아직 false다.
 
 2026-08-11 실제 Browser audit에서 다음이 동시에 관측됐다.
 
@@ -34,7 +34,7 @@ fresh /Game/Test Niagara
 
 원인은 현재 accepted Product Source에서 Niagara Entity Evidence가 explicit `entity_evidence` selection에서 생성되지만, Browser 기본 `ue.batchdump_safe` 흐름이 그 selection/profile을 준비하지 않는 **Consumer preparation gap**이다.
 
-또한 현재 Browser `asset_sections`가 `details`, `data_asset_values`, `references`만 허용해 `input_summary`, `component_tree`, `bp_search_index`, `widget_designer` 등 이미 accepted된 stored evidence를 직접 소비하지 못한다.
+또한 착수 시 Browser `asset_sections`는 `details`, `data_asset_values`, `references`만 허용해 이미 accepted된 stored evidence를 직접 소비하지 못했다. 이 gap은 PUC-2에서 exact-nine public coverage로 닫혔다.
 
 따라서 이 Plan은 새 분석 기능을 추가하는 작업이 아니다.
 
@@ -613,6 +613,21 @@ legacy batchdump defaults unchanged
 
 ## PUC-2 — Stored Section Public Coverage
 
+현재 상태:
+
+```text
+Completed / Product Recovery Complete / Browser Accepted / PU-G2 PASS
+```
+
+Preparation contract:
+
+```text
+Documents/Plan/PublicUsabilityPUC2Prep.md v1.2
+GoPyMCP/Workspace/docs/operations/Codex_ADump_PUC2.md v1.0.0
+```
+
+Implementation architecture는 `asset_index_v1 + section_index_v1`의 exact indexed location을 GoPyMCP가 read-only로 재사용한다. 최초 Browser actual에서 `/Game/Test` 4개가 exact-nine의 자산별 unsupported를 치명적 실패로 처리해 모두 `failed_save`가 되는 Product defect가 발견됐고, `ADumpService.cpp` v0.15.1로 복구했다. R5는 accepted Plugin fixtures에서 17/17 fresh preparation, exact-nine coverage, missing isolation, bounds와 repeat determinism을 통과했다. authoritative closure는 `PublicUsabilityPUC2Result.md` v1.0이다.
+
 목표:
 
 `asset_sections` 또는 semantic-equivalent public route로 accepted stored section을 모두 소비 가능하게 한다.
@@ -646,6 +661,26 @@ local path leakage 0
 ---
 
 ## PUC-3 — Specialized Capability Closure
+
+현재 상태:
+
+```text
+Browser PU-G3 Accepted / PU-G3 PASS
+PUC-3 CORR1 PASS / matrix 29/6/0 / PUC-4 Ready
+Product Source / Content / CarFight asset delta: 0 / 0 / 0
+```
+
+Preparation/result:
+
+```text
+Documents/Plan/PublicUsabilityPUC3Prep.md v1.1
+GoPyMCP/Workspace/docs/plan/PUC3_Specialized_Result.md v1.2.0
+GoPyMCP/Workspace/docs/plan/PUC3_Browser_Handoff.md v1.2.0 / Historical Completed
+GoPyMCP/Workspace/docs/operations/Codex_ADump_PUC3_Corr1.md v1.1.0 / Completed
+GoPyMCP/Workspace/docs/plan/PUC3_Corr1_Handoff.md v1.0.0 / Optional Audit
+```
+
+PU-G3 actual evidence 자체는 보존한다. 중간검토에서 `data_asset_diff`가 operation-level truncated `asset_sections(data_asset_values)` source를 거부하지 않는 correctness risk, public Diff `max_bytes`의 실효 bound 불일치, native `ai_context_bundle_v1` section/dependency 범위와 현재 dependency-only public actual 사이의 classification decision이 발견됐다. 이 세 항목을 `CORR1`로 좁게 닫기 전 PUC-4를 시작하지 않는다.
 
 대상:
 
@@ -705,6 +740,42 @@ fresh prepare
 -> repeat/determinism
 ```
 
+Exact preparation:
+
+```text
+Documents/Plan/PublicUsabilityPUC4Prep.md v1.11
+Documents/Plan/PublicUsabilityPUC4Result.md v1.0
+GoPyMCP/Workspace/docs/plan/PUC4_Browser_Handoff.md v1.13.0
+J1..J8 planned
+PUBLIC_READY coverage 29/29
+NATIVE_ONLY_BY_DESIGN classification check 6/6
+Product Source / Content / CarFight asset delta 0 / 0 / 0
+Browser R1: stale connector six-operation schema / actual 0
+local adapter exact-eight + public Gateway upstream: PASS
+Browser R2: schema/J1 batch/discover PASS / generation flag 누락으로 first section stop
+Browser R3: fresh J1 batch/discover PASS / real-sidecar public parse stop
+local correction: transport path removed / HTTPS false positive fixed / 113 tests + actual six sections + restarted live schema PASS
+Browser R4: R3 refs discarded / fresh J1 Ready
+Browser R4 actual: J1 sections+repeat PASS / EventGraph query_operation 누락 input stop
+Browser R5: exact graph get fields / fresh J1 Ready
+Browser R5 actual: query_operation=get 포함 / graph ownership contract stop
+Browser R6: exact seven graph fields only / all other fields omitted / fresh J1 Ready
+Browser R6 actual: exact input accepted / duplicate-GUID detail hydration stop
+local correction: GUID+class composite / 114 tests / real EventGraph full route PASS / Adapter restart
+Browser R7: fresh J1 Ready
+Browser R7C: graph 2/2 shape/determinism/leakage PASS
+Browser R8: J1-J3 completed / 16/29 / bounds+determinism PASS / J4 batch internal_failure,retryable=true stop
+Browser R9: J4 failure 반복 / local report IA+IMC 2 success + unsupported 15 failed_save / selection 오류 확정
+Browser R10: J4 sections/profile 생략 full mode / J1-J3 반복 없이 fresh J4-J8 Ready
+Browser R10 actual: J4 PASS / total 18/29 / J5 entity_context closed-input stop
+Browser R11: entity_context/context_bundle exact six-field allowlist / fresh J5-J8 Ready
+Browser R11 actual: J5-J7 PASS / 25/29 / J8 pre-execution budget stop
+Browser R12: J8 batch PASS / discover root default cross-selection stop
+local R13: exact sequence 1 PASS / related integration+compatibility 115 PASS
+Browser R13: J8 PASS / total 29/29 / native-only 6/6 / unmapped 0
+PU-G4: PASS / authoritative Result=PublicUsabilityPUC4Result.md v1.0
+```
+
 금지:
 
 ```text
@@ -731,17 +802,44 @@ unexpected unsupported 0
 
 목표:
 
-Plugin fixture만으로 closure하지 않는다.
+Plugin fixture만으로 closure하지 않는다. PUC-4에서 이미 accepted된 기능 correctness/bounds/determinism은 반복하지 않고 real-project 대표 자산에서 preparation/retrieval 연속성과 operational failure ownership만 새로 검증한다.
+
+authoritative preparation:
+
+```text
+Documents/Plan/PublicUsabilityPUC5Result.md v1.0
+GoPyMCP/Workspace/docs/plan/PUC5_RealProject_Result.md v1.0.0
+status = PUC-5 Complete / PU-G5 PASS
+```
 
 대표 real-project coverage:
 
 ```text
-real Blueprint
-real DataAsset
-real Enhanced Input asset
-real Widget if available
-real Niagara System with Renderer/resource dependencies
+RP1 Blueprint = /Game/CarFight/Vehicles/Blueprints/BP_CFVehiclePawn.BP_CFVehiclePawn
+RP2 DataAsset = /Game/CarFight/FX/Data/DA_FX_ProtoVehicleDead.DA_FX_ProtoVehicleDead
+RP3A Enhanced Input Action = /Game/CarFight/Input/IA_Throttle.IA_Throttle
+RP3B Enhanced Input Mapping = /Game/CarFight/Input/IMC_Vehicle_Default.IMC_Vehicle_Default
+RP4 Widget = /Game/CarFight/UI/WBP_TargetSelect.WBP_TargetSelect
+RP5 Niagara = /Game/sA_Megapack_v1/sA_StylizedAttacksPack/FX/NiagaraSystems/NS_AOE_Explosion_1.NS_AOE_Explosion_1 / PUC-4 J7+AIRE-G6 preserved / no new call
 ```
+
+Local exact contract proof:
+
+```text
+public operation exact-eight/order = current local contract
+asset_sections exact-nine/order = current local contract
+discover = R13 accepted matching-root exact-six shape
+asset_sections = R13 accepted exact-seven shape
+preparation = PUC-4 J4 accepted sections/profile omitted full mode
+new public schema/handler/Product delta = 0/0/0
+R13 executed local evidence = exact 1 PASS + related 115 PASS
+```
+
+이 proof와 Browser R3/R4/R6 actual을 결합해 PU-G5를 승인했다.
+
+PUC-5 Browser actual은 RP1-RP4 fresh managed dataset과 pre/post exact pathspec diff로 완료됐다. PUC-4 J1-J8 및 RP5 Niagara actual은 반복하지 않고 accepted evidence로 보존했다.
+
+Terminal actual은 RP1-RP4 representative 5/5, RP5 preserved valid, mutation 0, operational 4/4와 retry/fallback/write/destructive/path leakage/stale ref reuse 0을 확인했다. failure ownership은 8100 listener environment로 확정됐다.
 
 운영 reliability도 별도 기록한다.
 
@@ -754,7 +852,9 @@ HttpListener unable to bind to 127.0.0.1:8100
 이 오류는 AssetDump Product에서 숨기거나 swallow하지 않는다.
 
 ```text
-ownership = UE MCP / GoPyMCP runtime environment candidate
+AssetDump command/report failure = Product candidate
+public facade/ref/projection failure = GoPyMCP transport/integration candidate
+8100 listener/startup bind = UE MCP / GoPyMCP runtime environment candidate
 ```
 
 Full Public Usability에서는 최소한 다음이 필요하다.
@@ -762,16 +862,18 @@ Full Public Usability에서는 최소한 다음이 필요하다.
 ```text
 AssetDump report authoritative success 판정 유지
 external startup error를 Product failure와 분리
-가능하면 operational owner에서 commandlet process exit 0 복구
-미복구 시 명시적 environment limitation으로 남기고 Product PASS와 혼합하지 않음
+return_code=0은 clean operational success
+R2 exact local log가 입증한 accepted return_code=1은 8100 listener environment limitation으로 보존
+다른 nonzero exit 또는 public preparation mismatch는 fail-closed
 ```
 
 Gate `PU-G5`:
 
 ```text
-real-project representative matrix PASS
+RP1-RP4 fresh Browser actual PASS + RP5 preserved evidence valid
 Consumer asset mutation 0
 Product/transport/environment failure ownership exact
+manual fallback/retry 0
 ```
 
 ---
@@ -964,17 +1066,18 @@ Browser actual acceptance matrix
 work_id: ADUMP-v1.4.0-PUC
 planning: COMPLETE
 role_gate: PASS
-Product Source authorization: NOT GRANTED / correction required=false
+Product Source correction: COMPLETE / ADumpService.cpp v0.15.1
 GoPyMCP PUC-1 implementation: COMPLETE / Browser actual accepted
 PU-G0: PASS
 PU-G1: PASS / managed fresh chain / same dataset / registration 0 / path leakage 0
-current matrix: 35 classified / 12 ready / 6 native-only / 17 unmapped / 0 unclassified
-PU-G2: NOT STARTED
-PU-G3: NOT STARTED
-PU-G4: NOT STARTED
-PU-G5: NOT STARTED
-PU-G6: NOT STARTED
-Full Public Usability Accepted: false
+current matrix: 35 classified / 29 ready / 6 native-only / 0 unmapped / 0 unclassified
+PU-G2: PASS / R5 Browser exact-nine actual accepted
+PU-G3: PASS / Browser R4,R7,R8,R9 Accepted / CORR1 PASS
+PU-G4: PASS / J1-J8 / public 29/29 / native-only 6/6 / unmapped 0
+PUC-5: COMPLETE / PublicUsabilityPUC5Result.md v1.0
+PU-G5: PASS / real-project 5/5 / mutation 0 / operational 4/4
+PU-G6: PASS / terminal trust matrix / compatibility+integration 115 PASS
+Full Public Usability Accepted: true
 base AIRE: preserved / closed
 base BPGRAPH: preserved / closed
 ```
@@ -982,7 +1085,10 @@ base BPGRAPH: preserved / closed
 다음 결정:
 
 ```text
-PUC-2 Stored Section Public Coverage
+ADUMP-v1.4.0-PUC lifecycle complete
+-> PU-G0..PU-G6 PASS
+-> Full Public Usability Accepted=true
+-> next gate none / 후속 변경은 새 lifecycle
 ```
 
 PUC-2는 accepted stored section retrieval coverage만 다룬다. PUC-1 managed dataset_ref lifecycle을 보존하며 DataAsset Diff와 generic AI Context Bundle은 PUC-3 범위로 유지한다.
@@ -990,6 +1096,200 @@ PUC-2는 accepted stored section retrieval coverage만 다룬다. PUC-1 managed 
 ---
 
 ## 12. Changelog
+
+### v1.27 - 2026-08-13
+
+- PU-G0~PU-G5 accepted evidence, matrix 29/6/0과 current 115 PASS를 terminal trust matrix로 통합했다.
+- PU-G6 PASS 및 Full Public Usability Accepted=true로 lifecycle을 닫았다.
+- `PublicUsabilityPUC6Result.md` v1.0을 authoritative terminal Result로 등록했다.
+
+Migration: 기존 PUC Browser actual을 반복하지 않는다. 후속 기능 변경은 새 lifecycle/work ID에서 시작한다.
+
+### v1.26 - 2026-08-13
+
+- R6 terminal actual을 통합해 PUC-5 Complete / PU-G5 PASS로 닫았다.
+- real-project 5/5, RP5 preserved, mutation 0, operational 4/4와 zero-safety evidence를 Result로 이관했다.
+- 다음 Gate를 PUC-6 terminal trust closure로 전환했다.
+
+Migration: PUC-5 actual을 반복하지 않는다. PU-G6 전까지 Full Public Usability Accepted는 false다.
+
+### v1.25 - 2026-08-13
+
+- R3 RP1 PASS를 보존하고 RP2 `data_asset_values` 미생성을 full-mode include selection 오류로 확정했다.
+- RP2에만 `include_details=true`를 적용한 RP2-RP4 local public proof를 PASS했다.
+- 같은 R3 Browser chat에서 RP2-RP4와 final mutation comparison만 수행하는 R4를 등록했다.
+
+Migration: R3 private baseline이 없는 새 chat에서는 R4를 실행하지 않는다. R3 RP2 ref는 폐기한다.
+
+### v1.24 - 2026-08-13
+
+- R2 RP1 exact commandlet log에서 8100 listener bind, fresh report 저장과 Product commandlet result 0을 확인했다.
+- public diagnostics 미노출을 expected pathless projection으로 분리하고 return_code 1 owner를 environment로 local 확정했다.
+- accepted return_code 1 baseline 아래 RP continuity와 mutation을 검증하는 Browser R3를 등록했다.
+
+Migration: R2 ref/baseline은 재사용하지 않는다. 다른 nonzero exit 또는 public preparation mismatch는 fail-closed한다.
+
+### v1.23 - 2026-08-13
+
+- R1은 필수 pre-actual mutation baseline 누락으로 invalid 처리하고 RP actual 0을 유지했다.
+- `return_code=0` 절대 조건을 public accepted-output 및 known 8100 listener environment boundary와 정렬했다.
+- baseline-before-batch와 diagnostics-backed nonzero ownership을 고정한 Browser R2를 등록했다.
+
+Migration: R1 dataset/result ref와 batch는 누적·재사용하지 않는다. Product Source/Content/CarFight asset 변경 없이 R2를 fresh 실행한다.
+
+### v1.22 - 2026-08-13
+
+- PUC-5 real-project representative matrix RP1-RP5와 operational failure ownership을 동결했다.
+- PUC-4/RP5 반복 없이 RP1-RP4만 fresh Browser actual 대상으로 제한했다.
+- current exact-eight/exact-nine 및 accepted R13/J4 request shape를 조합해 local exact contract proof를 PASS로 기록했다.
+- `PublicUsabilityPUC5Prep.md` v1.0을 authoritative preparation으로 등록했다.
+
+Migration: Product Source/Plugin Content/CarFight asset은 변경하지 않는다. Browser R1은 Prep v1.0 exact contract만 수행하며 PU-G5는 Browser actual 전까지 PASS가 아니다.
+
+### v1.21 - 2026-08-13
+
+- R13 terminal actual, local exact-sequence proof와 related 115 PASS를 통합해 PUC-4 Complete / PU-G4 PASS로 닫았다.
+- matrix 29/6/0 actual coverage를 확정하고 다음 Gate를 PUC-5로 전환했다.
+
+Migration: PUC-4 Browser journey를 반복하지 않는다. Full Public Usability Accepted는 PU-G5/PU-G6 전까지 false다.
+
+### v1.20 - 2026-08-13
+
+- R10 J4 PASS로 누적 18/29를 보존하고 J5 entity_context 실패를 operation ownership 입력 오류로 분류했다.
+- entity_context/context_bundle exact six-field allowlist를 R11에 고정했다.
+
+Migration: R8-R10 ref는 재사용하지 않는다. Product/Adapter/runtime/asset 변경 없이 R11을 fresh J5부터 실행한다.
+
+### v1.19 - 2026-08-13
+
+- R9 반복 실패와 local run_report에서 IA/IMC 2 success, unsupported 15 failed_save를 확인해 J4 selection 오류를 확정했다.
+- J4 preparation만 sections/profile 생략 full mode로 교정하고 downstream exact 검증은 유지했다.
+
+Migration: R8/R9 ref는 재사용하지 않는다. Product/Adapter/runtime/asset 변경 없이 R10을 fresh J4부터 실행한다.
+
+### v1.18 - 2026-08-13
+
+- R8 J1-J3의 16/29, bounds와 repeat determinism PASS를 보존했다.
+- J4 batch `internal_failure/retryable=true`를 transient preparation 후보로 분리하고 R9을 J4-J8 독립 재개로 제한했다.
+
+Migration: R8 ref는 호출에 재사용하지 않는다. R9에서 같은 J4 failure가 반복되면 즉시 중단하고 local 진단으로 전환한다.
+
+### v1.17 - 2026-08-13
+
+- R7C Browser graph canary의 exact shape, repeat payload SHA와 path leakage 0을 통합했다.
+- graph blocker를 닫고 추가 부분 검증 없이 원래 PU-G4 J1-J8 full matrix로 복귀했다.
+
+Migration: R7C ref는 재사용하지 않는다. R8은 J1부터 journey별 fresh dataset/ref로 전체 matrix를 실행한다.
+
+### v1.16 - 2026-08-13
+
+- R6 graph stop을 서로 다른 class가 공유한 GUID를 Adapter가 단일 identity로 처리한 hydration 결함으로 분류했다.
+- GUID+class composite, exact pins와 same-composite rejection을 검증하고 real EventGraph full route까지 PASS했다.
+
+Migration: R6 dataset/ref는 재사용하지 않는다. Product Source/Content/CarFight asset 변경 없이 R7을 J1부터 fresh 실행한다.
+
+### v1.15 - 2026-08-13
+
+- R5 graph-get 요청이 `query_operation=get` 포함 후에도 거부된 결과를 비소유 journey field 혼입으로 분류했다.
+- exact graph request는 accepted, dataset_ref/root/sections 각각의 추가는 input-invalid임을 재현하고 R6 allowlist를 고정했다.
+
+Migration: R5 dataset/ref는 재사용하지 않는다. Product/Adapter/runtime/asset 변경 없이 R6를 J1부터 fresh 실행한다.
+
+### v1.14 - 2026-08-13
+
+- R4 J1 batch/discover, six-section bounds와 repeat determinism PASS를 보존하고 EventGraph 실패를 handoff 입력 결함으로 분류했다.
+- `blueprint_graph` get의 `query_operation=get`, exact `graph_name`과 link fields를 R5 계약에 명시했다.
+
+Migration: R4 dataset/ref는 재사용하지 않는다. Product/Adapter/runtime/asset 변경 없이 R5를 J1부터 fresh 실행한다.
+
+### v1.13 - 2026-08-12
+
+- R3 J1 `asset_sections`의 real-sidecar parse stop을 GoPyMCP public projection 결함으로 분류했다.
+- transport-only `request.output_file_path` 제거와 HTTPS drive-path 오탐 교정을 113 tests, 실제 R3 six-section read와 재기동 live schema로 닫았다.
+
+Migration: R3 dataset/ref는 재사용하지 않는다. Product Source/Content/CarFight asset 변경 없이 R4를 J1부터 fresh 실행한다.
+
+### v1.12 - 2026-08-12
+
+- R2 schema와 J1 preparation 성공 뒤 details/references generation flag 누락으로 first-failure stop한 결과를 기록했다.
+- Product/runtime defect가 아닌 handoff 입력 결함으로 분류하고 affected J1/J2/J3/J8만 교정해 R3로 전환했다.
+
+Migration: R2 dataset/ref를 재사용하지 않는다. Product Source/Content/CarFight asset 변경 없이 R3를 J1부터 실행한다.
+
+### v1.11 - 2026-08-12
+
+- PU-G4 R1 stale connector schema와 actual 0 중단을 기록했다.
+- local exact-eight 및 public Gateway current upstream PASS에 따라 Product/code/runtime correction 없이 Browser Action refresh 후 R2로 전환했다.
+
+Migration: runtime restart와 R1 retry를 하지 않는다. Browser connector refresh와 새 chat 뒤 R2 exact matrix를 실행한다.
+
+### v1.10 - 2026-08-12
+
+- matrix 29/6/0과 PU-G3 CORR1 PASS를 PUC-4 불변 baseline으로 동결했다.
+- 29개 PUBLIC_READY capability를 8개 fresh journey에 전부 배치하고 native-only 6개 classification check를 분리했다.
+- exact Browser R1 handoff, no-fallback/no-retry stop rule과 Product Source/Content/CarFight asset 무변경 경계를 등록했다.
+
+Migration: PUC-4 actual은 새 Browser 실행과 journey별 새 opaque dataset을 사용한다. historical PU-G1/2/3 ref를 재사용하지 않으며 R1 report 전에는 PU-G4 PASS를 주장하지 않는다.
+
+### v1.9 - 2026-08-12
+
+- CORR1 C1 operation-level truncated Diff baseline dispatch 0과 C2 requested max_bytes fail-closed를 local focused test로 닫았다.
+- C3는 exact-nine asset_sections가 section retrieval을 소유하고 dependency-only Context Bundle이 고유 관계 context를 소유하는 선택지 B로 확정했다.
+- PU-G3 historical actual을 보존하고 matrix를 29 PUBLIC_READY / 6 NATIVE_ONLY_BY_DESIGN / 0 IMPLEMENTED_BUT_UNMAPPED로 재분류해 PUC-4를 Ready로 전환했다.
+
+Migration: CORR1 optional Browser audit은 기본 재실행 조건이 아니다. PUC-4는 fresh golden matrix만 수행하고 Product Source/Content/CarFight asset을 변경하지 않는다.
+
+### v1.8 - 2026-08-12
+
+- PU-G3 Browser actual PASS와 GoPyMCP completed Result/Handoff를 현재 상태에 반영했다.
+- PUC-4 전 중간검토에서 truncated Diff baseline fail-closed, Diff max_bytes alignment, generic Context section/dependency coverage decision을 `PUC3-CORR1`로 등록했다.
+- CORR1 closure 전 matrix 29/6/0 확정과 PUC-4 시작을 차단했다.
+
+Migration: PU-G3 historical actual은 재실행·폐기하지 않는다. correction 범위만 Codex가 좁게 수정·검증하고 필요 시 최소 Browser actual을 추가한다.
+
+### v1.7 - 2026-08-12
+
+- PUC-3 same-tool opaque DataAsset Diff와 generic Context Bundle local implementation을 등록했다.
+- focused 155 PASS, public Tool/Compatibility name set 불변과 Product/Content/asset delta 0을 반영했다.
+- PU-G3를 local complete / Browser R1 ready로 전환하되 matrix 20/6/9는 유지했다.
+
+Migration: Browser actual 전에는 PU-G3 PASS 또는 capability 재분류를 주장하지 않는다.
+
+### v1.6 - 2026-08-12
+
+- R5 Browser actual을 승인해 PUC-2를 `PU-G2 PASS`로 완료했다.
+- exact-nine public retrieval, missing isolation, bounds와 repeat determinism evidence를 authoritative Result에 연결했다.
+- matrix를 20 ready / 6 native-only / 9 unmapped로 갱신하고 PUC-3를 다음 Gate로 전환했다.
+
+Migration: PUC-2 actual은 반복하지 않는다. Full Public Usability Accepted는 후속 Gate 완료 전까지 false다.
+
+### v1.5 - 2026-08-12
+
+- R4에서 `/Game/Test` Product batch 4/4와 discover 4/4 PASS를 확인했다.
+- exact-nine 중 `data_asset_values`, `input_summary`, `widget_designer` representative 부재를 fixture-root coverage blocker로 분류했다.
+- CarFight 에셋을 변경하지 않고 accepted Plugin fixtures `/AssetDump/Validation`을 사용하는 R5로 전환했다.
+
+Migration: R4 미실행 missing/bounds/repeat determinism은 PASS가 아니다. R5 fresh managed dataset에서 검증한다.
+
+### v1.4 - 2026-08-12
+
+- 최초 Browser actual의 `/Game/Test` exact-nine 4/4 `failed_save`를 Product unsupported 조기 종료 defect로 확정했다.
+- `ADumpService.cpp` v0.15.1 복구와 two-run 4/4 actual, normalized mismatch 0, strict regression PASS를 기록했다.
+- clean BuildPlugin, 공식 Editor build와 canonical Phase 2 failure_count 0을 통과했다.
+- `PUC2RepairResult.md`와 `PUC2BrowserHandoff.md` R4를 등록하고 PU-G2를 rerun ready로 전환했다.
+
+Migration: Product readiness는 복구됐으나 Browser R4 actual 전에는 PU-G2 PASS 또는 Full Public Usability Accepted로 승격하지 않는다.
+
+### v1.3 - 2026-08-11
+
+- PUC-2 stored-section public coverage preparation을 완료했다.
+- exact public retrieval set을 summary,digest,details,data_asset_values,input_summary,component_tree,bp_search_index,references,widget_designer 9개로 고정했다.
+- current main-dump-only public reader의 sidecar gap을 확인하고 accepted `asset_index_v1 + section_index_v1` 기반 source resolution을 구현 계약으로 선택했다.
+- unsupported를 Consumer asset-class heuristic으로 추론하지 않고 Product-owned support payload를 그대로 보존하도록 fail-closed boundary를 확정했다.
+- `PublicUsabilityPUC2Prep.md` v1.0과 GoPyMCP `Codex_ADump_PUC2.md` v1.0.0을 등록했다.
+- Product Source correction required=false, PUC-1/PU-G1 acceptance unchanged, PU-G2 actual Not Started를 유지했다.
+
+Migration: PUC-2 implementation은 GoPyMCP Codex owner가 수행한다. existing three-section public callers와 PUC-1 dataset_ref lifecycle을 보존하고 PUC-3 specialized capabilities는 포함하지 않는다.
 
 ### v1.2 - 2026-08-11
 

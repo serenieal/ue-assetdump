@@ -1,27 +1,200 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.50
-- 최근 갱신일: 2026-08-11
-- 문서 상태: Current / ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
+- 문서 버전: v1.73
+- 최근 갱신일: 2026-08-13
+- 문서 상태: Current / ADUMP-v1.4.0-PUC Completed / PU-G6 PASS / Full Public Usability Accepted / Matrix 29/6/0
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
 
-## Current Full Public Usability Route — 2026-08-11
+## Current Full Public Usability Route — 2026-08-12
 
 ```text
-lifecycle: ADUMP-v1.4.0-PUC / PUC-1 Complete / PU-G1 PASS / PUC-2 Ready
-representative Plan: Documents/Plan/PublicUsabilityClosurePlan_v1.md v1.2
+lifecycle: ADUMP-v1.4.0-PUC / Completed / PU-G6 PASS / Full Public Usability Accepted
+representative Plan: Documents/Plan/PublicUsabilityClosurePlan_v1.md v1.27
+PUC-5 Result: Documents/Plan/PublicUsabilityPUC5Result.md v1.0 / PU-G5 PASS
+PUC-6 Result: Documents/Plan/PublicUsabilityPUC6Result.md v1.0 / terminal Accepted
+PUC-5 Browser handoff: GoPyMCP/Workspace/docs/plan/PUC5_Browser_Handoff.md v1.6.0 / Historical Completed
 PUC-0 Result: Documents/Plan/PublicUsabilityAudit_v1.md v1.0 / PU-G0 PASS
 PUC-1 Result: Documents/Plan/PublicUsabilityPUC1Result.md v1.0 / PU-G1 PASS
-PUC Matrix: Documents/Plan/PublicUsabilityMatrix_v1.json / v1.1 / 12 ready / 6 native-only / 17 unmapped
+PUC Matrix: Documents/Plan/PublicUsabilityMatrix_v1.json / v1.22 / 29 ready / 6 native-only / 0 unmapped
 actual managed fixture: /Game/Test/NS_ADumpPositiveFixture.NS_ADumpPositiveFixture
 same dataset entity readiness/query/context/dependency: PASS
 manual provider registration / local path leakage / caller path / retry: 0 / 0 / 0 / 0
-Product Source correction required: false
-next gate: PUC-2 Stored Section Public Coverage
+Product Source correction: COMPLETE / ADumpService.cpp v0.15.1
+PUC-2 prep: Documents/Plan/PublicUsabilityPUC2Prep.md v1.2 / Historical Preparation
+PUC-2 Product Result: Documents/Plan/PUC2RepairResult.md v1.2 / Product Recovery Complete
+PUC-2 Result: Documents/Plan/PublicUsabilityPUC2Result.md v1.0 / Browser Accepted / PU-G2 PASS
+PUC-2 Browser handoff: Documents/Plan/PUC2BrowserHandoff.md v1.2 / Completed
+PUC-2 exact retrieval: summary,digest,details,data_asset_values,input_summary,component_tree,bp_search_index,references,widget_designer
+PUC-2 implementation: GoPyMCP Local Complete / Product readiness recovered
+Product actual: two fresh runs / 4 succeeded / 0 failed / normalized mismatch 0
+canonical Phase 2: PASS / failure_count=0
+PU-G2 actual: PASS / R5 exact-nine coverage + missing + bounds + determinism
+PUC-3 prep/result: Documents/Plan/PublicUsabilityPUC3Prep.md v1.1 / Workspace/docs/plan/PUC3_Specialized_Result.md v1.2.0
+PUC-3 CORR1: Workspace/docs/operations/Codex_ADump_PUC3_Corr1.md v1.1.0 / PASS
+PUC-4 prep/result: Documents/Plan/PublicUsabilityPUC4Prep.md v1.11 / Documents/Plan/PublicUsabilityPUC4Result.md v1.0
+PUC-4 handoff: Workspace/docs/plan/PUC4_Browser_Handoff.md v1.13.0 / Historical Completed
+PU-G4 actual: PASS / 29/29 / native-only 6/6 / unmapped 0
+PUC-5 RP matrix: Blueprint/DataAsset/Enhanced Input/Widget fresh + Niagara preserved
+PU-G5 actual: PASS / real-project 5/5 / mutation 0 / operational 4/4
+PU-G6 actual: PASS / Full Public Usability Accepted=true
+next gate: none
 base AIRE/BPGRAPH: preserved
 ```
 
 Full Public Usability 작업은 `PublicUsabilityClosurePlan_v1.md`를 먼저 읽는다. 기존 AIRE explicit-provider acceptance와 BPGRAPH acceptance는 유효한 correctness evidence로 보존하지만, PUC terminal gate 전에는 이를 전체 Browser 사용성으로 확대 해석하지 않는다.
+
+## v1.73 Changelog / Migration
+
+- terminal PUC-6 Result와 Full Public Usability Accepted를 Current route에 반영했다.
+- Result v1.0, matrix v1.22와 representative Plan v1.27을 동기화했다.
+
+Migration: 기존 PUC actual을 반복하지 않는다. 후속 변경은 새 lifecycle에서 시작한다.
+
+## v1.72 Changelog / Migration
+
+- PUC-5 Result와 PU-G5 PASS를 Current route에 반영하고 PUC-6 Ready로 전환했다.
+- Result v1.0, handoff v1.6.0, matrix v1.21과 representative Plan v1.26을 동기화했다.
+
+Migration: PUC-5 actual을 반복하지 않는다. 다음 단계는 PUC-6 terminal trust closure다.
+
+## v1.71 Changelog / Migration
+
+- R3 RP1 PASS를 보존하고 RP2 selection correction 및 same-chat R4 route를 Current로 전환했다.
+- Prep v1.3, handoff v1.3.0과 representative Plan v1.25를 동기화했다.
+
+Migration: R3 private baseline이 있는 동일 Browser chat에서만 R4를 실행한다.
+
+## v1.70 Changelog / Migration
+
+- R2 exact commandlet evidence로 environment ownership을 확정하고 Browser R3 route를 Current로 전환했다.
+- Prep v1.2, handoff v1.2.0과 representative Plan v1.24를 동기화했다.
+
+Migration: R2 ref/baseline은 재사용하지 않고 다른 nonzero code는 fail-closed한다.
+
+## v1.69 Changelog / Migration
+
+- PUC-5 R1 precondition invalid와 fresh Browser R2 Ready 상태를 Current route에 반영했다.
+- Prep v1.1, handoff v1.1.0, matrix v1.18과 representative Plan v1.23을 동기화했다.
+
+Migration: R1 ref를 재사용하지 않고 mutation baseline 보존 확인 뒤 R2를 실행한다. Product Source/Content/CarFight asset은 변경하지 않는다.
+
+## v1.68 Changelog / Migration
+
+- PUC-5 Prep v1.0과 local exact contract proof PASS를 Current route에 등록했다.
+- RP1-RP4 fresh Browser actual만 남기고 PUC-4/RP5 real Niagara 반복을 제거했다.
+
+Migration: Browser R1은 Prep v1.0 exact contract만 실행한다. Product Source/Content/CarFight asset은 변경하지 않는다.
+
+## v1.67 Changelog / Migration
+
+- PUC-4 Result와 PU-G4 PASS를 Current route에 등록하고 다음 Gate를 PUC-5로 전환했다.
+
+Migration: PUC-4를 반복하지 않는다. Full Public Usability는 PU-G5/PU-G6 전까지 false다.
+
+## v1.66 Changelog / Migration
+
+- R10 J4 PASS, 누적 18/29와 J5 context ownership stop 및 R11 route를 등록했다.
+
+Migration: R8-R10 ref를 재사용하지 않고 R11을 fresh J5부터 실행한다. Product/asset 변경은 없다.
+
+## v1.65 Changelog / Migration
+
+- R9 J4 repeated failure의 local run_report diagnosis와 R10 full-mode correction route를 등록했다.
+
+Migration: R8/R9 ref를 재사용하지 않고 R10을 fresh J4부터 실행한다. Product/asset 변경은 없다.
+
+## v1.64 Changelog / Migration
+
+- R8 J1-J3 16/29 PASS와 J4 retryable preparation stop을 Current route에 반영했다.
+
+Migration: R8 ref를 호출에 재사용하지 않고 R9을 fresh J4부터 실행한다. 같은 failure 반복 시 local 진단으로 전환한다.
+
+## v1.63 Changelog / Migration
+
+- R7C graph canary PASS와 R8 full matrix route를 Current에 등록했다.
+
+Migration: canary ref를 폐기하고 R8을 J1부터 fresh 실행한다.
+
+## v1.62 Changelog / Migration
+
+- R6 graph hydration stop과 composite-identity correction closure, R7 route를 Current에 등록했다.
+
+Migration: R6 ref를 폐기한다. Product Source/Content/CarFight asset 변경 없이 R7을 J1부터 실행한다.
+
+## v1.61 Changelog / Migration
+
+- R5 graph ownership stop과 exact graph-only R6 route를 Current에 등록했다.
+
+Migration: R5 ref를 폐기한다. code/runtime/Product/asset 변경 없이 R6를 J1부터 실행한다.
+
+## v1.60 Changelog / Migration
+
+- R4 J1 sections PASS와 EventGraph input stop을 분리하고 corrected R5 route를 Current에 등록했다.
+
+Migration: R4 ref를 폐기한다. code/runtime/Product/asset 변경 없이 R5를 J1부터 실행한다.
+
+## v1.59 Changelog / Migration
+
+- R3 public parse stop의 GoPyMCP correction closure와 R4 fresh route를 Current 진입점에 등록했다.
+
+Migration: R3 ref는 폐기한다. Product Source/Content/CarFight asset 변경 없이 R4를 J1부터 실행한다.
+
+## v1.58 Changelog / Migration
+
+- R2 generation flag 누락과 first section stop을 기록하고 R3 corrected handoff를 Current route로 등록했다.
+
+Migration: R2 ref는 폐기하고 R3를 J1부터 실행한다. Product/runtime/asset 변경은 없다.
+
+## v1.57 Changelog / Migration
+
+- R1 stale Browser schema와 actual 0을 기록하고 local/public runtime 정상 근거를 분리했다.
+- Browser Action refresh 후 실행할 PU-G4 R2를 Current route로 등록했다.
+
+Migration: Product/code/runtime 변경이나 restart 없이 새 Browser Action snapshot에서 R2를 실행한다.
+
+## v1.56 Changelog / Migration
+
+- stale PUC-3 local-ready route를 PU-G3 CORR1 PASS와 matrix 29/6/0으로 동기화했다.
+- PUC-4 J1~J8 preparation과 Browser PU-G4 R1 handoff를 Current 진입점으로 등록했다.
+
+Migration: historical PU-G1/2/3 ref를 재사용하지 않는다. Browser R1 actual 전에는 PU-G4 PASS를 주장하지 않는다.
+
+## v1.55 Changelog / Migration
+
+- PUC-3 local Result와 Browser R1 handoff를 Current route에 등록했다.
+- PU-G2 PASS를 보존하고 PU-G3를 `Local Complete / Browser Ready`로 전환했다.
+
+Migration: Browser actual 전에는 capability 재분류와 PU-G3 PASS를 주장하지 않는다.
+
+## v1.54 Changelog / Migration
+
+- R5 Browser actual과 authoritative PUC-2 Result를 Current route에 등록하고 `PU-G2 PASS`로 전환했다.
+- matrix를 20/6/9로 갱신하고 다음 Gate를 PUC-3/PU-G3로 라우팅했다.
+
+Migration: PUC-2 actual은 반복하지 않는다. Full Public Usability Accepted는 PUC-3~PUC-6 완료 전까지 false다.
+
+## v1.53 Changelog / Migration
+
+- R4 Product batch/discover PASS와 exact-nine representative coverage 부족을 Current route에 반영했다.
+- `/Game/Test` blocker를 fixture-root coverage로 분류하고 accepted Plugin fixture root 기반 R5를 next gate로 등록했다.
+
+Migration: Product recovery 상태는 유지한다. R5 actual 전에는 PU-G2를 PASS로 승격하지 않는다.
+
+## v1.52 Changelog / Migration
+
+- exact-nine Product failure의 RCA와 v0.15.1 복구를 Current route에 등록했다.
+- two-run 4/4 actual, normalized determinism과 canonical Phase 2 PASS를 `PUC2RepairResult.md`로 라우팅했다.
+- `PUC2BrowserHandoff.md` R4를 다음 Gate로 등록하고 PU-G2 actual은 Pending으로 유지했다.
+
+Migration: Product readiness 복구는 Browser PU-G2 Acceptance를 대체하지 않는다. R4 actual 이후 Codex가 전체 Gate를 판정한다.
+
+## v1.51 Changelog / Migration
+
+- PUC-2 preparation contract와 GoPyMCP Codex task route를 Current에 등록했다.
+- existing indexes를 재사용하는 9-section bounded retrieval 설계를 고정하고 Product Source correction required=false를 유지했다.
+- implementation/Browser PU-G2는 아직 Not Started다.
+
+Migration: PUC-2 actual acceptance 전에는 current matrix PU-G1 state를 승격하지 않는다.
 
 ## v1.50 Changelog / Migration
 
