@@ -1,10 +1,12 @@
 // File: ADumpService.cpp
-// Version: v0.15.0
+// Version: v0.15.1
 // Changelog:
+// - v0.15.1: 여러 섹션을 함께 요청할 때 자산 종류별 비지원 input_summary/component_tree가 전체 dump 저장을 중단하지 않도록 교정.
 // - v0.15.0: P5-N1 niagara_material_evidence exact profile activation을 추가하고 Material profile을 Deep superset extraction으로 연결.
 // - v0.14.0: P4-N1 Deep activation을 Profile=niagara_deep_evidence + section_source=profile + exact entity_evidence selection으로 제한.
 // - v0.13.0: explicit entity_evidence 요청에서 Niagara typed evidence extractor를 실행.
 // Migration:
+// - 단일 explicit input_summary/component_tree 요청의 strict unsupported 실패는 유지하고, 다중 섹션 요청은 지원되는 나머지 섹션을 저장한다.
 // - Niagara extraction은 explicit entity_evidence 요청에만 적용하며 기존 full-mode builder 계획은 유지한다.
 // - v0.12.0: graph extraction 후 bp_search_index_v1 pure builder를 실행.
 // - v0.11.1: 실제 덤프 세션 시작 시 writable output을 한 번만 확정하고 request metadata 생성은 비mutation으로 유지.
@@ -210,6 +212,18 @@ namespace
 		{
 			return IssueItem.Code.Equals(InCode, ESearchCase::CaseSensitive);
 		});
+	}
+
+	// ShouldFailUnsupportedExplicitSection은 단일 explicit 섹션 요청에서만 기존 strict unsupported 실패를 유지할지 판정한다.
+	bool ShouldFailUnsupportedExplicitSection(
+		const FADumpSectionSelection& InSectionSelection,
+		EADumpSection InRequestedSection)
+	{
+		// EnabledSectionNames는 exact 단일 선택인지 확인할 canonical 섹션 이름 배열이다.
+		const TArray<FString> EnabledSectionNames = InSectionSelection.GetEnabledNames();
+		return !InSectionSelection.IsFullMode()
+			&& InSectionSelection.IsEnabled(InRequestedSection)
+			&& EnabledSectionNames.Num() == 1;
 	}
 }
 
@@ -716,7 +730,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 				ActiveResult.InputSummary,
 				ActiveResult.Issues,
 				ActiveResult.Perf,
-				!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::InputSummary)))
+				ShouldFailUnsupportedExplicitSection(ActiveRunOpts.SectionSelection, EADumpSection::InputSummary)))
 		{
 			bAllRequestedSectionsSucceeded = false;
 			if (!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::InputSummary))
@@ -734,7 +748,7 @@ bool FADumpService::ExecuteNextStep(FString& OutMessage)
 				ActiveRunOpts.AssetObjectPath,
 				ActiveResult.ComponentTree,
 				ActiveResult.Issues,
-				!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::ComponentTree)))
+				ShouldFailUnsupportedExplicitSection(ActiveRunOpts.SectionSelection, EADumpSection::ComponentTree)))
 		{
 			bAllRequestedSectionsSucceeded = false;
 			if (!ActiveRunOpts.SectionSelection.IsFullMode() && ActiveRunOpts.SectionSelection.IsEnabled(EADumpSection::ComponentTree))
