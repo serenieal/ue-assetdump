@@ -1,7 +1,7 @@
 # AssetDump 작업 대문
 
-- 문서 버전: v1.13
-- 최근 갱신일: 2026-07-31
+- 문서 버전: v1.14
+- 최근 갱신일: 2026-08-13
 - 문서 상태: Current
 - 적용 범위: configured repository `assetdump_repo` 루트 이하의 코드, 스크립트, 콘텐츠와 문서
 
@@ -14,6 +14,7 @@ AssetDump의 제품 역할은 UE 리소스의 관측 정보와 허용된 결정�
 저장소: assetdump_repo
 역할 경계: Documents/RoleBoundaryPolicy.md
 문서 진입점: Documents/Document_Entry.md
+현재 기능 설명: Documents/Capabilities/CapabilityIndex.md
 활성 작업: Documents/ActiveWork.md
 Plan 색인: Documents/Plan/README.md
 검증 강도: Documents/Plan/StandaloneValidationPolicy.md
@@ -61,9 +62,10 @@ repository_instructions.must_follow = true
 1. 현재 브랜치, upstream, ahead/behind와 기존 미커밋 변경을 확인한다.
 2. 기존 dirty 파일의 diff를 읽고 사용자 변경과 다른 작업 산출물을 보호 범위로 기록한다.
 3. `Documents/Document_Entry.md`, `Documents/RoleBoundaryPolicy.md`, `Documents/ActiveWork.md`, `Documents/Plan/README.md`를 읽는다.
-4. 새 기능·schema·section·의미 변경은 `RoleBoundaryPolicy.md`의 기능 제안 역할 게이트를 먼저 통과시킨다.
-5. 선택한 대표 Plan과 실제 코드·스크립트·report를 교차검증한다.
-6. 변경 위험에 맞는 검증 레벨과 실행 가능한 surface를 확정한다.
+4. 현재 제공 기능의 사용법·차이·공개 경로를 확인하는 작업이면 `Documents/Capabilities/CapabilityIndex.md`에서 필요한 기능군 문서만 선택한다.
+5. 새 기능·schema·section·의미 변경은 `RoleBoundaryPolicy.md`의 기능 제안 역할 게이트를 먼저 통과시킨다.
+6. 선택한 대표 Plan과 실제 코드·스크립트·report를 교차검증한다.
+7. 변경 위험에 맞는 검증 레벨과 실행 가능한 surface를 확정한다.
 
 ## 5. 변경 보호와 금지 작업
 
@@ -112,6 +114,12 @@ AssetDump 검증을 일반적인 CarFight Editor build 절차로 대체하지 �
 - 모든 작업이 완결되었고 합리적인 후속이 없으면 추천 프롬프트를 억지로 만들지 않는다.
 
 ## 8. Changelog
+
+### v1.14 - 2026-08-13
+
+- `Documents/Capabilities/CapabilityIndex.md`를 현재 제공 기능의 사용자 관점 설명 진입점으로 등록했다.
+- 현재 기능 확인 작업은 거대한 Plan/Result 이력 대신 필요한 기능군 문서만 선택하도록 시작 순서를 보강했다.
+- Capability 문서의 소유권·크기·분할 규칙은 `CapabilityIndex.md`가 소유하며 루트 AGENTS에는 중복 복사하지 않는다.
 
 ### v1.13 - 2026-07-31
 
@@ -168,6 +176,12 @@ AssetDump 검증을 일반적인 CarFight Editor build 절차로 대체하지 �
 - 이전 TaskSource/Codex 중심 절차와 초기 독립 저장소 규칙은 Git 이력과 관련 Current 문서의 역사 기록으로 보존한다.
 
 ## 9. Migration
+
+### v1.14 적용 안내
+
+- 현재 AssetDump 기능을 찾거나 설명할 때 `Documents/Capabilities/CapabilityIndex.md`를 기능 SSOT 대문으로 사용한다.
+- 기능군 상세 설명은 `Documents/Capabilities/`가 소유하지만 제품 역할, section/schema 기술 계약과 개발·검증 이력의 기존 SSOT는 이동하지 않는다.
+- Capability 문서를 이해하기 위해 과거 구현·검증 실행 이력을 선행 읽기 조건으로 만들지 않는다.
 
 ### v1.13 적용 안내
 

@@ -1,7 +1,7 @@
 # AssetDump Role Boundary Policy
 
-- 문서 버전: v1.1
-- 최근 갱신일: 2026-07-31
+- 문서 버전: v1.2
+- 최근 갱신일: 2026-08-13
 - 문서 상태: Current
 - 역할: AssetDump의 제품 책임, 허용되는 데이터 변환과 금지되는 의미 판단을 정의하는 최상위 역할 경계 정책
 
@@ -21,6 +21,8 @@ AssetDump의 핵심 역할
 리소스의 의미 해석, 품질 평가, 문제 진단, 우선순위 결정과 개선 제안은 AssetDump가 아니라 정보를 전달받은 AI/MCP Consumer가 담당한다.
 
 대표 Plan, section/schema 계약 또는 구현 제안이 이 문서와 충돌하면 역할 경계를 먼저 교정한 뒤 작업 범위를 확정한다.
+
+현재 제공 capability의 사용자 관점 설명과 문서 소유권은 `Documents/Capabilities/CapabilityIndex.md`를 따른다. 이 연결은 역할 정책이나 section/schema 계약을 Capability 문서로 이동한다는 뜻이 아니다.
 
 ---
 
@@ -240,6 +242,11 @@ Asset Intelligence
 
 ## 9. Changelog
 
+### v1.2 - 2026-08-13
+
+- `Documents/Capabilities/CapabilityIndex.md`를 현재 capability 설명과 상세 문서 소유권의 사용자 관점 진입점으로 연결했다.
+- 제품 역할 경계와 기능 설명의 문서 책임을 분리해 Capability 문서가 이 정책을 복제하거나 대체하지 않도록 명시했다.
+
 ### v1.1 - 2026-07-31
 
 - 저장소 target 경로 해석, repository ownership, `AGENTS.md` 적용과 instruction cache를 GoPyMCP/Admin 책임으로 분리했다.
@@ -260,6 +267,7 @@ Asset Intelligence
 
 ## 10. Migration
 
+- 현재 기능 탐색과 사용자 관점 설명은 `Documents/Capabilities/CapabilityIndex.md`에서 시작할 수 있다. 역할 판정이 필요한 경우 이 정책이 계속 우선한다.
 - 기존 v0.7.1-v1.0.2 accepted 공개 계약은 이 정책만으로 변경되지 않는다.
 - `graph_node_role_v1`과 `execution_path_preview_v1`은 결정론적 파생 증거로 유지하며 현재 provenance와 한도 계약을 보존한다.
 - `digest`, preview와 context bundle은 자연어 결론이나 품질 판단을 추가하지 않는다.

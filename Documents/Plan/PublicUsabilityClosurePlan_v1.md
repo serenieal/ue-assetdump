@@ -1,8 +1,8 @@
 # AssetDump Full Public Usability Closure Plan
 
-- 문서 버전: v1.27
+- 문서 버전: v1.28
 - 최근 갱신일: 2026-08-13
-- 문서 상태: Completed / PU-G6 PASS / Full Public Usability Accepted / Matrix 29/6/0
+- 문서 상태: Completed / PU-G6 PASS / Full Public Usability Accepted / Post-Closure Verification PASS / Terminal Closed / Matrix 29/6/0
 - 작업 ID: `ADUMP-v1.4.0-PUC`
 - 역할: accepted AssetDump 기능 전체를 Browser GPT가 실제 소비 가능한 상태인지 분류하고, fresh preparation부터 public retrieval까지 끊김 없는 사용성을 닫는 대표 Plan
 - 기반 상태: `ADUMP-v1.2.0-AIRE / Completed / Consumer Accepted`, `ADUMP-v1.3.0-BPGRAPH / Completed / Browser Accepted / Closed`
@@ -11,7 +11,7 @@
 
 ## 0. 결정 요약
 
-Plan 착수 시 없었던 fresh Browser 전체 기능 증거는 PUC-4 J1~J8에서 확보됐다. 현재 PU-G1~PU-G4가 PASS이고 matrix 29/6/0은 Browser actual로 확인됐다. PUC-5 Real Project/Operational Reliability와 PUC-6 terminal trust가 남아 있으므로 Full Public Usability Accepted는 아직 false다.
+Plan 착수 시 없었던 fresh Browser 전체 기능 증거는 PUC-4 J1~J8에서 확보됐고, PUC-5 Real Project/Operational Reliability와 PUC-6 terminal trust까지 모두 PASS했다. matrix 29/6/0과 Full Public Usability Accepted=true를 확정한 뒤 별도 independent Post-Closure Verification에서 `context_bundle`, Blueprint fixture graph, real-project `BP_CFVehiclePawn.EventGraph` read-only smoke도 fresh PASS했으므로 이 lifecycle은 terminal closed다.
 
 2026-08-11 실제 Browser audit에서 다음이 동시에 관측됐다.
 
@@ -1078,6 +1078,9 @@ PUC-5: COMPLETE / PublicUsabilityPUC5Result.md v1.0
 PU-G5: PASS / real-project 5/5 / mutation 0 / operational 4/4
 PU-G6: PASS / terminal trust matrix / compatibility+integration 115 PASS
 Full Public Usability Accepted: true
+Post-Closure Verification: PASS / Documents/Plan/PUCPostClosureResult.md v1.0
+fresh 115 regression rerun: NOT REQUIRED
+mandatory remaining work: NONE
 base AIRE: preserved / closed
 base BPGRAPH: preserved / closed
 ```
@@ -1096,6 +1099,15 @@ PUC-2는 accepted stored section retrieval coverage만 다룬다. PUC-1 managed 
 ---
 
 ## 12. Changelog
+
+### v1.28 - 2026-08-13
+
+- `PUCPostClosureResult.md` v1.0의 independent fresh verification을 terminal evidence로 등록했다.
+- same-request `dependency_query -> context_bundle`, Blueprint fixture 2/2 graph, real-project `BP_CFVehiclePawn.EventGraph` 21/24 read-only smoke를 모두 PASS했다.
+- Product/Plugin Content/CarFight asset/source write 0과 current 115 regression의 fresh 재실행 `NOT REQUIRED` 판정을 반영했다.
+- PUC와 Post-Closure Verification을 함께 `Terminal Closed / mandatory remaining work NONE`으로 확정했다.
+
+Migration: PUC/PCV actual과 115 regression은 관성적으로 반복하지 않는다. 새 기능, public behavior/schema 변경 또는 실제 defect가 발생한 경우에만 새 lifecycle/work ID에서 필요한 검증 강도를 다시 판정한다.
 
 ### v1.27 - 2026-08-13
 
