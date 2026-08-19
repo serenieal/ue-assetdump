@@ -1,7 +1,9 @@
 # AssetDump 작업 대문
 
-- 문서 버전: v1.14
-- 최근 갱신일: 2026-08-13
+- 문서 버전: v1.16
+- 최근 갱신일: 2026-08-15
+
+
 - 문서 상태: Current
 - 적용 범위: configured repository `assetdump_repo` 루트 이하의 코드, 스크립트, 콘텐츠와 문서
 
@@ -57,7 +59,29 @@ repository_instructions.must_follow = true
 - Browser에 노출되지 않은 parser, 임의 commandlet 또는 외부 환경 검증은 사용자 선택 로컬 환경이 선택적으로 보완할 수 있으나, Source/Scripts 구현의 필수 선행조건이 아니다.
 - 과거 TaskSource, Work Order와 generated Codex YAML은 설계·실행 이력이다. 새 작업의 필수 착수 조건이나 최종 YAML gate가 아니다.
 
+### 3.1 Consumer Editor lifecycle 경계
+
+AssetDump는 host-neutral Editor 플러그인이므로 Unreal 관련 작업이라는 이유만으로 Consumer Editor를 자동 시작하지 않는다.
+
+- BuildPlugin, Generic Host, commandlet, parser/report, stored/managed dataset 조회와 offline validation으로 충분하면 Consumer Editor를 시작하지 않는다.
+- `consumer_editor_build` 또는 Consumer Project가 현재 로드한 AssetDump DLL/module을 직접 link/replace하는 검증이 필요하면, 실행 중 Consumer Editor가 대상 binary를 점유하는지 **runtime ↔ build interference preflight**를 먼저 수행한다. BuildPlugin, Generic Host, repository-external staging처럼 Consumer-loaded binary와 독립된 경로에는 이 이유만으로 Consumer Editor를 종료하지 않는다.
+
+- Consumer Project의 **live/unsaved/runtime truth** 또는 Consumer integration live acceptance가 실제로 필요할 때만 해당 Consumer Project의 canonical Editor lifecycle entry를 사용할 수 있다.
+- Consumer Editor 시작·종료는 외부 Host orchestration이며 AssetDump 제품 기능이나 acceptance 증거 자체가 아니다. 기존 BuildPlugin/Generic Host/consumer build evidence와 합치지 않는다.
+- 작업 시작 전부터 실행 중이던 Consumer Editor는 user-owned/unknown lifetime으로 취급하며 Browser가 자동 종료하지 않는다. 이 Editor가 required Consumer build/link target을 점유하면 해당 `consumer_editor_build` evidence는 사용자 종료 또는 안전한 ownership 해소 전까지 `Blocked`로 남기며 BuildPlugin/Generic Host PASS로 대체하지 않는다.
+
+- Browser가 현재 작업에서 직접 시작한 Consumer Editor는 사용자 작업이 없고 AI mutation이 rollback/cleanup 완료된 경우에만 Consumer Project의 canonical stop entry로 save 0 종료할 수 있다. Build interference 해소가 목적이어도 같은 ownership 조건을 적용한다.
+
+- lifecycle 자동화는 Save/Save All을 수행하지 않는다. 미저장 폐기/force stop은 전체 lifetime이 AI-owned임이 확인된 경우에만 허용한다.
+- Editor stop/restart/project reopen/level·asset reload는 live unsaved/selection/PIE/open-asset/generation evidence를 무효화한다. 반면 persisted AssetDump dataset은 자체 freshness/lifecycle 규칙에 따른 historical snapshot으로 남을 수 있으나 현재 unsaved/live truth로 승격하지 않는다.
+- Build interference 때문에 Editor를 종료해 새 Consumer binary를 만든 뒤 live integration 확인이 필요하면 **build evidence와 runtime evidence를 분리**하고, build 완료 후 Consumer Project의 fresh start → Ready → 별도 integration validation 순서로 새 lifetime을 확립한다.
+
+- CarFight 또는 다른 Consumer Project의 `RunEditor`/`StopEditor` 구현을 AssetDump 저장소 안에 복제하지 않는다. 실제 lifecycle implementation은 Consumer Project가 소유한다.
+
+상세 검증 증거 경계는 `Documents/Plan/StandaloneValidationPolicy.md`를 따른다.
+
 ## 4. 작업 시작 순서
+
 
 1. 현재 브랜치, upstream, ahead/behind와 기존 미커밋 변경을 확인한다.
 2. 기존 dirty 파일의 diff를 읽고 사용자 변경과 다른 작업 산출물을 보호 범위로 기록한다.
@@ -115,7 +139,25 @@ AssetDump 검증을 일반적인 CarFight Editor build 절차로 대체하지 �
 
 ## 8. Changelog
 
+### v1.16 - 2026-08-15
+
+- Consumer Project가 로드한 AssetDump DLL/module을 직접 build/link/replace할 때 runtime-build interference preflight를 추가했다.
+- BuildPlugin/Generic Host/repository-external staging은 Consumer-loaded binary와 독립이면 Editor 종료를 요구하지 않도록 유지했다.
+- user-owned/unknown Editor가 required Consumer build target을 점유하면 자동 force/discard하지 않고 해당 consumer build evidence를 Blocked로 유지하며 다른 build identity의 PASS로 대체하지 않도록 했다.
+- AI-owned lifetime은 기존 save0/cleanup ownership 조건 아래 build interference 해소 목적으로도 종료할 수 있고, 이후 live integration은 fresh start → Ready → 별도 validation으로 분리했다.
+
+### v1.15 - 2026-08-14
+
+
+- §3.1에 host-neutral Consumer Editor lifecycle 경계를 추가했다.
+- BuildPlugin, Generic Host, commandlet, stored dataset과 offline validation은 live Consumer Editor를 기본 prerequisite로 요구하지 않도록 고정했다.
+- Consumer live/unsaved/runtime truth가 실제 필요한 경우에만 Consumer Project의 canonical lifecycle entry를 사용하도록 분리했다.
+- pre-existing Editor는 user-owned/unknown으로 취급해 자동 종료하지 않고, Browser가 시작한 AI-owned lifetime만 cleanup 완료 후 no-save 종료 대상으로 허용했다.
+- lifecycle 자동 Save를 금지하고 force/discard 종료는 AI-owned lifetime에만 허용했다.
+- Editor lifecycle 변화는 volatile live evidence를 무효화하지만 persisted AssetDump dataset은 자체 freshness 규칙에 따른 snapshot으로 보존하며 current unsaved truth로 승격하지 않도록 했다.
+
 ### v1.14 - 2026-08-13
+
 
 - `Documents/Capabilities/CapabilityIndex.md`를 현재 제공 기능의 사용자 관점 설명 진입점으로 등록했다.
 - 현재 기능 확인 작업은 거대한 Plan/Result 이력 대신 필요한 기능군 문서만 선택하도록 시작 순서를 보강했다.
@@ -177,7 +219,24 @@ AssetDump 검증을 일반적인 CarFight Editor build 절차로 대체하지 �
 
 ## 9. Migration
 
+### v1.16 적용 안내
+
+- AssetDump 개발 시작 시 Consumer Editor의 존재만 보고 끄지 않는다. 먼저 선택한 build identity가 Consumer-loaded binary를 실제로 공유·교체하는지 판정한다.
+- BuildPlugin/Generic Host/외부 staging은 독립 경로면 그대로 실행한다. Required `consumer_editor_build` 또는 direct Consumer DLL link가 active Editor file lock과 충돌하면 ownership 규칙을 적용한다.
+- user-owned/unknown 충돌은 자동 폐기하지 않고 Blocked 또는 사용자 종료 대기로 남긴다. AI-owned 충돌만 사용자 작업 없음 + cleanup 완료 조건에서 canonical save0 stop을 사용할 수 있다.
+- build 뒤 live integration이 필요하면 이전 Editor evidence를 재사용하지 않고 fresh Ready lifetime에서 다시 검증한다.
+
+### v1.15 적용 안내
+
+
+- AssetDump의 기본 standalone/host-neutral 검증은 live Consumer Editor를 자동 시작하지 않는다.
+- Consumer live/unsaved/runtime truth가 별도로 필요한 작업만 Consumer Project의 canonical lifecycle을 사용한다. Editor 시작·종료는 AssetDump public capability나 BuildPlugin/Generic Host/consumer build PASS를 대신하지 않는다.
+- 작업 시작 전부터 실행 중인 Consumer Editor는 자동 종료하지 않는다. Browser가 시작한 AI-owned lifetime만 사용자 작업 부재와 rollback/cleanup 완료가 확인될 때 save 0 종료할 수 있다.
+- Editor lifecycle 변화 뒤 persisted dataset은 historical snapshot으로 남을 수 있으나 current unsaved/live truth로 재해석하지 않는다.
+- 실제 start/stop script와 process identification은 Consumer Project가 소유하며 AssetDump 저장소에 복제하지 않는다.
+
 ### v1.14 적용 안내
+
 
 - 현재 AssetDump 기능을 찾거나 설명할 때 `Documents/Capabilities/CapabilityIndex.md`를 기능 SSOT 대문으로 사용한다.
 - 기능군 상세 설명은 `Documents/Capabilities/`가 소유하지만 제품 역할, section/schema 기술 계약과 개발·검증 이력의 기존 SSOT는 이동하지 않는다.
