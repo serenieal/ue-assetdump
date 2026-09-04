@@ -1,7 +1,7 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.76
-- 최근 갱신일: 2026-08-13
+- 문서 버전: v1.77
+- 최근 갱신일: 2026-08-21
 - 문서 상태: Current
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
 
@@ -18,6 +18,9 @@ active capability: 35
 Public Ready: 29
 Native Only By Design: 6
 mandatory remaining work: NONE
+GoPyMCP portable project identity: assetdump / `.gopymcp/project.json`
+Primary Repository: assetdump_repo / role=assetdump
+portable capabilities: 0 / Consumer runtime-toolchain remains Consumer-owned
 ```
 
 새 기능, public schema/behavior 변경 또는 실제 defect가 없으면 완료된 PUC/BPGRAPH/AIRE lifecycle을 다시 시작하지 않는다.
@@ -132,9 +135,17 @@ CarFight 또는 GoPyMCP의 ActiveWork/Plan을 AssetDump Current state의 runtime
 
 다른 저장소와 연동된 Acceptance 기록이 과거 Result에 있어도 AssetDump의 현재 사용법과 제품 역할은 이 저장소의 Current 문서만으로 이해할 수 있어야 한다.
 
+`.gopymcp/project.json`은 AssetDump 독립 Git 저장소의 portable Host integration identity를 제공한다. 이는 `project_id=assetdump`, Primary `assetdump_repo/assetdump` source authority를 고정하는 metadata이며 AssetDump 제품 기능·public schema·runtime capability를 추가하지 않는다. Consumer Unreal Engine/toolchain/runtime과 relation binding은 각 Consumer Project와 GoPyMCP Host Registry가 소유하며, 이 identity 추가만으로 AssetDump feature lifecycle을 재개하지 않는다.
+
 ---
 
 ## 7. Changelog / Migration
+
+### v1.77 - 2026-08-21
+
+- MP-10 Host integration을 위해 standalone portable identity `.gopymcp/project.json`을 Current operational identity로 등록했다: `project_id=assetdump`, Primary `assetdump_repo / role=assetdump`, portable capability 0.
+- AssetDump source ownership과 Consumer Engine/runtime ownership을 분리했다. Consumer-specific toolchain/runtime/relation binding은 AssetDump 제품 contract가 아니라 Consumer Project + GoPyMCP Host Registry가 소유한다.
+- Migration: active feature lifecycle은 계속 `NONE`이다. Product Source/public schema/behavior, PUC/AIRE history, Build/Editor/PIE/UE/Save는 변경하지 않는다.
 
 ### v1.76 - 2026-08-13
 
