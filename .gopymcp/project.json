@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "project_id": "assetdump",
+  "display_name": "AssetDump",
+  "repositories": [
+    {
+      "repository_id": "assetdump_repo",
+      "repository_role": "assetdump",
+      "primary": true,
+      "mount_path": "."
+    }
+  ],
+  "capabilities": [],
+  "relations": [],
+  "policy_refs": [
+    "AGENTS.md"
+  ]
+}
