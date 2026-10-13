@@ -1,7 +1,7 @@
 # AssetDump Document Entry
 
-- 문서 버전: v1.77
-- 최근 갱신일: 2026-08-21
+- 문서 버전: v1.83
+- 최근 갱신일: 2026-10-12
 - 문서 상태: Current
 - 역할: `assetdump_repo` 문서체계의 작업별 진입 라우터
 
@@ -10,14 +10,15 @@
 ## 1. 현재 상태
 
 ```text
-active feature lifecycle: NONE
+active feature lifecycle: ADUMP-BATCH-ROOT-FIRST / defect correction
+active representative Plan: Documents/Plan/BatchRootPriorityDefect.md
 ADUMP-v1.4.0-PUC: Historical / Terminal Closed
 Full Public Usability Accepted: true
 Post-Closure Verification: PASS
 active capability: 35
 Public Ready: 29
 Native Only By Design: 6
-mandatory remaining work: NONE
+mandatory remaining work: G4 KCTC deployed runtime verification (KCTC assetdump checkout read_only)
 GoPyMCP portable project identity: assetdump / `.gopymcp/project.json`
 Primary Repository: assetdump_repo / role=assetdump
 portable capabilities: 0 / Consumer runtime-toolchain remains Consumer-owned
@@ -37,7 +38,7 @@ portable capabilities: 0 / Consumer runtime-toolchain remains Consumer-owned
 | exact section/schema/selection 확인 | `Documents/Plan/AssetIntelligencePlan/SectionRegistry_v1.md` | 관련 구현·검증 계약 |
 | parser/structured evidence 검증 | `Documents/Plan/AssetIntelligencePlan/ValidationPolicy_v1.md` | 실제 runner/result |
 | standalone build/closure 검증 | `Documents/Plan/StandaloneValidationPolicy.md` | 실제 runner/result |
-| 활성 작업 복원 | `Documents/ActiveWork.md` | 현재 등록된 대표 Plan; 현재는 active lifecycle 없음 |
+| 활성 작업 복원 | `Documents/ActiveWork.md` | 현재 `ADUMP-BATCH-ROOT-FIRST` 대표 Plan과 G3/G4 상태 |
 | 새 Plan 또는 lifecycle 확인 | `Documents/Plan/README.md` | 선택한 대표 Plan |
 | 완료된 과거 lifecycle 조사 | `Documents/Plan/HistoricalIndex.md` | 해당 대표 Result |
 
@@ -140,6 +141,48 @@ CarFight 또는 GoPyMCP의 ActiveWork/Plan을 AssetDump Current state의 runtime
 ---
 
 ## 7. Changelog / Migration
+
+### v1.83 - 2026-10-12
+
+- 보존 성공 Generic Host 바이너리를 신규 외부 격리 Host에서 사용하여 P2B output fallback 3/3 actual PASS와 패키지/Host 불변성을 확보했다.
+- 전체 Phase 2 Full Suite 및 KCTC G4 consumer acceptance는 여전히 미완료다.
+
+Migration: P2B 범위 독립 PASS를 전체 수락으로 승격하지 않는다.
+
+### v1.82 - 2026-10-12
+
+- ADUMP-BATCH-ROOT-FIRST 검증 도구 중간검수 P1/P2 교정·자체 테스트·보존 입력 사전검수 완료.
+- G3 제품 PASS와 보조 Phase 2 partial/full 범위를 구분하고, KCTC G4 runtime 적용 수락을 lifecycle 필수 완료 조건으로 유지했다.
+
+Migration: 원래 BuildPlugin DLL hash가 없는 상황에서 사후 Host/Package 해시를 원본 빌드 당시 해시로 오인하지 않는다.
+
+### v1.81 - 2026-10-11
+
+- G3 제품 PASS를 유지하며 preserved Generic Host Query/Context/Entity/Niagara 대표 스모크 10/10 PASS와 원본 불변성을 기록했다.
+- 원래 Full Phase 2 및 P2B, KCTC G4 수락은 여전히 미완료다.
+
+Migration: 대표 스모크를 전체 매트릭스 PASS로 승격하지 않는다.
+
+### v1.80 - 2026-10-11
+
+- G3 독립 Root-first PASS 유지, Generic Host Editor Build PASS 및 Phase 2 시간 부족 후 Dependency tail 5/5 재개 PASS를 기록했다.
+- 전체 Phase 2와 G4 KCTC 배포·Runtime 수락은 완료로 간주하지 않는다.
+
+Migration: Full Suite PASS를 추정하지 않고 정확한 범위의 evidence만 승인한다.
+
+### v1.79 - 2026-10-09
+
+- ADUMP-BATCH-ROOT-FIRST G3 실제 standalone prebuilt package Commandlet 1/1 및 5/5 PASS를 Current state에 반영했다.
+- G4 KCTC deployed runtime은 별도 read_only blocker 상태로 유지한다.
+
+Migration: KCTC Consumer 실제 DLL 교체 없이 제품 전체 수락 또는 KCTC 문제 해결을 선언하지 않는다.
+
+### v1.78 - 2026-10-09
+
+- Batch root seed 선택 우선순위 결함 `ADUMP-BATCH-ROOT-FIRST`를 현재 활성 결함 작업으로 라우팅했다.
+- 기존 PUC/PCV Accepted와 35 capability 분류는 그대로 유지한다.
+
+Migration: 이 작업은 bounded batch 선택에만 적용하며 새 빌드의 runtime evidence 이전에는 제품 전체 Acceptance PASS를 주장하지 않는다.
 
 ### v1.77 - 2026-08-21
 

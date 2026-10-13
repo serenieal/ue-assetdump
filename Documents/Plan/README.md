@@ -1,7 +1,7 @@
 # AssetDump Plan Index
 
-- 문서 버전: v2.33
-- 최근 갱신일: 2026-08-13
+- 문서 버전: v2.39
+- 최근 갱신일: 2026-10-12
 - 문서 상태: Current
 - 역할: 현재 착수·검증할 AssetDump lifecycle과 Plan 진입점을 선택하는 색인
 
@@ -10,10 +10,10 @@
 ## 1. 현재 Plan 상태
 
 ```text
-active feature lifecycle: NONE
-active representative Plan: NONE
-mandatory remaining work: NONE
-next gate: NONE
+active feature lifecycle: ADUMP-BATCH-ROOT-FIRST (defect)
+active representative Plan: Documents/Plan/BatchRootPriorityDefect.md
+mandatory remaining work: KCTC installed runtime acceptance (read_only blocker)
+next gate: G4
 ```
 
 `ADUMP-v1.4.0-PUC`, `ADUMP-v1.3.0-BPGRAPH`, `ADUMP-v1.2.0-AIRE` 계열은 모두 종료됐고 현재 착수 Plan이 아니다.
@@ -122,6 +122,42 @@ Historical 문서의 old `next action`, `Ready`, `Pending`, `Blocked`를 현재 
 ---
 
 ## 7. Changelog / Migration
+
+### v2.39 - 2026-10-12
+
+- Root-first Phase 2 보조검증에서 P2B Regression/Closure/C++ Saved output fallback 3/3 actual PASS와 blocker/Content/DLL 불변성을 확보했다.
+
+Migration: isolated P2B 범위만 PASS하며 Full Phase 2 전체 음성 매트릭스·Niagara closure 및 KCTC G4는 미완료다.
+
+### v2.38 - 2026-10-12
+
+- Root-first 제품 G3 PASS에 대한 도구 안전장치 재검수를 완료했다. DLL/경로/시간 예산 보호를 보강했으며 새로운 Unreal 빌드/검증 반복 없이 preserved-input preflight PASS를 확보했다.
+
+Migration: Full Phase 2 전체 음성 매트릭스·P2B는 미완료 추가 회귀다. G4 KCTC deployed runtime acceptance는 이 결함 작업의 필수 다음 Gate다.
+
+### v2.37 - 2026-10-11
+
+- Dependency tail 5/5와 별개로 Query/Context/Entity/Niagara representative 10/10 actual PASS를 대표 Plan에 추가했다.
+
+Migration: Full Phase 2 음성 매트릭스 및 P2B는 미실행이며 KCTC G4 Consumer 배포·수락과 혼합하지 않는다.
+
+### v2.36 - 2026-10-11
+
+- Generic Host Editor Build PASS, 기존 30분 Phase 2는 시간 부족으로 Full Suite FAIL, 제한된 Dependency tail 5/5 재개 PASS를 대표 Plan에 기록했다.
+
+Migration: 기존 DLL lock을 현재 blocker로 오인하지 않는다. 후속 Phase 2 gates는 미실행이며 KCTC G4 배포·Consumer 수락은 여전히 미완료다.
+
+### v2.35 - 2026-10-09
+
+- Root-first 독립 prebuilt Host focused runtime 1/1 및 5/5 PASS에 따라 G3를 완료하고 남은 G4 KCTC runtime 수락으로 라우팅했다.
+
+Migration (당시 기록): 2026-10-09 Engine DLL lock이 있었고, 이후 Editor 종료로 Build가 PASS했다. 전체 Phase 2 및 G4는 별도로 미수락이다.
+
+### v2.34 - 2026-10-09
+
+- Batch seed 우선 선택 결함 `ADUMP-BATCH-ROOT-FIRST` 대표 Plan을 Active로 등록했다.
+
+Migration: 이전 Closed 작업을 다시 열지 않으며 이번 결함의 G3/G4가 완료될 때 Current 상태를 갱신한다.
 
 ### v2.33 - 2026-08-13
 

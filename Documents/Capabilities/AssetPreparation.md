@@ -1,7 +1,7 @@
 # AssetDump Asset Preparation
 
-- 문서 버전: v1.0.1
-- 최근 갱신일: 2026-08-13
+- 문서 버전: v1.0.2
+- 최근 갱신일: 2026-10-09
 - 문서 상태: Current
 - 역할: 자산 evidence를 fresh하게 준비하고 검색·부분 조회할 수 있는 dataset으로 만드는 기능 설명
 
@@ -105,7 +105,16 @@ managed_dataset
 
 모든 입력을 항상 사용할 필요는 없다.
 
-### 4.2 fresh preparation
+### 4.2 `with_dependencies`와 `max_assets` 선택 순서
+
+`with_dependencies=true`인 bounded batch에서도 **요청한 `root` 아래의 자산이 우선**이다. AssetDump는 root/class filter를 통과한 seed 에셋을 object path순으로 정렬한 뒤 `max_assets` 한도에서 먼저 선택한다. 의존 에셋은 **남은 한도 내에서만** seed로부터 확장하며, 반복 실행에 같은 결과가 나오도록 dependency package path순으로 순회한다.
+
+- `max_assets > 0`: seed가 한도를 채우면 dependency는 추가하지 않는다. seed가 한도보다 적으면 나머지만 dependency로 채운다.
+- `max_assets <= 0`: 수량 제한 없이 seed를 먼저 두고 결정론적으로 dependency를 확장한다.
+- `with_dependencies=false`: 기존과 같이 root/class filter 결과를 object path순으로 선택한다.
+- dependency가 root 밖에 있더라도 생성 dataset에 포함될 수 있다. `discover(root=...)`는 선택한 root에 속하는 항목만 반환하므로 Batch 전체 `asset_count`와 항상 같지는 않다.
+
+### 4.3 fresh preparation
 
 최신 상태를 기준으로 새 dataset을 준비하려면 보통 다음과 같은 의도가 된다.
 
@@ -117,7 +126,7 @@ managed_dataset=true
 
 정확한 root와 asset 수 제한은 작업 목적에 맞게 지정한다.
 
-### 4.3 `managed_dataset=true`
+### 4.4 `managed_dataset=true`
 
 managed dataset을 사용하면 Consumer는 AssetDump의 실제 출력 폴더 위치를 알 필요가 없다.
 
@@ -414,6 +423,13 @@ Niagara Deep/Material profile은 단순 section 묶음이 아니라 adapter evid
 ---
 
 ## 17. Changelog / Migration
+
+### v1.0.2 - 2026-10-09
+
+- `with_dependencies=true`와 bounded `max_assets` 동시 사용 시 root seed를 우선 보존하고 남은 공간에만 dependency를 추가하는 선택 계약을 명시했다.
+- dependency 추가 순서의 결정론성과 Discover root 필터가 전체 Batch count보다 작을 수 있다는 정상 범위를 설명했다.
+
+Migration: 기존 public operation 이름·schema·index 형식은 유지한다. 기존 snapshot은 재작성하지 않으며, 수정된 batch 선택 계약이 필요한 경우 새 preparation을 수행한다.
 
 ### v1.0.1 - 2026-08-13
 

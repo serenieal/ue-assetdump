@@ -1,6 +1,13 @@
 # File: RunBPDumpRegression.ps1
-# Version: v1.8
+# Version: v1.14
 # Changelog:
+# - v1.14: focused regression MaxAssets를 1~25 범위의 매개변수로 지원해 단일 seed 상한도 실제 검증.
+# - v1.13.1: 내부 PowerShell script 호출의 배열 splat 위치 바인딩을 명시적 named hashtable splat으로 교정.
+# - v1.13: Build.bat 없이 기존 BuildPlugin package를 외부 Blueprint-only Host에 설치해 Root-first Focused Commandlet을 검증하는 경로 추가.
+# - v1.12: 공유 DLL을 실제 로드한 UE 계열 process module을 별도 보고해 단순 후보와 점유 증거를 구분.
+# - v1.11: Unreal Engine shared DLL 점유를 빌드나 프로세스 종료 없이 조회하는 -InspectEngineLock 사전 진단 추가.
+# - v1.10: 기존 성공 패키지/Generic Host에서 source harness만 실행하는 -RunFocusedSeedPriority read-only-Consumer 전용 검증 모드 추가.
+# - v1.9: Plugin Batch에서 WithDependencies=true + MaxAssets=1을 별도 fresh root로 실행해 첫 root seed를 dependency가 밀어내지 못하는지 확인.
 # - v1.8: regression output root를 explicit, ASSETDUMP_OUTPUT_ROOT, writable PluginRoot/Dumped, Host Saved/AssetDump 순서로 실제 write probe하고 summary에 source를 추가.
 # - v1.7.1: Plugin list mode가 Plugin mount를 0개로 반환해도 authoritative batchdump 검증을 계속하도록 preflight 오판을 수정.
 # - v1.7: ValidationProfile별 Plugin/Project batch를 분리하고 Plugin `/AssetDump/Validation` ChangedOnly, Project fixture preflight, 0-asset classification, makefixtures exact snapshot/restore와 step command evidence를 추가.
@@ -26,6 +33,9 @@
 # - summary에 host_project_source와 attempted_project_candidates가 additive field로 추가된다.
 # - 명시 -OutputRoot는 최우선이며 쓰기 불가 시 fallback하지 않고 실패한다.
 # - 기본 출력은 ASSETDUMP_OUTPUT_ROOT, writable PluginRoot/Dumped, Host Saved/AssetDump 순서다.
+# - v1.9 우선순위 probe는 별도의 output root에서 실행하고 기존 Plugin full/ChangedOnly의 report·fixture bytes는 변경하지 않는다.
+# - v1.10 focused mode는 -ProjectFile/-EngineRoot/-OutputRoot를 명시해야 하며 -BatchRoot 아래 최소 5 seed를 전제로 기존 컴파일 결과만 사용한다.
+# - v1.13 PrebuiltHost mode는 PackageRoot의 AssetDump.uplugin/UnrealEditor-AssetDump.dll을 외부 신규 Host로 복사해 root-first focused 검증만 실행한다. Engine Build/Consumer Editor/Content를 변경하지 않는다.
 
 [CmdletBinding()]
 param(
@@ -61,7 +71,23 @@ param(
     [string]$ValidationProfile = "Both",
 
     # RunSelfTests는 엔진이나 프로젝트 실행 없이 경로 및 report 분류 helper를 검사할지 여부다.
-    [switch]$RunSelfTests
+    [switch]$RunSelfTests,
+
+    # RunFocusedSeedPriority는 이미 컴파일된 외부 Generic Host의 bounded root-first 선택만 검증한다. Build/fixture mutation 없음.
+    [switch]$RunFocusedSeedPriority,
+
+    # InspectEngineLock은 Build 이전 공유 DLL의 잠금 여부와 관련 프로세스를 관측만 한다.
+    [switch]$InspectEngineLock,
+
+    # PackageRoot는 이미 통과한 BuildPlugin package의 물리 루트이며 현재 저장소 밖이어야 한다.
+    [string]$PackageRoot = "",
+
+    # RunPrebuiltHostSeedPriority는 외부 Blueprint-only Host로 기존 package를 로드하며 UnrealBuildTool을 호출하지 않는다.
+    [switch]$RunPrebuiltHostSeedPriority,
+
+    # FocusedMaxAssets는 독립 root-first 회귀의 요청 대상 수 한도다.
+    [ValidateRange(1,25)]
+    [int]$FocusedMaxAssets = 5
 )
 
 # StopOnError는 PowerShell 내부 오류를 즉시 중단하기 위한 설정값이다.
@@ -1168,6 +1194,107 @@ if ($RunSelfTests) {
     return
 }
 
+if ($InspectEngineLock) {
+    if ([string]::IsNullOrWhiteSpace($EngineRoot)) {
+        throw "InspectEngineLock requires explicit -EngineRoot."
+    }
+    $TargetDll = Join-Path $EngineRoot "Engine\Binaries\Win64\UnrealEditor-NetCore.dll"
+    if (-not (Test-Path -LiteralPath $TargetDll -PathType Leaf)) {
+        throw "InspectEngineLock target DLL not found: $TargetDll"
+    }
+    $LockProbe = "unknown"
+    try {
+        $Stream = [System.IO.File]::Open($TargetDll, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+        try { $LockProbe = "exclusive_read_available" } finally { $Stream.Dispose() }
+    } catch [System.IO.IOException] {
+        $LockProbe = "io_locked_or_inaccessible: $($_.Exception.HResult)"
+    } catch [System.UnauthorizedAccessException] {
+        $LockProbe = "access_denied"
+    }
+    $RelatedProcesses = @(
+        Get-CimInstance Win32_Process -ErrorAction Stop |
+        Where-Object { $_.Name -match '(?i)^(Unreal|Uba|MSBuild|devenv|Rider|link\.exe|cl\.exe)' } |
+        ForEach-Object {
+            $ProcessPid = [int]$_.ProcessId
+            $LoadedModuleStatus = "not_examined"
+            try {
+                $RunningProcess = Get-Process -Id $ProcessPid -ErrorAction Stop
+                $LoadedModuleStatus = if (@($RunningProcess.Modules | Where-Object {
+                    [string]::Equals([string]$_.FileName, [string]$TargetDll, [System.StringComparison]::OrdinalIgnoreCase)
+                }).Count -gt 0) { "target_module_loaded" } else { "target_module_not_loaded" }
+            } catch {
+                $LoadedModuleStatus = "module_access_unavailable"
+            }
+            [pscustomobject]@{ pid = $ProcessPid; process_name = [string]$_.Name; loaded_module_status = $LoadedModuleStatus }
+        } | Sort-Object pid
+    )
+    [pscustomobject]@{
+        schema_version = "assetdump_engine_dll_lock_probe_v1"
+        dll_path = $TargetDll
+        lock_probe = $LockProbe
+        related_processes = $RelatedProcesses
+        process_count = $RelatedProcesses.Count
+        destructive_action_count = 0
+    } | ConvertTo-Json -Depth 5
+    return
+}
+
+if ($RunPrebuiltHostSeedPriority) {
+    if ([string]::IsNullOrWhiteSpace($PackageRoot) -or [string]::IsNullOrWhiteSpace($EngineRoot) -or [string]::IsNullOrWhiteSpace($OutputRoot)) {
+        throw "RunPrebuiltHostSeedPriority requires explicit PackageRoot, EngineRoot and OutputRoot."
+    }
+    $PackageDir = [System.IO.Path]::GetFullPath($PackageRoot).TrimEnd('\', '/')
+    $HostOutput = [System.IO.Path]::GetFullPath($OutputRoot).TrimEnd('\', '/')
+    $SourceDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..")).TrimEnd('\', '/')
+    foreach ($Protected in @($PackageDir, $SourceDir)) {
+        if ($HostOutput.Equals($Protected, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $HostOutput.StartsWith($Protected + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "RunPrebuiltHostSeedPriority must write outside source and package roots."
+        }
+    }
+    if (Test-Path -LiteralPath $HostOutput) {
+        throw "RunPrebuiltHostSeedPriority refuses to reuse an existing output root: $HostOutput"
+    }
+    foreach ($RequiredRelativePath in @("AssetDump.uplugin", "Binaries\Win64\UnrealEditor-AssetDump.dll")) {
+        $RequiredPath = Join-Path $PackageDir $RequiredRelativePath
+        if (-not (Test-Path -LiteralPath $RequiredPath -PathType Leaf)) {
+            throw "Prebuilt package missing: $RequiredPath"
+        }
+    }
+    $HostDir = Join-Path $HostOutput "BlueprintOnlyHost"
+    $ProjectFile = Join-Path $HostDir "AssetDumpBlueprintOnlyHost.uproject"
+    $PluginsDir = Join-Path $HostDir "Plugins"
+    New-Item -ItemType Directory -Path $PluginsDir -Force | Out-Null
+    Copy-Item -LiteralPath $PackageDir -Destination (Join-Path $PluginsDir "AssetDump") -Recurse -Force
+    $ProjectBody = [ordered]@{
+        FileVersion = 3
+        EngineAssociation = ""
+        Category = ""
+        Description = "Temporary Blueprint-only AssetDump prebuilt test host"
+        Plugins = @(
+            [ordered]@{ Name = "AssetDump"; Enabled = $true },
+            [ordered]@{ Name = "EnhancedInput"; Enabled = $true }
+        )
+    } | ConvertTo-Json -Depth 7
+    [System.IO.File]::WriteAllText($ProjectFile, $ProjectBody, [System.Text.UTF8Encoding]::new($false))
+    # PowerShell script 재호출은 argv 배열 대신 named hashtable splatting을 사용한다.
+    $FocusedParameters = @{
+        RunFocusedSeedPriority = $true
+        ProjectFile = $ProjectFile
+        EngineRoot = $EngineRoot
+        BatchRoot = "/AssetDump/Validation"
+        FocusedMaxAssets = $FocusedMaxAssets
+        OutputRoot = (Join-Path $HostOutput "Evidence")
+        CompactLog = [bool]$CompactLog
+    }
+    & $PSCommandPath @FocusedParameters
+    if ($LASTEXITCODE -ne 0) {
+        throw "Prebuilt Host Focused Commandlet failed: $LASTEXITCODE"
+    }
+    Write-Host "Prebuilt Blueprint-only Host Root-first focused PASS. Engine build not invoked."
+    return
+}
+
 # ScriptDirectoryPath는 현재 스크립트가 들어 있는 Scripts 폴더 경로다.
 $ScriptDirectoryPath = $PSScriptRoot
 
@@ -1231,6 +1358,65 @@ $OutputResolution = Resolve-WritableOutputRoot -ExplicitOutputRoot $OutputRoot -
 # DumpRootPath는 AssetDump 산출물 루트 경로다.
 $DumpRootPath = $OutputResolution.path
 
+if ($RunFocusedSeedPriority) {
+    if ([string]::IsNullOrWhiteSpace($ProjectFile) -or [string]::IsNullOrWhiteSpace($EngineRoot) -or [string]::IsNullOrWhiteSpace($OutputRoot)) {
+        throw "RunFocusedSeedPriority는 명시적 ProjectFile/EngineRoot/OutputRoot가 모두 필요합니다."
+    }
+    $SourceRootFull = [System.IO.Path]::GetFullPath($PluginRootPath).TrimEnd('\', '/')
+    $OutputRootFull = [System.IO.Path]::GetFullPath($DumpRootPath).TrimEnd('\', '/')
+    if ($OutputRootFull.Equals($SourceRootFull, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $OutputRootFull.StartsWith($SourceRootFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "RunFocusedSeedPriority는 AssetDump source repo 외부 OutputRoot만 허용합니다."
+    }
+
+    $FocusedLogRoot = Join-Path $DumpRootPath "FocusedLogs"
+    $NoDependencyDumpRoot = Join-Path $DumpRootPath "SeedOnly"
+    $WithDependencyDumpRoot = Join-Path $DumpRootPath "SeedWithDependencies"
+    $FocusedSteps = [System.Collections.Generic.List[object]]::new()
+    foreach ($WithDependenciesValue in @($false, $true)) {
+        $CurrentDumpRoot = if ($WithDependenciesValue) { $WithDependencyDumpRoot } else { $NoDependencyDumpRoot }
+        $CurrentReportPath = Join-Path $CurrentDumpRoot "run_report.json"
+        $StepName = if ($WithDependenciesValue) { "Focused Seed With Dependencies" } else { "Focused Seed Only" }
+        $Arguments = @(
+            $ResolvedProjectFile, "-run=AssetDump", "-Mode=batchdump", "-Root=$BatchRoot",
+            "-DumpRoot=$CurrentDumpRoot", "-MaxAssets=$FocusedMaxAssets", "-ChangedOnly=false",
+            "-WithDependencies=$($WithDependenciesValue.ToString().ToLowerInvariant())",
+            "-RebuildIndex=true", "-unattended", "-nop4", "-NoLogTimes"
+        )
+        $FocusedSteps.Add((Invoke-CheckedCommand -FilePath $CommandletPath -Arguments $Arguments -StepName $StepName -LogDirectoryPath $FocusedLogRoot -CompactLog:$CompactLog -ExpectedReportPath $CurrentReportPath -ExpectedReportKind "batch"))
+    }
+    $SeedReport = Read-JsonFile -PathText (Join-Path $NoDependencyDumpRoot "run_report.json")
+    $WithDependenciesReport = Read-JsonFile -PathText (Join-Path $WithDependencyDumpRoot "run_report.json")
+    $SeedPaths = @($SeedReport.results | ForEach-Object { [string]$_.object_path })
+    $WithDependencyPaths = @($WithDependenciesReport.results | ForEach-Object { [string]$_.object_path })
+    if ($SeedPaths.Count -ne $FocusedMaxAssets -or $WithDependencyPaths.Count -ne $FocusedMaxAssets -or
+        [int]$SeedReport.succeeded_count -ne $FocusedMaxAssets -or [int]$WithDependenciesReport.succeeded_count -ne $FocusedMaxAssets -or
+        [int]$SeedReport.failed_count -ne 0 -or [int]$WithDependenciesReport.failed_count -ne 0 -or
+        -not [bool]$SeedReport.asset_index_contract_passed -or -not [bool]$WithDependenciesReport.asset_index_contract_passed -or
+        [int]$SeedReport.asset_index_asset_count -ne $FocusedMaxAssets -or [int]$WithDependenciesReport.asset_index_asset_count -ne $FocusedMaxAssets -or
+        (@(Compare-Object -ReferenceObject $SeedPaths -DifferenceObject $WithDependencyPaths -SyncWindow 0).Count -ne 0)) {
+        throw "Focused Seed Priority FAILED: seed_count=$($SeedPaths.Count) dependency_count=$($WithDependencyPaths.Count) seed_paths=$($SeedPaths -join ',') dependency_paths=$($WithDependencyPaths -join ',')"
+    }
+
+    $FocusedSummary = [ordered]@{
+        schema_version = "assetdump_batch_root_priority_focus_v1"
+        status = "passed"
+        engine_root = $ResolvedEngineRoot
+        project_file = $ResolvedProjectFile
+        root = $BatchRoot
+        max_assets = $FocusedMaxAssets
+        seed_object_paths = @($SeedPaths)
+        with_dependencies_object_paths = @($WithDependencyPaths)
+        seed_report_path = Join-Path $NoDependencyDumpRoot "run_report.json"
+        with_dependencies_report_path = Join-Path $WithDependencyDumpRoot "run_report.json"
+        steps = @($FocusedSteps)
+    }
+    $FocusedSummaryPath = Join-Path $DumpRootPath "batch_root_priority_focus.json"
+    Write-JsonFile -PathText $FocusedSummaryPath -ValueObject $FocusedSummary
+    Write-Host "Focused Seed Priority PASS: $FocusedSummaryPath"
+    return
+}
+
 # OutputRootSource는 최종 출력 루트 출처다.
 $OutputRootSource = $OutputResolution.source
 
@@ -1293,6 +1479,12 @@ $PluginFullRunReportSnapshotPath = Join-Path $PluginBatchRootPath "run_report_fu
 
 # PluginChangedOnlyRunReportSnapshotPath는 Plugin ChangedOnly 결과 보존 경로다.
 $PluginChangedOnlyRunReportSnapshotPath = Join-Path $PluginBatchRootPath "run_report_changed_only.json"
+
+# PluginSeedPriorityRootPath는 dependency 우선순위 회귀 전용 fresh output root다.
+$PluginSeedPriorityRootPath = Join-Path $DumpRootPath "BPDumpPluginSeedPriority"
+
+# PluginSeedPriorityReportPath는 bounded seed-first Commandlet 결과다.
+$PluginSeedPriorityReportPath = Join-Path $PluginSeedPriorityRootPath "run_report.json"
 
 # ValidationContentRootPath는 makefixtures가 수정할 수 있는 Plugin binary root다.
 $ValidationContentRootPath = Join-Path $PluginRootPath "Content\Validation"
@@ -1473,6 +1665,31 @@ try {
     }
     if ([int]$PluginChangedOnlyRunReport.skipped_count -ne [int]$PluginChangedOnlyRunReport.asset_count) {
         throw "Plugin ChangedOnly 검증 실패: skipped_count=$($PluginChangedOnlyRunReport.skipped_count), asset_count=$($PluginChangedOnlyRunReport.asset_count)"
+    }
+
+    # Full no-dependency baseline의 첫 seed가 bounded dependency 모드에서도 선택되는지 실제 Commandlet으로 확인한다.
+    $ExpectedFirstSeedObjectPath = [string]$PluginFullRunReport.results[0].object_path
+    $PluginSeedPriorityArguments = @(
+        $ResolvedProjectFile,
+        "-run=AssetDump",
+        "-Mode=batchdump",
+        "-Root=/AssetDump/Validation",
+        "-DumpRoot=$PluginSeedPriorityRootPath",
+        "-MaxAssets=1",
+        "-ChangedOnly=false",
+        "-WithDependencies=true",
+        "-RebuildIndex=true",
+        "-unattended",
+        "-nop4",
+        "-NoLogTimes"
+    )
+    $StepResultList.Add((Invoke-CheckedCommand -FilePath $CommandletPath -Arguments $PluginSeedPriorityArguments -StepName "Plugin Seed Priority" -LogDirectoryPath $RegressionLogRootPath -CompactLog:$CompactLog -ExpectedReportPath $PluginSeedPriorityReportPath -ExpectedReportKind "batch"))
+    $PluginSeedPriorityReport = Read-JsonFile -PathText $PluginSeedPriorityReportPath
+    if ([int]$PluginSeedPriorityReport.asset_count -ne 1 -or [int]$PluginSeedPriorityReport.succeeded_count -ne 1 -or
+        [int]$PluginSeedPriorityReport.failed_count -ne 0 -or -not [bool]$PluginSeedPriorityReport.asset_index_contract_passed -or
+        [int]$PluginSeedPriorityReport.asset_index_asset_count -ne 1 -or
+        [string]$PluginSeedPriorityReport.results[0].object_path -cne $ExpectedFirstSeedObjectPath) {
+        throw "Plugin Seed Priority 검증 실패: expected=$ExpectedFirstSeedObjectPath actual=$($PluginSeedPriorityReport.results[0].object_path) count=$($PluginSeedPriorityReport.asset_count) index=$($PluginSeedPriorityReport.asset_index_asset_count)"
     }
 }
 
@@ -1790,6 +2007,8 @@ $SummaryObject = [pscustomobject]@{
     plugin_changed_only_succeeded_count = $PluginChangedOnlyRunReport.succeeded_count
     plugin_changed_only_skipped_count = $PluginChangedOnlyRunReport.skipped_count
     plugin_changed_only_failed_count = $PluginChangedOnlyRunReport.failed_count
+    plugin_seed_priority_report = if ($ShouldRunPluginValidation) { $PluginSeedPriorityReportPath } else { $null }
+    plugin_seed_priority_passed = if ($ShouldRunPluginValidation) { $null -ne $PluginSeedPriorityReport } else { $null }
     validation_content_restoration_report = $ValidationContentRestorationReportPathForSummary
     validation_content_snapshot_file_count = if ($null -ne $ValidationContentSnapshot) { $ValidationContentSnapshot.file_count } else { $null }
     validation_content_restoration_passed = if ($null -ne $ValidationContentRestoration) { $ValidationContentRestoration.restoration_passed } else { $null }

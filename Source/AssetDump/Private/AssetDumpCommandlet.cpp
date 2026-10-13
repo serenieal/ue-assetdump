@@ -3365,8 +3365,15 @@ namespace
 		FAssetRegistryModule& InAssetRegistryModule,
 		const TArray<FAssetData>& InSeedAssetArray,
 		const TArray<FString>& InClassFilterArray,
+		const int32 MaxAssets,
 		TArray<FAssetData>& InOutAssetArray)
 	{
+		// Seed를 우선 보존하며 이미 한도가 찼으면 dependency 조회 자체를 수행하지 않는다.
+		if (MaxAssets > 0 && InOutAssetArray.Num() >= MaxAssets)
+		{
+			return;
+		}
+
 		// AddedObjectPathSet는 중복 자산 추가를 방지하는 object path 집합이다.
 		TSet<FString> AddedObjectPathSet;
 		for (const FAssetData& ExistingAssetData : InOutAssetArray)
@@ -3391,6 +3398,11 @@ namespace
 			// DependencyPackageNameArray는 현재 자산이 직접 참조하는 package 목록이다.
 			TArray<FName> DependencyPackageNameArray;
 			InAssetRegistryModule.Get().GetDependencies(FName(*PendingPackageNameText), DependencyPackageNameArray);
+			// AssetRegistry의 반환 순서에 의존하지 않도록 dependency 확장 순서를 고정한다.
+			DependencyPackageNameArray.Sort([](const FName& Left, const FName& Right)
+			{
+				return Left.ToString() < Right.ToString();
+			});
 
 			for (const FName& DependencyPackageName : DependencyPackageNameArray)
 			{
@@ -3427,6 +3439,10 @@ namespace
 				AddedObjectPathSet.Add(DependencyObjectPathText);
 				InOutAssetArray.Add(DependencyAssetData);
 				PendingAssetArray.Add(DependencyAssetData);
+				if (MaxAssets > 0 && InOutAssetArray.Num() >= MaxAssets)
+				{
+					return;
+				}
 			}
 		}
 	}
@@ -8519,17 +8535,18 @@ int32 UAssetDumpCommandlet::Main(const FString& OriginalCommandLine)
 			return !DoesAssetMatchClassFilter(AssetDataItem, ClassFilterArray);
 		});
 
-		if (bWithDependencies)
-		{
-			// SeedAssetArray는 dependency 확장 전 루트 검색 기반 자산 스냅샷이다.
-			const TArray<FAssetData> SeedAssetArray = FoundAssets;
-			AppendBatchDependencyAssets(AssetRegistryModule, SeedAssetArray, ClassFilterArray, FoundAssets);
-		}
-
+		// Root에 속하는 seed를 먼저 결정론적으로 선택한다. Dependency가 seed의 자리를 빼앗아서는 안 된다.
 		Algo::SortBy(FoundAssets, &FAssetData::GetObjectPathString);
 		if (MaxAssets > 0 && FoundAssets.Num() > MaxAssets)
 		{
 			FoundAssets.SetNum(MaxAssets);
+		}
+
+		if (bWithDependencies && (MaxAssets <= 0 || FoundAssets.Num() < MaxAssets))
+		{
+			// 선택된 seed에서만 dependency를 확장하고, 남은 MaxAssets 한도 내에서만 추가한다.
+			const TArray<FAssetData> SeedAssetArray = FoundAssets;
+			AppendBatchDependencyAssets(AssetRegistryModule, SeedAssetArray, ClassFilterArray, MaxAssets, FoundAssets);
 		}
 
 		// ResultEntryArray는 run_report results 배열 누적값이다.

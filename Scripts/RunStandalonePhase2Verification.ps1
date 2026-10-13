@@ -1,6 +1,10 @@
 ﻿# File: RunStandalonePhase2Verification.ps1
-# Version: v1.18.29
+# Version: v1.18.33
 # Changelog:
+# - v1.18.33: accepted BuildPlugin package를 외부 신규 Blueprint-only Host에 복사해 P2B Regression/Closure/Cpp Saved Fallback 3종을 격리 실행하며 입력/바이너리/콘텐츠 불변성을 보존하는 focused P2B mode 추가.
+# - v1.18.32: Resume/Focused Tail의 BuildPlugin DLL inventory·실제 Host 재빌드 증거·각 DLL 해시/실행 불변성, Engine/Package/output reparse-point 보호, 공통 시간 예산 fail-closed, 안전성 음성 자체 테스트와 read-only preflight를 추가.
+# - v1.18.31: preserved Phase2 Host·index를 입력으로 Query/Context/Entity/Niagara 대표 스모크를 외부 격리 출력에서 검증하는 제한된 focused tail mode 추가; Full Phase2/P2B 수락과 분리.
+# - v1.18.30: 기존 Phase 2 실패 Workspace를 수정하지 않고 Dependency structural tail 5건만 독립 evidence root에서 검증하는 제한된 resume와 시간부족 별도 상태를 추가.
 # - v1.18.29: PASS한 AIRE-CSC focused real-project workspace를 GoPyMCP loopback explicit provider로 등록·status 확인만 하는 registration-only mode를 추가.
 # - v1.18.28: accepted fresh Phase2 workspace의 current packaged plugin을 external real-project Host에서 재사용해 Niagara core settings, native query/context와 real asset invariance를 검증하는 focused readback mode를 추가.
 # - v1.18.27: preserved comparison에서 유일한 변동 field로 확인된 transient asset_guid를 Core Settings required field에서 제거하고 deterministic contract를 object path/stable key로 유지.
@@ -110,6 +114,22 @@ param(
         # RunSelfTests는 엔진 없이 Generic Host template, path guard와 report helper를 검사한다.
     [switch]$RunSelfTests,
 
+    # Failed Phase 2's Dependency structural tail only; never promotes the original Phase 2 report.
+    [switch]$RunResumeDependencyTail,
+    [string]$ResumeDependencyWorkspaceRoot = "",
+    [string]$ResumeDependencyOutputRoot = "",
+
+    # Explicit focused read-only inputs; outputs are a fresh independent repository-external root.
+    [switch]$RunFocusedPhase2TailSmoke,
+    [string]$FocusedPhase2WorkspaceRoot = "",
+    [string]$FocusedPhase2OutputRoot = "",
+    [switch]$InspectPreservedInputOnly,
+
+    # RunIsolatedP2BFallback은 approved package를 repository-external Blueprint-only Host에 복사해 P2B 3개 계약을 검증한다.
+    [switch]$RunIsolatedP2BFallback,
+    [string]$P2BSourceWorkspaceRoot = "",
+    [string]$P2BIsolatedOutputRoot = "",
+
     # RunFocusedEntityClosure는 기존 Generic Host workspace의 EntityEvidence index/list를 재사용해 filtered closure만 검증한다.
     [switch]$RunFocusedEntityClosure,
 
@@ -200,6 +220,102 @@ function Test-IsPathWithin {
 
     $ParentPrefix = $ResolvedParentPath + [System.IO.Path]::DirectorySeparatorChar
     return $ResolvedChildPath.StartsWith($ParentPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+# Verification Resume의 새 출력 위치가 기존 작업물/엔진/패키지를 덮어쓰지 않도록 공통 검사한다.
+function Assert-FreshIsolatedOutputRoot {
+    param([string]$OutputPath, [string[]]$ProtectedRoots)
+
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) { throw "ISOLATED_OUTPUT_UNSAFE: empty output path." }
+    $FullOutputPath = [System.IO.Path]::GetFullPath($OutputPath).TrimEnd('\', '/')
+    if (Test-Path -LiteralPath $FullOutputPath) { throw "ISOLATED_OUTPUT_UNSAFE: output already exists." }
+    foreach ($RootPath in @($ProtectedRoots)) {
+        if ([string]::IsNullOrWhiteSpace($RootPath)) { throw "ISOLATED_OUTPUT_UNSAFE: unknown protected root." }
+        if ((Test-IsPathWithin -ParentPath $RootPath -ChildPath $FullOutputPath) -or
+            (Test-IsPathWithin -ParentPath $FullOutputPath -ChildPath $RootPath)) {
+            throw "ISOLATED_OUTPUT_UNSAFE: output intersects protected root."
+        }
+    }
+    # 새 디렉터리라도 부모가 Junction/Symlink면 실제 대상이 보호 영역일 수 있다.
+    $CurrentParent = Split-Path -Parent $FullOutputPath
+    while (-not [string]::IsNullOrWhiteSpace($CurrentParent)) {
+        if (Test-Path -LiteralPath $CurrentParent) {
+            $ParentItem = Get-Item -LiteralPath $CurrentParent -Force
+            if (($ParentItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "ISOLATED_OUTPUT_UNSAFE: reparse-point ancestor."
+            }
+        }
+        $NextParent = Split-Path -Parent $CurrentParent
+        if ([string]::Equals($NextParent, $CurrentParent, [System.StringComparison]::OrdinalIgnoreCase)) { break }
+        $CurrentParent = $NextParent
+    }
+    return $FullOutputPath
+}
+
+# 기존 BuildPlugin 증거는 DLL 목록만 제공한다. 원본 Package와 별도 Host Build의 DLL 해시를
+# 각각 기록하고, 서로 다른 경우 정확한 Generic Host Build 성공 증거를 요구한다.
+# 원래 보고서에 없던 BuildPlugin DLL 해시 증거를 소급 생성하지 않는다.
+function Assert-PreservedModuleBinaryIdentity {
+    param([string]$PackagePluginRoot, [string]$HostPluginRoot, [psobject]$PackageInspection, [psobject]$Phase2Report = $null)
+
+    if ($null -eq $PackageInspection -or -not [bool]$PackageInspection.passed -or
+        [int]$PackageInspection.module_binary_count -lt 1) {
+        throw "MODULE_IDENTITY_UNSUPPORTED: missing accepted module binary inventory."
+    }
+    $ExpectedBinaryRelative = "Binaries\Win64\UnrealEditor-AssetDump.dll"
+    $ExpectedBinarySuffix = "Binaries/Win64/UnrealEditor-AssetDump.dll"
+    $Inventory = @($PackageInspection.module_binaries)
+    $MatchingInventory = @($Inventory | Where-Object {
+        ([string]$_).Replace('\','/').EndsWith($ExpectedBinarySuffix, [StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($MatchingInventory.Count -ne 1) { throw "MODULE_IDENTITY_UNSUPPORTED: BuildPlugin report missing exact AssetDump module." }
+    $PackageBinary = Resolve-RequiredFile -PathText (Join-Path $PackagePluginRoot $ExpectedBinaryRelative) -Label "packaged module DLL"
+    $HostBinary = Resolve-RequiredFile -PathText (Join-Path $HostPluginRoot $ExpectedBinaryRelative) -Label "Generic Host module DLL"
+    $PackageHash = Get-FileSha256 -PathText $PackageBinary
+    $HostHash = Get-FileSha256 -PathText $HostBinary
+    $HostRebuilt = $PackageHash -cne $HostHash
+    if ($HostRebuilt) {
+        # Generic Host Editor Build 단계는 package DLL과 다른 Host 모듈을 생성할 수 있다.
+        # 구형 BuildPlugin report에는 DLL hash가 없으므로 정확한 Host Build PASS와 입력 Project를 요구한다.
+        $MatchingHostBuildSteps = @($Phase2Report.step_results | Where-Object {
+            [string]$_.step_name -ceq "Generic Host Editor Build" -and [bool]$_.succeeded
+        })
+        if ($null -eq $Phase2Report -or -not [bool]$Phase2Report.generic_host_build_passed -or
+            $MatchingHostBuildSteps.Count -ne 1 -or
+            [string]::IsNullOrWhiteSpace([string]$Phase2Report.generic_host_project_file) -or
+            -not ([string]$MatchingHostBuildSteps[0].command_text).Contains([string]$Phase2Report.generic_host_project_file)) {
+            throw "MODULE_IDENTITY_MISMATCH: Host DLL differs and no exact successful Generic Host Build is attested."
+        }
+    }
+    return [pscustomobject]@{
+        binary_relative_path = $ExpectedBinaryRelative
+        package_sha256 = $PackageHash
+        host_sha256 = $HostHash
+        package_size = (Get-Item -LiteralPath $PackageBinary).Length
+        host_size = (Get-Item -LiteralPath $HostBinary).Length
+        same_binary_passed = -not $HostRebuilt
+        attested_host_rebuild = $HostRebuilt
+        buildplugin_manifest_has_binary_sha256 = $false
+    }
+}
+
+# 실행 전 예산 부족과 실행 중 제한 초과를 혼동하지 않도록 숫자만으로 테스트 가능한 계산 함수.
+function Get-EffectiveStepTimeBudgetSeconds {
+    param([int]$RemainingSeconds, [int]$RequestedSeconds, [int]$MinimumStartSeconds = 120)
+    if ($RemainingSeconds -lt $MinimumStartSeconds) {
+        throw "TIME_BUDGET_EXHAUSTED: remaining=$RemainingSeconds minimum=$MinimumStartSeconds; no child process started."
+    }
+    if ($RequestedSeconds -lt 1) { throw "TIME_BUDGET_INVALID: requested timeout must be positive." }
+    return [Math]::Min($RequestedSeconds, $RemainingSeconds)
+}
+
+function Get-Phase2ExecutionStatus {
+    param([bool]$Passed, [object[]]$Failures)
+    if ($Passed) { return "passed" }
+    foreach ($Failure in @($Failures)) {
+        if ([string]$Failure -like "TIME_BUDGET_EXHAUSTED:*") { return "time_budget_exhausted" }
+    }
+    return "failed"
 }
 
 # Assert-LegacyPluginDumpRootAbsent는 explicit-output 단계가 legacy PluginRoot/Dumped를 선제 생성하지 않았는지 검사한다.
@@ -739,8 +855,8 @@ function Invoke-BoundedDiskProcess {
     )
 
     $RemainingSeconds = [int][Math]::Floor(($script:OverallDeadlineUtc - (Get-Date).ToUniversalTime()).TotalSeconds)
-    if ($RemainingSeconds -le 0) { throw "$StepName 시작 전 Phase 2 전체 제한시간이 만료됐습니다." }
-    $EffectiveTimeoutSeconds = [Math]::Max(1, [Math]::Min($TimeoutSeconds, $RemainingSeconds))
+    $EffectiveTimeoutSeconds = Get-EffectiveStepTimeBudgetSeconds -RemainingSeconds $RemainingSeconds -RequestedSeconds $TimeoutSeconds
+    $OverallBudgetLimited = $RemainingSeconds -lt $TimeoutSeconds
     Assert-NoConflictingAssetDumpProcess -StepName $StepName
 
     $LogParentPath = Split-Path -Parent $LogPath
@@ -813,6 +929,9 @@ function Invoke-BoundedDiskProcess {
     }
     $DurationSeconds = [Math]::Round(((Get-Date).ToUniversalTime() - $StartedUtc).TotalSeconds, 3)
     Write-Host "PROCESS_END=$StepName exit_code=$ExitCode timed_out=$TimedOut orphan_count=$($OrphanProcessArray.Count) duration_seconds=$DurationSeconds"
+    if ($TimedOut -and $OverallBudgetLimited) {
+        throw "TIME_BUDGET_EXHAUSTED: $StepName reached overall deadline after process-tree cleanup; no product failure classification."
+    }
     return [pscustomobject]@{
         step_name = $StepName
         process_id = $ProcessId
@@ -821,6 +940,7 @@ function Invoke-BoundedDiskProcess {
         orphan_process_count = $OrphanProcessArray.Count
         orphan_processes = @($OrphanProcessArray)
         timeout_seconds = $EffectiveTimeoutSeconds
+        overall_budget_limited = $OverallBudgetLimited
         duration_seconds = $DurationSeconds
         log_path = $LogPath
         output_tail = @($OutputTail)
@@ -1588,6 +1708,76 @@ function Invoke-SelfTests {
         if ([int]$ExitCodeSelfTest.exit_code -ne 7 -or [bool]$ExitCodeSelfTest.timed_out -or [int]$ExitCodeSelfTest.orphan_process_count -ne 0) { throw "self test 실패: wrapped LASTEXITCODE propagation" }
         Stop-ProcessTree -RootProcessId 2147483000
 
+        # 재개 경로의 fail-closed 음성 계약: 파일/실행 없이 경로, DLL 바이트와 시간 예산 검증.
+        $FakePackagePlugin = Join-Path $TemporaryRootPath "FakePackage"
+        $FakeHostPlugin = Join-Path $TemporaryRootPath "FakeHost"
+        $FakeEngineRoot = Join-Path $TemporaryRootPath "FakeEngine"
+        $FakePackageDll = Join-Path $FakePackagePlugin "Binaries\Win64\UnrealEditor-AssetDump.dll"
+        $FakeHostDll = Join-Path $FakeHostPlugin "Binaries\Win64\UnrealEditor-AssetDump.dll"
+        Write-TextFile -PathText $FakePackageDll -ContentText "same-module-test-bytes"
+        Write-TextFile -PathText $FakeHostDll -ContentText "same-module-test-bytes"
+        New-Item -ItemType Directory -Path $FakeEngineRoot -Force | Out-Null
+        $FakeInspection = [pscustomobject]@{
+            passed = $true
+            module_binary_count = 1
+            module_binaries = @("AssetDump/Binaries/Win64/UnrealEditor-AssetDump.dll")
+        }
+        $FakeIdentity = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $FakePackagePlugin -HostPluginRoot $FakeHostPlugin -PackageInspection $FakeInspection
+        if (-not $FakeIdentity.same_binary_passed -or
+            [string]::IsNullOrWhiteSpace([string]$FakeIdentity.package_sha256)) {
+            throw "self test 실패: accepted DLL identity."
+        }
+        Write-TextFile -PathText $FakeHostDll -ContentText "tampered-module-test-bytes"
+        $IdentityRejected = $false
+        try {
+            [void](Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $FakePackagePlugin -HostPluginRoot $FakeHostPlugin -PackageInspection $FakeInspection)
+        } catch { $IdentityRejected = $_.Exception.Message.StartsWith("MODULE_IDENTITY_MISMATCH:") }
+        if (-not $IdentityRejected) { throw "self test 실패: mismatched DLL accepted." }
+        $FakeBuiltProjectPath = Join-Path $TemporaryRootPath "Host\AssetDumpGenericHost.uproject"
+        $FakeHostBuildStep = [pscustomobject]@{step_name="Generic Host Editor Build";succeeded=$true;command_text="Build.bat AssetDumpGenericHostEditor Win64 Development $FakeBuiltProjectPath"}
+        $FakeHostBuildEvidence = [pscustomobject]@{generic_host_build_passed=$true;generic_host_project_file=$FakeBuiltProjectPath;step_results=@($FakeHostBuildStep)}
+        $RebuiltIdentity = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $FakePackagePlugin -HostPluginRoot $FakeHostPlugin -PackageInspection $FakeInspection -Phase2Report $FakeHostBuildEvidence
+        if (-not $RebuiltIdentity.attested_host_rebuild -or $RebuiltIdentity.same_binary_passed) { throw "self test 실패: legitimate rebuilt Host DLL classification." }
+        $FakeHostBuildStep.succeeded = $false
+        $IdentityRejected = $false
+        try { [void](Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $FakePackagePlugin -HostPluginRoot $FakeHostPlugin -PackageInspection $FakeInspection -Phase2Report $FakeHostBuildEvidence) }
+        catch { $IdentityRejected = $_.Exception.Message.StartsWith("MODULE_IDENTITY_MISMATCH:") }
+        if (-not $IdentityRejected) { throw "self test 실패: unverified Host DLL accepted." }
+        $IdentityRejected = $false
+        try {
+            [void](Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $FakePackagePlugin -HostPluginRoot $FakeHostPlugin -PackageInspection ([pscustomobject]@{passed=$true;module_binary_count=0;module_binaries=@()}))
+        } catch { $IdentityRejected = $_.Exception.Message.StartsWith("MODULE_IDENTITY_UNSUPPORTED:") }
+        if (-not $IdentityRejected) { throw "self test 실패: missing DLL manifest accepted." }
+
+        $ValidFreshOutput = Join-Path $TemporaryRootPath "IndependentOutput"
+        [void](Assert-FreshIsolatedOutputRoot -OutputPath $ValidFreshOutput -ProtectedRoots @($FakePackagePlugin, $FakeHostPlugin, $FakeEngineRoot))
+        foreach ($UnsafePath in @(
+            (Join-Path $FakePackagePlugin "Evidence"),
+            (Join-Path $FakeHostPlugin "Evidence"),
+            (Join-Path $FakeEngineRoot "Evidence"),
+            $TemporaryRootPath
+        )) {
+            $PathRejected = $false
+            try {
+                [void](Assert-FreshIsolatedOutputRoot -OutputPath $UnsafePath -ProtectedRoots @($FakePackagePlugin, $FakeHostPlugin, $FakeEngineRoot))
+            } catch { $PathRejected = $_.Exception.Message.StartsWith("ISOLATED_OUTPUT_UNSAFE:") }
+            if (-not $PathRejected) { throw "self test 실패: protected output accepted." }
+        }
+        $TimeRejected = $false
+        try { [void](Get-EffectiveStepTimeBudgetSeconds -RemainingSeconds 4 -RequestedSeconds 300) }
+        catch { $TimeRejected = $_.Exception.Message.StartsWith("TIME_BUDGET_EXHAUSTED:") }
+        if (-not $TimeRejected -or
+            (Get-EffectiveStepTimeBudgetSeconds -RemainingSeconds 120 -RequestedSeconds 300) -ne 120 -or
+            (Get-EffectiveStepTimeBudgetSeconds -RemainingSeconds 400 -RequestedSeconds 300) -ne 300) {
+            throw "self test 실패: minimum remaining time budget contract."
+        }
+        if ((Get-Phase2ExecutionStatus -Passed $true -Failures @()) -cne "passed" -or
+            (Get-Phase2ExecutionStatus -Passed $false -Failures @("TIME_BUDGET_EXHAUSTED: remaining=4")) -cne "time_budget_exhausted" -or
+            (Get-Phase2ExecutionStatus -Passed $false -Failures @("ADUMP_TEST_FAILURE")) -cne "failed") {
+            throw "self test 실패: Phase 2 execution status contract."
+        }
+        Write-Host "Resume safety negative self tests: passed"
+
         Write-Host "Standalone Phase 2 self tests: passed"
     } finally {
         if (Test-Path -LiteralPath $TemporaryRootPath) { Remove-Item -LiteralPath $TemporaryRootPath -Recurse -Force }
@@ -1957,8 +2147,603 @@ if ($RunRealNiagaraReadback) {
     return
 }
 
+# The bounded resume is deliberately separate from the monolithic Phase 2 acceptance path.
+function Assert-DependencyResumeReportContract {
+    param([psobject]$OriginalReport)
+    if ($null -eq $OriginalReport -or
+        [string]$OriginalReport.schema_version -cne "assetdump_standalone_phase2_verification_v1" -or
+        [int]$OriginalReport.failure_count -ne 1 -or
+        @($OriginalReport.failures).Count -ne 1 -or
+        [string]$OriginalReport.failures[0] -notmatch "^Dependency Relation Count expected-failure contract failed: exit=124 timed_out=True .*code=ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED" -or
+        [bool]$OriginalReport.phase2_implementation_gate_passed -or
+        -not [bool]$OriginalReport.buildplugin_gate_passed -or
+        -not [bool]$OriginalReport.generic_host_build_passed -or
+        -not [bool]$OriginalReport.plugin_validation_passed -or
+        -not [bool]$OriginalReport.bp_search_index_evidence_passed -or
+        -not [bool]$OriginalReport.asset_index_evidence_passed -or
+        -not [bool]$OriginalReport.section_index_evidence_passed -or
+        -not [bool]$OriginalReport.lazy_section_dump_evidence_passed) {
+        throw "RESUME_EVIDENCE_UNSUPPORTED: exact Dependency Relation Count timeout checkpoint/PASS gates are required."
+    }
+}
+
+if ($RunResumeDependencyTail) {
+    if ([string]::IsNullOrWhiteSpace($ResumeDependencyWorkspaceRoot)) {
+        throw "RunResumeDependencyTail requires -ResumeDependencyWorkspaceRoot."
+    }
+
+    $ResumeSourceRoot = Convert-PathToFullPath -PathText $ResumeDependencyWorkspaceRoot.Trim().Trim('"')
+    $ResumeSourceReportPath = Resolve-RequiredFile -PathText (Join-Path $ResumeSourceRoot "Reports\phase2_report.json") -Label "preserved Phase 2 report"
+    $ResumeSourceReport = Read-JsonFile -PathText $ResumeSourceReportPath
+    Assert-DependencyResumeReportContract -OriginalReport $ResumeSourceReport
+    if (-not [string]::Equals((Convert-PathToFullPath -PathText ([string]$ResumeSourceReport.workspace_root)), $ResumeSourceRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "RESUME_EVIDENCE_UNSUPPORTED: workspace identity mismatch."
+    }
+
+    $ResumePluginRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).ProviderPath
+    $ResumeEngine = Resolve-EngineRoot -ExplicitEngineRoot $EngineRoot
+    $ResumeEngineRoot = $ResumeEngine.engine_root
+    if (-not [string]::Equals((Convert-PathToFullPath -PathText ([string]$ResumeSourceReport.engine_root)), $ResumeEngineRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "RESUME_EVIDENCE_UNSUPPORTED: engine identity mismatch."
+    }
+    $ResumeCmd = Resolve-RequiredFile -PathText (Join-Path $ResumeEngineRoot "Engine\Binaries\Win64\UnrealEditor-Cmd.exe") -Label "UnrealEditor-Cmd.exe"
+    $ResumeProject = Resolve-RequiredFile -PathText (Join-Path $ResumeSourceRoot "GenericHost\AssetDumpGenericHost.uproject") -Label "Generic Host project"
+    if (-not [string]::Equals((Convert-PathToFullPath -PathText ([string]$ResumeSourceReport.generic_host_project_file)), $ResumeProject, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "RESUME_EVIDENCE_UNSUPPORTED: Generic Host identity mismatch."
+    }
+    $ResumeBuildReportPath = Resolve-RequiredFile -PathText ([string]$ResumeSourceReport.buildplugin_report_path) -Label "accepted BuildPlugin report"
+    $ResumeBuildReport = Read-JsonFile -PathText $ResumeBuildReportPath
+    if ([string]$ResumeBuildReport.schema_version -cne "assetdump_buildplugin_verification_v1" -or
+        -not [bool]$ResumeBuildReport.compile_package_gate_passed -or
+        -not [bool]$ResumeBuildReport.package_inspection.passed -or
+        -not [string]::Equals((Convert-PathToFullPath -PathText ([string]$ResumeBuildReport.package_inspection.package_plugin_root)), (Convert-PathToFullPath -PathText ([string]$ResumeSourceReport.package_plugin_root)), [StringComparison]::OrdinalIgnoreCase)) {
+        throw "RESUME_EVIDENCE_UNSUPPORTED: BuildPlugin package identity/contract mismatch."
+    }
+
+    $ResumePackagePlugin = [string]$ResumeSourceReport.package_plugin_root
+    $ResumeHostPlugin = Join-Path $ResumeSourceRoot "GenericHost\Plugins\AssetDump"
+    foreach ($ResumeRelativeFile in @("AssetDump.uplugin", "Source\AssetDump\Private\AssetDumpCommandlet.cpp")) {
+        $ResumePackageFile = Resolve-RequiredFile -PathText (Join-Path $ResumePackagePlugin $ResumeRelativeFile) -Label "package identity"
+        $ResumeHostFile = Resolve-RequiredFile -PathText (Join-Path $ResumeHostPlugin $ResumeRelativeFile) -Label "Host identity"
+        if ((Get-FileSha256 -PathText $ResumePackageFile) -cne (Get-FileSha256 -PathText $ResumeHostFile)) {
+            throw "RESUME_EVIDENCE_UNSUPPORTED: packaged/Host file mismatch: $ResumeRelativeFile"
+        }
+    }
+    $ResumePackageContent = New-BinaryManifest -RootPath (Join-Path $ResumePackagePlugin "Content\Validation")
+    $ResumeHostContent = New-BinaryManifest -RootPath (Join-Path $ResumeHostPlugin "Content\Validation")
+    if (-not (Compare-BinaryManifest -BeforeManifest $ResumePackageContent -AfterManifest $ResumeHostContent).passed -or
+        $ResumeHostContent.file_count -lt 1) {
+        throw "RESUME_EVIDENCE_UNSUPPORTED: packaged/Host validation Content mismatch."
+    }
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $ResumeHostPlugin -CompletedStepName "Resume preflight"
+
+    $ResumeBase = Join-Path $ResumeSourceRoot "DQ\base"
+    $ResumeAssetIndexPath = Resolve-RequiredFile -PathText (Join-Path $ResumeBase "asset_index.json") -Label "synthetic asset index"
+    $ResumeDependencyIndexPath = Resolve-RequiredFile -PathText (Join-Path $ResumeBase "dependency_index.json") -Label "synthetic dependency index"
+    $ResumeAssets = Read-JsonFile -PathText $ResumeAssetIndexPath
+    $ResumeDependencies = Read-JsonFile -PathText $ResumeDependencyIndexPath
+    if ([string]$ResumeAssets.schema_version -cne "asset_index_v1" -or
+        [int]$ResumeAssets.asset_count -ne 6 -or @($ResumeAssets.assets).Count -ne 6 -or
+        [string]$ResumeAssets.assets[0].object_path -cne "/Synthetic/A.A" -or
+        [int]$ResumeDependencies.relation_count -ne 11 -or @($ResumeDependencies.relations).Count -ne 11 -or
+        [string]$ResumeDependencies.relations[0].from -cne "/Synthetic/A.A" -or
+        [string]$ResumeDependencies.relations[0].to -cne "/Synthetic/B.B") {
+        throw "RESUME_EVIDENCE_UNSUPPORTED: synthetic dependency fixture contract mismatch."
+    }
+    $ResumeBaseBefore = New-TreeManifest -RootPath $ResumeBase
+
+    $ResumeRunId = [DateTime]::UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+    $ResumeOutput = if ([string]::IsNullOrWhiteSpace($ResumeDependencyOutputRoot)) {
+        Join-Path (Join-Path ([System.IO.Path]::GetTempPath()) "AssetDumpDependencyResume") ("Run_" + $ResumeRunId)
+    } else {
+        Convert-PathToFullPath -PathText $ResumeDependencyOutputRoot.Trim().Trim('"')
+    }
+    $ResumeOutput = Assert-FreshIsolatedOutputRoot -OutputPath $ResumeOutput -ProtectedRoots @($ResumePluginRoot, $ResumeSourceRoot, $ResumeEngineRoot, $ResumePackagePlugin, [string]$ResumeBuildReport.package_root)
+    $ResumeModuleIdentity = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $ResumePackagePlugin -HostPluginRoot $ResumeHostPlugin -PackageInspection $ResumeBuildReport.package_inspection -Phase2Report $ResumeSourceReport
+    if ($InspectPreservedInputOnly) {
+        Write-Host "RESUME_INPUT_PREFLIGHT=PASS package_module_sha256=$($ResumeModuleIdentity.package_sha256) host_module_sha256=$($ResumeModuleIdentity.host_sha256) mutation=0"
+        return
+    }
+
+    New-Item -ItemType Directory -Path $ResumeOutput -Force | Out-Null
+    $ResumeLogRoot = Join-Path $ResumeOutput "Logs"
+    $ResumeCasesRoot = Join-Path $ResumeOutput "Cases"
+    $ResumeReportPath = Join-Path $ResumeOutput "resume_dependency_report.json"
+    $ResumeSentinel = Join-Path $ResumeOutput "negative_output.json"
+    Write-TextFile -PathText $ResumeSentinel -ContentText "dependency-query-sentinel"
+    $ResumeCaseResults = [System.Collections.Generic.List[object]]::new()
+    $ResumeReport = [ordered]@{
+        schema_version = "assetdump_dependency_resume_v1"
+        script_version = "v1.18.33"
+        generated_time = [DateTime]::UtcNow.ToString("o")
+        scope = "dependency_structural_tail_only"
+        status = "running"
+        original_phase2_report = $ResumeSourceReportPath
+        original_phase2_report_sha256 = Get-FileSha256 -PathText $ResumeSourceReportPath
+        preserved_workspace = $ResumeSourceRoot
+        output_root = $ResumeOutput
+        engine_root = $ResumeEngineRoot
+        buildplugin_report = $ResumeBuildReportPath
+        package_commandlet_source_sha256 = Get-FileSha256 -PathText (Join-Path $ResumePackagePlugin "Source\AssetDump\Private\AssetDumpCommandlet.cpp")
+        module_binary_identity = $ResumeModuleIdentity
+        input_fixture_manifest = $ResumeBaseBefore
+        cases = @()
+        passed_count = 0
+        required_count = 5
+        source_invariance_passed = $false
+        phase2_full_accepted = $false
+        all_passed = $false
+        error = ""
+    }
+    Write-JsonFile -PathText $ResumeReportPath -ValueObject $ResumeReport
+
+    $ResumeCaseSpecs = @(
+        [pscustomobject]@{ key = "relation_count"; label = "Dependency Relation Count"; log = "relation_count.log" },
+        [pscustomobject]@{ key = "relation_object"; label = "Dependency Non Object Relation"; log = "relation_object.log" },
+        [pscustomobject]@{ key = "relation_path"; label = "Dependency Invalid Relation Path"; log = "relation_path.log" },
+        [pscustomobject]@{ key = "relation_strength"; label = "Dependency Invalid Relation Strength"; log = "relation_strength.log" },
+        [pscustomobject]@{ key = "output_write"; label = "Dependency Output Write Failure"; log = "output_write.log" }
+    )
+    try {
+        foreach ($ResumeSpec in $ResumeCaseSpecs) {
+            $ResumeRemainingSeconds = [int][Math]::Floor(($script:OverallDeadlineUtc - (Get-Date).ToUniversalTime()).TotalSeconds)
+            if ($ResumeRemainingSeconds -lt 120) {
+                throw "TIME_BUDGET_EXHAUSTED: less than 120 seconds before $($ResumeSpec.label); no new Unreal process started."
+            }
+            $ResumeCaseRoot = Join-Path $ResumeCasesRoot $ResumeSpec.key
+            Copy-DirectoryFresh -SourcePath $ResumeBase -DestinationPath $ResumeCaseRoot
+            $ResumeCaseDependencyPath = Join-Path $ResumeCaseRoot "dependency_index.json"
+            $ResumeOutputFile = $ResumeSentinel
+            if ($ResumeSpec.key -eq "output_write") {
+                $ResumeBlocker = Join-Path $ResumeOutput "blocked_output_parent"
+                Write-TextFile -PathText $ResumeBlocker -ContentText "blocked"
+                $ResumeOutputFile = Join-Path $ResumeBlocker "dependency.json"
+            } else {
+                $ResumeCaseObject = Read-JsonFile -PathText $ResumeCaseDependencyPath
+                switch ($ResumeSpec.key) {
+                    "relation_count" { $ResumeCaseObject.relation_count = [int]$ResumeCaseObject.relation_count + 1 }
+                    "relation_object" { $ResumeCaseObject.relations = @("invalid"); $ResumeCaseObject.relation_count = 1 }
+                    "relation_path" { $ResumeCaseObject.relations[0].from = "invalid" }
+                    "relation_strength" { $ResumeCaseObject.relations[0].strength = "invalid" }
+                }
+                Write-JsonFile -PathText $ResumeCaseDependencyPath -ValueObject $ResumeCaseObject
+            }
+            $ResumeExpectedCode = if ($ResumeSpec.key -eq "output_write") { "ADUMP_DEP_QUERY_OUTPUT_WRITE_FAILED" } else { "ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED" }
+            $ResumeArguments = @($ResumeProject, "-run=AssetDump", "-Mode=dependencyquery", "-DumpRoot=$ResumeCaseRoot", "-Asset=/Synthetic/A.A", "-Output=$ResumeOutputFile", "-unattended", "-nop4", "-NoLogTimes")
+            $ResumeResult = Invoke-ExpectedFailureCommand -FilePath $ResumeCmd -Arguments $ResumeArguments -StepName $ResumeSpec.label -ExpectedCode $ResumeExpectedCode -LogPath (Join-Path $ResumeLogRoot $ResumeSpec.log) -ExpectedOutputPath $ResumeOutputFile -UseCompactLog:$CompactLog
+            $ResumeCaseResults.Add($ResumeResult)
+            $ResumeReport.cases = @($ResumeCaseResults)
+            $ResumeReport.passed_count = $ResumeCaseResults.Count
+            Write-JsonFile -PathText $ResumeReportPath -ValueObject $ResumeReport
+        }
+        $ResumeBaseAfter = New-TreeManifest -RootPath $ResumeBase
+        $ResumeModuleIdentityAfter = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $ResumePackagePlugin -HostPluginRoot $ResumeHostPlugin -PackageInspection $ResumeBuildReport.package_inspection -Phase2Report $ResumeSourceReport
+        $ResumeReport.source_invariance_passed = $ResumeModuleIdentity.package_sha256 -ceq $ResumeModuleIdentityAfter.package_sha256 -and
+            $ResumeModuleIdentity.host_sha256 -ceq $ResumeModuleIdentityAfter.host_sha256 -and
+            (Compare-BinaryManifest -BeforeManifest $ResumePackageContent -AfterManifest (New-BinaryManifest -RootPath (Join-Path $ResumePackagePlugin "Content\Validation"))).passed -and
+            (Compare-BinaryManifest -BeforeManifest $ResumeHostContent -AfterManifest (New-BinaryManifest -RootPath (Join-Path $ResumeHostPlugin "Content\Validation"))).passed -and
+            (($ResumeBaseBefore | ConvertTo-Json -Depth 100 -Compress) -ceq ($ResumeBaseAfter | ConvertTo-Json -Depth 100 -Compress))
+        $ResumeReport.all_passed = $ResumeCaseResults.Count -eq 5 -and [bool]$ResumeReport.source_invariance_passed
+        $ResumeReport.status = if ($ResumeReport.all_passed) { "passed" } else { "failed" }
+    } catch {
+        $ResumeReport.error = $_.Exception.Message
+        $ResumeReport.status = if ($ResumeReport.error.StartsWith("TIME_BUDGET_EXHAUSTED:")) { "time_budget_exhausted" } else { "failed" }
+    }
+    Write-JsonFile -PathText $ResumeReportPath -ValueObject $ResumeReport
+    Write-Host "Dependency resume report: $ResumeReportPath"
+    Write-Host "Dependency resume report SHA-256: $(Get-FileSha256 -PathText $ResumeReportPath)"
+    Write-Host "Dependency resume: status=$($ResumeReport.status) passed=$($ResumeReport.passed_count)/5 source_invariance=$($ResumeReport.source_invariance_passed) full_phase2_accepted=false"
+    if (-not $ResumeReport.all_passed) { throw "Dependency resume unsuccessful: $($ResumeReport.error) report=$ResumeReportPath" }
+    return
+}
+
+
+if ($RunFocusedPhase2TailSmoke) {
+    if ([string]::IsNullOrWhiteSpace($FocusedPhase2WorkspaceRoot)) {
+        throw "FOCUSED_TAIL_INPUT_REQUIRED: -FocusedPhase2WorkspaceRoot is required."
+    }
+    $TailSourceRoot = Convert-PathToFullPath -PathText $FocusedPhase2WorkspaceRoot.Trim().Trim('"')
+    $TailReportFile = Resolve-RequiredFile -PathText (Join-Path $TailSourceRoot "Reports\phase2_report.json") -Label "preserved Phase 2 report"
+    $TailOriginalReport = Read-JsonFile -PathText $TailReportFile
+    Assert-DependencyResumeReportContract -OriginalReport $TailOriginalReport
+    if (-not [string]::Equals((Convert-PathToFullPath -PathText ([string]$TailOriginalReport.workspace_root)), $TailSourceRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "FOCUSED_TAIL_IDENTITY_MISMATCH: workspace."
+    }
+    $TailEngineRoot = (Resolve-EngineRoot -ExplicitEngineRoot $EngineRoot).engine_root
+    if (-not [string]::Equals((Convert-PathToFullPath -PathText ([string]$TailOriginalReport.engine_root)), $TailEngineRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "FOCUSED_TAIL_IDENTITY_MISMATCH: Engine."
+    }
+    $TailCommandlet = Resolve-RequiredFile -PathText (Join-Path $TailEngineRoot "Engine\Binaries\Win64\UnrealEditor-Cmd.exe") -Label "UnrealEditor-Cmd.exe"
+    $TailHostRoot = Join-Path $TailSourceRoot "GenericHost"
+    $TailProject = Resolve-RequiredFile -PathText (Join-Path $TailHostRoot "AssetDumpGenericHost.uproject") -Label "Generic Host project"
+    $TailPluginRoot = Join-Path $TailHostRoot "Plugins\AssetDump"
+    $TailPackageRoot = [string]$TailOriginalReport.package_plugin_root
+    $TailBuildReport = Read-JsonFile -PathText (Resolve-RequiredFile -PathText ([string]$TailOriginalReport.buildplugin_report_path) -Label "BuildPlugin report")
+    if (-not [bool]$TailBuildReport.compile_package_gate_passed -or
+        -not [bool]$TailBuildReport.package_inspection.passed -or
+        -not [string]::Equals((Convert-PathToFullPath -PathText ([string]$TailBuildReport.package_inspection.package_plugin_root)), (Convert-PathToFullPath -PathText $TailPackageRoot), [StringComparison]::OrdinalIgnoreCase)) {
+        throw "FOCUSED_TAIL_INPUT_INVALID: package provenance."
+    }
+    foreach ($TailRelativeFile in @("AssetDump.uplugin", "Source\AssetDump\Private\AssetDumpCommandlet.cpp")) {
+        $TailHostFile = Resolve-RequiredFile -PathText (Join-Path $TailPluginRoot $TailRelativeFile) -Label "Host identity"
+        $TailPackageFile = Resolve-RequiredFile -PathText (Join-Path $TailPackageRoot $TailRelativeFile) -Label "package identity"
+        if ((Get-FileSha256 -PathText $TailHostFile) -cne (Get-FileSha256 -PathText $TailPackageFile)) {
+            throw "FOCUSED_TAIL_IDENTITY_MISMATCH: $TailRelativeFile"
+        }
+    }
+    $TailPluginBatch = Join-Path $TailHostRoot "Saved\AssetDumpPhase2\PluginBatch"
+    $TailSynthetic = Join-Path $TailSourceRoot "DQ\base"
+    $TailAssetIndex = Read-JsonFile -PathText (Join-Path $TailPluginBatch "asset_index.json")
+    $TailDependencyIndex = Read-JsonFile -PathText (Join-Path $TailSynthetic "dependency_index.json")
+    if ([int]$TailAssetIndex.asset_count -ne 17 -or [int]$TailDependencyIndex.relation_count -ne 11) {
+        throw "FOCUSED_TAIL_INPUT_INVALID: preserved index counts."
+    }
+    $TailOriginalBatch = New-TreeManifest -RootPath $TailPluginBatch
+    $TailOriginalSynthetic = New-TreeManifest -RootPath $TailSynthetic
+    $TailOriginalHostContent = New-BinaryManifest -RootPath (Join-Path $TailPluginRoot "Content\Validation")
+    $TailOriginalPackageContent = New-BinaryManifest -RootPath (Join-Path $TailPackageRoot "Content\Validation")
+    if ($TailOriginalHostContent.file_count -ne 17 -or -not (Compare-BinaryManifest -BeforeManifest $TailOriginalPackageContent -AfterManifest $TailOriginalHostContent).passed) {
+        throw "FOCUSED_TAIL_INPUT_INVALID: Host/package Content mismatch."
+    }
+    Assert-LegacyPluginDumpRootAbsent -PluginRootPath $TailPluginRoot -CompletedStepName "Focused tail preflight"
+
+    $TailRunId = [DateTime]::UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+    $TailOutput = if ([string]::IsNullOrWhiteSpace($FocusedPhase2OutputRoot)) {
+        Join-Path (Join-Path ([System.IO.Path]::GetTempPath()) "AssetDumpPhase2TailSmoke") ("Run_" + $TailRunId)
+    } else {
+        Convert-PathToFullPath -PathText $FocusedPhase2OutputRoot.Trim().Trim('"')
+    }
+    $TailRepositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).ProviderPath
+    $TailOutput = Assert-FreshIsolatedOutputRoot -OutputPath $TailOutput -ProtectedRoots @($TailSourceRoot, $TailRepositoryRoot, $TailEngineRoot, $TailPackageRoot, [string]$TailBuildReport.package_root)
+    $TailModuleIdentity = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $TailPackageRoot -HostPluginRoot $TailPluginRoot -PackageInspection $TailBuildReport.package_inspection -Phase2Report $TailOriginalReport
+    if ($InspectPreservedInputOnly) {
+        Write-Host "FOCUSED_TAIL_INPUT_PREFLIGHT=PASS package_module_sha256=$($TailModuleIdentity.package_sha256) host_module_sha256=$($TailModuleIdentity.host_sha256) mutation=0"
+        return
+    }
+    New-Item -ItemType Directory -Path $TailOutput -Force | Out-Null
+    $TailResultFile = Join-Path $TailOutput "focused_tail_smoke.json"
+    $TailSteps = [System.Collections.Generic.List[object]]::new()
+    $TailResult = [ordered]@{
+        schema_version = "assetdump_phase2_focused_tail_smoke_v1"
+        script_version = "v1.18.33"
+        status = "running"
+        original_report_sha256 = Get-FileSha256 -PathText $TailReportFile
+        module_binary_identity = $TailModuleIdentity
+        preserved_workspace = $TailSourceRoot
+        independent_output_root = $TailOutput
+        steps = @()
+        step_pass_count = 0
+        source_invariance_passed = $false
+        full_phase2_accepted = $false
+        p2b_executed = $false
+        all_passed = $false
+        failure = ""
+    }
+    Write-JsonFile -PathText $TailResultFile -ValueObject $TailResult
+
+    function Invoke-FocusedTailStep {
+        param([string]$Name, [string[]]$Arguments, [string]$OutputFile, [string]$ReportKind)
+        $RemainingTime = [int][Math]::Floor(($script:OverallDeadlineUtc - (Get-Date).ToUniversalTime()).TotalSeconds)
+        if ($RemainingTime -lt 150) { throw "TIME_BUDGET_EXHAUSTED: less than 150s before $Name." }
+        $StepName = "Focused Tail " + $Name
+        $StepLogFile = Join-Path $TailOutput ("Logs\" + ($Name -replace '[^a-zA-Z0-9_-]', '_') + ".log")
+        if ([string]::IsNullOrWhiteSpace($ReportKind)) {
+            $TailStep = Invoke-ExternalCommand -FilePath $TailCommandlet -Arguments ($Arguments + @("-unattended", "-nop4", "-NoLogTimes")) -StepName $StepName -LogPath $StepLogFile -UseCompactLog:$CompactLog
+            $TailIndexResult = Read-JsonFile -PathText $OutputFile
+            if ([string]$TailIndexResult.schema_version -cne "entity_index_v1") { throw "FOCUSED_TAIL_CONTRACT_FAILED: entity index." }
+        } else {
+            $TailStep = Invoke-ExternalCommand -FilePath $TailCommandlet -Arguments ($Arguments + @("-unattended", "-nop4", "-NoLogTimes")) -StepName $StepName -LogPath $StepLogFile -ExpectedReportPath $OutputFile -ExpectedReportKind $ReportKind -UseCompactLog:$CompactLog
+        }
+        $TailSteps.Add($TailStep)
+        $TailResult.steps = @($TailSteps)
+        $TailResult.step_pass_count = $TailSteps.Count
+        Write-JsonFile -PathText $TailResultFile -ValueObject $TailResult
+    }
+
+    try {
+        $TailSectionFile = Join-Path $TailOutput "Query\section_native.json"
+        Invoke-FocusedTailStep -Name "query_section" -Arguments @($TailProject, "-run=AssetDump", "-Mode=query", "-QueryKind=section", "-DumpRoot=$TailPluginBatch", "-Asset=/AssetDump/Validation/DA_ADumpValues.DA_ADumpValues", "-Sections=data_asset_values,digest,summary", "-Output=$TailSectionFile") -OutputFile $TailSectionFile -ReportKind "lazy_dump"
+        $TailSection = Read-JsonFile -PathText $TailSectionFile
+        if ([string]$TailSection.schema_version -cne "lazy_section_dump_v1" -or [int]$TailSection.section_count -ne 3) { throw "FOCUSED_TAIL_CONTRACT_FAILED: query section." }
+
+        $TailDependencyFile = Join-Path $TailOutput "Query\dependency_native.json"
+        Invoke-FocusedTailStep -Name "query_dependency" -Arguments @($TailProject, "-run=AssetDump", "-Mode=query", "-QueryKind=dependency", "-DumpRoot=$TailSynthetic", "-Asset=/Synthetic/A.A", "-Direction=dependencies", "-Strength=all", "-MaxDepth=4", "-MaxNodes=64", "-MaxEdges=128", "-Output=$TailDependencyFile") -OutputFile $TailDependencyFile -ReportKind "dependency_query"
+        $TailDependency = Read-JsonFile -PathText $TailDependencyFile
+        if ([string]$TailDependency.schema_version -cne "dependency_trace_query_v1" -or [int]$TailDependency.node_count -lt 2) { throw "FOCUSED_TAIL_CONTRACT_FAILED: query dependency." }
+
+        $TailWrapperFile = Join-Path $TailOutput "Query\section_wrapper.json"
+        Invoke-FocusedTailStep -Name "query_result_section" -Arguments @($TailProject, "-run=AssetDump", "-Mode=query", "-QueryKind=section", "-ResultSchema=query_result_v1", "-DumpRoot=$TailPluginBatch", "-Asset=/AssetDump/Validation/DA_ADumpValues.DA_ADumpValues", "-Sections=data_asset_values,digest,summary", "-Output=$TailWrapperFile") -OutputFile $TailWrapperFile -ReportKind "query_result"
+        $TailWrapper = Read-JsonFile -PathText $TailWrapperFile
+        if ([string]$TailWrapper.schema_version -cne "query_result_v1" -or [string]$TailWrapper.status -cne "succeeded" -or -not [bool]$TailWrapper.all_resolved -or [string]$TailWrapper.result.native_schema_version -cne "lazy_section_dump_v1") { throw "FOCUSED_TAIL_CONTRACT_FAILED: query result." }
+
+        $TailContextFile = Join-Path $TailOutput "Query\section_context.json"
+        Invoke-FocusedTailStep -Name "context_bundle" -Arguments @($TailProject, "-run=AssetDump", "-Mode=contextbundle", "-Input=$TailWrapperFile", "-Output=$TailContextFile") -OutputFile $TailContextFile -ReportKind "context_bundle"
+        $TailContext = Read-JsonFile -PathText $TailContextFile
+        if ([string]$TailContext.schema_version -cne "ai_context_bundle_v1" -or @($TailContext.items).Count -lt 1) { throw "FOCUSED_TAIL_CONTRACT_FAILED: context bundle." }
+
+        $TailActorRoot = Join-Path $TailOutput "Entity"
+        $TailActorFile = Join-Path $TailActorRoot "Blueprint\actor.dump.json"
+        Invoke-FocusedTailStep -Name "entity_dump" -Arguments @($TailProject, "-run=AssetDump", "-Mode=bpdump", "-Asset=/AssetDump/Validation/BP_ADumpActorFixture.BP_ADumpActorFixture", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-Output=$TailActorFile") -OutputFile $TailActorFile -ReportKind "bpdump"
+        $TailActor = Read-JsonFile -PathText $TailActorFile
+        if ([string]$TailActor.entity_evidence.schema_version -cne "entity_evidence_v1" -or @($TailActor.entity_evidence.entities).Count -lt 1) { throw "FOCUSED_TAIL_CONTRACT_FAILED: entity dump." }
+        Invoke-FocusedTailStep -Name "entity_index" -Arguments @($TailProject, "-run=AssetDump", "-Mode=index", "-DumpRoot=$TailActorRoot") -OutputFile (Join-Path $TailActorRoot "entity_index.json") -ReportKind ""
+        $TailListFile = Join-Path $TailOutput "Entity\entity_list.json"
+        Invoke-FocusedTailStep -Name "entity_list" -Arguments @($TailProject, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$TailActorRoot", "-Asset=/AssetDump/Validation/BP_ADumpActorFixture.BP_ADumpActorFixture", "-Output=$TailListFile") -OutputFile $TailListFile -ReportKind "entity_query"
+        $TailEntityList = Read-JsonFile -PathText $TailListFile
+        if ([string]$TailEntityList.schema_version -cne "entity_query_result_v1" -or @($TailEntityList.entities).Count -lt 1) { throw "FOCUSED_TAIL_CONTRACT_FAILED: entity list." }
+
+        $TailNiagaraRoot = Join-Path $TailOutput "Niagara"
+        $TailNiagaraFile = Join-Path $TailNiagaraRoot "Niagara\system.dump.json"
+        Invoke-FocusedTailStep -Name "niagara_dump" -Arguments @($TailProject, "-run=AssetDump", "-Mode=bpdump", "-Asset=/AssetDump/Validation/NS_ADumpMvp.NS_ADumpMvp", "-Sections=entity_evidence", "-SkipIfUpToDate=false", "-Output=$TailNiagaraFile") -OutputFile $TailNiagaraFile -ReportKind "bpdump"
+        $TailNiagara = Read-JsonFile -PathText $TailNiagaraFile
+        $NiagaraKinds = @($TailNiagara.entity_evidence.entities | ForEach-Object { [string]$_.entity_kind })
+        if ([string]$TailNiagara.entity_evidence.schema_version -cne "entity_evidence_v1" -or $NiagaraKinds -notcontains "niagara_system" -or $NiagaraKinds -notcontains "niagara_emitter") { throw "FOCUSED_TAIL_CONTRACT_FAILED: Niagara entity dump." }
+        Invoke-FocusedTailStep -Name "niagara_index" -Arguments @($TailProject, "-run=AssetDump", "-Mode=index", "-DumpRoot=$TailNiagaraRoot") -OutputFile (Join-Path $TailNiagaraRoot "entity_index.json") -ReportKind ""
+        $TailNiagaraListFile = Join-Path $TailOutput "Niagara\entity_list.json"
+        Invoke-FocusedTailStep -Name "niagara_list" -Arguments @($TailProject, "-run=AssetDump", "-Mode=entityquery", "-Operation=list", "-DumpRoot=$TailNiagaraRoot", "-Asset=/AssetDump/Validation/NS_ADumpMvp.NS_ADumpMvp", "-EntityKinds=niagara_module", "-Output=$TailNiagaraListFile") -OutputFile $TailNiagaraListFile -ReportKind "entity_query"
+        $TailNiagaraList = Read-JsonFile -PathText $TailNiagaraListFile
+        if ([string]$TailNiagaraList.schema_version -cne "entity_query_result_v1" -or @($TailNiagaraList.entities).Count -lt 1) { throw "FOCUSED_TAIL_CONTRACT_FAILED: Niagara entity query." }
+
+        $TailModuleIdentityAfter = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $TailPackageRoot -HostPluginRoot $TailPluginRoot -PackageInspection $TailBuildReport.package_inspection -Phase2Report $TailOriginalReport
+        $TailResult.source_invariance_passed =
+            $TailModuleIdentity.package_sha256 -ceq $TailModuleIdentityAfter.package_sha256 -and
+            $TailModuleIdentity.host_sha256 -ceq $TailModuleIdentityAfter.host_sha256 -and
+            (Compare-BinaryManifest -BeforeManifest $TailOriginalHostContent -AfterManifest (New-BinaryManifest -RootPath (Join-Path $TailPluginRoot "Content\Validation"))).passed -and
+            (Compare-BinaryManifest -BeforeManifest $TailOriginalPackageContent -AfterManifest (New-BinaryManifest -RootPath (Join-Path $TailPackageRoot "Content\Validation"))).passed -and
+            ((New-TreeManifest -RootPath $TailPluginBatch | ConvertTo-Json -Depth 100 -Compress) -ceq ($TailOriginalBatch | ConvertTo-Json -Depth 100 -Compress)) -and
+            ((New-TreeManifest -RootPath $TailSynthetic | ConvertTo-Json -Depth 100 -Compress) -ceq ($TailOriginalSynthetic | ConvertTo-Json -Depth 100 -Compress))
+        Assert-LegacyPluginDumpRootAbsent -PluginRootPath $TailPluginRoot -CompletedStepName "Focused tail final"
+        $TailResult.all_passed = $TailSteps.Count -eq 10 -and [bool]$TailResult.source_invariance_passed
+        $TailResult.status = if ($TailResult.all_passed) { "passed" } else { "failed" }
+    } catch {
+        $TailResult.failure = $_.Exception.Message
+        $TailResult.status = if ($TailResult.failure.StartsWith("TIME_BUDGET_EXHAUSTED:")) { "time_budget_exhausted" } else { "failed" }
+    }
+    Write-JsonFile -PathText $TailResultFile -ValueObject $TailResult
+    Write-Host "Focused Phase2 tail report: $TailResultFile"
+    Write-Host "Focused Phase2 tail report SHA-256: $(Get-FileSha256 -PathText $TailResultFile)"
+    Write-Host "Focused Phase2 tail: status=$($TailResult.status) steps=$($TailResult.step_pass_count)/10 source_invariance=$($TailResult.source_invariance_passed) full_phase2_accepted=false p2b_executed=false"
+    if (-not $TailResult.all_passed) { throw "Focused Phase2 tail incomplete: $($TailResult.failure) report=$TailResultFile" }
+    return
+}
+
+if ($RunIsolatedP2BFallback) {
+    if ([string]::IsNullOrWhiteSpace($P2BSourceWorkspaceRoot)) {
+        throw "P2B_INPUT_REQUIRED: -P2BSourceWorkspaceRoot is required."
+    }
+    $P2BSource = Convert-PathToFullPath -PathText $P2BSourceWorkspaceRoot.Trim().Trim('"')
+    $P2BOriginalReportPath = Resolve-RequiredFile -PathText (Join-Path $P2BSource "Reports\phase2_report.json") -Label "preserved Phase 2 report"
+    $P2BOriginal = Read-JsonFile -PathText $P2BOriginalReportPath
+    Assert-DependencyResumeReportContract -OriginalReport $P2BOriginal
+    if (-not [string]::Equals((Convert-PathToFullPath -PathText ([string]$P2BOriginal.workspace_root)), $P2BSource, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "P2B_INPUT_INVALID: preserved workspace mismatch."
+    }
+    $P2BEngine = (Resolve-EngineRoot -ExplicitEngineRoot $EngineRoot).engine_root
+    if (-not [string]::Equals((Convert-PathToFullPath -PathText ([string]$P2BOriginal.engine_root)), $P2BEngine, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "P2B_INPUT_INVALID: engine mismatch."
+    }
+    $P2BCommandlet = Resolve-RequiredFile -PathText (Join-Path $P2BEngine "Engine\Binaries\Win64\UnrealEditor-Cmd.exe") -Label "P2B Commandlet"
+    $P2BPowerShell = Resolve-RequiredFile -PathText (Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe") -Label "Windows PowerShell"
+    $P2BBuildReportPath = Resolve-RequiredFile -PathText ([string]$P2BOriginal.buildplugin_report_path) -Label "accepted BuildPlugin report"
+    $P2BBuildReport = Read-JsonFile -PathText $P2BBuildReportPath
+    $P2BPackage = [string]$P2BOriginal.package_plugin_root
+    if (-not [bool]$P2BBuildReport.compile_package_gate_passed -or
+        -not [bool]$P2BBuildReport.package_inspection.passed -or
+        -not [string]::Equals((Convert-PathToFullPath -PathText ([string]$P2BBuildReport.package_inspection.package_plugin_root)), (Convert-PathToFullPath -PathText $P2BPackage), [StringComparison]::OrdinalIgnoreCase)) {
+        throw "P2B_INPUT_INVALID: accepted package mismatch."
+    }
+    $P2BPackagedRegression = Resolve-RequiredFile -PathText (Join-Path $P2BPackage "Scripts\RunBPDumpRegression.ps1") -Label "packaged regression script"
+    $P2BPackagedClosure = Resolve-RequiredFile -PathText (Join-Path $P2BPackage "Scripts\RunDataAssetDiffClosure.ps1") -Label "packaged closure script"
+    $P2BPackagedDll = Resolve-RequiredFile -PathText (Join-Path $P2BPackage "Binaries\Win64\UnrealEditor-AssetDump.dll") -Label "packaged AssetDump DLL"
+    foreach ($RequiredHarness in @(
+        @{ relative = "Scripts/RunBPDumpRegression.ps1"; absolute = $P2BPackagedRegression },
+        @{ relative = "Scripts/RunDataAssetDiffClosure.ps1"; absolute = $P2BPackagedClosure }
+    )) {
+        $HarnessEvidence = @($P2BBuildReport.package_inspection.required_harnesses | Where-Object { [string]$_.relative_path -ceq [string]$RequiredHarness.relative })
+        if ($HarnessEvidence.Count -ne 1 -or [string]$HarnessEvidence[0].sha256 -cne (Get-FileSha256 -PathText $RequiredHarness.absolute)) {
+            throw "P2B_INPUT_INVALID: packaged harness hash does not match accepted inventory: $($RequiredHarness.relative)"
+        }
+    }
+    $P2BPreservedHostPlugin = Join-Path $P2BSource "GenericHost\Plugins\AssetDump"
+    $P2BRebuiltIdentity = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $P2BPackage -HostPluginRoot $P2BPreservedHostPlugin -PackageInspection $P2BBuildReport.package_inspection -Phase2Report $P2BOriginal
+    $P2BPreservedDll = Resolve-RequiredFile -PathText (Join-Path $P2BPreservedHostPlugin "Binaries\Win64\UnrealEditor-AssetDump.dll") -Label "preserved Generic Host compiled DLL"
+    $P2BPreservedModules = Resolve-RequiredFile -PathText (Join-Path $P2BPreservedHostPlugin "Binaries\Win64\UnrealEditor.modules") -Label "preserved Generic Host modules manifest"
+    $P2BPreservedModulesHash = Get-FileSha256 -PathText $P2BPreservedModules
+    $P2BPackageManifest = New-BinaryManifest -RootPath (Join-Path $P2BPackage "Content\Validation")
+    if ($P2BPackageManifest.file_count -ne 17) { throw "P2B_INPUT_INVALID: packaged fixture baseline must contain exact 17 binary assets." }
+    $P2BPackageDllHash = Get-FileSha256 -PathText $P2BPackagedDll
+
+    $P2BRunId = [DateTime]::UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+    $P2BOutput = if ([string]::IsNullOrWhiteSpace($P2BIsolatedOutputRoot)) {
+        Join-Path (Join-Path ([System.IO.Path]::GetTempPath()) "AssetDumpIsolatedP2B") ("Run_" + $P2BRunId)
+    } else {
+        Convert-PathToFullPath -PathText $P2BIsolatedOutputRoot.Trim().Trim('"')
+    }
+    $P2BRepository = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).ProviderPath
+    $P2BOutput = Assert-FreshIsolatedOutputRoot -OutputPath $P2BOutput -ProtectedRoots @(
+        $P2BRepository, $P2BSource, $P2BEngine, $P2BPackage, [string]$P2BBuildReport.package_root
+    )
+    if ($InspectPreservedInputOnly) {
+        Write-Host "ISOLATED_P2B_INPUT_PREFLIGHT=PASS packaged_dll_sha256=$P2BPackageDllHash preserved_host_dll_sha256=$($P2BRebuiltIdentity.host_sha256) preserved_modules_sha256=$P2BPreservedModulesHash validation_assets=$($P2BPackageManifest.file_count) mutation=0"
+        return
+    }
+    $P2BHost = Join-Path $P2BOutput "BlueprintOnlyHost"
+    $P2BHostPlugin = Join-Path $P2BHost "Plugins\AssetDump"
+    $P2BProject = Join-Path $P2BHost "AssetDumpP2BHost.uproject"
+    $P2BReportPath = Join-Path $P2BOutput "Reports\p2b_isolated_report.json"
+    $P2BLogRoot = Join-Path $P2BOutput "Logs"
+    $P2BStepResults = [System.Collections.Generic.List[object]]::new()
+    $P2BReport = [ordered]@{
+        schema_version = "assetdump_p2b_isolated_verification_v1"
+        script_version = "v1.18.33"
+        original_phase2_report = $P2BOriginalReportPath
+        original_phase2_report_sha256 = Get-FileSha256 -PathText $P2BOriginalReportPath
+        original_workspace = $P2BSource
+        isolated_output = $P2BOutput
+        status = "running"
+        package_module_sha256 = $P2BPackageDllHash
+        preserved_host_build_module_sha256 = $P2BRebuiltIdentity.host_sha256
+        preserved_host_modules_manifest_sha256 = $P2BPreservedModulesHash
+        isolated_module_sha256 = ""
+        source_invariance_passed = $false
+        blocker_restored = $false
+        expected_step_count = 3
+        passed_step_count = 0
+        steps = @()
+        regression_output_source = ""
+        closure_output_source = ""
+        cpp_default_path = ""
+        p2b_read_only_output_fallback_passed = $false
+        full_phase2_accepted = $false
+        error = ""
+    }
+    Write-JsonFile -PathText $P2BReportPath -ValueObject $P2BReport
+    $P2BBlockedDumped = Join-Path $P2BHostPlugin "Dumped"
+    $P2BPreviousEnvironment = $env:ASSETDUMP_OUTPUT_ROOT
+    try {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $P2BHostPlugin) -Force | Out-Null
+        Copy-Item -LiteralPath $P2BPackage -Destination $P2BHostPlugin -Recurse
+        # Package DLL은 해당 Generic Host에 재빌드된 DLL과 달라 UE runtime이 로드하지 못할 수 있다.
+        # 동일 엔진에서 성공한 preserved Host build의 DLL/modules를 새 격리 Host 안에만 반영한다.
+        Copy-Item -LiteralPath $P2BPreservedDll -Destination (Join-Path $P2BHostPlugin "Binaries\Win64\UnrealEditor-AssetDump.dll") -Force
+        Copy-Item -LiteralPath $P2BPreservedModules -Destination (Join-Path $P2BHostPlugin "Binaries\Win64\UnrealEditor.modules") -Force
+        $P2BHostProjectBody = [ordered]@{
+            FileVersion = 3
+            EngineAssociation = ""
+            Category = ""
+            Description = "Isolated AssetDump P2B output fallback host"
+            Plugins = @(
+                [ordered]@{ Name = "AssetDump"; Enabled = $true },
+                [ordered]@{ Name = "EnhancedInput"; Enabled = $true }
+            )
+        }
+        Write-JsonFile -PathText $P2BProject -ValueObject $P2BHostProjectBody
+        $P2BIdentity = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $P2BPackage -HostPluginRoot $P2BHostPlugin -PackageInspection $P2BBuildReport.package_inspection -Phase2Report $P2BOriginal
+        $P2BReport.isolated_module_sha256 = [string]$P2BIdentity.host_sha256
+        if ($P2BIdentity.host_sha256 -cne $P2BRebuiltIdentity.host_sha256 -or
+            (Get-FileSha256 -PathText (Join-Path $P2BHostPlugin "Binaries\Win64\UnrealEditor.modules")) -cne $P2BPreservedModulesHash) {
+            throw "P2B_INPUT_INVALID: copied Host runtime module differs from attested successful Generic Host Build."
+        }
+        $P2BHostManifest = New-BinaryManifest -RootPath (Join-Path $P2BHostPlugin "Content\Validation")
+        if (-not (Compare-BinaryManifest -BeforeManifest $P2BPackageManifest -AfterManifest $P2BHostManifest).passed) {
+            throw "P2B_INPUT_INVALID: copied fixtures mismatch."
+        }
+        if (Test-Path -LiteralPath $P2BBlockedDumped) { throw "P2B_INPUT_INVALID: new Host has an unexpected Dumped path." }
+        Write-TextFile -PathText $P2BBlockedDumped -ContentText "AssetDump read-only output simulation"
+        $P2BBlockerHash = Get-FileSha256 -PathText $P2BBlockedDumped
+        $env:ASSETDUMP_OUTPUT_ROOT = ""
+        $P2BRegressionResultPath = Join-Path $P2BHost "Saved\AssetDump\bpdump_regression_summary.json"
+        $P2BRegressionArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $P2BHostPlugin "Scripts\RunBPDumpRegression.ps1"),
+            "-ProjectFile", $P2BProject, "-EngineRoot", $P2BEngine, "-ValidationProfile", "Plugin", "-SkipBuild", "-CompactLog")
+        $P2BRegressionStep = Invoke-ExternalCommand -FilePath $P2BPowerShell -Arguments $P2BRegressionArgs -StepName "Isolated P2B Regression Fallback" -LogPath (Join-Path $P2BLogRoot "07_p2b_regression.log") -UseCompactLog:$CompactLog -ExpectedReportPath $P2BRegressionResultPath -ExpectedReportKind "regression_summary" -ReportAuthoritative
+        $P2BStepResults.Add($P2BRegressionStep)
+        $P2BReport.steps = @($P2BStepResults)
+        $P2BReport.passed_step_count = $P2BStepResults.Count
+        Write-JsonFile -PathText $P2BReportPath -ValueObject $P2BReport
+        $P2BRegressionReport = Read-JsonFile -PathText $P2BRegressionResultPath
+        $P2BReport.regression_output_source = [string]$P2BRegressionReport.output_root_source
+        if ($P2BReport.regression_output_source -cne "project_saved_fallback" -or
+            [bool]$P2BRegressionReport.profile_runs_project -or
+            -not [bool]$P2BRegressionReport.validation_content_restoration_passed) {
+            throw "P2B_CONTRACT_FAILED: Regression Saved fallback/protection."
+        }
+        if ((Get-FileSha256 -PathText $P2BBlockedDumped) -cne $P2BBlockerHash) { throw "P2B_CONTRACT_FAILED: Regression altered blocker." }
+
+        $P2BClosureResultPath = Join-Path $P2BHost "Saved\AssetDump\DataAssetDiffClosure\data_asset_diff_closure_report.json"
+        $P2BClosureArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $P2BHostPlugin "Scripts\RunDataAssetDiffClosure.ps1"),
+            "-ProjectFile", $P2BProject, "-EngineRoot", $P2BEngine, "-SkipBuild", "-CompactLog")
+        $P2BClosureStep = Invoke-ExternalCommand -FilePath $P2BPowerShell -Arguments $P2BClosureArgs -StepName "Isolated P2B Closure Fallback" -LogPath (Join-Path $P2BLogRoot "08_p2b_closure.log") -UseCompactLog:$CompactLog -ExpectedReportPath $P2BClosureResultPath -ExpectedReportKind "data_asset_closure" -ReportAuthoritative
+        $P2BStepResults.Add($P2BClosureStep)
+        $P2BReport.steps = @($P2BStepResults)
+        $P2BReport.passed_step_count = $P2BStepResults.Count
+        Write-JsonFile -PathText $P2BReportPath -ValueObject $P2BReport
+        $P2BClosureReport = Read-JsonFile -PathText $P2BClosureResultPath
+        $P2BReport.closure_output_source = [string]$P2BClosureReport.output_root_source
+        if ($P2BReport.closure_output_source -cne "project_saved_fallback" -or
+            -not [bool]$P2BClosureReport.validation_content_unchanged -or
+            -not [bool]$P2BClosureReport.overall_passed -or
+            [bool]$P2BClosureReport.project_integration_requested) {
+            throw "P2B_CONTRACT_FAILED: Closure Saved fallback/protection."
+        }
+        if ((Get-FileSha256 -PathText $P2BBlockedDumped) -cne $P2BBlockerHash) { throw "P2B_CONTRACT_FAILED: Closure altered blocker." }
+
+        $P2BCppExpectedPath = Join-Path $P2BHost "Saved\AssetDump\BPDump\DA_ADumpValues\DA_ADumpValues.dump.json"
+        $P2BCppArguments = @($P2BProject, "-run=AssetDump", "-Mode=bpdump", "-Asset=/AssetDump/Validation/DA_ADumpValues.DA_ADumpValues",
+            "-Sections=summary", "-IncludeSummary=true", "-IncludeDetails=false", "-IncludeGraphs=false", "-IncludeReferences=false",
+            "-SkipIfUpToDate=false", "-unattended", "-nop4", "-NoLogTimes")
+        $P2BCppStep = Invoke-ExternalCommand -FilePath $P2BCommandlet -Arguments $P2BCppArguments -StepName "Isolated P2B Cpp Saved Fallback" -LogPath (Join-Path $P2BLogRoot "09_p2b_cpp_default.log") -UseCompactLog:$CompactLog -ExpectedReportPath $P2BCppExpectedPath -ExpectedReportKind "bpdump"
+        $P2BStepResults.Add($P2BCppStep)
+        $P2BReport.steps = @($P2BStepResults)
+        $P2BReport.passed_step_count = $P2BStepResults.Count
+        $P2BReport.cpp_default_path = $P2BCppExpectedPath
+
+        $P2BResidue = @(Get-ChildItem -LiteralPath $P2BHost -Recurse -File -Filter ".assetdump_write_probe_*.tmp")
+        if ($P2BResidue.Count -ne 0) { throw "P2B_CONTRACT_FAILED: output probe residue remains." }
+        if (-not (Test-Path -LiteralPath $P2BBlockedDumped -PathType Leaf) -or
+            (Get-FileSha256 -PathText $P2BBlockedDumped) -cne $P2BBlockerHash) {
+            throw "P2B_CONTRACT_FAILED: original blocker was replaced."
+        }
+        $P2BFinalHostManifest = New-BinaryManifest -RootPath (Join-Path $P2BHostPlugin "Content\Validation")
+        $P2BFinalPackageManifest = New-BinaryManifest -RootPath (Join-Path $P2BPackage "Content\Validation")
+        $P2BModuleAfter = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $P2BPackage -HostPluginRoot $P2BHostPlugin -PackageInspection $P2BBuildReport.package_inspection -Phase2Report $P2BOriginal
+        $P2BPreservedAfter = Assert-PreservedModuleBinaryIdentity -PackagePluginRoot $P2BPackage -HostPluginRoot $P2BPreservedHostPlugin -PackageInspection $P2BBuildReport.package_inspection -Phase2Report $P2BOriginal
+        $P2BReport.source_invariance_passed =
+            (Compare-BinaryManifest -BeforeManifest $P2BPackageManifest -AfterManifest $P2BFinalPackageManifest).passed -and
+            (Compare-BinaryManifest -BeforeManifest $P2BPackageManifest -AfterManifest $P2BFinalHostManifest).passed -and
+            $P2BPackageDllHash -ceq $P2BModuleAfter.package_sha256 -and
+            $P2BRebuiltIdentity.host_sha256 -ceq $P2BModuleAfter.host_sha256 -and
+            $P2BRebuiltIdentity.host_sha256 -ceq $P2BPreservedAfter.host_sha256 -and
+            $P2BPreservedModulesHash -ceq (Get-FileSha256 -PathText $P2BPreservedModules) -and
+            $P2BPreservedModulesHash -ceq (Get-FileSha256 -PathText (Join-Path $P2BHostPlugin "Binaries\Win64\UnrealEditor.modules"))
+        if (-not $P2BReport.source_invariance_passed) { throw "P2B_CONTRACT_FAILED: package/Host Content or DLL modified." }
+        $P2BReport.p2b_read_only_output_fallback_passed = $P2BStepResults.Count -eq 3
+        $P2BReport.status = if ($P2BReport.p2b_read_only_output_fallback_passed) { "passed" } else { "failed" }
+    } catch {
+        $P2BReport.error = $_.Exception.Message
+        $P2BReport.status = if ($P2BReport.error.StartsWith("TIME_BUDGET_EXHAUSTED:")) { "time_budget_exhausted" } else { "failed" }
+    } finally {
+        $env:ASSETDUMP_OUTPUT_ROOT = $P2BPreviousEnvironment
+        if (Test-Path -LiteralPath $P2BBlockedDumped -PathType Leaf) {
+            Remove-Item -LiteralPath $P2BBlockedDumped -Force
+        }
+        $P2BReport.blocker_restored = -not (Test-Path -LiteralPath $P2BBlockedDumped)
+        if (-not $P2BReport.blocker_restored) {
+            $P2BReport.p2b_read_only_output_fallback_passed = $false
+            $P2BReport.status = "failed"
+            $P2BReport.error = "P2B_CONTRACT_FAILED: blocker cleanup failed."
+        }
+        Write-JsonFile -PathText $P2BReportPath -ValueObject $P2BReport
+    }
+    Write-Host "Isolated P2B report: $P2BReportPath"
+    Write-Host "Isolated P2B report SHA-256: $(Get-FileSha256 -PathText $P2BReportPath)"
+    Write-Host "Isolated P2B status=$($P2BReport.status) steps=$($P2BReport.passed_step_count)/3 source_invariance=$($P2BReport.source_invariance_passed) blocker_restored=$($P2BReport.blocker_restored) full_phase2_accepted=false"
+    if (-not $P2BReport.p2b_read_only_output_fallback_passed -or -not $P2BReport.blocker_restored) {
+        throw "Isolated P2B incomplete: $($P2BReport.error) report=$P2BReportPath"
+    }
+    return
+}
+
 if ($RunSelfTests) {
     Invoke-SelfTests
+    $ResumeFixture = [pscustomobject]@{
+        schema_version = "assetdump_standalone_phase2_verification_v1"
+        failure_count = 1
+        failures = @("Dependency Relation Count expected-failure contract failed: exit=124 timed_out=True orphan_count=0 code=ADUMP_DEP_QUERY_INDEX_CONTRACT_UNSUPPORTED")
+        phase2_implementation_gate_passed = $false
+        buildplugin_gate_passed = $true
+        generic_host_build_passed = $true
+        plugin_validation_passed = $true
+        bp_search_index_evidence_passed = $true
+        asset_index_evidence_passed = $true
+        section_index_evidence_passed = $true
+        lazy_section_dump_evidence_passed = $true
+    }
+    Assert-DependencyResumeReportContract -OriginalReport $ResumeFixture
+    $ResumeFixture.failure_count = 2
+    $Rejected = $false
+    try { Assert-DependencyResumeReportContract -OriginalReport $ResumeFixture } catch { $Rejected = $true }
+    if (-not $Rejected) { throw "Resume preflight self-test failed to reject invalid checkpoint." }
+    Write-Host "Dependency resume preflight self tests: passed"
     return
 }
 
@@ -2062,7 +2847,7 @@ if ($RunFocusedEntityClosure) {
                                                 $FocusedReport = [ordered]@{
                 schema_version = "entity_filtered_closure_probe_v1"
         generated_time = [DateTime]::UtcNow.ToString("o")
-                        script_version = "v1.18.29"
+                        script_version = "v1.18.33"
         workspace_root = $FocusedWorkspaceRoot
         entity_root = $FocusedEntityRootPath
         target_asset = $FocusedTargetBlueprintPath
@@ -4740,10 +5525,13 @@ try {
 }
 
 $Phase2Passed = $FailureList.Count -eq 0
+$Phase2ExecutionStatus = Get-Phase2ExecutionStatus -Passed $Phase2Passed -Failures @($FailureList)
 $FinalReport = [ordered]@{
+    execution_status = $Phase2ExecutionStatus
+    time_budget_exhausted = $Phase2ExecutionStatus -ceq "time_budget_exhausted"
         schema_version = "assetdump_standalone_phase2_verification_v1"
     generated_time = [DateTime]::UtcNow.ToString("o")
-                                                script_version = "v1.18.29"
+                                                script_version = "v1.18.33"
     workspace_root = $ResolvedWorkspaceRoot
     engine_root_source = $EngineResolution.source
     engine_root = $ResolvedEngineRoot
